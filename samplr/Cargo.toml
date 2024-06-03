@@ -1,0 +1,15 @@
+[package]
+name = "envisim-samplr"
+version = "0.1.0"
+edition = "2021"
+authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
+homepage = "https://envisim.se"
+repository = "https://github.com/envisim/rust-samplr"
+keywords = ["sampling", "statistics"]
+categories = ["mathematics", "science", "science::geo"]
+license = "GPL-3.0-or-later"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+envisim-samplr-utils = {version="0.1.0", path="../utils"}
