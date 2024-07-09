@@ -1,5 +1,5 @@
 [package]
-name = "envisim-samplr"
+name = "envisim_samplr"
 version = "0.1.0"
 edition = "2021"
 authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
@@ -12,4 +12,4 @@ license = "GPL-3.0-or-later"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-envisim-samplr-utils = {version="0.1.0", path="../utils"}
+envisim_samplr_utils = {version="0.1.0", path="../utils"}

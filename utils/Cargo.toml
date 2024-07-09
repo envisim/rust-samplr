@@ -1,5 +1,5 @@
 [package]
-name = "envisim-samplr-utils"
+name = "envisim_samplr_utils"
 version = "0.1.0"
 edition = "2021"
 authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]

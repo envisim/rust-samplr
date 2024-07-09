@@ -1,12 +1,12 @@
-use crate::matrix::Matrix;
+use crate::matrix::OperateMatrix;
 
 // (unit, variable, value)
-pub type FindSplit = fn(&[f64], &[f64], &Matrix, &mut [usize]) -> (usize, usize, f64);
+pub type FindSplit = fn(&[f64], &[f64], &dyn OperateMatrix, &mut [usize]) -> (usize, usize, f64);
 
 pub fn midpoint_slide(
     min_border: &[f64],
     max_border: &[f64],
-    data: &Matrix,
+    data: &dyn OperateMatrix,
     units: &mut [usize],
 ) -> (usize, usize, f64) {
     assert!(min_border.len() == max_border.len());
@@ -39,7 +39,7 @@ pub fn midpoint_slide(
     // x <= value is in range [0, l)
     // x > value is in range [r, n)
     while split_i < r {
-        let lvalue = data.get(units[split_i], split_dimension);
+        let lvalue = data[(units[split_i], split_dimension)];
         if lvalue <= split_value {
             split_i += 1;
         } else {

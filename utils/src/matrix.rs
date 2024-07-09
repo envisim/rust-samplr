@@ -1,85 +1,333 @@
-pub struct Matrix<'a> {
-    dt: &'a [f64],
-    n: usize,
-    p: usize,
+use std::ops::{Index, IndexMut};
+
+type MatrixIndex = (usize, usize);
+
+pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
+    fn data(&self) -> &[f64];
+    fn nrow(&self) -> usize;
+    fn ncol(&self) -> usize;
+    #[inline]
+    fn dim(&self) -> (usize, usize) {
+        (self.nrow(), self.ncol())
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(&self, (row, col): MatrixIndex) -> &f64 {
+        self.data().get_unchecked(col * self.nrow() + row)
+    }
+
+    #[inline]
+    fn distance_to_row(&self, row: usize, unit: &[f64]) -> f64 {
+        assert!(unit.len() == self.ncol() && row < self.nrow());
+        let mut k: usize = 0;
+        let mut index: usize = row;
+        let mut distance: f64 = 0.0;
+
+        unsafe {
+            while k < self.ncol() {
+                distance += (*unit.get_unchecked(k) - *self.data().get_unchecked(index)).powi(2);
+                k += 1;
+                index += self.nrow();
+            }
+        }
+
+        distance
+    }
+
+    #[inline]
+    fn prod_vec(&self, multiplicand: &[f64]) -> Vec<f64> {
+        assert!(multiplicand.len() == self.ncol());
+        let data = self.data();
+        let mut prod = vec![0.0; self.nrow()];
+        let mut index: usize = 0;
+
+        for j in 0..self.ncol() {
+            for i in 0..self.nrow() {
+                prod[i] += multiplicand[j] * data[index];
+                index += 1;
+            }
+        }
+
+        prod
+    }
 }
 
-impl<'a> Matrix<'a> {
-    #[inline]
-    pub fn new(dt: &[f64], n: usize) -> Matrix {
-        let p = dt.len() / n;
+pub struct Matrix {
+    data: Vec<f64>,
+    rows: usize,
+    cols: usize,
+}
 
-        assert!(p > 0);
-        assert!(dt.len() % p == 0);
+pub struct RefMatrix<'a> {
+    data: &'a [f64],
+    rows: usize,
+    cols: usize,
+}
 
-        Matrix { dt, p, n }
+pub struct MatrixIterator<'a, M: OperateMatrix> {
+    matrix: &'a M,
+    index: usize,
+    step: usize,
+    max: usize,
+}
+
+impl<'a, M: OperateMatrix> MatrixIterator<'a, M> {
+    pub fn dim(&self) -> MatrixIndex {
+        if self.step == 1 {
+            return (self.matrix.nrow(), 1);
+        } else {
+            return (1, self.matrix.ncol());
+        }
     }
+}
 
+impl<'a, M: OperateMatrix> Iterator for MatrixIterator<'a, M> {
+    type Item = &'a f64;
     #[inline]
-    pub fn get(&self, id: usize, k: usize) -> f64 {
-        self.dt[k * self.n + id]
-    }
-
-    #[inline]
-    pub unsafe fn get_unsafe(&self, id: usize, k: usize) -> f64 {
-        *self.dt.get_unchecked(k * self.n + id)
-    }
-
-    #[inline]
-    pub unsafe fn get_distance(&self, id: usize, unit: &[f64]) -> f64 {
-        let mut k: usize = 0;
-        let mut index: usize = id;
-        let mut distance: f64 = 0.0;
-        while k < self.p {
-            let temp: f64 = unit.get_unchecked(k) - self.dt.get_unchecked(index);
-            distance += temp * temp;
-            k += 1;
-            index += self.n;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.max {
+            let result = self.matrix.data().get(self.index);
+            self.index += self.step;
+            return result;
         }
 
-        return distance;
+        None
+    }
+}
+
+impl Matrix {
+    #[inline]
+    pub fn new(data: &[f64], rows: usize) -> Self {
+        assert!(rows > 0);
+        assert!(data.len() % rows == 0);
+        let cols = data.len() / rows;
+        Self {
+            data: data.to_vec(),
+            rows: rows,
+            cols: cols,
+        }
+    }
+
+    pub fn new_fill(data: f64, (rows, cols): MatrixIndex) -> Self {
+        assert!(rows > 0);
+        assert!(cols > 0);
+        Self {
+            data: vec![data; rows * cols],
+            rows: rows,
+            cols: cols,
+        }
     }
 
     #[inline]
-    pub fn into_unit_iter(&self, id: usize) -> UnitIterator {
-        UnitIterator {
+    pub fn into_row_iter(&self, row: usize) -> MatrixIterator<Self> {
+        assert!(row < self.rows);
+        MatrixIterator {
             matrix: self,
-            index: id,
+            index: row,
+            step: self.rows,
+            max: self.data.len(),
         }
     }
-
     #[inline]
-    pub fn into_var_iter(&self, k: usize) -> VarIterator {
-        VarIterator {
+    pub fn into_col_iter(&self, col: usize) -> MatrixIterator<Self> {
+        assert!(col < self.cols);
+        MatrixIterator {
             matrix: self,
-            index: k * self.n,
+            index: self.rows * col,
+            step: 1,
+            max: self.rows * (col + 1),
         }
     }
 
+    pub unsafe fn resize(&mut self, rows: usize, cols: usize) {
+        assert!(rows > 0 && cols > 0);
+        let new_size = rows * cols;
+        self.data.resize(new_size, 0.0);
+        self.rows = rows;
+        self.cols = cols;
+    }
+
+    pub fn reduced_row_echelon_form(&mut self) {
+        let mut lead: usize = 0;
+
+        for row in 0..self.rows {
+            if self.cols <= lead {
+                return;
+            }
+
+            let mut i: usize = row;
+
+            while unsafe { *self.get_unchecked((i, lead)) == 0.0 } {
+                i += 1;
+
+                if i == self.rows {
+                    i = row;
+                    lead += 1;
+                }
+
+                if lead == self.cols {
+                    return;
+                }
+            }
+
+            // Swap rows i and row
+            if i != row {
+                let mut index_i = i;
+                let mut index_row = row;
+                for _ in 0..self.cols {
+                    self.data.swap(index_i, index_row);
+                    index_i += self.rows;
+                    index_row += self.rows;
+                }
+            }
+
+            // Divide ROW by lead, assuming all is 0 before lead
+            let mut index_row = row + lead * self.rows;
+            let lead_value = unsafe { *self.data.get_unchecked(index_row) };
+            if lead_value != 1.0 {
+                unsafe {
+                    *self.data.get_unchecked_mut(index_row) = 1.0;
+                }
+                index_row += self.rows;
+
+                for _ in (lead + 1)..self.cols {
+                    unsafe {
+                        *self.data.get_unchecked_mut(index_row) /= lead_value;
+                    }
+                    index_row += self.rows;
+                }
+            }
+
+            // Remove ROW from all other rows
+            for j in 0..self.rows {
+                if j == row {
+                    continue;
+                }
+
+                let mut index_j = j + lead * self.rows;
+                let lead_multiplicator = unsafe { *self.data.get_unchecked(index_j) };
+                if lead_multiplicator == 0.0 {
+                    continue;
+                }
+                unsafe {
+                    *self.data.get_unchecked_mut(index_j) = 0.0;
+                }
+                index_j += self.rows;
+                let mut index_row = row + (lead + 1) * self.rows;
+
+                for _ in (lead + 1)..self.cols {
+                    unsafe {
+                        *self.data.get_unchecked_mut(index_j) -=
+                            *self.data.get_unchecked(index_row) * lead_multiplicator;
+                    }
+                    index_j += self.rows;
+                    index_row += self.rows;
+                }
+            }
+
+            lead += 1;
+        }
+    }
+}
+
+impl<'a> RefMatrix<'a> {
     #[inline]
-    pub fn ncol(&self) -> usize {
-        self.p
+    pub fn new(data: &[f64], rows: usize) -> RefMatrix {
+        assert!(rows > 0);
+        assert!(data.len() % rows == 0);
+        let cols = data.len() / rows;
+        RefMatrix { data, rows, cols }
     }
 
     #[inline]
-    pub fn nrow(&self) -> usize {
-        self.n
+    pub fn into_row_iter(&self, row: usize) -> MatrixIterator<Self> {
+        assert!(row < self.rows);
+        MatrixIterator {
+            matrix: self,
+            index: row,
+            step: self.rows,
+            max: self.data.len(),
+        }
     }
+    #[inline]
+    pub fn into_col_iter(&self, col: usize) -> MatrixIterator<Self> {
+        assert!(col < self.cols);
+        MatrixIterator {
+            matrix: self,
+            index: self.rows * col,
+            step: 1,
+            max: self.rows * (col + 1),
+        }
+    }
+}
+
+impl Index<(usize, usize)> for Matrix {
+    type Output = f64;
 
     #[inline]
-    pub fn dim(&self) -> (usize, usize) {
-        (self.n, self.p)
+    fn index(&self, (row, col): MatrixIndex) -> &f64 {
+        assert!(col < self.cols && row < self.rows);
+        unsafe { self.data.get_unchecked(col * self.rows + row) }
     }
+}
+
+impl IndexMut<(usize, usize)> for Matrix {
+    #[inline]
+    fn index_mut(&mut self, (row, col): MatrixIndex) -> &mut f64 {
+        assert!(col < self.cols && row < self.rows);
+        unsafe { self.data.get_unchecked_mut(col * self.rows + row) }
+    }
+}
+
+impl<'a> Index<(usize, usize)> for RefMatrix<'a> {
+    type Output = f64;
 
     #[inline]
-    pub fn size(&self) -> usize {
-        self.dt.len()
+    fn index(&self, (row, col): MatrixIndex) -> &f64 {
+        assert!(col < self.cols && row < self.rows);
+        unsafe { self.data.get_unchecked(col * self.rows + row) }
+    }
+}
+
+impl OperateMatrix for Matrix {
+    #[inline]
+    fn data(&self) -> &[f64] {
+        &self.data
+    }
+    #[inline]
+    fn nrow(&self) -> usize {
+        self.rows
+    }
+    #[inline]
+    fn ncol(&self) -> usize {
+        self.cols
+    }
+}
+
+impl<'a> OperateMatrix for RefMatrix<'a> {
+    #[inline]
+    fn data(&self) -> &[f64] {
+        self.data
+    }
+    #[inline]
+    fn nrow(&self) -> usize {
+        self.rows
+    }
+    #[inline]
+    fn ncol(&self) -> usize {
+        self.cols
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    macro_rules! assert_delta {
+        ($a:expr,$b:expr,$d:expr) => {
+            assert!(($a - $b).abs() < $d);
+        };
+    }
 
     #[test]
     fn matrix_sizes() {
@@ -100,36 +348,46 @@ mod tests {
         assert!(data2.nrow() == 10);
         assert!(data2.ncol() == 2);
     }
-}
 
-pub struct UnitIterator<'a> {
-    matrix: &'a Matrix<'a>,
-    index: usize,
-}
-
-pub struct VarIterator<'a> {
-    matrix: &'a Matrix<'a>,
-    index: usize,
-}
-
-impl<'a> Iterator for UnitIterator<'a> {
-    type Item = f64;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = self.matrix.dt.get(self.index).cloned();
-        self.index += self.matrix.n;
-        result
+    #[test]
+    fn rref() {
+        let mut data1 = Matrix::new(
+            &[
+                0.81, 0.46, 0.40, //
+                0.54, 0.70, 0.08, //
+                0.39, 0.42, 0.87, //
+                0.64, 0.70, 0.32, //
+            ],
+            3,
+        );
+        data1.reduced_row_echelon_form();
+        assert_delta!(data1[(0, 0)], 1.0, 1e-12); // COL1
+        assert_delta!(data1[(1, 0)], 0.0, 1e-12);
+        assert_delta!(data1[(2, 0)], 0.0, 1e-12);
+        assert_delta!(data1[(0, 1)], 0.0, 1e-12); // COL2
+        assert_delta!(data1[(1, 1)], 1.0, 1e-12);
+        assert_delta!(data1[(2, 1)], 0.0, 1e-12);
+        assert_delta!(data1[(0, 2)], 0.0, 1e-12); // COL3
+        assert_delta!(data1[(1, 2)], 0.0, 1e-12);
+        assert_delta!(data1[(2, 2)], 1.0, 1e-12);
+        assert_delta!(data1[(0, 3)], 0.188953701217875, 1e-12); // COL4
+        assert_delta!(data1[(1, 3)], 0.748566128914163, 1e-12);
+        assert_delta!(data1[(2, 3)], 0.212107159999675, 1e-12);
     }
-}
 
-impl<'a> Iterator for VarIterator<'a> {
-    type Item = f64;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = self.matrix.dt.get(self.index).cloned();
-        self.index += 1;
-        result
+    #[test]
+    fn mult() {
+        let data1 = Matrix::new(
+            &[
+                1.00, 0.52, 0.96, 0.91, 0.12, 0.70, 0.10, 0.38, 0.05, 0.27, 0.52, 0.25,
+            ],
+            3,
+        );
+        let vec1 = vec![0.75f64, 0.27, 0.24, 0.3];
+        let res1 = data1.prod_vec(&vec1);
+        let facit1 = vec![1.1007, 0.6696, 0.9960];
+        assert_delta!(res1[0], facit1[0], 1e-12);
+        assert_delta!(res1[1], facit1[1], 1e-12);
+        assert_delta!(res1[2], facit1[2], 1e-12);
     }
 }

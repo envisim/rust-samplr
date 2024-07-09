@@ -1,4 +1,4 @@
-use crate::uniform_random::{DrawRandom, RandomGenerator};
+use crate::generate_random::GenerateRandom;
 
 #[derive(Clone)]
 pub struct Indices {
@@ -25,7 +25,7 @@ impl Indices {
     }
 
     #[inline]
-    pub fn fill(&mut self, to: usize) -> &mut Self {
+    pub fn fill(&mut self, to: usize) {
         self.list.clear();
         self.reverse_list.clear();
 
@@ -33,33 +33,30 @@ impl Indices {
             self.list.push(k);
             self.reverse_list.push(k);
         }
-
-        self
     }
 
     #[inline]
-    pub fn get_at(&self, k: usize) -> usize {
-        self.list[k]
+    pub fn get(&self, k: usize) -> Option<&usize> {
+        self.list.get(k)
     }
 
     #[inline]
-    pub fn get_first(&self) -> usize {
-        self.list[0]
+    pub fn get_first(&self) -> Option<&usize> {
+        self.list.first()
     }
 
     #[inline]
-    pub fn get_at_id(&self, id: usize) -> usize {
-        self.reverse_list[id]
+    pub fn get_last(&self) -> Option<&usize> {
+        self.list.last()
+    }
+
+    pub fn get_list(&self) -> &[usize] {
+        &self.list
     }
 
     #[inline]
-    pub fn get_last(&self) -> usize {
-        *self.list.last().unwrap()
-    }
-
-    #[inline]
-    pub fn get_random(&self, rand: &RandomGenerator) -> usize {
-        self.list.draw(rand)
+    pub fn get_random<R: GenerateRandom>(&self, rand: &R) -> Option<&usize> {
+        rand.random_get(&self.list)
     }
 
     #[inline]
@@ -68,19 +65,18 @@ impl Indices {
     }
 
     #[inline]
-    pub fn insert(&mut self, id: usize) -> &mut Self {
+    pub fn insert(&mut self, id: usize) {
         assert!(id < self.capacity);
 
         let len: usize = self.list.len();
 
         if self.reverse_list[id] < len {
             // id already is in list
-            return self;
+            return;
         }
 
         self.reverse_list[id] = len;
         self.list.push(id);
-        self
     }
 
     #[inline]
@@ -89,7 +85,7 @@ impl Indices {
     }
 
     #[inline]
-    pub fn remove(&mut self, id: usize) -> &mut Self {
+    pub fn remove(&mut self, id: usize) {
         assert!(id < self.capacity);
 
         let len: usize = self.list.len();
@@ -100,13 +96,12 @@ impl Indices {
         if k == len - 1 {
             self.list.pop();
             self.reverse_list[id] = usize::MAX;
-            return self;
+            return;
         }
 
         self.list.swap_remove(k);
         self.reverse_list[id] = usize::MAX;
         self.reverse_list[self.list[k]] = k;
-        self
     }
 }
 

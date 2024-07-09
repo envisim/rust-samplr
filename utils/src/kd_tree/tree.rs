@@ -1,46 +1,96 @@
-use super::node::Node;
-use super::split_methods::FindSplit;
-use super::store::Store;
-use crate::matrix::Matrix;
+use super::{
+    node::Node,
+    searcher::{SearcherForNeighbours, TreeSearch},
+    split_methods::FindSplit,
+};
+use crate::{
+    generate_random::GenerateRandom,
+    matrix::{MatrixIterator, OperateMatrix},
+    sampling_controller::*,
+};
 
-pub struct Tree<'a> {
-    root: Node,
-    store: Store<'a>,
-    data: &'a Matrix<'a>,
+pub struct Tree<'a, R: GenerateRandom, S: TreeSearch> {
+    root: Box<Node>,
+    searcher: S,
+    controller: DataController<'a, R>,
 }
 
-impl<'a> Tree<'a> {
-    #[inline]
-    pub fn new(data: &'a Matrix, find_split: FindSplit, bucket_size: usize) -> Self {
+impl<'a, R: GenerateRandom, S: TreeSearch> Tree<'a, R, S> {
+    pub fn new(
+        controller: DataController<'a, R>,
+        searcher: S,
+        find_split: FindSplit,
+        bucket_size: usize,
+    ) -> Self {
         Tree {
-            root: Node::new(find_split, bucket_size, data),
-            store: Store::new(data),
-            data: data,
+            root: Box::new(Node::new_from_controller(
+                find_split,
+                bucket_size,
+                &controller,
+            )),
+            searcher: searcher,
+            controller: controller,
+        }
+    }
+
+    pub fn new_with_root(controller: DataController<'a, R>, searcher: S, root: Box<Node>) -> Self {
+        Tree {
+            root,
+            searcher,
+            controller,
         }
     }
 
     #[inline]
-    pub fn find_neighbours_of_id(&mut self, id: usize, n_neighbours: usize) -> &mut Self {
-        self.store.set_unit_from_id(id);
-        self.root.find_neighbours(&mut self.store, n_neighbours);
-        self
+    pub fn find_neighbours_of_id(&mut self, id: usize) {
+        self.searcher.set_unit_from_id(id, &self.controller);
+
+        if self.controller.indices().len() == 1 {
+            return;
+        }
+
+        self.root
+            .find_neighbours(&mut self.searcher, &self.controller);
     }
 
     #[inline]
-    pub fn get_neighbours(&self) -> &[usize] {
-        assert!(self.store.len() > 0, "no neighbours found");
-        self.store.get_neighbours()
+    pub fn controller(&self) -> &DataController<'a, R> {
+        &self.controller
     }
 
     #[inline]
-    pub fn population_size(&self) -> usize {
-        self.data.nrow()
+    pub fn controller_mut(&mut self) -> &mut DataController<'a, R> {
+        &mut self.controller
     }
 
     #[inline]
-    pub fn remove_unit(&mut self, id: usize) -> &mut Self {
-        assert!(id < self.data.nrow(), "invalid id {}", id);
-        self.root.remove_unit(id, self.data);
-        self
+    pub fn searcher(&self) -> &S {
+        &self.searcher
+    }
+
+    #[inline]
+    pub fn searcher_mut(&mut self) -> &mut S {
+        &mut self.searcher
+    }
+
+    #[inline]
+    pub fn decide_unit(&mut self, id: usize) -> Option<bool> {
+        assert!(id < self.controller.data_nrow(), "invalid id {}", id);
+        let removed = self.controller.decide_unit(id);
+
+        if removed.is_some() {
+            self.root.remove_unit(id, &self.controller);
+        }
+
+        removed
+    }
+}
+
+impl<'a, R: GenerateRandom> Tree<'a, R, SearcherForNeighbours> {
+    pub fn find_neighbours_of_unit<M: OperateMatrix>(&mut self, unit: &mut MatrixIterator<'a, M>) {
+        self.searcher.set_unit_from_iter(unit);
+
+        self.root
+            .find_neighbours(&mut self.searcher, &self.controller);
     }
 }
