@@ -27,6 +27,11 @@ impl Sample {
     pub fn to_vec(&self) -> Vec<usize> {
         self.sample.to_vec()
     }
+
+    #[inline]
+    pub fn get(&self) -> &[usize] {
+        &self.sample
+    }
 }
 
 pub struct Container<'a, R>
@@ -68,11 +73,6 @@ where
     }
 
     #[inline]
-    pub fn random_slice<'b, T>(&self, slice: &'b [T]) -> Option<&'b T> {
-        self.random.rslice(slice)
-    }
-
-    #[inline]
     pub fn probabilities(&self) -> &Probabilities {
         &self.probabilities
     }
@@ -86,11 +86,6 @@ where
     pub fn indices(&self) -> &Indices {
         &self.indices
     }
-
-    // #[inline]
-    // pub fn indices_mut(&mut self) -> &Indices {
-    //     &mut self.indices
-    // }
 
     #[inline]
     pub fn indices_random(&self) -> Option<&usize> {
@@ -115,10 +110,14 @@ where
     #[inline]
     pub fn decide_unit(&mut self, idx: usize) -> Option<bool> {
         if self.probabilities.is_zero(idx) {
-            self.indices.remove(idx);
+            if !self.indices.remove(idx) {
+                panic!();
+            }
             return Some(false);
         } else if self.probabilities.is_one(idx) {
-            self.indices.remove(idx);
+            if !self.indices.remove(idx) {
+                panic!();
+            }
             self.sample.add(idx);
             return Some(true);
         }

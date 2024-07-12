@@ -129,7 +129,7 @@ impl<'a> Node<'a> {
         Node::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
-    pub fn new_leaf(
+    fn new_leaf(
         data: &'a RefMatrix,
         units: &mut [usize],
         min_border: Vec<f64>,

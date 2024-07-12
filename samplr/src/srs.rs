@@ -1,12 +1,11 @@
-use envisim_samplr_utils::generate_random::GenerateRandom;
+use envisim_samplr_utils::random_generator::RandomGenerator;
 
 pub struct SrsWor {}
 impl SrsWor {
-    pub fn draw<R: GenerateRandom>(
-        rand: &R,
-        sample_size: usize,
-        population_size: usize,
-    ) -> Vec<usize> {
+    pub fn draw<R>(rand: &R, sample_size: usize, population_size: usize) -> Vec<usize>
+    where
+        R: RandomGenerator,
+    {
         assert!(
             sample_size <= population_size,
             "sample_size {} must not be larger than population_size {}",
@@ -17,7 +16,7 @@ impl SrsWor {
         let mut sample = Vec::<usize>::with_capacity(sample_size);
 
         for i in 0..population_size {
-            if rand.random_usize_scale(population_size - i) < sample_size - sample.len() {
+            if rand.rusize(population_size - i) < sample_size - sample.len() {
                 sample.push(i);
             }
         }
@@ -28,11 +27,10 @@ impl SrsWor {
 
 pub struct SrsWr {}
 impl SrsWr {
-    pub fn draw<R: GenerateRandom>(
-        rand: &R,
-        sample_size: usize,
-        population_size: usize,
-    ) -> Vec<usize> {
+    pub fn draw<R>(rand: &R, sample_size: usize, population_size: usize) -> Vec<usize>
+    where
+        R: RandomGenerator,
+    {
         assert!(
             sample_size <= population_size,
             "sample_size {} must not be larger than population_size {}",
@@ -40,13 +38,11 @@ impl SrsWr {
             population_size,
         );
 
-        let mut sample = Vec::<usize>::with_capacity(sample_size);
+        let mut sample: Vec<usize> = (0..sample_size)
+            .map(|_| rand.rusize(population_size))
+            .collect();
 
-        for _ in 0..sample_size {
-            sample.push(rand.random_usize_scale(population_size));
-        }
-
-        sample.sort();
+        sample.sort_unstable();
         sample
     }
 }
@@ -54,11 +50,9 @@ impl SrsWr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use envisim_samplr_utils::generate_random::StaticRandom;
+    use envisim_samplr_utils::random_generator::Constant;
 
-    // const RAND00: StaticRandom = StaticRandom::new(0.0);
-    const RAND01: StaticRandom = StaticRandom::new(0.1);
-    // const RAND99: StaticRandom = StaticRandom::new(0.999);
+    const RAND01: Constant = Constant::new(0.1);
 
     #[test]
     fn test_srs_wor() {

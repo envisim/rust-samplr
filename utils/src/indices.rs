@@ -77,6 +77,11 @@ impl Indices {
         match self.indices.remove(&id) {
             Some(k) => {
                 self.list.swap_remove(k);
+
+                if k != self.list.len() {
+                    *self.indices.get_mut(&self.list[k]).unwrap() = k;
+                }
+
                 true
             }
             _ => false,
