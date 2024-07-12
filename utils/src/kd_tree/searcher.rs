@@ -72,14 +72,12 @@ impl Searcher {
     }
     #[inline]
     pub fn find_neighbours(&mut self, node: &Node, unit: &[f64]) -> &mut Self {
-        assert!(unit.len() == self.unit.len());
         self.set_unit_from_iter(unit.iter(), usize::MAX);
         node.find_neighbours(self);
         self
     }
     #[inline]
     pub fn find_neighbours_of_id(&mut self, node: &Node, idx: usize) -> &mut Self {
-        assert!(node.data().ncol() == self.unit.len());
         self.set_unit_from_iter(node.data().into_row_iter(idx), idx);
         node.find_neighbours(self);
         self
@@ -89,7 +87,6 @@ impl Searcher {
     where
         I: ExactSizeIterator<Item = &'a f64>,
     {
-        assert!(iter.len() == self.unit.len());
         self.set_unit_from_iter(iter, usize::MAX);
         node.find_neighbours(self);
         self
@@ -99,6 +96,7 @@ impl Searcher {
     where
         I: ExactSizeIterator<Item = &'a f64>,
     {
+        assert!(iter.len() == self.unit.len());
         self.unit_id = idx;
         self.unit.iter_mut().zip(iter).for_each(|(a, b)| *a = *b);
         self.reset();
@@ -192,7 +190,6 @@ impl Searcher {
 pub struct SearcherWeighted {
     searcher: Searcher,
     weights: Vec<f64>,
-    total_weight: f64,
 }
 
 impl SearcherWeighted {
@@ -201,24 +198,61 @@ impl SearcherWeighted {
         Self {
             searcher: Searcher::new(node, 1),
             weights: vec![0.0f64; node.data().nrow()],
-            total_weight: 0.0,
         }
+    }
+    #[inline]
+    pub fn find_neighbours(
+        &mut self,
+        node: &Node,
+        probabilities: &Probabilities,
+        unit: &[f64],
+        prob: f64,
+    ) -> &mut Self {
+        self.searcher.set_unit_from_iter(unit.iter(), usize::MAX);
+        let mut tree_searcher = TreeSearcherWeighted {
+            searcher: self,
+            probabilities: probabilities,
+            total_weight: 0.0,
+            unit_prob: prob,
+        };
+        node.find_neighbours(&mut tree_searcher);
+        self
     }
     #[inline]
     pub fn find_neighbours_of_id(
         &mut self,
         node: &Node,
-        idx: usize,
         probabilities: &Probabilities,
+        idx: usize,
     ) -> &mut Self {
-        assert!(node.data().ncol() == self.searcher.unit.len());
         self.searcher
             .set_unit_from_iter(node.data().into_row_iter(idx), idx);
-        self.total_weight = 0.0;
-
         let mut tree_searcher = TreeSearcherWeighted {
             searcher: self,
             probabilities: probabilities,
+            total_weight: 0.0,
+            unit_prob: probabilities[idx],
+        };
+        node.find_neighbours(&mut tree_searcher);
+        self
+    }
+    #[inline]
+    pub fn find_neighbours_of_iter<'a, I>(
+        &mut self,
+        node: &Node,
+        probabilities: &Probabilities,
+        iter: I,
+        prob: f64,
+    ) -> &mut Self
+    where
+        I: ExactSizeIterator<Item = &'a f64>,
+    {
+        self.searcher.set_unit_from_iter(iter, usize::MAX);
+        let mut tree_searcher = TreeSearcherWeighted {
+            searcher: self,
+            probabilities: probabilities,
+            total_weight: 0.0,
+            unit_prob: prob,
         };
         node.find_neighbours(&mut tree_searcher);
         self
@@ -260,6 +294,8 @@ impl SearcherWeighted {
 pub(super) struct TreeSearcherWeighted<'a> {
     searcher: &'a mut SearcherWeighted,
     probabilities: &'a Probabilities,
+    total_weight: f64,
+    unit_prob: f64,
 }
 
 impl<'a> TreeSearcherWeighted<'a> {
@@ -275,7 +311,7 @@ impl<'a> TreeSearcherWeighted<'a> {
     #[inline]
     fn add(&mut self, idx: usize, distance: f64) -> f64 {
         self.base_mut().add(idx, distance);
-        let weight = self.probabilities.weight(self.base().unit_id, idx);
+        let weight = self.probabilities.weight_to(self.unit_prob, idx);
         self.searcher.weights[idx] = weight;
         weight
     }
@@ -297,9 +333,9 @@ impl<'a> TreeSearcherWeighted<'a> {
             // - if the store still has room
 
             if distance <= node_max {
-                self.searcher.total_weight += self.add(id, distance);
-            } else if self.searcher.total_weight < 1.0 {
-                self.searcher.total_weight += self.add(id, distance);
+                self.total_weight += self.add(id, distance);
+            } else if self.total_weight < 1.0 {
+                self.total_weight += self.add(id, distance);
                 node_max = distance;
             }
         });
@@ -308,22 +344,21 @@ impl<'a> TreeSearcherWeighted<'a> {
         let len: usize = self.base().neighbours.len();
 
         if len == 0 {
-            self.searcher.total_weight = 0.0;
+            self.total_weight = 0.0;
             return;
         } else {
-            self.searcher.total_weight = self.searcher.weight_k(0);
+            self.total_weight = self.searcher.weight_k(0);
         }
 
         let mut i: usize = 1;
 
         while i < len {
-            if self.searcher.total_weight >= 1.0
-                && self.base().distance_k(i - 1) < self.base().distance_k(i)
+            if self.total_weight >= 1.0 && self.base().distance_k(i - 1) < self.base().distance_k(i)
             {
                 break;
             }
 
-            self.searcher.total_weight += self.searcher.weight_k(i);
+            self.total_weight += self.searcher.weight_k(i);
             i += 1;
         }
 
@@ -339,7 +374,7 @@ impl<'a> TreeSearcher for TreeSearcherWeighted<'a> {
         self.base().max_distance()
     }
     fn is_satisfied(&self) -> bool {
-        self.searcher.total_weight >= 1.0
+        self.total_weight >= 1.0
     }
     fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix) {
         if ids.len() == 0 {

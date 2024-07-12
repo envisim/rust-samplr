@@ -19,7 +19,7 @@ impl Sample {
 
     #[inline]
     pub fn sort(&mut self) -> &mut Self {
-        self.sample.sort();
+        self.sample.sort_unstable();
         self
     }
 

@@ -39,10 +39,15 @@ impl Probabilities {
 
     #[inline]
     pub fn weight(&self, idx0: usize, idx1: usize) -> f64 {
-        if self[idx0] + self[idx1] <= 1.0 {
-            self[idx1] / (1.0 - self[idx0])
+        self.weight_to(self[idx0], idx1)
+    }
+
+    #[inline]
+    pub fn weight_to(&self, prob: f64, idx1: usize) -> f64 {
+        if prob + self[idx1] <= 1.0 {
+            self[idx1] / (1.0 - prob)
         } else {
-            (1.0 - self[idx1]) / self[idx0]
+            (1.0 - self[idx1]) / prob
         }
     }
 }
