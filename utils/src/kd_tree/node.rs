@@ -4,19 +4,43 @@ use crate::{
     matrix::{OperateMatrix, RefMatrix},
 };
 
-struct NodeSplit<'a> {
+struct NodeBranch<'a> {
     dimension: usize,
     value: f64,
     left_child: Box<Node<'a>>,
     right_child: Box<Node<'a>>,
 }
 
-pub struct Node<'a> {
-    // Non-leaf
-    split: Option<NodeSplit<'a>>,
+struct NodeLeaf {
+    units: Vec<usize>,
+}
 
-    // Leaf
-    units: Option<Vec<usize>>,
+enum NodeKind<'a> {
+    Branch(Box<NodeBranch<'a>>),
+    Leaf(Box<NodeLeaf>),
+}
+
+impl<'a> NodeKind<'a> {
+    #[cfg(test)]
+    #[inline]
+    fn unwrap_branch(&self) -> &Box<NodeBranch<'a>> {
+        match self {
+            NodeKind::Branch(ref branch) => branch,
+            _ => panic!(),
+        }
+    }
+    #[cfg(test)]
+    #[inline]
+    fn unwrap_leaf(&self) -> &Box<NodeLeaf> {
+        match self {
+            NodeKind::Leaf(ref leaf) => leaf,
+            _ => panic!(),
+        }
+    }
+}
+
+pub struct Node<'a> {
+    kind: NodeKind<'a>,
 
     // Common
     data: &'a RefMatrix<'a>,
@@ -33,18 +57,8 @@ impl<'a> Node<'a> {
     ) -> Self {
         assert!(bucket_size > 0);
 
-        let mut node = Node {
-            // Non-leaf
-            split: None,
-
-            // Leaf
-            units: None,
-
-            // Common
-            data: data,
-            min_border: Vec::<f64>::with_capacity(data.ncol()),
-            max_border: Vec::<f64>::with_capacity(data.ncol()),
-        };
+        let mut min_border = Vec::<f64>::with_capacity(data.ncol());
+        let mut max_border = Vec::<f64>::with_capacity(data.ncol());
 
         let mut node_size_is_zero = true;
 
@@ -65,43 +79,44 @@ impl<'a> Node<'a> {
                 node_size_is_zero = false;
             }
 
-            node.min_border.push(min);
-            node.max_border.push(max);
+            min_border.push(min);
+            max_border.push(max);
         }
 
         if node_size_is_zero || units.len() <= bucket_size {
-            node.set_units(units);
-            return node;
+            return Node::new_leaf(data, units, min_border, max_border);
         }
 
         let (split_unit, split_dimension, split_value) =
-            find_split(&node.min_border, &node.max_border, data, &mut *units);
+            find_split(&min_border, &max_border, data, &mut *units);
 
         if split_unit == 0 || split_unit >= units.len() {
-            node.set_units(units);
-            return node;
+            return Node::new_leaf(data, units, min_border, max_border);
         }
 
         assert!(split_dimension < data.ncol());
 
-        node.split = Some(NodeSplit {
-            dimension: split_dimension,
-            value: split_value,
-            left_child: Box::new(Node::new(
-                find_split,
-                bucket_size,
-                data,
-                &mut units[..split_unit],
-            )),
-            right_child: Box::new(Node::new(
-                find_split,
-                bucket_size,
-                data,
-                &mut units[split_unit..],
-            )),
-        });
-
-        node
+        Node {
+            kind: NodeKind::Branch(Box::new(NodeBranch {
+                dimension: split_dimension,
+                value: split_value,
+                left_child: Box::new(Node::new(
+                    find_split,
+                    bucket_size,
+                    data,
+                    &mut units[..split_unit],
+                )),
+                right_child: Box::new(Node::new(
+                    find_split,
+                    bucket_size,
+                    data,
+                    &mut units[split_unit..],
+                )),
+            })),
+            data: data,
+            min_border: min_border,
+            max_border: max_border,
+        }
     }
 
     #[inline]
@@ -114,46 +129,48 @@ impl<'a> Node<'a> {
         Node::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
+    pub fn new_leaf(
+        data: &'a RefMatrix,
+        units: &mut [usize],
+        min_border: Vec<f64>,
+        max_border: Vec<f64>,
+    ) -> Self {
+        Node {
+            kind: NodeKind::Leaf(Box::new(NodeLeaf {
+                units: units.to_vec(),
+            })),
+            data: data,
+            min_border: min_border,
+            max_border: max_border,
+        }
+    }
+
     #[inline]
     pub fn data(&self) -> &RefMatrix {
         self.data
     }
 
-    #[inline]
-    fn set_units(&mut self, units: &[usize]) -> &Self {
-        let mut node_units = Vec::<usize>::with_capacity(units.len());
-        node_units.extend_from_slice(units);
-        self.units = Some(node_units);
-        self
-    }
-
     pub fn remove_unit(&mut self, id: usize) -> bool {
-        if let Some(split) = self.split.as_mut() {
-            unsafe {
-                // ID is checked by tree
-                let distance = self.data.get_unchecked((id, split.dimension)) - split.value;
+        match self.kind {
+            NodeKind::Branch(ref mut branch) => {
+                let distance = self.data[(id, branch.dimension)] - branch.value;
 
                 if distance <= 0.0 {
-                    return split.left_child.remove_unit(id);
+                    branch.left_child.remove_unit(id)
                 } else {
-                    return split.right_child.remove_unit(id);
+                    branch.right_child.remove_unit(id)
                 }
             }
-        }
+            NodeKind::Leaf(ref mut leaf) => {
+                let vec_k = leaf.units.iter().position(|&p| p == id);
 
-        let units = self
-            .units
-            .as_mut()
-            .expect("split is None, thus units must be Some");
-        let unit_index = units.iter().position(|&p| p == id);
-
-        match unit_index {
-            Some(index) => {
-                units.swap_remove(index);
-                return true;
-            }
-            _ => {
-                return false;
+                match vec_k {
+                    Some(k) => {
+                        leaf.units.swap_remove(k);
+                        true
+                    }
+                    _ => false,
+                }
             }
         }
     }
@@ -178,41 +195,40 @@ impl<'a> Node<'a> {
     where
         S: TreeSearcher,
     {
-        if self.split.is_none() {
-            let units: &[usize] = self
-                .units
-                .as_ref()
-                .expect("split is None, thus units must be Some");
-            searcher.add_neighbours_from_node(units, self.data);
-            return;
-        }
+        match self.kind {
+            NodeKind::Leaf(ref leaf) => {
+                searcher.add_neighbours_from_node(&leaf.units, self.data);
+                return;
+            }
 
-        let split = self.split.as_ref().unwrap();
-        let unit_value = unsafe { *searcher.unit().get_unchecked(split.dimension) };
-        let dist = unit_value - split.value;
+            NodeKind::Branch(ref branch) => {
+                let unit_value = searcher.unit()[branch.dimension];
+                let dist = unit_value - branch.value;
 
-        let (first_node, second_node) = if dist <= 0.0 {
-            (&split.left_child, &split.right_child)
-        } else {
-            (&split.right_child, &split.left_child)
-        };
+                let (first_node, second_node) = if dist <= 0.0 {
+                    (&branch.left_child, &branch.right_child)
+                } else {
+                    (&branch.right_child, &branch.left_child)
+                };
 
-        if !searcher.is_satisfied()
-            || first_node
-                .distance_to_box_in_dimension(split.dimension, unit_value)
-                .powi(2)
-                <= searcher.max_distance().unwrap_or(f64::INFINITY)
-        {
-            first_node.find_neighbours(searcher);
-        }
+                if !searcher.is_satisfied()
+                    || first_node
+                        .distance_to_box_in_dimension(branch.dimension, unit_value)
+                        .powi(2)
+                        <= searcher.max_distance().unwrap_or(f64::INFINITY)
+                {
+                    first_node.find_neighbours(searcher);
+                }
 
-        if !searcher.is_satisfied()
-            || second_node
-                .distance_to_box_in_dimension(split.dimension, unit_value)
-                .powi(2)
-                <= searcher.max_distance().unwrap_or(f64::INFINITY)
-        {
-            second_node.find_neighbours(searcher);
+                if !searcher.is_satisfied()
+                    || second_node
+                        .distance_to_box_in_dimension(branch.dimension, unit_value)
+                        .powi(2)
+                        <= searcher.max_distance().unwrap_or(f64::INFINITY)
+                {
+                    second_node.find_neighbours(searcher);
+                }
+            }
         }
     }
 }
@@ -284,27 +300,27 @@ mod tests {
     #[test]
     fn node_splits() {
         let (data, _prob, mut indices) = data_9_1();
-        let mut n0 = Node::new(midpoint_slide, 3, &data, &mut indices);
+        let n0 = Node::new(midpoint_slide, 3, &data, &mut indices);
 
-        let n0s = n0.split.as_mut().expect("");
+        let n0s = n0.kind.unwrap_branch();
 
         assert_eq!(n0s.dimension, 0);
         assert!(n0s.value >= 2.2 && n0s.value <= 10.0);
 
-        let n00 = &mut n0s.left_child;
-        let n01 = &mut n0s.right_child;
+        let n00 = &n0s.left_child;
+        let n01 = &n0s.right_child;
 
-        let n00s = n00.split.as_mut().expect("");
+        let n00s = n00.kind.unwrap_branch();
 
         assert_eq!(n00s.dimension, 0);
         assert!(n00s.value >= 1.2 && n00s.value <= 2.0);
 
-        let n000 = &mut n00s.left_child;
-        let n001 = &mut n00s.right_child;
+        let n000 = &n00s.left_child;
+        let n001 = &n00s.right_child;
 
-        let n01u = n01.units.as_mut().expect("");
-        let n000u = n000.units.as_mut().expect("");
-        let n001u = n001.units.as_mut().expect("");
+        let mut n01u = n01.kind.unwrap_leaf().units.to_vec();
+        let mut n000u = n000.kind.unwrap_leaf().units.to_vec();
+        let mut n001u = n001.kind.unwrap_leaf().units.to_vec();
         n01u.sort();
         n000u.sort();
         n001u.sort();
