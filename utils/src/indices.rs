@@ -1,38 +1,31 @@
-use crate::generate_random::GenerateRandom;
+use crate::random_generator::RandomGenerator;
+use std::collections::HashMap;
 
-#[derive(Clone)]
 pub struct Indices {
     list: Vec<usize>,
-    reverse_list: Vec<usize>,
-    capacity: usize,
+    indices: HashMap<usize, usize>,
 }
 
 impl Indices {
     #[inline]
-    pub fn new(len: usize) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Indices {
-            list: Vec::<usize>::with_capacity(len),
-            reverse_list: Vec::<usize>::with_capacity(len),
-            capacity: len,
+            list: Vec::<usize>::with_capacity(capacity),
+            indices: HashMap::<usize, usize>::with_capacity(capacity),
         }
     }
 
     #[inline]
-    pub fn new_fill(len: usize) -> Self {
-        let mut list = Indices::new(len);
-        list.fill(len);
-        list
+    pub fn with_fill(length: usize) -> Self {
+        Indices {
+            list: Vec::<usize>::from_iter(0..length),
+            indices: HashMap::<usize, usize>::from_iter((0..length).map(|v| (v, v))),
+        }
     }
 
     #[inline]
-    pub fn fill(&mut self, to: usize) {
-        self.list.clear();
-        self.reverse_list.clear();
-
-        for k in 0usize..to {
-            self.list.push(k);
-            self.reverse_list.push(k);
-        }
+    pub fn list(&self) -> &[usize] {
+        &self.list
     }
 
     #[inline]
@@ -41,42 +34,37 @@ impl Indices {
     }
 
     #[inline]
-    pub fn get_first(&self) -> Option<&usize> {
+    pub fn first(&self) -> Option<&usize> {
         self.list.first()
     }
 
     #[inline]
-    pub fn get_last(&self) -> Option<&usize> {
+    pub fn last(&self) -> Option<&usize> {
         self.list.last()
     }
 
-    pub fn get_list(&self) -> &[usize] {
-        &self.list
+    #[inline]
+    pub fn random<R>(&self, rand: &R) -> Option<&usize>
+    where
+        R: RandomGenerator,
+    {
+        rand.rslice(&self.list)
     }
 
     #[inline]
-    pub fn get_random<R: GenerateRandom>(&self, rand: &R) -> Option<&usize> {
-        rand.random_get(&self.list)
+    pub fn contains(&self, id: usize) -> bool {
+        self.indices.contains_key(&id)
     }
 
     #[inline]
-    pub fn includes(&self, id: usize) -> bool {
-        self.reverse_list[id] < self.list.len()
-    }
-
-    #[inline]
-    pub fn insert(&mut self, id: usize) {
-        assert!(id < self.capacity);
-
-        let len: usize = self.list.len();
-
-        if self.reverse_list[id] < len {
-            // id already is in list
-            return;
+    pub fn insert(&mut self, id: usize) -> bool {
+        if self.contains(id) {
+            return false;
         }
 
-        self.reverse_list[id] = len;
         self.list.push(id);
+        self.indices.insert(id, self.list.len() - 1);
+        true
     }
 
     #[inline]
@@ -85,23 +73,14 @@ impl Indices {
     }
 
     #[inline]
-    pub fn remove(&mut self, id: usize) {
-        assert!(id < self.capacity);
-
-        let len: usize = self.list.len();
-        let k: usize = self.reverse_list[id];
-
-        assert!(k < len);
-
-        if k == len - 1 {
-            self.list.pop();
-            self.reverse_list[id] = usize::MAX;
-            return;
+    pub fn remove(&mut self, id: usize) -> bool {
+        match self.indices.remove(&id) {
+            Some(k) => {
+                self.list.swap_remove(k);
+                true
+            }
+            _ => false,
         }
-
-        self.list.swap_remove(k);
-        self.reverse_list[id] = usize::MAX;
-        self.reverse_list[self.list[k]] = k;
     }
 }
 
@@ -111,9 +90,12 @@ mod tests {
 
     #[test]
     fn fill() {
-        let mut il = Indices::new(4);
-        il.fill(4);
+        let mut il = Indices::with_fill(4);
         let list: Vec<usize> = vec![0, 1, 2, 3];
         assert_eq!(list, il.list);
+
+        assert!(il.remove(1));
+        assert!(!il.remove(1));
+        assert_eq!(il.last().unwrap(), &2);
     }
 }

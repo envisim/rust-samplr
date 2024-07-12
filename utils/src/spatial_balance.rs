@@ -1,13 +1,9 @@
 use crate::{
-    generate_random::StaticRandom,
-    kd_tree::{midpoint_slide, Node, SearcherForNeighbours, Tree, TreeSearch},
+    kd_tree::{midpoint_slide, Node, Searcher},
     matrix::{OperateMatrix, RefMatrix},
-    sampling_controller::*,
     utils::usize_to_f64,
 };
 use std::collections::HashMap;
-
-const RAND00: StaticRandom = StaticRandom::new(0.0);
 
 pub fn voronoi<'a>(
     probabilities: &[f64],
@@ -29,21 +25,13 @@ pub fn voronoi<'a>(
         s < population_size
     }));
 
-    let mut tree = Tree::new_with_root(
-        DataController::new(&RAND00, probabilities, 0.0, data),
-        SearcherForNeighbours::new(data.dim(), 1),
-        Box::new(Node::new(
-            midpoint_slide,
-            bucket_size,
-            data,
-            &mut sample.to_vec(),
-        )),
-    );
+    let tree = Node::new(midpoint_slide, bucket_size, data, &mut sample.to_vec());
+    let mut searcher = Searcher::new(&tree, 1);
 
     for i in 0..population_size {
-        tree.find_neighbours_of_unit(&mut data.into_row_iter(i));
-        let partial_prob = probabilities[i] / usize_to_f64(tree.searcher().neighbours().len());
-        tree.searcher().neighbours().iter().for_each(|&s| {
+        searcher.find_neighbours_of_iter(&tree, &mut data.into_row_iter(i));
+        let partial_prob = probabilities[i] / usize_to_f64(searcher.neighbours().len());
+        searcher.neighbours().iter().for_each(|&s| {
             *voronoi_pi.get_mut(&s).unwrap() += partial_prob;
         });
     }

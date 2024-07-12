@@ -1,9 +1,9 @@
-pub mod generate_random;
+pub mod container;
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;
-pub mod pips;
-pub mod sampling_controller;
+pub mod probability;
+pub mod random_generator;
 pub mod spatial_balance;
 pub mod utils;
 

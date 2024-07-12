@@ -1,12 +1,12 @@
-use crate::matrix::OperateMatrix;
+use crate::matrix::{OperateMatrix, RefMatrix};
 
 // (unit, variable, value)
-pub type FindSplit = fn(&[f64], &[f64], &dyn OperateMatrix, &mut [usize]) -> (usize, usize, f64);
+pub type FindSplit = fn(&[f64], &[f64], &RefMatrix, &mut [usize]) -> (usize, usize, f64);
 
 pub fn midpoint_slide(
     min_border: &[f64],
     max_border: &[f64],
-    data: &dyn OperateMatrix,
+    data: &RefMatrix,
     units: &mut [usize],
 ) -> (usize, usize, f64) {
     assert!(min_border.len() == max_border.len());

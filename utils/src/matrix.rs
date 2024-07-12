@@ -1,4 +1,6 @@
+use std::iter::{Skip, StepBy};
 use std::ops::{Index, IndexMut};
+use std::slice::Iter;
 
 type MatrixIndex = (usize, usize);
 
@@ -9,6 +11,31 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
     #[inline]
     fn dim(&self) -> (usize, usize) {
         (self.nrow(), self.ncol())
+    }
+
+    #[inline]
+    fn into_row_iter(&self, row: usize) -> MatrixIterator {
+        assert!(row < self.nrow());
+        MatrixIterator {
+            iter: self.data().iter().skip(row).step_by(self.nrow()),
+            dim: self.dim(),
+            step: self.nrow(),
+            count: 0,
+        }
+    }
+
+    #[inline]
+    fn into_col_iter<'a>(&self, col: usize) -> MatrixIterator {
+        assert!(col < self.ncol());
+        MatrixIterator {
+            iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
+                .iter()
+                .skip(0)
+                .step_by(1),
+            dim: self.dim(),
+            step: 1,
+            count: 0,
+        }
     }
 
     #[inline]
@@ -52,6 +79,43 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
     }
 }
 
+pub struct MatrixIterator<'a> {
+    iter: StepBy<Skip<Iter<'a, f64>>>,
+    dim: MatrixIndex,
+    step: usize,
+    count: usize,
+}
+
+impl<'a> MatrixIterator<'a> {
+    #[inline]
+    pub fn dim(&self) -> MatrixIndex {
+        if self.step == 1 {
+            (self.dim.0, 1)
+        } else {
+            (1, self.dim.1)
+        }
+    }
+}
+
+impl<'a> Iterator for MatrixIterator<'a> {
+    type Item = &'a f64;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        self.iter.next()
+    }
+}
+
+impl<'a> ExactSizeIterator for MatrixIterator<'a> {
+    fn len(&self) -> usize {
+        if self.step == 1 {
+            self.dim.0 - self.count
+        } else {
+            self.dim.1 - self.count
+        }
+    }
+}
+
 pub struct Matrix {
     data: Vec<f64>,
     rows: usize,
@@ -62,37 +126,6 @@ pub struct RefMatrix<'a> {
     data: &'a [f64],
     rows: usize,
     cols: usize,
-}
-
-pub struct MatrixIterator<'a, M: OperateMatrix> {
-    matrix: &'a M,
-    index: usize,
-    step: usize,
-    max: usize,
-}
-
-impl<'a, M: OperateMatrix> MatrixIterator<'a, M> {
-    pub fn dim(&self) -> MatrixIndex {
-        if self.step == 1 {
-            return (self.matrix.nrow(), 1);
-        } else {
-            return (1, self.matrix.ncol());
-        }
-    }
-}
-
-impl<'a, M: OperateMatrix> Iterator for MatrixIterator<'a, M> {
-    type Item = &'a f64;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.max {
-            let result = self.matrix.data().get(self.index);
-            self.index += self.step;
-            return result;
-        }
-
-        None
-    }
 }
 
 impl Matrix {
@@ -115,27 +148,6 @@ impl Matrix {
             data: vec![data; rows * cols],
             rows: rows,
             cols: cols,
-        }
-    }
-
-    #[inline]
-    pub fn into_row_iter(&self, row: usize) -> MatrixIterator<Self> {
-        assert!(row < self.rows);
-        MatrixIterator {
-            matrix: self,
-            index: row,
-            step: self.rows,
-            max: self.data.len(),
-        }
-    }
-    #[inline]
-    pub fn into_col_iter(&self, col: usize) -> MatrixIterator<Self> {
-        assert!(col < self.cols);
-        MatrixIterator {
-            matrix: self,
-            index: self.rows * col,
-            step: 1,
-            max: self.rows * (col + 1),
         }
     }
 
@@ -240,28 +252,18 @@ impl<'a> RefMatrix<'a> {
     }
 
     #[inline]
-    pub fn into_row_iter(&self, row: usize) -> MatrixIterator<Self> {
-        assert!(row < self.rows);
-        MatrixIterator {
-            matrix: self,
-            index: row,
-            step: self.rows,
-            max: self.data.len(),
-        }
-    }
-    #[inline]
-    pub fn into_col_iter(&self, col: usize) -> MatrixIterator<Self> {
-        assert!(col < self.cols);
-        MatrixIterator {
-            matrix: self,
-            index: self.rows * col,
-            step: 1,
-            max: self.rows * (col + 1),
+    pub fn from_matrix(mat: &Matrix) -> RefMatrix {
+        assert!(mat.nrow() > 0);
+        assert!(mat.ncol() > 0);
+        RefMatrix {
+            data: mat.data(),
+            rows: mat.nrow(),
+            cols: mat.ncol(),
         }
     }
 }
 
-impl Index<(usize, usize)> for Matrix {
+impl Index<MatrixIndex> for Matrix {
     type Output = f64;
 
     #[inline]
@@ -271,7 +273,7 @@ impl Index<(usize, usize)> for Matrix {
     }
 }
 
-impl IndexMut<(usize, usize)> for Matrix {
+impl IndexMut<MatrixIndex> for Matrix {
     #[inline]
     fn index_mut(&mut self, (row, col): MatrixIndex) -> &mut f64 {
         assert!(col < self.cols && row < self.rows);
@@ -279,7 +281,7 @@ impl IndexMut<(usize, usize)> for Matrix {
     }
 }
 
-impl<'a> Index<(usize, usize)> for RefMatrix<'a> {
+impl<'a> Index<MatrixIndex> for RefMatrix<'a> {
     type Output = f64;
 
     #[inline]
@@ -347,6 +349,30 @@ mod tests {
 
         assert!(data2.nrow() == 10);
         assert!(data2.ncol() == 2);
+    }
+
+    #[test]
+    fn iterator() {
+        let data1 = Matrix::new(&[0.0, 1.0, 2.0, 0.1, 1.1, 2.1, 0.2, 1.2, 2.2], 3);
+        let mut iter = data1.into_row_iter(1);
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.next(), Some(&1.0));
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.next(), Some(&1.1));
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.next(), Some(&1.2));
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+
+        iter = data1.into_col_iter(1);
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.next(), Some(&0.1));
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.next(), Some(&1.1));
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.next(), Some(&2.1));
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
     }
 
     #[test]

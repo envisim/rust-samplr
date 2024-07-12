@@ -1,33 +1,34 @@
-use super::searcher::TreeSearch;
-use super::split_methods::FindSplit;
-use crate::generate_random::GenerateRandom;
-use crate::matrix::OperateMatrix;
-use crate::sampling_controller::AccessDataController;
+use super::{searcher::TreeSearcher, split_methods::FindSplit};
+use crate::{
+    indices::Indices,
+    matrix::{OperateMatrix, RefMatrix},
+};
 
-struct NodeSplit {
+struct NodeSplit<'a> {
     dimension: usize,
     value: f64,
-    left_child: Box<Node>,
-    right_child: Box<Node>,
+    left_child: Box<Node<'a>>,
+    right_child: Box<Node<'a>>,
 }
 
-pub struct Node {
+pub struct Node<'a> {
     // Non-leaf
-    split: Option<NodeSplit>,
+    split: Option<NodeSplit<'a>>,
 
     // Leaf
     units: Option<Vec<usize>>,
 
     // Common
+    data: &'a RefMatrix<'a>,
     min_border: Vec<f64>,
     max_border: Vec<f64>,
 }
 
-impl Node {
+impl<'a> Node<'a> {
     pub fn new(
         find_split: FindSplit,
         bucket_size: usize,
-        data: &dyn OperateMatrix,
+        data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Self {
         assert!(bucket_size > 0);
@@ -40,6 +41,7 @@ impl Node {
             units: None,
 
             // Common
+            data: data,
             min_border: Vec::<f64>::with_capacity(data.ncol()),
             max_border: Vec::<f64>::with_capacity(data.ncol()),
         };
@@ -102,15 +104,22 @@ impl Node {
         node
     }
 
-    pub fn new_from_controller<R: GenerateRandom, C: AccessDataController<R>>(
+    #[inline]
+    pub fn new_from_indices(
         find_split: FindSplit,
         bucket_size: usize,
-        controller: &C,
+        data: &'a RefMatrix,
+        indices: &Indices,
     ) -> Self {
-        let mut units: Vec<usize> = controller.indices().get_list().to_vec();
-        Node::new(find_split, bucket_size, controller.data(), &mut *units)
+        Node::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
+    #[inline]
+    pub fn data(&self) -> &RefMatrix {
+        self.data
+    }
+
+    #[inline]
     fn set_units(&mut self, units: &[usize]) -> &Self {
         let mut node_units = Vec::<usize>::with_capacity(units.len());
         node_units.extend_from_slice(units);
@@ -118,24 +127,17 @@ impl Node {
         self
     }
 
-    pub fn remove_unit<R: GenerateRandom, C: AccessDataController<R>>(
-        &mut self,
-        id: usize,
-        controller: &C,
-    ) {
+    pub fn remove_unit(&mut self, id: usize) -> bool {
         if let Some(split) = self.split.as_mut() {
             unsafe {
                 // ID is checked by tree
-                let distance =
-                    *controller.data().get_unchecked((id, split.dimension)) - split.value;
+                let distance = self.data.get_unchecked((id, split.dimension)) - split.value;
 
                 if distance <= 0.0 {
-                    split.left_child.remove_unit(id, controller);
+                    return split.left_child.remove_unit(id);
                 } else {
-                    split.right_child.remove_unit(id, controller);
+                    return split.right_child.remove_unit(id);
                 }
-
-                return;
             }
         }
 
@@ -143,14 +145,17 @@ impl Node {
             .units
             .as_mut()
             .expect("split is None, thus units must be Some");
-        let units_index_opt = units.iter().position(|&p| p == id);
+        let unit_index = units.iter().position(|&p| p == id);
 
-        if let Some(units_index) = units_index_opt {
-            units.swap_remove(units_index);
-            return;
+        match unit_index {
+            Some(index) => {
+                units.swap_remove(index);
+                return true;
+            }
+            _ => {
+                return false;
+            }
         }
-
-        panic!("unit {} not found", id);
     }
 
     #[inline]
@@ -169,17 +174,16 @@ impl Node {
         }
     }
 
-    pub fn find_neighbours<S: TreeSearch, R: GenerateRandom, C: AccessDataController<R>>(
-        &self,
-        searcher: &mut S,
-        controller: &C,
-    ) {
+    pub(super) fn find_neighbours<S>(&self, searcher: &mut S)
+    where
+        S: TreeSearcher,
+    {
         if self.split.is_none() {
             let units: &[usize] = self
                 .units
                 .as_ref()
                 .expect("split is None, thus units must be Some");
-            searcher.set_neighbours_from_ids(units, controller);
+            searcher.add_neighbours_from_node(units, self.data);
             return;
         }
 
@@ -197,33 +201,27 @@ impl Node {
             || first_node
                 .distance_to_box_in_dimension(split.dimension, unit_value)
                 .powi(2)
-                <= searcher.max_distance()
+                <= searcher.max_distance().unwrap_or(f64::INFINITY)
         {
-            first_node.find_neighbours(searcher, controller);
+            first_node.find_neighbours(searcher);
         }
 
         if !searcher.is_satisfied()
             || second_node
                 .distance_to_box_in_dimension(split.dimension, unit_value)
                 .powi(2)
-                <= searcher.max_distance()
+                <= searcher.max_distance().unwrap_or(f64::INFINITY)
         {
-            second_node.find_neighbours(searcher, controller);
+            second_node.find_neighbours(searcher);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::searcher::SearcherForNeighbours;
+    use super::super::searcher::Searcher;
     use super::*;
-    use crate::{
-        generate_random::StaticRandom, kd_tree::split_methods::midpoint_slide, matrix::RefMatrix,
-        sampling_controller::*,
-    };
-
-    const RAND00: StaticRandom = StaticRandom::new(0.0);
-    // const RAND99: StaticRandom = StaticRandom::new(0.999);
+    use crate::{kd_tree::split_methods::midpoint_slide, matrix::RefMatrix};
 
     const DATA_10_2: [f64; 20] = [
         0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527,
@@ -232,31 +230,35 @@ mod tests {
         0.3800352, 0.7774452,
     ];
 
-    fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
-        (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
+    fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10], Vec<usize>) {
+        (
+            RefMatrix::new(&DATA_10_2, 10),
+            [0.2f64; 10],
+            (0..10).collect::<Vec<usize>>(),
+        )
     }
 
     const DATA_9_1: [f64; 9] = [2.0, 2.1, 2.2, 10.0, 10.1, 10.2, 1.0, 1.1, 1.2];
 
-    fn data_9_1<'a>() -> (RefMatrix<'a>, [f64; 9]) {
-        (RefMatrix::new(&DATA_9_1, 9), [0.1f64; 9])
+    fn data_9_1<'a>() -> (RefMatrix<'a>, [f64; 9], Vec<usize>) {
+        (
+            RefMatrix::new(&DATA_9_1, 9),
+            [0.1f64; 9],
+            (0..9).collect::<Vec<usize>>(),
+        )
     }
 
     #[test]
     fn find() {
-        let (data, prob) = data_10_2();
-        let controller = DataController::new(&RAND00, &prob, 1e-12, &data);
-        let mut searcher = SearcherForNeighbours::new(data.dim(), 1);
-        let root = Node::new_from_controller(midpoint_slide, 2, &controller);
+        let (data, _prob, mut indices) = data_10_2();
+        let root = Node::new(midpoint_slide, 2, &data, &mut indices);
+        let mut searcher = Searcher::new(&root, 1);
 
         let closest_neighbour: [usize; 10] = [1, 0, 8, 5, 9, 3, 5, 2, 3, 4];
         let mut result: [usize; 10] = [0; 10];
 
         for i in 0usize..10 {
-            searcher.reset_neighbours();
-            searcher.set_unit_from_id(i, &controller);
-            root.find_neighbours(&mut searcher, &controller);
-            result[i] = searcher.neighbours()[0];
+            result[i] = searcher.find_neighbours_of_id(&root, i).neighbours()[0];
         }
 
         assert_eq!(result, closest_neighbour);
@@ -264,20 +266,16 @@ mod tests {
 
     #[test]
     fn find_and_remove() {
-        let (data, prob) = data_10_2();
-        let controller = DataController::new(&RAND00, &prob, 1e-12, &data);
-        let mut searcher = SearcherForNeighbours::new(data.dim(), 1);
-        let mut root = Node::new_from_controller(midpoint_slide, 2, &controller);
+        let (data, _prob, mut indices) = data_10_2();
+        let mut root = Node::new(midpoint_slide, 2, &data, &mut indices);
+        let mut searcher = Searcher::new(&root, 1);
 
         let closest_neighbour: [usize; 9] = [1, 8, 8, 5, 9, 6, 7, 8, 9];
         let mut result: [usize; 9] = [0; 9];
 
         for i in 0usize..9 {
-            searcher.reset_neighbours();
-            searcher.set_unit_from_id(i, &controller);
-            root.find_neighbours(&mut searcher, &controller);
-            result[i] = searcher.neighbours()[0];
-            root.remove_unit(i, &controller);
+            result[i] = searcher.find_neighbours_of_id(&root, i).neighbours()[0];
+            root.remove_unit(i);
         }
 
         assert_eq!(result, closest_neighbour);
@@ -285,10 +283,8 @@ mod tests {
 
     #[test]
     fn node_splits() {
-        let (data, prob) = data_9_1();
-        let controller = DataController::new(&RAND00, &prob, 1e-12, &data);
-
-        let mut n0 = Node::new_from_controller(midpoint_slide, 3, &controller);
+        let (data, _prob, mut indices) = data_9_1();
+        let mut n0 = Node::new(midpoint_slide, 3, &data, &mut indices);
 
         let n0s = n0.split.as_mut().expect("");
 
