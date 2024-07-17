@@ -24,7 +24,9 @@ pub trait RandomGenerator {
 }
 
 pub trait RandomList: RandomGenerator {
-    fn from_list(&self, idx: usize) -> f64;
+    fn from_list(&self, _idx: usize) -> f64 {
+        self.rf64()
+    }
 }
 
 pub struct Constant {
@@ -40,6 +42,7 @@ impl RandomGenerator for Constant {
         self.value
     }
 }
+impl RandomList for Constant {}
 
 // Needed for R maybe
 // #[inline]

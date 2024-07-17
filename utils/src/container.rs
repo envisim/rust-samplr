@@ -110,14 +110,10 @@ where
     #[inline]
     pub fn decide_unit(&mut self, idx: usize) -> Option<bool> {
         if self.probabilities.is_zero(idx) {
-            if !self.indices.remove(idx) {
-                panic!();
-            }
+            assert!(self.indices.remove(idx));
             return Some(false);
         } else if self.probabilities.is_one(idx) {
-            if !self.indices.remove(idx) {
-                panic!();
-            }
+            assert!(self.indices.remove(idx));
             self.sample.add(idx);
             return Some(true);
         }
@@ -141,5 +137,22 @@ where
         };
 
         return Some(id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{data_10_2, EPS, RAND00};
+
+    #[test]
+    fn decide_unit() {
+        let (_data, prob) = data_10_2();
+        let mut c = Container::new(&RAND00, &prob, EPS);
+        c.probabilities_mut()[0] = 1.0;
+        c.probabilities_mut()[1] = 0.0;
+        assert_eq!(c.decide_unit(0), Some(true));
+        assert_eq!(c.decide_unit(1), Some(false));
+        assert_eq!(c.decide_unit(2), None);
     }
 }

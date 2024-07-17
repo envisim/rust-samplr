@@ -67,3 +67,12 @@ impl IndexMut<usize> for Probabilities {
         &mut self.probabilities[idx]
     }
 }
+
+impl std::fmt::Debug for Probabilities {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Probabilities")
+            .field("eps", &self.eps)
+            .field("prob", &self.probabilities)
+            .finish()
+    }
+}

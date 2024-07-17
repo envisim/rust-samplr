@@ -46,18 +46,7 @@ pub fn voronoi<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{internal_macros::assert_delta, matrix::RefMatrix};
-
-    const DATA_10_2: [f64; 20] = [
-        0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527,
-        0.66079779, 0.62911404, 0.06178627, //
-        0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185, 0.9919061,
-        0.3800352, 0.7774452,
-    ];
-
-    fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
-        (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
-    }
+    use crate::test_utils::{assert_delta, data_10_2};
 
     #[test]
     fn all() {

@@ -7,4 +7,5 @@ pub mod random_generator;
 pub mod spatial_balance;
 pub mod utils;
 
-mod internal_macros;
+#[cfg(test)]
+mod test_utils;

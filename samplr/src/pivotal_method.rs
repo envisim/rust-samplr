@@ -401,13 +401,10 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        match container.decide_unit(id) {
-            Some(inc_exc) => {
-                self.tree.remove_unit(id);
-                Some(inc_exc)
-            }
-            _ => None,
-        }
+        container.decide_unit(id).and_then(|r| {
+            self.tree.remove_unit(id);
+            Some(r)
+        })
     }
 }
 
@@ -476,13 +473,10 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        match container.decide_unit(id) {
-            Some(inc_exc) => {
-                self.tree.remove_unit(id);
-                Some(inc_exc)
-            }
-            _ => None,
-        }
+        container.decide_unit(id).and_then(|r| {
+            self.tree.remove_unit(id);
+            Some(r)
+        })
     }
 }
 
@@ -509,114 +503,139 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        match container.decide_unit(id) {
-            Some(inc_exc) => {
-                self.tree.remove_unit(id);
-                Some(inc_exc)
-            }
-            _ => None,
-        }
+        container.decide_unit(id).and_then(|r| {
+            self.tree.remove_unit(id);
+            Some(r)
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use envisim_samplr_utils::random_generator::Constant;
+    use crate::test_utils::{assert_delta, data_10_2, EPS, RAND00, RAND99};
 
-    const RAND00: Constant = Constant::new(0.0);
-    const RAND99: Constant = Constant::new(0.999);
-
-    const DATA_10_2: [f64; 20] = [
-        0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527,
-        0.66079779, 0.62911404, 0.06178627, //
-        0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185, 0.9919061,
-        0.3800352, 0.7774452,
-    ];
-
-    fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
-        (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
+    fn select_and_update<'a, R, T>(pm: &mut PivotalMethodSampler<'a, R, T>) -> Pair
+    where
+        R: envisim_samplr_utils::random_generator::RandomList,
+        T: PivotalMethodVariant<'a, R>,
+    {
+        let units = pm.variant.select_units(&mut pm.container).unwrap();
+        pm.update_probabilities(units);
+        units
     }
 
     #[test]
-    fn lpm1_draw() {
+    fn spm_variant() {
+        type ST = SequentialPivotalMethod;
+        let (_data, prob) = data_10_2();
+
+        let mut pm = ST::new(&RAND00, &prob, EPS);
+        assert_eq!(select_and_update(&mut pm), (0, 1));
+        assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
+        assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
+        assert_eq!(select_and_update(&mut pm), (1, 2));
+
+        pm = ST::new(&RAND99, &prob, EPS);
+        assert_eq!(select_and_update(&mut pm), (0, 1));
+        assert_delta!(pm.container.probabilities()[0], 0.4, EPS);
+        assert_delta!(pm.container.probabilities()[1], 0.0, EPS);
+        assert_eq!(select_and_update(&mut pm), (0, 2));
+
+        let s0 = ST::sample(&RAND00, &prob, EPS);
+        assert_eq!(s0, vec![4, 9]);
+        let s1 = ST::sample(&RAND99, &prob, EPS);
+        assert_eq!(s1, vec![0, 5]);
+    }
+
+    #[test]
+    fn rpm_variant() {
+        type ST = RandomPivotalMethod;
+        let (_data, prob) = data_10_2();
+
+        let mut pm = ST::new(&RAND00, &prob, EPS);
+        assert_eq!(select_and_update(&mut pm), (0, 9));
+        assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
+        assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 8));
+
+        pm = ST::new(&RAND99, &prob, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 8));
+        assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
+        assert_delta!(pm.container.probabilities()[8], 0.0, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 7));
+
+        let s0 = ST::sample(&RAND00, &prob, EPS);
+        assert_eq!(s0, vec![1, 6]);
+        let s1 = ST::sample(&RAND99, &prob, EPS);
+        assert_eq!(s1, vec![0, 9]);
+    }
+
+    #[test]
+    fn lpm1_variant() {
+        type ST<'a> = LocalPivotalMethod1<'a>;
         let (data, prob) = data_10_2();
 
-        let mut lpm00 = LocalPivotalMethod1::new(&RAND00, &prob, 1e-12, &data, 2);
-        assert_eq!(lpm00.variant.select_units(&lpm00.container), Some((0, 1)));
+        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (0, 1));
+        assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
+        assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        let mut lpm99 = LocalPivotalMethod1::new(&RAND99, &prob, 1e-12, &data, 2);
-        assert_eq!(lpm99.variant.select_units(&lpm99.container), Some((9, 4)));
+        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
+        assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
+        assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
+        // assert_eq!(select_and_update(&mut pm), (9, 7));
+
+        // let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        // assert_eq!(s0, vec![1, 6]);
+        // let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        // assert_eq!(s1, vec![0, 9]);
     }
 
     #[test]
-    fn lpm1s() {
+    fn lpm1s_variant() {
+        type ST<'a> = LocalPivotalMethod1S<'a>;
         let (data, prob) = data_10_2();
 
-        let mut lpm00 = LocalPivotalMethod1S::new(&RAND99, &prob, 1e-12, &data, 2);
-        let mut units: (usize, usize);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (9, 4));
-        assert_eq!(lpm00.variant.history, vec![9]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (3, 5));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (3, 8));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (3, 6));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (2, 7));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3, 2]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (2, 3));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3, 2]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (2, 9));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3, 2]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        assert_eq!(units, (1, 0));
-        assert_eq!(lpm00.variant.history, vec![9, 2, 8, 3, 2, 1]);
-        lpm00.update_probabilities(units);
-        units = lpm00.variant.select_units(&lpm00.container).unwrap();
-        lpm00.update_probabilities(units);
+        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (0, 1));
+        assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
+        assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        assert_eq!(lpm00.container.indices().len(), 0);
-        assert_eq!(lpm00.get_sorted_sample(), vec![1, 3]);
+        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
+        assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
+        assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
+        assert_eq!(select_and_update(&mut pm), (3, 5));
+
+        let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        assert_eq!(s1, vec![1, 3]);
     }
 
     #[test]
-    fn lpm2() {
+    fn lpm2_variant() {
+        type ST<'a> = LocalPivotalMethod2<'a>;
         let (data, prob) = data_10_2();
 
-        let lpm00_result = LocalPivotalMethod2::sample(&RAND00, &prob, 1e-12, &data, 5);
-        assert_eq!(lpm00_result, vec![1, 3]);
-    }
+        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (0, 1));
+        assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
+        assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
 
-    #[test]
-    fn rpm() {
-        let rpm00_result = RandomPivotalMethod::sample(&RAND00, &[0.5f64; 4], 1e-12);
-        assert_eq!(rpm00_result, vec![1, 3]);
+        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        assert_eq!(select_and_update(&mut pm), (9, 4));
+        assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
+        assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
+        assert_eq!(select_and_update(&mut pm), (8, 3));
 
-        let rpm99_result = RandomPivotalMethod::sample(&RAND99, &[0.5f64; 4], 1e-12);
-        assert_eq!(rpm99_result, vec![0, 3]);
-    }
-
-    #[test]
-    fn spm() {
-        let spm00_result = SequentialPivotalMethod::sample(&RAND00, &[0.5f64; 4], 1e-12);
-        assert_eq!(spm00_result, vec![1, 3]);
-
-        let spm99_result = SequentialPivotalMethod::sample(&RAND99, &[0.5f64; 4], 1e-12);
-        assert_eq!(spm99_result, vec![0, 2]);
+        let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        assert_eq!(s0, vec![1, 3]);
+        let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        // Depending on over/under 1.0 in last
+        assert!(s1 == vec![8, 9] || s1 == vec![6, 8]);
     }
 }

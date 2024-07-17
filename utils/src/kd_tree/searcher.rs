@@ -268,10 +268,14 @@ impl SearcherWeighted {
         self.searcher.neighbours.clear();
     }
 
+    #[inline]
+    pub fn distance_k(&self, k: usize) -> f64 {
+        self.searcher.distance_k(k)
+    }
+    #[inline]
     pub fn weight_k(&self, k: usize) -> f64 {
         self.weights[self.searcher.neighbours[k]]
     }
-
     pub fn sort_by_weight(&mut self, from: usize, to: usize) {
         self.searcher.neighbours[from..to].sort_unstable_by(|&a, &b| {
             if self.searcher.distances[a] < self.searcher.distances[b] {
