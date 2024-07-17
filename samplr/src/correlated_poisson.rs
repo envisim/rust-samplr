@@ -60,6 +60,7 @@ impl SequentialCorrelatedPoissonSampling {
         }
     }
 
+    #[inline]
     pub fn sample<'a, R>(rand: &'a R, probabilities: &[f64], eps: f64) -> Vec<usize>
     where
         R: RandomList,
@@ -92,7 +93,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         let searcher = Box::new(SearcherWeighted::new(&tree));
 
         CorrelatedPoissonSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+            container: container,
             variant: Box::new(SpatiallyCorrelatedPoissonSampling {
                 tree: tree,
                 searcher: searcher,
@@ -101,6 +102,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         }
     }
 
+    #[inline]
     pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],
@@ -137,7 +139,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         let searcher = Box::new(SearcherWeighted::new(&tree));
 
         CorrelatedPoissonSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+            container: container,
             variant: Box::new(SpatiallyCorrelatedPoissonSampling {
                 tree: tree,
                 searcher: searcher,
@@ -146,6 +148,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         }
     }
 
+    #[inline]
     pub fn sample_sequential<R>(
         rand: &'a R,
         probabilities: &[f64],
@@ -184,7 +187,7 @@ impl<'a> LocallyCorrelatedPoissonSampling<'a> {
         let searcher = Box::new(SearcherWeighted::new(&tree));
 
         CorrelatedPoissonSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+            container: container,
             variant: Box::new(LocallyCorrelatedPoissonSampling {
                 scps: SpatiallyCorrelatedPoissonSampling {
                     tree: tree,
@@ -196,6 +199,7 @@ impl<'a> LocallyCorrelatedPoissonSampling<'a> {
         }
     }
 
+    #[inline]
     pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],

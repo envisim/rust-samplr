@@ -162,7 +162,7 @@ impl Searcher {
         });
     }
     #[inline]
-    fn distance_k(&self, k: usize) -> f64 {
+    pub fn distance_k(&self, k: usize) -> f64 {
         self.distances[self.neighbours[k]]
     }
     #[inline]

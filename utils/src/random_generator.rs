@@ -5,6 +5,10 @@ pub trait RandomGenerator {
         self.rf64() * scale
     }
     #[inline]
+    fn one_of_f64(&self, v0: f64, v1: f64) -> bool {
+        self.rf64_scaled(v0 + v1) < v1
+    }
+    #[inline]
     fn ri64(&self, scale: i64) -> i64 {
         if scale == 0 || scale == 1 {
             return 0;

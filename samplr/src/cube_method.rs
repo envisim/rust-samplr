@@ -1,365 +1,340 @@
+use crate::srs::SrsWor;
 use envisim_samplr_utils::{
-    generate_random::GenerateRandom,
-    kd_tree::{midpoint_slide, SearcherForNeighbours, Tree, TreeSearch},
+    container::Container,
+    kd_tree::{midpoint_slide, Node, Searcher},
     matrix::{Matrix, OperateMatrix, RefMatrix},
-    sampling_controller::*,
+    random_generator::RandomGenerator,
 };
 
-trait RunCubeMethod<R: GenerateRandom, C: AccessBaseController<R>> {
-    fn controller(&self) -> &C;
-    fn controller_mut(&mut self) -> &mut C;
-    #[inline]
-    fn draw_units(&mut self) {
-        let ncols = self.adjusted_data().ncol();
-        let remaining_units = self.controller().indices().len();
-        let maximum_size = ncols + 1;
-        self.candidates_mut().clear();
-
-        if remaining_units < maximum_size {
-            panic!("units should not be drawn in landing phase");
-        }
-
-        for i in 0..maximum_size {
-            let id = *self.controller().indices().get(i).unwrap();
-            self.candidates_mut().push(id);
-        }
-    }
-    fn adjusted_data(&self) -> &Matrix;
-    #[inline]
-    fn decide_unit(&mut self, id: usize) -> Option<bool> {
-        self.controller_mut().decide_unit(id)
-    }
-    fn candidate_data_mut(&mut self) -> &mut Matrix;
-    fn candidates(&self) -> &[usize];
-    fn candidates_mut(&mut self) -> &mut Vec<usize>;
-    #[inline]
-    fn update_probabilities(&mut self) {
-        let uvec = find_vector_in_null_space(self.candidate_data_mut());
-
-        let mut lambda1 = f64::MAX;
-        let mut lambda2 = f64::MAX;
-
-        for i in 0..self.candidates().len() {
-            let lval1 = (self.controller().probability(self.candidates()[i]) / uvec[i]).abs();
-            let lval2 =
-                ((1.0 - self.controller().probability(self.candidates()[i])) / uvec[i]).abs();
-
-            if uvec[i] >= 0.0 {
-                if lambda1 > lval2 {
-                    lambda1 = lval2;
-                }
-                if lambda2 > lval1 {
-                    lambda2 = lval1;
-                }
-            } else {
-                if lambda1 > lval1 {
-                    lambda1 = lval1;
-                }
-                if lambda2 > lval2 {
-                    lambda2 = lval2;
-                }
-            }
-        }
-
-        let lambda = if self
-            .controller()
-            .random()
-            .random_float_scale(lambda1 + lambda2)
-            < lambda2
-        {
-            lambda1
-        } else {
-            -lambda2
-        };
-
-        for i in 0..self.candidates().len() {
-            let id = self.candidates()[i];
-            *self.controller_mut().probability_mut(id) += lambda * uvec[i];
-            self.decide_unit(id);
-        }
-    }
-    #[inline]
-    fn run_flight(&mut self) {
-        let b_cols = self.adjusted_data().ncol();
-        if self.controller().indices().len() < b_cols + 1 {
-            return;
-        }
-
-        while self.controller().indices().len() > b_cols {
-            self.draw_units();
-            assert_eq!(self.candidates().len(), b_cols + 1);
-
-            for i in 0..self.candidates().len() {
-                for j in 0..b_cols {
-                    // candidate_data should have a unit per column
-                    let id = self.candidates()[i];
-                    self.candidate_data_mut()[(j, i)] = self.adjusted_data()[(id, j)];
-                }
-            }
-
-            self.update_probabilities();
-        }
-    }
-    #[inline]
-    fn run_landing(&mut self) {
-        let b_cols = self.adjusted_data().ncol();
-        assert!(
-            self.controller().indices().len() <= b_cols,
-            "landing phase committed early: {} units remaining, with {} cols",
-            self.controller().indices().len(),
-            b_cols,
-        );
-
-        while self.controller().indices().len() > 1 {
-            let number_of_remaining_units = self.controller().indices().len();
-            self.candidates_mut().clear();
-            unsafe {
-                self.candidate_data_mut()
-                    .resize(number_of_remaining_units - 1, number_of_remaining_units)
-            };
-
-            for i in 0..number_of_remaining_units {
-                let id = *self
-                    .controller()
-                    .indices()
-                    .get(i)
-                    .expect("there should be remaining units");
-                self.candidates_mut().push(id);
-                for j in 0..(number_of_remaining_units - 1) {
-                    self.candidate_data_mut()[(j, i)] = self.adjusted_data()[(id, j)];
-                }
-            }
-
-            self.update_probabilities();
-        }
-
-        if let Some(id) = self.controller_mut().update_last_unit() {
-            self.decide_unit(id);
-        }
-    }
-    #[inline]
-    fn run(&mut self) {
-        self.run_flight();
-        self.run_landing();
-    }
+pub trait CubeMethodVariant<'a, R>
+where
+    R: RandomGenerator,
+{
+    fn select_units(
+        &mut self,
+        candidates: &mut Vec<usize>,
+        container: &Container<'a, R>,
+        n_units: usize,
+    );
+    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool>;
 }
 
-pub struct CubeMethod<'a, R: GenerateRandom> {
-    controller: BaseController<'a, R>,
+pub struct CubeMethodSampler<'a, R, T>
+where
+    R: RandomGenerator,
+    T: CubeMethodVariant<'a, R>,
+{
+    container: Box<Container<'a, R>>,
+    variant: Box<T>,
+    candidates: Vec<usize>,
     adjusted_data: Box<Matrix>,
     candidate_data: Box<Matrix>,
-    candidates: Vec<usize>,
 }
 
-impl<'a, R: GenerateRandom> CubeMethod<'a, R> {
-    pub fn new(
+pub struct CubeMethod {}
+pub struct LocalCubeMethod<'a> {
+    tree: Box<Node<'a>>,
+    searcher: Box<Searcher>,
+}
+
+impl CubeMethod {
+    pub fn new<'a, R>(
         rand: &'a R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
-    ) -> Self {
-        let (b_nrow, b_ncol) = balancing_data.dim();
-        assert!(b_nrow == probabilities.len());
-        let mut adjusted_data = Box::new(Matrix::new(balancing_data.data(), b_nrow));
-
-        for i in 0..b_nrow {
-            let p = probabilities[i];
-            for j in 0..b_ncol {
-                adjusted_data[(i, j)] /= p;
-            }
-        }
-
-        Self {
-            controller: BaseController::new(rand, probabilities, eps),
-            adjusted_data: adjusted_data,
-            candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
-            candidates: Vec::<usize>::with_capacity(b_ncol + 1),
-        }
+    ) -> CubeMethodSampler<'a, R, Self>
+    where
+        R: RandomGenerator,
+    {
+        CubeMethodSampler::new(
+            Box::new(Container::new(rand, probabilities, eps)),
+            Box::new(CubeMethod {}),
+            balancing_data,
+        )
     }
-    pub fn draw(
+
+    #[inline]
+    pub fn sample<'a, R>(
         rand: &'a R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
-    ) -> Vec<usize> {
-        let mut cube = Self::new(rand, probabilities, eps, balancing_data);
-        cube.run();
-        cube.controller_mut().sample_sort();
-        cube.controller().sample().to_vec()
+    ) -> Vec<usize>
+    where
+        R: RandomGenerator,
+    {
+        Self::new(rand, probabilities, eps, balancing_data)
+            .sample()
+            .get_sorted_sample()
+            .to_vec()
     }
 }
 
-impl<'a, R: GenerateRandom> RunCubeMethod<R, BaseController<'a, R>> for CubeMethod<'a, R> {
-    #[inline]
-    fn controller(&self) -> &BaseController<'a, R> {
-        &self.controller
-    }
-    #[inline]
-    fn controller_mut(&mut self) -> &mut BaseController<'a, R> {
-        &mut self.controller
-    }
-    #[inline]
-    fn adjusted_data(&self) -> &Matrix {
-        &self.adjusted_data
-    }
-    #[inline]
-    fn candidate_data_mut(&mut self) -> &mut Matrix {
-        &mut self.candidate_data
-    }
-    #[inline]
-    fn candidates(&self) -> &[usize] {
-        &self.candidates
-    }
-    #[inline]
-    fn candidates_mut(&mut self) -> &mut Vec<usize> {
-        &mut self.candidates
-    }
-}
-
-pub struct LocalCubeMethod<'a, R: GenerateRandom> {
-    tree: Tree<'a, R, SearcherForNeighbours>,
-    adjusted_data: Box<Matrix>,
-    candidate_data: Box<Matrix>,
-    candidates: Vec<usize>,
-}
-
-impl<'a, R: GenerateRandom> LocalCubeMethod<'a, R> {
-    pub fn new(
+impl<'a> LocalCubeMethod<'a> {
+    pub fn new<R>(
         rand: &'a R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Self {
-        let (b_nrow, b_ncol) = balancing_data.dim();
-        assert!(b_nrow == probabilities.len());
-        let mut adjusted_data = Box::new(Matrix::new(balancing_data.data(), b_nrow));
+    ) -> CubeMethodSampler<'a, R, Self>
+    where
+        R: RandomGenerator,
+    {
+        let container = Box::new(Container::new(rand, probabilities, eps));
+        let tree = Box::new(Node::new_from_indices(
+            midpoint_slide,
+            bucket_size,
+            spreading_data,
+            container.indices(),
+        ));
+        let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol()));
 
-        for i in 0..b_nrow {
-            let p = probabilities[i];
-            for j in 0..b_ncol {
-                adjusted_data[(i, j)] /= p;
-            }
-        }
-
-        Self {
-            tree: Tree::new(
-                DataController::new(rand, probabilities, eps, spreading_data),
-                SearcherForNeighbours::new(spreading_data.dim(), balancing_data.ncol()),
-                midpoint_slide,
-                bucket_size,
-            ),
-            adjusted_data: adjusted_data,
-            candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
-            candidates: Vec::<usize>::with_capacity(b_ncol + 1),
-        }
+        CubeMethodSampler::new(
+            container,
+            Box::new(LocalCubeMethod {
+                tree: tree,
+                searcher: searcher,
+            }),
+            balancing_data,
+        )
     }
-    pub fn draw(
+
+    #[inline]
+    pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize> {
-        let mut cube = Self::new(
+    ) -> Vec<usize>
+    where
+        R: RandomGenerator,
+    {
+        Self::new(
             rand,
             probabilities,
             eps,
             balancing_data,
             spreading_data,
             bucket_size,
-        );
-        cube.run();
-        cube.controller_mut().sample_sort();
-        cube.controller().sample().to_vec()
+        )
+        .sample()
+        .get_sorted_sample()
+        .to_vec()
     }
 }
 
-impl<'a, R: GenerateRandom> RunCubeMethod<R, DataController<'a, R>> for LocalCubeMethod<'a, R> {
-    #[inline]
-    fn controller(&self) -> &DataController<'a, R> {
-        self.tree.controller()
-    }
-    #[inline]
-    fn controller_mut(&mut self) -> &mut DataController<'a, R> {
-        self.tree.controller_mut()
-    }
-    #[inline]
-    fn adjusted_data(&self) -> &Matrix {
-        &self.adjusted_data
-    }
-    #[inline]
-    fn candidate_data_mut(&mut self) -> &mut Matrix {
-        &mut self.candidate_data
-    }
-    #[inline]
-    fn candidates(&self) -> &[usize] {
-        &self.candidates
-    }
-    #[inline]
-    fn candidates_mut(&mut self) -> &mut Vec<usize> {
-        &mut self.candidates
-    }
-    #[inline]
-    fn decide_unit(&mut self, id: usize) -> Option<bool> {
-        self.tree.decide_unit(id)
-    }
-    fn draw_units(&mut self) {
-        let ncols = self.adjusted_data().ncol();
-        let remaining_units = self.controller().indices().len();
-        self.candidates.clear();
+impl<'a, R, T> CubeMethodSampler<'a, R, T>
+where
+    R: RandomGenerator,
+    T: CubeMethodVariant<'a, R>,
+{
+    fn new(
+        container: Box<Container<'a, R>>,
+        variant: Box<T>,
+        balancing_data: &'a RefMatrix,
+    ) -> Self {
+        let (b_nrow, b_ncol) = balancing_data.dim();
+        assert!(b_nrow == container.population_size());
+        let mut adjusted_data = Box::new(Matrix::new(balancing_data.data(), b_nrow));
 
-        if remaining_units < ncols + 1 {
-            panic!("units should not be drawn in landing phase");
-        } else if remaining_units == ncols + 1 {
-            for i in 0..remaining_units {
-                let id = *self.controller().indices().get(i).unwrap();
-                self.candidates.push(id);
+        for i in 0..b_nrow {
+            let p = container.probabilities()[i];
+            for j in 0..b_ncol {
+                adjusted_data[(i, j)] /= p;
+            }
+        }
+
+        CubeMethodSampler {
+            container: container,
+            variant: variant,
+            candidates: Vec::<usize>::with_capacity(20),
+            adjusted_data: adjusted_data,
+            candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
+        }
+    }
+    #[inline]
+    pub fn sample(&mut self) -> &mut Self {
+        self.run_flight().run_landing()
+    }
+    fn run_flight(&mut self) -> &mut Self {
+        let b_cols = self.adjusted_data.ncol();
+        assert_eq!(b_cols, self.candidate_data.nrow());
+
+        while self.container.indices().len() > b_cols {
+            self.variant
+                .select_units(&mut self.candidates, &self.container, b_cols + 1);
+            self.set_candidate_data().update_probabilities();
+        }
+
+        self
+    }
+    fn run_landing(&mut self) -> &mut Self {
+        let b_cols = self.adjusted_data.ncol();
+        assert!(
+            self.container.indices().len() <= b_cols,
+            "landing phase committed early: {} units remaining, with {} cols",
+            self.container.indices().len(),
+            b_cols,
+        );
+
+        while self.container.indices().len() > 1 {
+            let number_of_remaining_units = self.container.indices().len();
+            unsafe {
+                self.candidate_data
+                    .resize(number_of_remaining_units - 1, number_of_remaining_units);
             }
 
+            self.candidates.clear();
+            self.candidates
+                .extend_from_slice(self.container.indices().list());
+            self.set_candidate_data().update_probabilities();
+        }
+
+        if let Some(id) = self.container.update_last_unit() {
+            self.variant.decide_unit(&mut self.container, id);
+        }
+
+        self
+    }
+    #[inline]
+    fn set_candidate_data(&mut self) -> &mut Self {
+        let b_cols = self.candidates.len() - 1;
+        assert_eq!(self.candidate_data.dim(), (b_cols, self.candidates.len()));
+
+        for (i, &id) in self.candidates.iter().enumerate() {
+            for j in 0..b_cols {
+                self.candidate_data[(j, i)] = self.adjusted_data[(id, j)];
+            }
+        }
+
+        self
+    }
+    #[inline]
+    fn update_probabilities(&mut self) {
+        let uvec = find_vector_in_null_space(&mut self.candidate_data);
+        let mut lambdas = (f64::MAX, f64::MAX);
+
+        self.candidates
+            .iter()
+            .map(|&id| self.container.probabilities()[id])
+            .zip(uvec.iter())
+            .for_each(|(prob, &uval)| {
+                let lvals = ((prob / uval).abs(), ((1.0 - prob) / uval).abs());
+
+                if uval >= 0.0 {
+                    lambdas.0 = lambdas.0.min(lvals.1);
+                    lambdas.1 = lambdas.1.min(lvals.0);
+                } else {
+                    lambdas.0 = lambdas.0.min(lvals.0);
+                    lambdas.1 = lambdas.1.min(lvals.1);
+                }
+            });
+
+        let lambda = if self.container.random().one_of_f64(lambdas.0, lambdas.1) {
+            lambdas.0
+        } else {
+            -lambdas.1
+        };
+
+        for (i, &id) in self.candidates.iter().enumerate() {
+            self.container.probabilities_mut()[id] += lambda * uvec[i];
+            self.variant.decide_unit(&mut self.container, id);
+        }
+    }
+    #[inline]
+    pub fn get_sample(&mut self) -> &[usize] {
+        self.container.sample().get()
+    }
+    #[inline]
+    pub fn get_sorted_sample(&mut self) -> &[usize] {
+        self.container.sample_mut().sort().get()
+    }
+}
+
+impl<'a, R> CubeMethodVariant<'a, R> for CubeMethod
+where
+    R: RandomGenerator,
+{
+    fn select_units(
+        &mut self,
+        candidates: &mut Vec<usize>,
+        container: &Container<'a, R>,
+        n_units: usize,
+    ) {
+        assert!(container.indices().len() >= n_units);
+        candidates.clear();
+        candidates.extend_from_slice(&container.indices().list()[0..n_units]);
+    }
+    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
+        container.decide_unit(id)
+    }
+}
+
+impl<'a, R> CubeMethodVariant<'a, R> for LocalCubeMethod<'a>
+where
+    R: RandomGenerator,
+{
+    fn select_units(
+        &mut self,
+        candidates: &mut Vec<usize>,
+        container: &Container<'a, R>,
+        n_units: usize,
+    ) {
+        assert!(n_units > 1);
+        assert!(container.indices().len() >= n_units);
+        candidates.clear();
+
+        if container.indices().len() == n_units {
+            candidates.extend_from_slice(&container.indices().list());
             return;
         }
 
         // Draw the first unit at random
-        let id1 = *self
-            .controller()
-            .get_random_index()
-            .expect("indices should not be empty");
-        self.candidates.push(id1);
+        let id1 = *container.indices_random().unwrap();
+        candidates.push(id1);
 
         // Find the neighbours of this first unit
-        self.tree.find_neighbours_of_id(id1);
+        self.searcher.find_neighbours_of_id(&self.tree, id1);
 
         // Add all neighbours, if no equals
-        if self.tree.searcher().neighbours().len() == ncols {
-            for i in 0..ncols {
-                let id = self.tree.searcher().neighbour_k(i);
-                self.candidates.push(id);
-            }
-
+        if self.searcher.neighbours().len() == n_units - 1 {
+            candidates.extend_from_slice(self.searcher.neighbours());
             return;
         }
 
         let mut i: usize = 0;
-        let maximum_distance = self.tree.searcher().max_distance();
+        let maximum_distance = self
+            .searcher
+            .distance_k(self.searcher.neighbours().len() - 1);
 
         // Add all neighbours that are not on maximum distance
-        while i < ncols && self.tree.searcher().distance_k(i) < maximum_distance {
-            let id = self.tree.searcher().neighbour_k(i);
-            self.candidates.push(id);
+        while i < n_units - 1 && self.searcher.distance_k(i) < maximum_distance {
+            let id = self.searcher.neighbours()[i];
+            candidates.push(id);
             i += 1;
         }
 
         // Randomly add neighbours on the maximum distance
-        while i < ncols {
-            let k = self.controller().random().random_usize_scale(ncols - i);
-            let id = self.tree.searcher().neighbour_k(k + i);
-            self.candidates.push(id);
-            unsafe { self.tree.searcher_mut().neighbours_mut().swap(i, k + i) };
-            i += 1;
+        for k in SrsWor::sample(
+            container.random(),
+            n_units - candidates.len(),
+            self.searcher.neighbours().len() - i,
+        )
+        .iter()
+        {
+            candidates.push(self.searcher.neighbours()[i + k]);
         }
+    }
+    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
+        container.decide_unit(id).and_then(|r| {
+            self.tree.remove_unit(id);
+            Some(r)
+        })
     }
 }
 
@@ -417,22 +392,7 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use envisim_samplr_utils::generate_random::StaticRandom;
-
-    macro_rules! assert_delta {
-        ($a:expr,$b:expr,$d:expr) => {
-            assert!(
-                ($a - $b).abs() < $d,
-                "|{} - {}| = {} > {}",
-                $a,
-                $b,
-                ($a - $b).abs(),
-                $d
-            );
-        };
-    }
-
-    const RAND00: StaticRandom = StaticRandom::new(0.0);
+    use crate::test_utils::{assert_delta, data_10_2, EPS, RAND00};
 
     #[test]
     fn cube() {
@@ -443,13 +403,13 @@ mod tests {
             ],
             10,
         );
-        let prob = vec![0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2];
+        let (_sprmat, prob) = data_10_2();
 
-        let mut cube = CubeMethod::new(&RAND00, &prob, 1e-12, &balmat);
+        let mut cube = CubeMethod::new(&RAND00, &prob, EPS, &balmat);
         cube.run_flight();
-        assert!(cube.controller().indices().len() < 3);
+        assert!(cube.container.indices().len() < 3);
 
-        let s = CubeMethod::draw(&RAND00, &prob, 1e-12, &balmat);
+        let s = CubeMethod::sample(&RAND00, &prob, EPS, &balmat);
         assert!(s.len() == 2);
     }
 
@@ -462,21 +422,13 @@ mod tests {
             ],
             10,
         );
-        let sprmat = RefMatrix::new(
-            &[
-                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, //
-                9.0, 8.5, 8.0, 7.5, 7.0, 6.5, 6.0, 5.5, 5.0, 4.5, //
-            ],
-            10,
-        );
+        let (sprmat, prob) = data_10_2();
 
-        let prob = vec![0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2];
-
-        let mut cube = LocalCubeMethod::new(&RAND00, &prob, 1e-12, &balmat, &sprmat, 2);
+        let mut cube = LocalCubeMethod::new(&RAND00, &prob, EPS, &balmat, &sprmat, 2);
         cube.run_flight();
-        assert!(cube.controller().indices().len() < 3);
+        assert!(cube.container.indices().len() < 3);
 
-        let s = LocalCubeMethod::draw(&RAND00, &prob, 1e-12, &balmat, &sprmat, 2);
+        let s = LocalCubeMethod::sample(&RAND00, &prob, EPS, &balmat, &sprmat, 2);
         assert!(s.len() == 2);
     }
 
@@ -492,9 +444,9 @@ mod tests {
         assert!(mat1.data() == [1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
         let res1 = mat1.prod_vec(&mat1_nullvec);
-        assert_delta!(res1[0], 0.0, 1e-12);
-        assert_delta!(res1[1], 0.0, 1e-12);
-        assert_delta!(res1[2], 0.0, 1e-12);
+        assert_delta!(res1[0], 0.0, EPS);
+        assert_delta!(res1[1], 0.0, EPS);
+        assert_delta!(res1[2], 0.0, EPS);
 
         let mut mat2 = Matrix::new(
             &[
@@ -504,13 +456,13 @@ mod tests {
         );
         mat2.reduced_row_echelon_form();
         assert!(&mat2.data()[0..9] == vec![1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
-        assert_delta!(mat2[(0, 3)], -2.5, 1e-12);
-        assert_delta!(mat2[(1, 3)], 1.833333333333333, 1e-12);
-        assert_delta!(mat2[(2, 3)], 0.166666666666667, 1e-12);
+        assert_delta!(mat2[(0, 3)], -2.5, EPS);
+        assert_delta!(mat2[(1, 3)], 1.833333333333333, EPS);
+        assert_delta!(mat2[(2, 3)], 0.166666666666667, EPS);
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
         let res2 = mat2.prod_vec(&mat2_nullvec);
-        assert_delta!(res2[0], 0.0, 1e-12);
-        assert_delta!(res2[1], 0.0, 1e-12);
-        assert_delta!(res2[2], 0.0, 1e-12);
+        assert_delta!(res2[0], 0.0, EPS);
+        assert_delta!(res2[1], 0.0, EPS);
+        assert_delta!(res2[2], 0.0, EPS);
     }
 }

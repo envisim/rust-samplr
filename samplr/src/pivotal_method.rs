@@ -85,6 +85,7 @@ impl RandomPivotalMethod {
         }
     }
 
+    #[inline]
     pub fn sample<'a, R>(rand: &'a R, probabilities: &[f64], eps: f64) -> Vec<usize>
     where
         R: RandomGenerator,
@@ -126,6 +127,7 @@ impl<'a> LocalPivotalMethod1<'a> {
         }
     }
 
+    #[inline]
     pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],
@@ -175,6 +177,7 @@ impl<'a> LocalPivotalMethod1S<'a> {
         }
     }
 
+    #[inline]
     pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],
@@ -221,6 +224,7 @@ impl<'a> LocalPivotalMethod2<'a> {
         }
     }
 
+    #[inline]
     pub fn sample<R>(
         rand: &'a R,
         probabilities: &[f64],
@@ -517,7 +521,7 @@ mod tests {
 
     fn select_and_update<'a, R, T>(pm: &mut PivotalMethodSampler<'a, R, T>) -> Pair
     where
-        R: envisim_samplr_utils::random_generator::RandomList,
+        R: envisim_samplr_utils::random_generator::RandomGenerator,
         T: PivotalMethodVariant<'a, R>,
     {
         let units = pm.variant.select_units(&mut pm.container).unwrap();
