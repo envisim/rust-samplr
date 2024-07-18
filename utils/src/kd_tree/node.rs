@@ -150,6 +150,28 @@ impl<'a> Node<'a> {
         self.data
     }
 
+    pub fn insert_unit(&mut self, id: usize) -> bool {
+        match self.kind {
+            NodeKind::Branch(ref mut branch) => {
+                let distance = self.data[(id, branch.dimension)] - branch.value;
+
+                if distance <= 0.0 {
+                    branch.left_child.insert_unit(id)
+                } else {
+                    branch.right_child.insert_unit(id)
+                }
+            }
+            NodeKind::Leaf(ref mut leaf) => {
+                if leaf.units.contains(&id) {
+                    false
+                } else {
+                    leaf.units.push(id);
+                    true
+                }
+            }
+        }
+    }
+
     pub fn remove_unit(&mut self, id: usize) -> bool {
         match self.kind {
             NodeKind::Branch(ref mut branch) => {

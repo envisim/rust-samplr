@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    slice::{Iter, IterMut},
+};
 
 pub struct Probabilities {
     pub eps: f64,
@@ -49,6 +52,16 @@ impl Probabilities {
         } else {
             (1.0 - self[idx1]) / prob
         }
+    }
+
+    #[inline]
+    pub fn iter(&self) -> Iter<f64> {
+        self.probabilities.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> IterMut<f64> {
+        self.probabilities.iter_mut()
     }
 }
 

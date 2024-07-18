@@ -24,6 +24,12 @@ impl Indices {
     }
 
     #[inline]
+    pub fn clear(&mut self) {
+        self.list.clear();
+        self.indices.clear();
+    }
+
+    #[inline]
     pub fn list(&self) -> &[usize] {
         &self.list
     }

@@ -8,5 +8,7 @@ pub mod cube_method;
 pub mod pivotal_method;
 pub mod srs;
 
+mod macros;
+
 #[cfg(test)]
 mod test_utils;

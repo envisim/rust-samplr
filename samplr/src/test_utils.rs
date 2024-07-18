@@ -1,13 +1,5 @@
+pub(crate) use crate::macros::assert_delta;
 use envisim_samplr_utils::{matrix::RefMatrix, random_generator::Constant};
-
-#[allow(dead_code)]
-macro_rules! assert_delta {
-    ($a:expr,$b:expr,$d:expr) => {
-        assert!(($a - $b).abs() < $d, "|{} - {}| >= {}", $a, $b, $d);
-    };
-}
-
-pub(crate) use assert_delta;
 
 #[allow(dead_code)]
 pub const RAND00: Constant = Constant::new(0.0);
@@ -52,4 +44,19 @@ pub const DATA_10_2: [f64; 20] = [
 #[allow(dead_code)]
 pub fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
     (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
+}
+
+#[allow(dead_code)]
+pub const DATA_20_2: [f64; 40] = [
+    0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527, 0.66079779,
+    0.62911404, 0.06178627, 1.26550866, 1.37212390, 1.57285336, 1.90820779, 1.20168193, 1.89838968,
+    1.94467527, 1.66079779, 1.62911404, 1.06178627, //
+    0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185, 0.9919061,
+    0.3800352, 0.7774452, 0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992,
+    0.7176185, 0.9919061, 0.3800352, 0.7774452,
+];
+
+#[allow(dead_code)]
+pub fn data_20_2<'a>() -> (RefMatrix<'a>, [f64; 20]) {
+    (RefMatrix::new(&DATA_20_2, 20), [0.2f64; 20])
 }

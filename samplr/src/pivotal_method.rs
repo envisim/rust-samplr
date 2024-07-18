@@ -1,9 +1,12 @@
+use crate::macros::assert_delta;
 use envisim_samplr_utils::{
     container::Container,
     kd_tree::{midpoint_slide, Node, Searcher},
     matrix::RefMatrix,
     random_generator::RandomGenerator,
+    utils::usize_to_f64,
 };
+use std::collections::HashSet;
 
 type Pair = (usize, usize);
 
@@ -514,10 +517,78 @@ where
     }
 }
 
+pub fn hierarchical_local_pivotal_method_2<'a, R>(
+    rand: &'a R,
+    probabilities: &[f64],
+    eps: f64,
+    data: &'a RefMatrix,
+    bucket_size: usize,
+    sizes: &[usize],
+) -> Vec<Vec<usize>>
+where
+    R: RandomGenerator,
+{
+    assert_delta!(
+        probabilities.iter().sum::<f64>(),
+        usize_to_f64(sizes.iter().sum()),
+        eps
+    );
+    assert!(sizes.len() > 0);
+
+    if sizes.len() == 1 {
+        return vec![LocalPivotalMethod2::sample(
+            rand,
+            probabilities,
+            eps,
+            data,
+            bucket_size,
+        )];
+    }
+
+    let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
+    let mut pm = LocalPivotalMethod2::new(rand, probabilities, eps, data, bucket_size);
+
+    let mut main_sample: HashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
+
+    for (i, &size) in sizes[0..sizes.len() - 1].iter().enumerate() {
+        assert_eq!(pm.container.indices().len(), 0);
+
+        if size == 0 {
+            return_sample.push(vec![]);
+        }
+
+        pm.container.sample_mut().clear();
+
+        let prob = usize_to_f64(size) / usize_to_f64(main_sample.len());
+
+        // Reset probs and add to indices/tree
+        for id in 0..pm.container.population_size() {
+            if main_sample.contains(&id) {
+                pm.container.probabilities_mut()[id] = prob;
+                pm.container.indices_mut().insert(id);
+                pm.variant.tree.insert_unit(id);
+            } else {
+                pm.container.probabilities_mut()[id] = 0.0;
+            }
+        }
+
+        pm.sample();
+        return_sample.push(Vec::<usize>::with_capacity(pm.get_sample().len()));
+
+        for &id in pm.get_sorted_sample().iter() {
+            return_sample[i].push(id);
+            main_sample.remove(&id);
+        }
+    }
+
+    return_sample.push(main_sample.into_iter().collect());
+    return_sample
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, EPS, RAND00, RAND99};
+    use crate::test_utils::{assert_delta, data_10_2, data_20_2, EPS, RAND00, RAND99};
 
     fn select_and_update<'a, R, T>(pm: &mut PivotalMethodSampler<'a, R, T>) -> Pair
     where
@@ -641,5 +712,25 @@ mod tests {
         let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
         // Depending on over/under 1.0 in last
         assert!(s1 == vec![8, 9] || s1 == vec![6, 8]);
+    }
+
+    #[test]
+    fn hlpm2() {
+        {
+            let (data, prob) = data_10_2();
+            let s = hierarchical_local_pivotal_method_2(&RAND00, &prob, EPS, &data, 2, &[1, 1]);
+            assert_eq!(s.len(), 2);
+            assert_eq!(s[0].len(), 1);
+            assert_eq!(s[1].len(), 1);
+        }
+
+        {
+            let (data, prob) = data_20_2();
+            let s = hierarchical_local_pivotal_method_2(&RAND00, &prob, EPS, &data, 2, &[1, 2, 1]);
+            assert_eq!(s.len(), 3);
+            assert_eq!(s[0].len(), 1);
+            assert_eq!(s[1].len(), 2);
+            assert_eq!(s[2].len(), 1);
+        }
     }
 }

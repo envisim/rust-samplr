@@ -13,6 +13,11 @@ impl Sample {
     }
 
     #[inline]
+    pub fn clear(&mut self) {
+        self.sample.clear();
+    }
+
+    #[inline]
     pub fn add(&mut self, idx: usize) {
         self.sample.push(idx);
     }
@@ -85,6 +90,11 @@ where
     #[inline]
     pub fn indices(&self) -> &Indices {
         &self.indices
+    }
+
+    #[inline]
+    pub fn indices_mut(&mut self) -> &mut Indices {
+        &mut self.indices
     }
 
     #[inline]
