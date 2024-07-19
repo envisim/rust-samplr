@@ -61,6 +61,8 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         distance
     }
 
+    /// Performes the calculation of self * multiplicand, where self
+    /// is a matrix A, and multiplicand is a vector
     #[inline]
     fn prod_vec(&self, multiplicand: &[f64]) -> Vec<f64> {
         assert!(multiplicand.len() == self.ncol());
@@ -76,6 +78,23 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         }
 
         prod
+    }
+
+    /// Performes the calculation of matrices self * mat
+    fn mult<M>(&self, mat: &M) -> Matrix
+    where
+        M: OperateMatrix,
+    {
+        assert!(self.ncol() == mat.nrow());
+        let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
+
+        let mut index = 0usize;
+        for _ in 0..mat.ncol() {
+            prod.extend_from_slice(&self.prod_vec(&mat.data()[index..(index + mat.nrow())]));
+            index += mat.nrow();
+        }
+
+        Matrix::new(&prod, self.nrow())
     }
 }
 
@@ -324,12 +343,7 @@ impl<'a> OperateMatrix for RefMatrix<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    macro_rules! assert_delta {
-        ($a:expr,$b:expr,$d:expr) => {
-            assert!(($a - $b).abs() < $d);
-        };
-    }
+    use crate::test_utils::{assert_delta, DATA_10_2, EPS};
 
     #[test]
     fn matrix_sizes() {
@@ -337,16 +351,7 @@ mod tests {
         assert!(data1.nrow() == 9);
         assert!(data1.ncol() == 1);
 
-        let data2 = Matrix::new(
-            &[
-                0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527,
-                0.66079779, 0.62911404, 0.06178627, //
-                0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185,
-                0.9919061, 0.3800352, 0.7774452,
-            ],
-            10,
-        );
-
+        let data2 = Matrix::new(&DATA_10_2, 10);
         assert!(data2.nrow() == 10);
         assert!(data2.ncol() == 2);
     }
@@ -387,18 +392,18 @@ mod tests {
             3,
         );
         data1.reduced_row_echelon_form();
-        assert_delta!(data1[(0, 0)], 1.0, 1e-12); // COL1
-        assert_delta!(data1[(1, 0)], 0.0, 1e-12);
-        assert_delta!(data1[(2, 0)], 0.0, 1e-12);
-        assert_delta!(data1[(0, 1)], 0.0, 1e-12); // COL2
-        assert_delta!(data1[(1, 1)], 1.0, 1e-12);
-        assert_delta!(data1[(2, 1)], 0.0, 1e-12);
-        assert_delta!(data1[(0, 2)], 0.0, 1e-12); // COL3
-        assert_delta!(data1[(1, 2)], 0.0, 1e-12);
-        assert_delta!(data1[(2, 2)], 1.0, 1e-12);
-        assert_delta!(data1[(0, 3)], 0.188953701217875, 1e-12); // COL4
-        assert_delta!(data1[(1, 3)], 0.748566128914163, 1e-12);
-        assert_delta!(data1[(2, 3)], 0.212107159999675, 1e-12);
+        assert_delta!(data1[(0, 0)], 1.0, EPS); // COL1
+        assert_delta!(data1[(1, 0)], 0.0, EPS);
+        assert_delta!(data1[(2, 0)], 0.0, EPS);
+        assert_delta!(data1[(0, 1)], 0.0, EPS); // COL2
+        assert_delta!(data1[(1, 1)], 1.0, EPS);
+        assert_delta!(data1[(2, 1)], 0.0, EPS);
+        assert_delta!(data1[(0, 2)], 0.0, EPS); // COL3
+        assert_delta!(data1[(1, 2)], 0.0, EPS);
+        assert_delta!(data1[(2, 2)], 1.0, EPS);
+        assert_delta!(data1[(0, 3)], 0.188953701217875, EPS); // COL4
+        assert_delta!(data1[(1, 3)], 0.748566128914163, EPS);
+        assert_delta!(data1[(2, 3)], 0.212107159999675, EPS);
     }
 
     #[test]
@@ -412,8 +417,19 @@ mod tests {
         let vec1 = vec![0.75f64, 0.27, 0.24, 0.3];
         let res1 = data1.prod_vec(&vec1);
         let facit1 = vec![1.1007, 0.6696, 0.9960];
-        assert_delta!(res1[0], facit1[0], 1e-12);
-        assert_delta!(res1[1], facit1[1], 1e-12);
-        assert_delta!(res1[2], facit1[2], 1e-12);
+        assert_delta!(res1[0], facit1[0], EPS);
+        assert_delta!(res1[1], facit1[1], EPS);
+        assert_delta!(res1[2], facit1[2], EPS);
+
+        let data2 = Matrix::new(&[0.45, 0.84, 0.86, 0.09, 0.60, 0.13, 0.18, 0.69], 4);
+        let res = data1.mult(&data2);
+        let facit = vec![1.3247, 0.7084, 1.0855, 0.9226, 0.7548, 0.8485];
+        assert_eq!(res.data().len(), facit.len());
+        assert_delta!(res.data()[0], facit[0], EPS);
+        assert_delta!(res.data()[1], facit[1], EPS);
+        assert_delta!(res.data()[2], facit[2], EPS);
+        assert_delta!(res.data()[3], facit[3], EPS);
+        assert_delta!(res.data()[4], facit[4], EPS);
+        assert_delta!(res.data()[5], facit[5], EPS);
     }
 }
