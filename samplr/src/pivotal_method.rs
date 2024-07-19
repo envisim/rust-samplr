@@ -14,7 +14,7 @@ pub trait PivotalMethodVariant<'a, R>
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)>;
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)>;
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool>;
 }
 
@@ -49,7 +49,7 @@ pub struct LocalPivotalMethod2<'a> {
 
 impl SequentialPivotalMethod {
     pub fn new<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
     ) -> PivotalMethodSampler<'a, R, Self>
@@ -62,7 +62,7 @@ impl SequentialPivotalMethod {
         }
     }
 
-    pub fn sample<'a, R>(rand: &'a R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
     where
         R: RandomGenerator,
     {
@@ -75,7 +75,7 @@ impl SequentialPivotalMethod {
 
 impl RandomPivotalMethod {
     pub fn new<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
     ) -> PivotalMethodSampler<'a, R, Self>
@@ -89,7 +89,7 @@ impl RandomPivotalMethod {
     }
 
     #[inline]
-    pub fn sample<'a, R>(rand: &'a R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
     where
         R: RandomGenerator,
     {
@@ -102,7 +102,7 @@ impl RandomPivotalMethod {
 
 impl<'a> LocalPivotalMethod1<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -132,7 +132,7 @@ impl<'a> LocalPivotalMethod1<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -150,7 +150,7 @@ impl<'a> LocalPivotalMethod1<'a> {
 
 impl<'a> LocalPivotalMethod1S<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -182,7 +182,7 @@ impl<'a> LocalPivotalMethod1S<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -200,7 +200,7 @@ impl<'a> LocalPivotalMethod1S<'a> {
 
 impl<'a> LocalPivotalMethod2<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -229,7 +229,7 @@ impl<'a> LocalPivotalMethod2<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -303,7 +303,7 @@ impl<'a, R> PivotalMethodVariant<'a, R> for SequentialPivotalMethod
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)> {
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
         if container.indices().len() <= 1 {
             return None;
         }
@@ -341,7 +341,7 @@ impl<'a, R> PivotalMethodVariant<'a, R> for RandomPivotalMethod
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)> {
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -350,10 +350,8 @@ where
         }
 
         let id1 = *container.indices_random().unwrap();
-        let mut id2 = *container
-            .indices()
-            .get(container.random().rusize(len - 1))
-            .unwrap();
+        let k = container.random().rusize(len - 1);
+        let mut id2 = *container.indices().get(k).unwrap();
 
         if id1 == id2 {
             id2 = *container.indices().last().unwrap();
@@ -370,7 +368,7 @@ impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod1<'a>
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)> {
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -419,7 +417,7 @@ impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod1S<'a>
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)> {
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -491,7 +489,7 @@ impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod2<'a>
 where
     R: RandomGenerator,
 {
-    fn select_units(&mut self, container: &Container<'a, R>) -> Option<(usize, usize)> {
+    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -518,7 +516,7 @@ where
 }
 
 pub fn hierarchical_local_pivotal_method_2<'a, R>(
-    rand: &'a R,
+    rand: &'a mut R,
     probabilities: &[f64],
     eps: f64,
     data: &'a RefMatrix,
@@ -593,7 +591,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, data_20_2, EPS, RAND00, RAND99};
+    use crate::test_utils::{assert_delta, data_10_2, data_20_2, gen_rand, EPS};
 
     fn select_and_update<'a, R, T>(pm: &mut PivotalMethodSampler<'a, R, T>) -> Pair
     where
@@ -608,113 +606,118 @@ mod tests {
     #[test]
     fn spm_variant() {
         type ST = SequentialPivotalMethod;
+        let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut pm = ST::new(&RAND00, &prob, EPS);
+        let mut pm = ST::new(&mut rand00, &prob, EPS);
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (1, 2));
 
-        pm = ST::new(&RAND99, &prob, EPS);
+        pm = ST::new(&mut rand99, &prob, EPS);
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (0, 2));
 
-        let s0 = ST::sample(&RAND00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS);
         assert_eq!(s0, vec![4, 9]);
-        let s1 = ST::sample(&RAND99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS);
         assert_eq!(s1, vec![0, 5]);
     }
 
     #[test]
     fn rpm_variant() {
         type ST = RandomPivotalMethod;
+        let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut pm = ST::new(&RAND00, &prob, EPS);
+        let mut pm = ST::new(&mut rand00, &prob, EPS);
         assert_eq!(select_and_update(&mut pm), (0, 9));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 8));
 
-        pm = ST::new(&RAND99, &prob, EPS);
+        pm = ST::new(&mut rand99, &prob, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 8));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[8], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 7));
 
-        let s0 = ST::sample(&RAND00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS);
         assert_eq!(s0, vec![1, 6]);
-        let s1 = ST::sample(&RAND99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS);
         assert_eq!(s1, vec![0, 9]);
     }
 
     #[test]
     fn lpm1_variant() {
         type ST<'a> = LocalPivotalMethod1<'a>;
+        let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         // assert_eq!(select_and_update(&mut pm), (9, 7));
 
-        // let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        // let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
         // assert_eq!(s0, vec![1, 6]);
-        // let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        // let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
         // assert_eq!(s1, vec![0, 9]);
     }
 
     #[test]
     fn lpm1s_variant() {
         type ST<'a> = LocalPivotalMethod1S<'a>;
+        let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (3, 5));
 
-        let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
         assert_eq!(s1, vec![1, 3]);
     }
 
     #[test]
     fn lpm2_variant() {
         type ST<'a> = LocalPivotalMethod2<'a>;
+        let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&RAND00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&RAND99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (8, 3));
 
-        let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(s0, vec![1, 3]);
-        let s1 = ST::sample(&RAND99, &prob, EPS, &data, 2);
+        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
         // Depending on over/under 1.0 in last
         assert!(s1 == vec![8, 9] || s1 == vec![6, 8]);
     }
@@ -722,16 +725,19 @@ mod tests {
     #[test]
     fn hlpm2() {
         {
+            let (mut rand00, mut _rand99) = gen_rand();
             let (data, prob) = data_10_2();
-            let s = hierarchical_local_pivotal_method_2(&RAND00, &prob, EPS, &data, 2, &[1, 1]);
+            let s = hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 1]);
             assert_eq!(s.len(), 2);
             assert_eq!(s[0].len(), 1);
             assert_eq!(s[1].len(), 1);
         }
 
         {
+            let (mut rand00, mut _rand99) = gen_rand();
             let (data, prob) = data_20_2();
-            let s = hierarchical_local_pivotal_method_2(&RAND00, &prob, EPS, &data, 2, &[1, 2, 1]);
+            let s =
+                hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 2, 1]);
             assert_eq!(s.len(), 3);
             assert_eq!(s[0].len(), 1);
             assert_eq!(s[1].len(), 2);

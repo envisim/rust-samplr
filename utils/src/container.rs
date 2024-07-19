@@ -43,7 +43,7 @@ pub struct Container<'a, R>
 where
     R: RandomGenerator,
 {
-    random: &'a R,
+    random: &'a mut R,
     probabilities: Probabilities,
     indices: Indices,
     sample: Sample,
@@ -53,7 +53,7 @@ impl<'a, R> Container<'a, R>
 where
     R: RandomGenerator,
 {
-    pub fn new(rand: &'a R, probabilities: &[f64], eps: f64) -> Self {
+    pub fn new(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Self {
         let population_size = probabilities.len();
 
         let mut container = Container {
@@ -73,7 +73,7 @@ where
     }
 
     #[inline]
-    pub fn random(&self) -> &R {
+    pub fn random(&mut self) -> &mut R {
         self.random
     }
 
@@ -98,7 +98,7 @@ where
     }
 
     #[inline]
-    pub fn indices_random(&self) -> Option<&usize> {
+    pub fn indices_random(&mut self) -> Option<&usize> {
         self.indices.random(self.random)
     }
 
@@ -153,12 +153,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{data_10_2, EPS, RAND00};
+    use crate::test_utils::{data_10_2, gen_rand00, EPS};
 
     #[test]
     fn decide_unit() {
+        let mut rand00 = gen_rand00();
         let (_data, prob) = data_10_2();
-        let mut c = Container::new(&RAND00, &prob, EPS);
+        let mut c = Container::new(&mut rand00, &prob, EPS);
         c.probabilities_mut()[0] = 1.0;
         c.probabilities_mut()[1] = 0.0;
         assert_eq!(c.decide_unit(0), Some(true));

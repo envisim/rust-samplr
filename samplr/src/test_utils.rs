@@ -1,12 +1,41 @@
 pub(crate) use crate::macros::assert_delta;
-use envisim_samplr_utils::{matrix::RefMatrix, random_generator::Constant};
+use envisim_samplr_utils::{
+    matrix::RefMatrix,
+    random_generator::{Constant, RandomGenerator},
+};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 #[allow(dead_code)]
-pub const RAND00: Constant = Constant::new(0.0);
+pub const fn gen_rand() -> (Constant, Constant) {
+    (gen_rand00(), gen_rand99())
+}
 #[allow(dead_code)]
-pub const RAND99: Constant = Constant::new(0.999);
+pub const fn gen_rand00() -> Constant {
+    Constant::new(0.0)
+}
+#[allow(dead_code)]
+pub const fn gen_rand99() -> Constant {
+    Constant::new(0.999)
+}
 #[allow(dead_code)]
 pub const EPS: f64 = 1e-12;
+
+pub struct TestRandom {
+    rand: SmallRng,
+}
+impl TestRandom {
+    pub fn new(seed: u64) -> Self {
+        TestRandom {
+            rand: SmallRng::seed_from_u64(seed),
+        }
+    }
+}
+impl RandomGenerator for TestRandom {
+    #[inline]
+    fn rf64(&mut self) -> f64 {
+        self.rand.gen()
+    }
+}
 
 // DISTS:
 //            0         1         2         3         4         5         6         7         8         9

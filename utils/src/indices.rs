@@ -53,7 +53,7 @@ impl Indices {
     }
 
     #[inline]
-    pub fn random<R>(&self, rand: &R) -> Option<&usize>
+    pub fn random<R>(&self, rand: &mut R) -> Option<&usize>
     where
         R: RandomGenerator,
     {

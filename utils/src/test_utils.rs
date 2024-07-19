@@ -1,4 +1,5 @@
-use crate::{matrix::RefMatrix, random_generator::Constant};
+use crate::matrix::RefMatrix;
+use crate::random_generator::Constant;
 
 #[allow(dead_code)]
 macro_rules! assert_delta {
@@ -10,9 +11,17 @@ macro_rules! assert_delta {
 pub(crate) use assert_delta;
 
 #[allow(dead_code)]
-pub const RAND00: Constant = Constant::new(0.0);
+pub const fn gen_rand() -> (Constant, Constant) {
+    (gen_rand00(), gen_rand99())
+}
 #[allow(dead_code)]
-pub const RAND99: Constant = Constant::new(0.999);
+pub const fn gen_rand00() -> Constant {
+    Constant::new(0.0)
+}
+#[allow(dead_code)]
+pub const fn gen_rand99() -> Constant {
+    Constant::new(0.999)
+}
 #[allow(dead_code)]
 pub const EPS: f64 = 1e-12;
 

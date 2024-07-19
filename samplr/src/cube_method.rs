@@ -15,7 +15,7 @@ where
     fn select_units(
         &mut self,
         candidates: &mut Vec<usize>,
-        container: &Container<'a, R>,
+        container: &mut Container<'a, R>,
         n_units: usize,
     );
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool>;
@@ -41,7 +41,7 @@ pub struct LocalCubeMethod<'a> {
 
 impl CubeMethod {
     pub fn new<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -58,7 +58,7 @@ impl CubeMethod {
 
     #[inline]
     pub fn sample<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -73,7 +73,7 @@ impl CubeMethod {
     }
 
     pub fn sample_stratified<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &'a [f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -82,6 +82,7 @@ impl CubeMethod {
     where
         R: RandomGenerator,
     {
+        let seed = rand.rusize(probabilities.len());
         let container = Box::new(Container::new(rand, probabilities, eps));
 
         let mut cs = CubeStratified {
@@ -100,7 +101,7 @@ impl CubeMethod {
             },
             strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
                 probabilities.len() / 10,
-                FxSeededState::with_seed(rand.rusize(probabilities.len())),
+                FxSeededState::with_seed(seed),
             ),
             probabilities: probabilities,
             balancing_data: balancing_data,
@@ -114,7 +115,7 @@ impl CubeMethod {
 
 impl<'a> LocalCubeMethod<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -145,7 +146,7 @@ impl<'a> LocalCubeMethod<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -169,7 +170,7 @@ impl<'a> LocalCubeMethod<'a> {
     }
 
     pub fn sample_stratified<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &'a [f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
@@ -180,6 +181,7 @@ impl<'a> LocalCubeMethod<'a> {
     where
         R: RandomGenerator,
     {
+        let seed = rand.rusize(probabilities.len());
         let container = Box::new(Container::new(rand, probabilities, eps));
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
@@ -208,7 +210,7 @@ impl<'a> LocalCubeMethod<'a> {
             },
             strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
                 probabilities.len() / 10,
-                FxSeededState::with_seed(rand.rusize(probabilities.len())),
+                FxSeededState::with_seed(seed),
             ),
             probabilities: probabilities,
             balancing_data: balancing_data,
@@ -259,7 +261,7 @@ where
 
         while self.container.indices().len() > b_cols {
             self.variant
-                .select_units(&mut self.candidates, &self.container, b_cols + 1);
+                .select_units(&mut self.candidates, &mut self.container, b_cols + 1);
             self.set_candidate_data().update_probabilities();
         }
 
@@ -355,7 +357,7 @@ where
     fn select_units(
         &mut self,
         candidates: &mut Vec<usize>,
-        container: &Container<'a, R>,
+        container: &mut Container<'a, R>,
         n_units: usize,
     ) {
         assert!(container.indices().len() >= n_units);
@@ -374,7 +376,7 @@ where
     fn select_units(
         &mut self,
         candidates: &mut Vec<usize>,
-        container: &Container<'a, R>,
+        container: &mut Container<'a, R>,
         n_units: usize,
     ) {
         assert!(n_units > 1);
@@ -655,7 +657,7 @@ where
 }
 
 pub fn cube_stratified<'a, R>(
-    rand: &'a R,
+    rand: &'a mut R,
     probabilities: &[f64],
     eps: f64,
     balancing_data: &'a RefMatrix,
@@ -852,7 +854,7 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, data_20_2, EPS, RAND00};
+    use crate::test_utils::{assert_delta, data_10_2, data_20_2, gen_rand, TestRandom, EPS};
 
     #[test]
     fn cube() {
@@ -863,13 +865,14 @@ mod tests {
             ],
             10,
         );
+        let (mut rand00, mut _rand99) = gen_rand();
         let (_sprmat, prob) = data_10_2();
 
-        let mut cube = CubeMethod::new(&RAND00, &prob, EPS, &balmat);
+        let mut cube = CubeMethod::new(&mut rand00, &prob, EPS, &balmat);
         cube.run_flight();
         assert!(cube.container.indices().len() < 3);
 
-        let s = CubeMethod::sample(&RAND00, &prob, EPS, &balmat);
+        let s = CubeMethod::sample(&mut rand00, &prob, EPS, &balmat);
         assert!(s.len() == 2);
     }
 
@@ -882,23 +885,25 @@ mod tests {
             ],
             10,
         );
+        let (mut rand00, mut _rand99) = gen_rand();
         let (sprmat, prob) = data_10_2();
 
-        let mut cube = LocalCubeMethod::new(&RAND00, &prob, EPS, &balmat, &sprmat, 2);
+        let mut cube = LocalCubeMethod::new(&mut rand00, &prob, EPS, &balmat, &sprmat, 2);
         cube.run_flight();
         assert!(cube.container.indices().len() < 3);
 
-        let s = LocalCubeMethod::sample(&RAND00, &prob, EPS, &balmat, &sprmat, 2);
+        let s = LocalCubeMethod::sample(&mut rand00, &prob, EPS, &balmat, &sprmat, 2);
         assert!(s.len() == 2);
     }
 
     #[test]
     fn cube_stratified() {
+        let (mut rand00, mut _rand99) = gen_rand();
+
         {
             let (balmat, prob) = data_10_2();
-
             let s = CubeMethod::sample_stratified(
-                &RAND00,
+                &mut rand00,
                 &prob,
                 EPS,
                 &balmat,
@@ -910,9 +915,8 @@ mod tests {
         }
         {
             let (balmat, prob) = data_20_2();
-
             let s = CubeMethod::sample_stratified(
-                &RAND00,
+                &mut rand00,
                 &prob,
                 EPS,
                 &balmat,
@@ -930,11 +934,12 @@ mod tests {
 
     #[test]
     fn lcube_stratified() {
+        let mut rand = TestRandom::new(0);
+
         {
             let (balmat, prob) = data_10_2();
-
             let s = LocalCubeMethod::sample_stratified(
-                &RAND00,
+                &mut rand,
                 &prob,
                 EPS,
                 &balmat,
@@ -949,22 +954,24 @@ mod tests {
         {
             let (balmat, prob) = data_20_2();
 
-            let s = LocalCubeMethod::sample_stratified(
-                &RAND00,
-                &prob,
-                EPS,
-                &balmat,
-                &balmat,
-                2,
-                &[
-                    1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                ],
-            );
-            assert_eq!(s.len(), 4);
-            assert!((0..5).contains(&s[0]));
-            assert!((5..10).contains(&s[1]));
-            assert!((10..20).contains(&s[2]));
-            assert!((10..20).contains(&s[3]));
+            for _ in 0..4 {
+                let s = LocalCubeMethod::sample_stratified(
+                    &mut rand,
+                    &prob,
+                    EPS,
+                    &balmat,
+                    &balmat,
+                    2,
+                    &[
+                        1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                    ],
+                );
+                assert_eq!(s.len(), 4);
+                assert!((0..5).contains(&s[0]));
+                assert!((5..10).contains(&s[1]));
+                assert!((10..20).contains(&s[2]));
+                assert!((10..20).contains(&s[3]));
+            }
         }
     }
 

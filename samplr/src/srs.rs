@@ -2,7 +2,7 @@ use envisim_samplr_utils::random_generator::RandomGenerator;
 
 pub struct SrsWor {}
 impl SrsWor {
-    pub fn sample<R>(rand: &R, sample_size: usize, population_size: usize) -> Vec<usize>
+    pub fn sample<R>(rand: &mut R, sample_size: usize, population_size: usize) -> Vec<usize>
     where
         R: RandomGenerator,
     {
@@ -27,7 +27,7 @@ impl SrsWor {
 
 pub struct SrsWr {}
 impl SrsWr {
-    pub fn sample<R>(rand: &R, sample_size: usize, population_size: usize) -> Vec<usize>
+    pub fn sample<R>(rand: &mut R, sample_size: usize, population_size: usize) -> Vec<usize>
     where
         R: RandomGenerator,
     {
@@ -52,19 +52,19 @@ mod tests {
     use super::*;
     use envisim_samplr_utils::random_generator::Constant;
 
-    const RAND01: Constant = Constant::new(0.1);
-
     #[test]
     fn test_srs_wor() {
-        assert_eq!(SrsWor::sample(&RAND01, 5, 10), [0, 1, 2, 3, 4]);
-        assert_eq!(SrsWor::sample(&RAND01, 2, 10), [0, 1]);
-        assert_eq!(SrsWor::sample(&RAND01, 1, 10), [1]);
+        let mut rand01 = Constant::new(0.1);
+        assert_eq!(SrsWor::sample(&mut rand01, 5, 10), [0, 1, 2, 3, 4]);
+        assert_eq!(SrsWor::sample(&mut rand01, 2, 10), [0, 1]);
+        assert_eq!(SrsWor::sample(&mut rand01, 1, 10), [1]);
     }
 
     #[test]
     fn test_srs_wr() {
-        assert_eq!(SrsWr::sample(&RAND01, 5, 10), [1, 1, 1, 1, 1]);
-        assert_eq!(SrsWr::sample(&RAND01, 2, 10), [1, 1]);
-        assert_eq!(SrsWr::sample(&RAND01, 1, 10), [1]);
+        let mut rand01 = Constant::new(0.1);
+        assert_eq!(SrsWr::sample(&mut rand01, 5, 10), [1, 1, 1, 1, 1]);
+        assert_eq!(SrsWr::sample(&mut rand01, 2, 10), [1, 1]);
+        assert_eq!(SrsWr::sample(&mut rand01, 1, 10), [1]);
     }
 }

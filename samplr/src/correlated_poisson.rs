@@ -10,7 +10,7 @@ pub trait CorrelatedPoissonVariant<'a, R>
 where
     R: RandomList,
 {
-    fn select_unit(&mut self, container: &Container<'a, R>) -> Option<usize>;
+    fn select_unit(&mut self, container: &mut Container<'a, R>) -> Option<usize>;
     fn update_neighbours(
         &mut self,
         container: &mut Container<'a, R>,
@@ -47,7 +47,7 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 
 impl SequentialCorrelatedPoissonSampling {
     pub fn new<'a, R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
     ) -> CorrelatedPoissonSampler<'a, R, Self>
@@ -61,7 +61,7 @@ impl SequentialCorrelatedPoissonSampling {
     }
 
     #[inline]
-    pub fn sample<'a, R>(rand: &'a R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
     where
         R: RandomList,
     {
@@ -74,7 +74,7 @@ impl SequentialCorrelatedPoissonSampling {
 
 impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -104,7 +104,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -120,7 +120,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
     }
 
     pub fn new_sequential<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -150,7 +150,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
 
     #[inline]
     pub fn sample_sequential<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -168,7 +168,7 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
 
 impl<'a> LocallyCorrelatedPoissonSampling<'a> {
     pub fn new<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -201,7 +201,7 @@ impl<'a> LocallyCorrelatedPoissonSampling<'a> {
 
     #[inline]
     pub fn sample<R>(
-        rand: &'a R,
+        rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
         data: &'a RefMatrix,
@@ -240,7 +240,7 @@ where
     }
 
     pub fn sample(&mut self) -> &mut Self {
-        while let Some(id) = self.variant.select_unit(&self.container) {
+        while let Some(id) = self.variant.select_unit(&mut self.container) {
             let (probability, quota) = self.decide_selected(id);
             self.variant
                 .update_neighbours(&mut self.container, id, probability, quota);
@@ -262,7 +262,7 @@ impl<'a, R> CorrelatedPoissonVariant<'a, R> for SequentialCorrelatedPoissonSampl
 where
     R: RandomList,
 {
-    fn select_unit(&mut self, container: &Container<'a, R>) -> Option<usize> {
+    fn select_unit(&mut self, container: &mut Container<'a, R>) -> Option<usize> {
         if container.indices().len() == 0 {
             return None;
         }
@@ -311,7 +311,7 @@ impl<'a, R> CorrelatedPoissonVariant<'a, R> for SpatiallyCorrelatedPoissonSampli
 where
     R: RandomList,
 {
-    fn select_unit(&mut self, container: &Container<'a, R>) -> Option<usize> {
+    fn select_unit(&mut self, container: &mut Container<'a, R>) -> Option<usize> {
         if container.indices().len() <= 1 {
             return container.indices().first().cloned();
         }
@@ -416,7 +416,7 @@ impl<'a, R> CorrelatedPoissonVariant<'a, R> for LocallyCorrelatedPoissonSampling
 where
     R: RandomList,
 {
-    fn select_unit(&mut self, container: &Container<'a, R>) -> Option<usize> {
+    fn select_unit(&mut self, container: &mut Container<'a, R>) -> Option<usize> {
         if container.indices().len() <= 1 {
             return container.indices().first().cloned();
         } else if container.indices().len() == 2 {
@@ -475,14 +475,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, EPS, RAND00, RAND99};
+    use crate::test_utils::{assert_delta, data_10_2, gen_rand, EPS};
 
     #[test]
     fn cps_sampler() {
+        let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
-        let mut cps = SequentialCorrelatedPoissonSampling::new(&RAND00, &prob, EPS);
+        let mut cps = SequentialCorrelatedPoissonSampling::new(&mut rand00, &prob, EPS);
         assert_eq!(cps.decide_selected(7), (0.2, -0.8));
-        cps = SequentialCorrelatedPoissonSampling::new(&RAND99, &prob, EPS);
+        cps = SequentialCorrelatedPoissonSampling::new(&mut rand99, &prob, EPS);
         assert_eq!(cps.decide_selected(7), (0.2, 0.2));
     }
 
@@ -502,80 +503,83 @@ mod tests {
     #[test]
     fn cps_variant() {
         type ST = SequentialCorrelatedPoissonSampling;
+        let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut cps = ST::new(&RAND00, &prob, EPS);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(0));
+        let mut cps = ST::new(&mut rand00, &prob, EPS);
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[3], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[4], 0.0, EPS);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(5));
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(5));
 
-        cps = ST::new(&RAND99, &prob, EPS);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(0));
+        cps = ST::new(&mut rand99, &prob, EPS);
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[3], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[4], 0.25, EPS);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(1));
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(1));
 
-        let s0 = ST::sample(&RAND00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS);
         assert_eq!(s0, vec![0, 5]);
-        let s1 = ST::sample(&RAND99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS);
         assert_eq!(s1, vec![4, 9]);
     }
 
     #[test]
     fn scps_variant() {
         type ST<'a> = SpatiallyCorrelatedPoissonSampling<'a>;
+        let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut cps = ST::new(&RAND00, &prob, EPS, &data, 2);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(0));
+        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[8], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[4], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.0, EPS);
 
-        cps = ST::new(&RAND99, &prob, EPS, &data, 2);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(9));
+        cps = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(9));
         decide_and_update(&mut cps, 9);
         assert_delta!(cps.container.probabilities()[4], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[0], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[7], 0.25, EPS);
 
-        let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(s0, vec![0, 9]);
     }
 
     #[test]
     fn lcps_variant() {
         type ST<'a> = LocallyCorrelatedPoissonSampling<'a>;
+        let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut cps = ST::new(&RAND00, &prob, EPS, &data, 2);
+        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2);
 
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(8));
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(8));
         decide_and_update(&mut cps, 8);
         assert_delta!(cps.container.probabilities()[3], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[5], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
 
-        cps = ST::new(&RAND99, &prob, EPS, &data, 2);
-        assert_eq!(cps.variant.select_unit(&cps.container), Some(8));
+        cps = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        assert_eq!(cps.variant.select_unit(&mut cps.container), Some(8));
         decide_and_update(&mut cps, 8);
         assert_delta!(cps.container.probabilities()[3], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[5], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[1], 0.25, EPS);
 
-        let s0 = ST::sample(&RAND00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
         assert_eq!(s0, vec![4, 8]);
     }
 }
