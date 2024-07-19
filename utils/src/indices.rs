@@ -1,9 +1,9 @@
 use crate::random_generator::RandomGenerator;
-use std::collections::HashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 
 pub struct Indices {
     list: Vec<usize>,
-    indices: HashMap<usize, usize>,
+    indices: FxHashMap<usize, usize>,
 }
 
 impl Indices {
@@ -11,7 +11,10 @@ impl Indices {
     pub fn new(capacity: usize) -> Self {
         Indices {
             list: Vec::<usize>::with_capacity(capacity),
-            indices: HashMap::<usize, usize>::with_capacity(capacity),
+            indices: FxHashMap::<usize, usize>::with_capacity_and_hasher(
+                capacity,
+                FxBuildHasher::default(),
+            ),
         }
     }
 
@@ -19,7 +22,7 @@ impl Indices {
     pub fn with_fill(length: usize) -> Self {
         Indices {
             list: Vec::<usize>::from_iter(0..length),
-            indices: HashMap::<usize, usize>::from_iter((0..length).map(|v| (v, v))),
+            indices: FxHashMap::<usize, usize>::from_iter((0..length).map(|v| (v, v))),
         }
     }
 

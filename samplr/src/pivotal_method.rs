@@ -6,7 +6,7 @@ use envisim_samplr_utils::{
     random_generator::RandomGenerator,
     utils::usize_to_f64,
 };
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 type Pair = (usize, usize);
 
@@ -548,7 +548,7 @@ where
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
     let mut pm = LocalPivotalMethod2::new(rand, probabilities, eps, data, bucket_size);
 
-    let mut main_sample: HashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
+    let mut main_sample: FxHashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
 
     for (i, &size) in sizes[0..sizes.len() - 1].iter().enumerate() {
         assert_eq!(pm.container.indices().len(), 0);
@@ -582,6 +582,11 @@ where
     }
 
     return_sample.push(main_sample.into_iter().collect());
+
+    for s in return_sample.iter_mut() {
+        s.sort_unstable();
+    }
+
     return_sample
 }
 

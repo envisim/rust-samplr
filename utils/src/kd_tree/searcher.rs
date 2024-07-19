@@ -101,6 +101,11 @@ impl Searcher {
         self.unit.iter_mut().zip(iter).for_each(|(a, b)| *a = *b);
         self.reset();
     }
+    #[inline]
+    pub fn set_n_neighbours(&mut self, n: usize) {
+        assert!(n >= 1, "n_neighbours should be positive");
+        self.n_neighbours = n;
+    }
 
     #[inline]
     pub fn neighbours(&self) -> &[usize] {

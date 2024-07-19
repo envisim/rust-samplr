@@ -13,3 +13,5 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 envisim_samplr_utils = {version="0.1.0", path="../utils"}
+rustc-hash = "2.0.0"
+
