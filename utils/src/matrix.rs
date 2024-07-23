@@ -45,20 +45,15 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
 
     #[inline]
     fn distance_to_row(&self, row: usize, unit: &[f64]) -> f64 {
-        assert!(unit.len() == self.ncol() && row < self.nrow());
-        let mut k: usize = 0;
-        let mut index: usize = row;
-        let mut distance: f64 = 0.0;
+        assert!(unit.len() == self.ncol());
+        assert!(row < self.nrow());
 
-        unsafe {
-            while k < self.ncol() {
-                distance += (*unit.get_unchecked(k) - *self.data().get_unchecked(index)).powi(2);
-                k += 1;
-                index += self.nrow();
-            }
-        }
-
-        distance
+        self.data()
+            .iter()
+            .skip(row)
+            .step_by(self.nrow())
+            .zip(unit.iter())
+            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2))
     }
 
     /// Performes the calculation of self * multiplicand, where self
