@@ -1,4 +1,5 @@
 pub mod container;
+pub mod estimator;
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;

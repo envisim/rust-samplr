@@ -1,8 +1,6 @@
-use crate::{
-    kd_tree::{midpoint_slide, Node, Searcher},
-    matrix::{Matrix, OperateMatrix, RefMatrix},
-    utils::usize_to_f64,
-};
+use crate::kd_tree::{Node, Searcher};
+use crate::matrix::{Matrix, OperateMatrix, RefMatrix};
+use crate::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 pub fn voronoi<'a>(
@@ -26,7 +24,7 @@ pub fn voronoi<'a>(
         s < population_size
     }));
 
-    let tree = Node::new(midpoint_slide, bucket_size, data, &mut sample.to_vec());
+    let tree = Node::new_midpoint_slide(bucket_size, data, &mut sample.to_vec());
     let mut searcher = Searcher::new(&tree, 1);
 
     for i in 0..population_size {
@@ -79,7 +77,7 @@ pub fn local<'a>(
     }
 
     let mut sample_clone = sample.to_vec();
-    let tree = Node::new(midpoint_slide, bucket_size, data, &mut sample_clone);
+    let tree = Node::new_midpoint_slide(bucket_size, data, &mut sample_clone);
     let mut searcher = Searcher::new(&tree, 1);
     let sample_set = FxHashSet::<usize>::from_iter(sample_clone);
 

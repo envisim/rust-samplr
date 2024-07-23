@@ -1,8 +1,7 @@
-use super::{searcher::TreeSearcher, split_methods::FindSplit};
-use crate::{
-    indices::Indices,
-    matrix::{OperateMatrix, RefMatrix},
-};
+use super::searcher::TreeSearcher;
+use super::split_methods::{midpoint_slide, FindSplit};
+use crate::indices::Indices;
+use crate::matrix::{OperateMatrix, RefMatrix};
 
 struct NodeBranch<'a> {
     dimension: usize,
@@ -117,6 +116,15 @@ impl<'a> Node<'a> {
             min_border: min_border,
             max_border: max_border,
         }
+    }
+
+    #[inline]
+    pub fn new_midpoint_slide(
+        bucket_size: usize,
+        data: &'a RefMatrix,
+        units: &mut [usize],
+    ) -> Self {
+        Node::new(midpoint_slide, bucket_size, data, units)
     }
 
     #[inline]

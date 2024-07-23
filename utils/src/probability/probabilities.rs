@@ -11,7 +11,7 @@ pub struct Probabilities {
 impl Probabilities {
     #[inline]
     pub fn new(length: usize, value: f64) -> Self {
-        Probabilities {
+        Self {
             eps: 0.0,
             probabilities: vec![value; length],
         }
@@ -19,10 +19,17 @@ impl Probabilities {
 
     #[inline]
     pub fn with_values(values: &[f64]) -> Self {
-        Probabilities {
+        assert!(Self::check(values));
+
+        Self {
             eps: 0.0,
             probabilities: values.to_vec(),
         }
+    }
+
+    #[inline]
+    pub fn check(probabilities: &[f64]) -> bool {
+        probabilities.iter().all(|&p| 0.0 <= p && p <= 1.0)
     }
 
     #[inline]
