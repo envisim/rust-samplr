@@ -44,7 +44,7 @@ impl Probabilities {
 
     #[inline]
     pub fn is_one(&self, idx: usize) -> bool {
-        self[idx] >= 1.0 - self.eps
+        1.0 - self.eps <= self[idx]
     }
 
     #[inline]
