@@ -1,10 +1,9 @@
 use crate::srs::SrsWor;
-use envisim_samplr_utils::{
-    container::Container,
-    kd_tree::{midpoint_slide, Node, Searcher},
-    matrix::{Matrix, OperateMatrix, RefMatrix},
-    random_generator::RandomGenerator,
-};
+use envisim_samplr_utils::container::Container;
+use envisim_samplr_utils::error::{InputError, SamplingError};
+use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, Searcher};
+use envisim_samplr_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
+use envisim_samplr_utils::random_generator::RandomGenerator;
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
 
@@ -33,7 +32,7 @@ where
     candidate_data: Box<Matrix>,
 }
 
-pub struct CubeMethod {}
+pub struct CubeMethod();
 pub struct LocalCubeMethod<'a> {
     tree: Box<Node<'a>>,
     searcher: Box<Searcher>,
@@ -45,13 +44,13 @@ impl CubeMethod {
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
-    ) -> CubeMethodSampler<'a, R, Self>
+    ) -> Result<CubeMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
         CubeMethodSampler::new(
-            Box::new(Container::new(rand, probabilities, eps)),
-            Box::new(CubeMethod {}),
+            Box::new(Container::new(rand, probabilities, eps)?),
+            Box::new(CubeMethod()),
             balancing_data,
         )
     }
@@ -62,14 +61,12 @@ impl CubeMethod {
         probabilities: &[f64],
         eps: f64,
         balancing_data: &'a RefMatrix,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         Self::new(rand, probabilities, eps, balancing_data)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 
     pub fn sample_stratified<'a, R>(
@@ -78,17 +75,17 @@ impl CubeMethod {
         eps: f64,
         balancing_data: &'a RefMatrix,
         strata: &'a [i64],
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         let seed = rand.rusize(probabilities.len());
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
 
         let mut cs = CubeStratified {
             cube: CubeMethodSampler {
-                container: container,
-                variant: Box::new(CubeMethod {}),
+                container,
+                variant: Box::new(CubeMethod()),
                 candidates: Vec::<usize>::with_capacity(20),
                 adjusted_data: Box::new(Matrix::new_fill(
                     0.0,
@@ -103,13 +100,13 @@ impl CubeMethod {
                 probabilities.len() / 10,
                 FxSeededState::with_seed(seed),
             ),
-            probabilities: probabilities,
-            balancing_data: balancing_data,
+            probabilities,
+            balancing_data,
             strata_vec: strata,
             data: None,
         };
 
-        cs.prepare().sample()
+        cs.prepare().map(|s| s.sample())
     }
 }
 
@@ -121,25 +118,22 @@ impl<'a> LocalCubeMethod<'a> {
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> CubeMethodSampler<'a, R, Self>
+    ) -> Result<CubeMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             spreading_data,
             container.indices(),
-        ));
-        let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol()));
+        )?);
+        let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol())?);
 
         CubeMethodSampler::new(
             container,
-            Box::new(LocalCubeMethod {
-                tree: tree,
-                searcher: searcher,
-            }),
+            Box::new(LocalCubeMethod { tree, searcher }),
             balancing_data,
         )
     }
@@ -152,7 +146,7 @@ impl<'a> LocalCubeMethod<'a> {
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
@@ -164,9 +158,7 @@ impl<'a> LocalCubeMethod<'a> {
             spreading_data,
             bucket_size,
         )
-        .sample()
-        .get_sorted_sample()
-        .to_vec()
+        .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 
     pub fn sample_stratified<R>(
@@ -177,27 +169,24 @@ impl<'a> LocalCubeMethod<'a> {
         spreading_data: &'a RefMatrix,
         bucket_size: usize,
         strata: &'a [i64],
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         let seed = rand.rusize(probabilities.len());
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             spreading_data,
             container.indices(),
-        ));
-        let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol() + 1));
+        )?);
+        let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol() + 1)?);
 
         let mut cs = CubeStratified {
             cube: CubeMethodSampler {
-                container: container,
-                variant: Box::new(LocalCubeMethod {
-                    tree: tree,
-                    searcher: searcher,
-                }),
+                container,
+                variant: Box::new(LocalCubeMethod { tree, searcher }),
                 candidates: Vec::<usize>::with_capacity(20),
                 adjusted_data: Box::new(Matrix::new_fill(
                     0.0,
@@ -212,13 +201,13 @@ impl<'a> LocalCubeMethod<'a> {
                 probabilities.len() / 10,
                 FxSeededState::with_seed(seed),
             ),
-            probabilities: probabilities,
-            balancing_data: balancing_data,
+            probabilities,
+            balancing_data,
             strata_vec: strata,
             data: Some((spreading_data, bucket_size)),
         };
 
-        cs.prepare().sample()
+        cs.prepare().map(|s| s.sample())
     }
 }
 
@@ -231,9 +220,9 @@ where
         container: Box<Container<'a, R>>,
         variant: Box<T>,
         balancing_data: &'a RefMatrix,
-    ) -> Self {
+    ) -> Result<Self, SamplingError> {
         let (b_nrow, b_ncol) = balancing_data.dim();
-        assert!(b_nrow == container.population_size());
+        InputError::check_sizes(b_nrow, container.population_size())?;
         let mut adjusted_data = Box::new(Matrix::new(balancing_data.data(), b_nrow));
 
         for i in 0..b_nrow {
@@ -243,13 +232,13 @@ where
             }
         }
 
-        CubeMethodSampler {
-            container: container,
-            variant: variant,
+        Ok(CubeMethodSampler {
+            container,
+            variant,
             candidates: Vec::<usize>::with_capacity(20),
-            adjusted_data: adjusted_data,
+            adjusted_data,
             candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
-        }
+        })
     }
     #[inline]
     pub fn sample(&mut self) -> &mut Self {
@@ -278,10 +267,8 @@ where
 
         while self.container.indices().len() > 1 {
             let number_of_remaining_units = self.container.indices().len();
-            unsafe {
-                self.candidate_data
-                    .resize(number_of_remaining_units - 1, number_of_remaining_units);
-            }
+            self.candidate_data
+                .resize(number_of_remaining_units - 1, number_of_remaining_units);
 
             self.candidates.clear();
             self.candidates
@@ -365,7 +352,7 @@ where
         candidates.extend_from_slice(&container.indices().list()[0..n_units]);
     }
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id)
+        container.decide_unit(id).unwrap()
     }
 }
 
@@ -384,7 +371,7 @@ where
         candidates.clear();
 
         if container.indices().len() == n_units {
-            candidates.extend_from_slice(&container.indices().list());
+            candidates.extend_from_slice(container.indices().list());
             return;
         }
 
@@ -393,7 +380,9 @@ where
         candidates.push(id1);
 
         // Find the neighbours of this first unit
-        self.searcher.find_neighbours_of_id(&self.tree, id1);
+        self.searcher
+            .find_neighbours_of_id(&self.tree, id1)
+            .unwrap();
 
         // Add all neighbours, if no equals
         if self.searcher.neighbours().len() == n_units - 1 {
@@ -419,15 +408,16 @@ where
             n_units - candidates.len(),
             self.searcher.neighbours().len() - i,
         )
+        .unwrap()
         .iter()
         {
             candidates.push(self.searcher.neighbours()[i + k]);
         }
     }
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).and_then(|r| {
-            self.tree.remove_unit(id);
-            Some(r)
+        container.decide_unit(id).unwrap().map(|r| {
+            self.tree.remove_unit(id).unwrap();
+            r
         })
     }
 }
@@ -471,7 +461,7 @@ where
     ) {
         container.indices_mut().clear();
         for id in ids.iter() {
-            container.indices_mut().insert(*id);
+            container.indices_mut().insert(*id).unwrap();
         }
     }
 }
@@ -488,18 +478,14 @@ where
         n_neighbours: usize,
     ) {
         assert!(data.is_some());
-        self.searcher.set_n_neighbours(n_neighbours);
+        self.searcher.set_n_neighbours(n_neighbours).unwrap();
 
         container.indices_mut().clear();
-        self.tree = Box::new(Node::new(
-            midpoint_slide,
-            data.unwrap().1,
-            data.unwrap().0,
-            ids,
-        ));
+        self.tree =
+            Box::new(Node::new(midpoint_slide, data.unwrap().1, data.unwrap().0, ids).unwrap());
 
         for id in ids.iter() {
-            container.indices_mut().insert(*id);
+            container.indices_mut().insert(*id).unwrap();
         }
     }
 }
@@ -509,12 +495,13 @@ where
     R: RandomGenerator,
     T: CubeStratifier<'a, R>,
 {
-    fn prepare(&mut self) -> &mut Self {
-        assert_eq!(self.strata_vec.len(), self.cube.container.population_size());
-        assert_eq!(
-            self.balancing_data.nrow(),
-            self.cube.container.population_size()
-        );
+    fn prepare(&mut self) -> Result<&mut Self, SamplingError> {
+        InputError::check_sizes(self.strata_vec.len(), self.cube.container.population_size()).and(
+            InputError::check_sizes(
+                self.balancing_data.nrow(),
+                self.cube.container.population_size(),
+            ),
+        )?;
 
         for i in 0..self.cube.container.probabilities().len() {
             if !self.cube.container.indices().contains(i) {
@@ -539,15 +526,15 @@ where
             }
         }
 
-        self
+        Ok(self)
     }
     fn sample(&mut self) -> Vec<usize> {
         self.flight_per_stratum();
-        if self.strata.len() == 0 {
+        if self.strata.is_empty() {
             return self.cube.get_sorted_sample().to_vec();
         }
         self.flight_on_full();
-        if self.cube.container.indices().len() == 0 {
+        if self.cube.container.indices().is_empty() {
             return self.cube.get_sorted_sample().to_vec();
         }
         self.landing_per_stratum();
@@ -565,7 +552,7 @@ where
 
             self.cube.run_flight();
 
-            if self.cube.container.indices().len() == 0 {
+            if self.cube.container.indices().is_empty() {
                 removable_stratums.push(*stratum_key);
                 continue;
             }
@@ -579,16 +566,14 @@ where
         }
     }
     fn flight_on_full(&mut self) {
-        unsafe {
-            self.cube.adjusted_data.resize(
-                self.balancing_data.nrow(),
-                self.balancing_data.ncol() + self.strata.len(),
-            );
-            self.cube.candidate_data.resize(
-                self.cube.adjusted_data.ncol(),
-                self.cube.adjusted_data.ncol() + 1,
-            );
-        }
+        self.cube.adjusted_data.resize(
+            self.balancing_data.nrow(),
+            self.balancing_data.ncol() + self.strata.len(),
+        );
+        self.cube.candidate_data.resize(
+            self.cube.adjusted_data.ncol(),
+            self.cube.adjusted_data.ncol() + 1,
+        );
 
         let mut all_units = Vec::<usize>::new();
 
@@ -625,15 +610,13 @@ where
         }
     }
     fn landing_per_stratum(&mut self) {
-        unsafe {
-            self.cube
-                .adjusted_data
-                .resize(self.balancing_data.nrow(), self.balancing_data.ncol() + 1);
-            self.cube.candidate_data.resize(
-                self.cube.adjusted_data.ncol(),
-                self.cube.adjusted_data.ncol() + 1,
-            );
-        }
+        self.cube
+            .adjusted_data
+            .resize(self.balancing_data.nrow(), self.balancing_data.ncol() + 1);
+        self.cube.candidate_data.resize(
+            self.cube.adjusted_data.ncol(),
+            self.cube.adjusted_data.ncol() + 1,
+        );
 
         for (_key, stratum) in self.strata.iter_mut() {
             for &id in stratum.iter() {
@@ -682,8 +665,8 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
 
     // If we have some linearly dependent rows, we must take a slower
     // route
-    for k in 1..ncol {
-        v[k] = if k % 2 == 0 { -1.0 } else { 1.0 };
+    for (k, e) in v.iter_mut().enumerate().skip(1) {
+        *e = if k % 2 == 0 { -1.0 } else { 1.0 };
     }
 
     for i in 0..nrow {
@@ -704,7 +687,7 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
         }
     }
 
-    return v;
+    v
 }
 
 #[cfg(test)]
@@ -724,11 +707,11 @@ mod tests {
         let (mut rand00, mut _rand99) = gen_rand();
         let (_sprmat, prob) = data_10_2();
 
-        let mut cube = CubeMethod::new(&mut rand00, &prob, EPS, &balmat);
+        let mut cube = CubeMethod::new(&mut rand00, &prob, EPS, &balmat).unwrap();
         cube.run_flight();
         assert!(cube.container.indices().len() < 3);
 
-        let s = CubeMethod::sample(&mut rand00, &prob, EPS, &balmat);
+        let s = CubeMethod::sample(&mut rand00, &prob, EPS, &balmat).unwrap();
         assert!(s.len() == 2);
     }
 
@@ -744,11 +727,11 @@ mod tests {
         let (mut rand00, mut _rand99) = gen_rand();
         let (sprmat, prob) = data_10_2();
 
-        let mut cube = LocalCubeMethod::new(&mut rand00, &prob, EPS, &balmat, &sprmat, 2);
+        let mut cube = LocalCubeMethod::new(&mut rand00, &prob, EPS, &balmat, &sprmat, 2).unwrap();
         cube.run_flight();
         assert!(cube.container.indices().len() < 3);
 
-        let s = LocalCubeMethod::sample(&mut rand00, &prob, EPS, &balmat, &sprmat, 2);
+        let s = LocalCubeMethod::sample(&mut rand00, &prob, EPS, &balmat, &sprmat, 2).unwrap();
         assert!(s.len() == 2);
     }
 
@@ -764,7 +747,8 @@ mod tests {
                 EPS,
                 &balmat,
                 &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2],
-            );
+            )
+            .unwrap();
             assert_eq!(s.len(), 2);
             assert!((0..5).contains(&s[0]));
             assert!((5..10).contains(&s[1]));
@@ -779,7 +763,8 @@ mod tests {
                 &[
                     1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
                 ],
-            );
+            )
+            .unwrap();
             assert_eq!(s.len(), 4);
             assert!((0..5).contains(&s[0]));
             assert!((5..10).contains(&s[1]));
@@ -802,7 +787,8 @@ mod tests {
                 &balmat,
                 2,
                 &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2],
-            );
+            )
+            .unwrap();
             assert_eq!(s.len(), 2);
             assert!((0..5).contains(&s[0]));
             assert!((5..10).contains(&s[1]));
@@ -821,7 +807,8 @@ mod tests {
                     &[
                         1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
                     ],
-                );
+                )
+                .unwrap();
                 assert_eq!(s.len(), 4);
                 assert!((0..5).contains(&s[0]));
                 assert!((5..10).contains(&s[1]));

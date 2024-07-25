@@ -1,11 +1,9 @@
-use crate::macros::assert_delta;
-use envisim_samplr_utils::{
-    container::Container,
-    kd_tree::{midpoint_slide, Node, Searcher},
-    matrix::RefMatrix,
-    random_generator::RandomGenerator,
-    utils::usize_to_f64,
-};
+use envisim_samplr_utils::container::Container;
+use envisim_samplr_utils::error::{InputError, SamplingError};
+use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, Searcher};
+use envisim_samplr_utils::matrix::RefMatrix;
+use envisim_samplr_utils::random_generator::RandomGenerator;
+use envisim_samplr_utils::utils::{sum, usize_to_f64};
 use rustc_hash::FxHashSet;
 
 type Pair = (usize, usize);
@@ -52,24 +50,25 @@ impl SequentialPivotalMethod {
         rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
-    ) -> PivotalMethodSampler<'a, R, Self>
+    ) -> Result<PivotalMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        PivotalMethodSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+        Ok(PivotalMethodSampler {
+            container: Box::new(Container::new(rand, probabilities, eps)?),
             variant: Box::new(Self { pair: (0, 1) }),
-        }
+        })
     }
 
-    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<R>(
+        rand: &mut R,
+        probabilities: &[f64],
+        eps: f64,
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
-        Self::new(rand, probabilities, eps)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+        Self::new(rand, probabilities, eps).map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -78,25 +77,26 @@ impl RandomPivotalMethod {
         rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
-    ) -> PivotalMethodSampler<'a, R, Self>
+    ) -> Result<PivotalMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        PivotalMethodSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+        Ok(PivotalMethodSampler {
+            container: Box::new(Container::new(rand, probabilities, eps)?),
             variant: Box::new(Self {}),
-        }
+        })
     }
 
     #[inline]
-    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<R>(
+        rand: &mut R,
+        probabilities: &[f64],
+        eps: f64,
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
-        Self::new(rand, probabilities, eps)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+        Self::new(rand, probabilities, eps).map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -107,27 +107,27 @@ impl<'a> LocalPivotalMethod1<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> PivotalMethodSampler<'a, R, Self>
+    ) -> Result<PivotalMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(Searcher::new(&tree, 1));
+        )?);
+        let searcher = Box::new(Searcher::new(&tree, 1)?);
 
-        PivotalMethodSampler {
-            container: container,
+        Ok(PivotalMethodSampler {
+            container,
             variant: Box::new(LocalPivotalMethod1 {
-                tree: tree,
-                searcher: searcher,
+                tree,
+                searcher,
                 candidates: Vec::<usize>::with_capacity(20),
             }),
-        }
+        })
     }
 
     #[inline]
@@ -137,14 +137,12 @@ impl<'a> LocalPivotalMethod1<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         Self::new(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -155,29 +153,29 @@ impl<'a> LocalPivotalMethod1S<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> PivotalMethodSampler<'a, R, Self>
+    ) -> Result<PivotalMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(Searcher::new(&tree, 1));
+        )?);
+        let searcher = Box::new(Searcher::new(&tree, 1)?);
         let remaining_units = container.indices().len();
 
-        PivotalMethodSampler {
-            container: container,
+        Ok(PivotalMethodSampler {
+            container,
             variant: Box::new(LocalPivotalMethod1S {
-                tree: tree,
-                searcher: searcher,
+                tree,
+                searcher,
                 candidates: Vec::<usize>::with_capacity(20),
                 history: Vec::<usize>::with_capacity(remaining_units),
             }),
-        }
+        })
     }
 
     #[inline]
@@ -187,14 +185,12 @@ impl<'a> LocalPivotalMethod1S<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         Self::new(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -205,26 +201,23 @@ impl<'a> LocalPivotalMethod2<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> PivotalMethodSampler<'a, R, Self>
+    ) -> Result<PivotalMethodSampler<'a, R, Self>, SamplingError>
     where
         R: RandomGenerator,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(Searcher::new(&tree, 1));
+        )?);
+        let searcher = Box::new(Searcher::new(&tree, 1)?);
 
-        PivotalMethodSampler {
-            container: container,
-            variant: Box::new(LocalPivotalMethod2 {
-                tree: tree,
-                searcher: searcher,
-            }),
-        }
+        Ok(PivotalMethodSampler {
+            container,
+            variant: Box::new(LocalPivotalMethod2 { tree, searcher }),
+        })
     }
 
     #[inline]
@@ -234,14 +227,12 @@ impl<'a> LocalPivotalMethod2<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomGenerator,
     {
         Self::new(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -274,14 +265,14 @@ where
                 p1 = psum - 1.0;
                 p2 = 1.0;
             }
+        } else if p2 > self.container.random().rf64_scaled(psum) {
+            // psum <= 1.0
+            p1 = 0.0;
+            p2 = psum;
         } else {
-            if p2 > self.container.random().rf64_scaled(psum) {
-                p1 = 0.0;
-                p2 = psum;
-            } else {
-                p1 = psum;
-                p2 = 0.0;
-            }
+            // psum <= 1.0
+            p1 = psum;
+            p2 = 0.0;
         }
 
         self.container.probabilities_mut()[id1] = p1;
@@ -333,7 +324,7 @@ where
         Some(self.pair)
     }
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id)
+        container.decide_unit(id).unwrap()
     }
 }
 
@@ -360,7 +351,7 @@ where
         Some((id1, id2))
     }
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id)
+        container.decide_unit(id).unwrap()
     }
 }
 
@@ -378,7 +369,9 @@ where
 
         loop {
             let id1 = *container.indices_random().unwrap();
-            self.searcher.find_neighbours_of_id(&self.tree, id1);
+            self.searcher
+                .find_neighbours_of_id(&self.tree, id1)
+                .unwrap();
             self.candidates.clear();
 
             // Store potential matches in candidates ... needs to check if any is a match
@@ -389,7 +382,8 @@ where
 
             while i < self.candidates.len() {
                 self.searcher
-                    .find_neighbours_of_id(&self.tree, self.candidates[i]);
+                    .find_neighbours_of_id(&self.tree, self.candidates[i])
+                    .unwrap();
 
                 if self.searcher.neighbours().iter().any(|&id| id == id1) {
                     i += 1;
@@ -398,7 +392,7 @@ where
                 }
             }
 
-            if self.candidates.len() > 0 {
+            if !self.candidates.is_empty() {
                 let id2 = *container.random().rslice(&self.candidates).unwrap();
                 return Some((id1, id2));
             }
@@ -406,9 +400,9 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).and_then(|r| {
-            self.tree.remove_unit(id);
-            Some(r)
+        container.decide_unit(id).unwrap().map(|r| {
+            self.tree.remove_unit(id).unwrap();
+            r
         })
     }
 }
@@ -433,13 +427,15 @@ where
             self.history.pop();
         }
 
-        if self.history.len() == 0 {
+        if self.history.is_empty() {
             self.history.push(*container.indices_random().unwrap());
         }
 
         loop {
             let id1 = *self.history.last().unwrap();
-            self.searcher.find_neighbours_of_id(&self.tree, id1);
+            self.searcher
+                .find_neighbours_of_id(&self.tree, id1)
+                .unwrap();
             self.candidates.clear();
 
             // Store potential matches in candidates ... needs to check if any is a match
@@ -451,7 +447,8 @@ where
 
             while i < len {
                 self.searcher
-                    .find_neighbours_of_id(&self.tree, self.candidates[i]);
+                    .find_neighbours_of_id(&self.tree, self.candidates[i])
+                    .unwrap();
 
                 if self.searcher.neighbours().iter().any(|&id| id == id1) {
                     i += 1;
@@ -478,9 +475,9 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).and_then(|r| {
-            self.tree.remove_unit(id);
-            Some(r)
+        container.decide_unit(id).unwrap().map(|r| {
+            self.tree.remove_unit(id).unwrap();
+            r
         })
     }
 }
@@ -498,7 +495,9 @@ where
         }
 
         let id1 = *container.indices_random().unwrap();
-        self.searcher.find_neighbours_of_id(&self.tree, id1);
+        self.searcher
+            .find_neighbours_of_id(&self.tree, id1)
+            .unwrap();
         let id2 = *container
             .random()
             .rslice(self.searcher.neighbours())
@@ -508,9 +507,9 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).and_then(|r| {
-            self.tree.remove_unit(id);
-            Some(r)
+        container.decide_unit(id).unwrap().map(|r| {
+            self.tree.remove_unit(id).unwrap();
+            r
         })
     }
 }
@@ -522,34 +521,36 @@ pub fn hierarchical_local_pivotal_method_2<'a, R>(
     data: &'a RefMatrix,
     bucket_size: usize,
     sizes: &[usize],
-) -> Vec<Vec<usize>>
+) -> Result<Vec<Vec<usize>>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert_delta!(
-        probabilities.iter().sum::<f64>(),
-        usize_to_f64(sizes.iter().sum()),
-        eps
-    );
-    assert!(sizes.len() > 0);
+    {
+        let psum = sum(probabilities);
+        let sizesum = usize_to_f64(sizes.iter().sum());
+        if !(psum - eps..psum + eps).contains(&sizesum) {
+            return Err(SamplingError::from(InputError::NotInteger));
+        }
+    }
+    InputError::check_empty(sizes)?;
 
     if sizes.len() == 1 {
-        return vec![LocalPivotalMethod2::sample(
+        return Ok(vec![LocalPivotalMethod2::sample(
             rand,
             probabilities,
             eps,
             data,
             bucket_size,
-        )];
+        )?]);
     }
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
-    let mut pm = LocalPivotalMethod2::new(rand, probabilities, eps, data, bucket_size);
+    let mut pm = LocalPivotalMethod2::new(rand, probabilities, eps, data, bucket_size)?;
 
     let mut main_sample: FxHashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
 
     for (i, &size) in sizes[0..sizes.len() - 1].iter().enumerate() {
-        assert_eq!(pm.container.indices().len(), 0);
+        assert!(pm.container.indices().is_empty());
 
         if size == 0 {
             return_sample.push(vec![]);
@@ -563,8 +564,8 @@ where
         for id in 0..pm.container.population_size() {
             if main_sample.contains(&id) {
                 pm.container.probabilities_mut()[id] = prob;
-                pm.container.indices_mut().insert(id);
-                pm.variant.tree.insert_unit(id);
+                pm.container.indices_mut().insert(id).unwrap();
+                pm.variant.tree.insert_unit(id).unwrap();
             } else {
                 pm.container.probabilities_mut()[id] = 0.0;
             }
@@ -585,7 +586,7 @@ where
         s.sort_unstable();
     }
 
-    return_sample
+    Ok(return_sample)
 }
 
 #[cfg(test)]
@@ -609,21 +610,21 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut pm = ST::new(&mut rand00, &prob, EPS);
+        let mut pm = ST::new(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (1, 2));
 
-        pm = ST::new(&mut rand99, &prob, EPS);
+        pm = ST::new(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (0, 2));
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(s0, vec![4, 9]);
-        let s1 = ST::sample(&mut rand99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(s1, vec![0, 5]);
     }
 
@@ -633,21 +634,21 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut pm = ST::new(&mut rand00, &prob, EPS);
+        let mut pm = ST::new(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 9));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 8));
 
-        pm = ST::new(&mut rand99, &prob, EPS);
+        pm = ST::new(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(select_and_update(&mut pm), (9, 8));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[8], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 7));
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(s0, vec![1, 6]);
-        let s1 = ST::sample(&mut rand99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(s1, vec![0, 9]);
     }
 
@@ -657,21 +658,21 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         // assert_eq!(select_and_update(&mut pm), (9, 7));
 
-        // let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
+        // let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2).unwrap();
         // assert_eq!(s0, vec![1, 6]);
-        // let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
+        // let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2).unwrap();
         // assert_eq!(s1, vec![0, 9]);
     }
 
@@ -681,19 +682,19 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (3, 5));
 
-        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
+        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(s1, vec![1, 3]);
     }
 
@@ -703,21 +704,21 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        let mut pm = ST::new(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (0, 1));
         assert_delta!(pm.container.probabilities()[0], 0.0, EPS);
         assert_delta!(pm.container.probabilities()[1], 0.4, EPS);
         assert_eq!(select_and_update(&mut pm), (9, 4));
 
-        pm = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        pm = ST::new(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(select_and_update(&mut pm), (9, 4));
         assert_delta!(pm.container.probabilities()[9], 0.4, EPS);
         assert_delta!(pm.container.probabilities()[4], 0.0, EPS);
         assert_eq!(select_and_update(&mut pm), (8, 3));
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(s0, vec![1, 3]);
-        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2);
+        let s1 = ST::sample(&mut rand99, &prob, EPS, &data, 2).unwrap();
         // Depending on over/under 1.0 in last
         assert!(s1 == vec![8, 9] || s1 == vec![6, 8]);
     }
@@ -727,7 +728,8 @@ mod tests {
         {
             let (mut rand00, mut _rand99) = gen_rand();
             let (data, prob) = data_10_2();
-            let s = hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 1]);
+            let s = hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 1])
+                .unwrap();
             assert_eq!(s.len(), 2);
             assert_eq!(s[0].len(), 1);
             assert_eq!(s[1].len(), 1);
@@ -737,7 +739,8 @@ mod tests {
             let (mut rand00, mut _rand99) = gen_rand();
             let (data, prob) = data_20_2();
             let s =
-                hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 2, 1]);
+                hierarchical_local_pivotal_method_2(&mut rand00, &prob, EPS, &data, 2, &[1, 2, 1])
+                    .unwrap();
             assert_eq!(s.len(), 3);
             assert_eq!(s[0].len(), 1);
             assert_eq!(s[1].len(), 2);

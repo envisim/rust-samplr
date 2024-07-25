@@ -2,6 +2,17 @@ use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
 use crate::indices::Indices;
 use crate::matrix::{OperateMatrix, RefMatrix};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum NodeError {
+    #[error("{0}")]
+    General(String),
+    #[error("size of bucket must be positive")]
+    NoBucket,
+    #[error("unit index must not be larger than data rows")]
+    GhostUnit,
+}
 
 struct NodeBranch<'a> {
     dimension: usize,
@@ -48,95 +59,71 @@ pub struct Node<'a> {
 }
 
 impl<'a> Node<'a> {
-    pub fn new(
+    fn create(
         find_split: FindSplit,
         bucket_size: usize,
         data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Self {
-        assert!(bucket_size > 0);
-
         let mut min_border = Vec::<f64>::with_capacity(data.ncol());
         let mut max_border = Vec::<f64>::with_capacity(data.ncol());
 
         let mut node_size_is_zero = true;
 
         for k in 0usize..data.ncol() {
-            let mut min = data[(units[0], k)];
-            let mut max = min;
+            let (min, max) =
+                units
+                    .iter()
+                    .map(|&id| data[(id, k)])
+                    .fold((f64::MAX, 0.0f64), |(min, max), v| {
+                        let nmin = min.min(v);
+                        let nmax = max.max(v);
+                        (nmin, nmax)
+                    });
 
-            units.iter().for_each(|&id| {
-                let val: f64 = data[(id, k)];
-                if val < min {
-                    min = val;
-                } else if val > max {
-                    max = val;
-                }
-            });
+            min_border.push(min);
+            max_border.push(max);
 
             if node_size_is_zero && max - min > f64::EPSILON {
                 node_size_is_zero = false;
             }
-
-            min_border.push(min);
-            max_border.push(max);
         }
 
         if node_size_is_zero || units.len() <= bucket_size {
             return Node::new_leaf(data, units, min_border, max_border);
         }
 
-        let (split_unit, split_dimension, split_value) =
-            find_split(&min_border, &max_border, data, &mut *units);
+        let split = match find_split(&min_border, &max_border, data, &mut *units) {
+            Some(s) => s,
+            None => return Self::new_leaf(data, units, min_border, max_border),
+        };
 
-        if split_unit == 0 || split_unit >= units.len() {
-            return Node::new_leaf(data, units, min_border, max_border);
-        }
+        assert!(split.dimension < data.ncol());
 
-        assert!(split_dimension < data.ncol());
-
-        Node {
+        Self {
             kind: NodeKind::Branch(Box::new(NodeBranch {
-                dimension: split_dimension,
-                value: split_value,
-                left_child: Box::new(Node::new(
+                dimension: split.dimension,
+                value: split.value,
+                left_child: Box::new(Self::create(
                     find_split,
                     bucket_size,
                     data,
-                    &mut units[..split_unit],
+                    &mut units[..split.unit],
                 )),
-                right_child: Box::new(Node::new(
+                right_child: Box::new(Self::create(
                     find_split,
                     bucket_size,
                     data,
-                    &mut units[split_unit..],
+                    &mut units[split.unit..],
                 )),
             })),
-            data: data,
-            min_border: min_border,
-            max_border: max_border,
+            data,
+            min_border,
+            max_border,
         }
     }
 
     #[inline]
-    pub fn new_midpoint_slide(
-        bucket_size: usize,
-        data: &'a RefMatrix,
-        units: &mut [usize],
-    ) -> Self {
-        Node::new(midpoint_slide, bucket_size, data, units)
-    }
-
-    #[inline]
-    pub fn new_from_indices(
-        find_split: FindSplit,
-        bucket_size: usize,
-        data: &'a RefMatrix,
-        indices: &Indices,
-    ) -> Self {
-        Node::new(find_split, bucket_size, data, &mut indices.list().to_vec())
-    }
-
     fn new_leaf(
         data: &'a RefMatrix,
         units: &mut [usize],
@@ -147,10 +134,46 @@ impl<'a> Node<'a> {
             kind: NodeKind::Leaf(Box::new(NodeLeaf {
                 units: units.to_vec(),
             })),
-            data: data,
-            min_border: min_border,
-            max_border: max_border,
+            data,
+            min_border,
+            max_border,
         }
+    }
+
+    #[inline]
+    pub fn new(
+        find_split: FindSplit,
+        bucket_size: usize,
+        data: &'a RefMatrix,
+        units: &mut [usize],
+    ) -> Result<Self, NodeError> {
+        if bucket_size == 0 {
+            return Err(NodeError::NoBucket);
+        }
+        if units.iter().any(|&id| data.nrow() <= id) {
+            return Err(NodeError::GhostUnit);
+        }
+
+        Ok(Self::create(find_split, bucket_size, data, units))
+    }
+
+    #[inline]
+    pub fn new_midpoint_slide(
+        bucket_size: usize,
+        data: &'a RefMatrix,
+        units: &mut [usize],
+    ) -> Result<Self, NodeError> {
+        Self::new(midpoint_slide, bucket_size, data, units)
+    }
+
+    #[inline]
+    pub fn new_from_indices(
+        find_split: FindSplit,
+        bucket_size: usize,
+        data: &'a RefMatrix,
+        indices: &Indices,
+    ) -> Result<Self, NodeError> {
+        Self::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
     #[inline]
@@ -158,48 +181,53 @@ impl<'a> Node<'a> {
         self.data
     }
 
-    pub fn insert_unit(&mut self, id: usize) -> bool {
-        match self.kind {
-            NodeKind::Branch(ref mut branch) => {
-                let distance = self.data[(id, branch.dimension)] - branch.value;
-
-                if distance <= 0.0 {
-                    branch.left_child.insert_unit(id)
-                } else {
-                    branch.right_child.insert_unit(id)
-                }
-            }
-            NodeKind::Leaf(ref mut leaf) => {
-                if leaf.units.contains(&id) {
-                    false
-                } else {
-                    leaf.units.push(id);
-                    true
-                }
-            }
+    #[inline]
+    pub fn insert_unit(&mut self, id: usize) -> Result<bool, NodeError> {
+        if self.data.nrow() <= id {
+            return Err(NodeError::GhostUnit);
         }
+
+        Ok(self.traverse_and_alter_unit(id, true))
     }
 
-    pub fn remove_unit(&mut self, id: usize) -> bool {
+    #[inline]
+    pub fn remove_unit(&mut self, id: usize) -> Result<bool, NodeError> {
+        if self.data.nrow() <= id {
+            return Err(NodeError::GhostUnit);
+        }
+
+        Ok(self.traverse_and_alter_unit(id, false))
+    }
+
+    fn traverse_and_alter_unit(&mut self, id: usize, insert: bool) -> bool {
         match self.kind {
             NodeKind::Branch(ref mut branch) => {
                 let distance = self.data[(id, branch.dimension)] - branch.value;
 
                 if distance <= 0.0 {
-                    branch.left_child.remove_unit(id)
+                    branch.left_child.traverse_and_alter_unit(id, insert)
                 } else {
-                    branch.right_child.remove_unit(id)
+                    branch.right_child.traverse_and_alter_unit(id, insert)
                 }
             }
             NodeKind::Leaf(ref mut leaf) => {
-                let vec_k = leaf.units.iter().position(|&p| p == id);
-
-                match vec_k {
-                    Some(k) => {
-                        leaf.units.swap_remove(k);
+                if insert {
+                    if leaf.units.contains(&id) {
+                        false
+                    } else {
+                        leaf.units.push(id);
                         true
                     }
-                    _ => false,
+                } else {
+                    let vec_k = leaf.units.iter().position(|&p| p == id);
+
+                    match vec_k {
+                        Some(k) => {
+                            leaf.units.swap_remove(k);
+                            true
+                        }
+                        _ => false,
+                    }
                 }
             }
         }
@@ -207,17 +235,15 @@ impl<'a> Node<'a> {
 
     #[inline]
     fn distance_to_box_in_dimension(&self, dimension: usize, value: f64) -> f64 {
-        unsafe {
-            let min = *self.min_border.get_unchecked(dimension);
-            let max = *self.max_border.get_unchecked(dimension);
+        let min = self.min_border[dimension];
+        let max = self.max_border[dimension];
 
-            if value <= min {
-                return min - value;
-            } else if value <= max {
-                return 0.0;
-            } else {
-                return value - max;
-            }
+        if value <= min {
+            min - value
+        } else if value <= max {
+            0.0
+        } else {
+            value - max
         }
     }
 
@@ -226,10 +252,7 @@ impl<'a> Node<'a> {
         S: TreeSearcher,
     {
         match self.kind {
-            NodeKind::Leaf(ref leaf) => {
-                searcher.add_neighbours_from_node(&leaf.units, self.data);
-                return;
-            }
+            NodeKind::Leaf(ref leaf) => searcher.add_neighbours_from_node(&leaf.units, self.data),
 
             NodeKind::Branch(ref branch) => {
                 let unit_value = searcher.unit()[branch.dimension];
@@ -297,14 +320,15 @@ mod tests {
     #[test]
     fn find() {
         let (data, _prob, mut indices) = data_10_2();
-        let root = Node::new(midpoint_slide, 2, &data, &mut indices);
-        let mut searcher = Searcher::new(&root, 1);
+        let root = Node::new(midpoint_slide, 2, &data, &mut indices).unwrap();
+        let mut searcher = Searcher::new(&root, 1).unwrap();
 
         let closest_neighbour: [usize; 10] = [1, 0, 8, 5, 9, 3, 5, 2, 3, 4];
         let mut result: [usize; 10] = [0; 10];
 
         for i in 0usize..10 {
-            result[i] = searcher.find_neighbours_of_id(&root, i).neighbours()[0];
+            searcher.find_neighbours_of_id(&root, i).unwrap();
+            result[i] = searcher.neighbours()[0];
         }
 
         assert_eq!(result, closest_neighbour);
@@ -313,15 +337,16 @@ mod tests {
     #[test]
     fn find_and_remove() {
         let (data, _prob, mut indices) = data_10_2();
-        let mut root = Node::new(midpoint_slide, 2, &data, &mut indices);
-        let mut searcher = Searcher::new(&root, 1);
+        let mut root = Node::new(midpoint_slide, 2, &data, &mut indices).unwrap();
+        let mut searcher = Searcher::new(&root, 1).unwrap();
 
         let closest_neighbour: [usize; 9] = [1, 8, 8, 5, 9, 6, 7, 8, 9];
         let mut result: [usize; 9] = [0; 9];
 
         for i in 0usize..9 {
-            result[i] = searcher.find_neighbours_of_id(&root, i).neighbours()[0];
-            root.remove_unit(i);
+            searcher.find_neighbours_of_id(&root, i).unwrap();
+            result[i] = searcher.neighbours()[0];
+            root.remove_unit(i).unwrap();
         }
 
         assert_eq!(result, closest_neighbour);
@@ -330,7 +355,7 @@ mod tests {
     #[test]
     fn node_splits() {
         let (data, _prob, mut indices) = data_9_1();
-        let n0 = Node::new(midpoint_slide, 3, &data, &mut indices);
+        let n0 = Node::new(midpoint_slide, 3, &data, &mut indices).unwrap();
 
         let n0s = n0.kind.unwrap_branch();
 

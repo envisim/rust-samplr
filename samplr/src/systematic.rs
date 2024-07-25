@@ -1,6 +1,8 @@
-use envisim_samplr_utils::{probability::Probabilities, random_generator::RandomGenerator};
+use envisim_samplr_utils::error::SamplingError;
+use envisim_samplr_utils::probability::Probabilities;
+use envisim_samplr_utils::random_generator::RandomGenerator;
 
-pub fn sample<R>(rand: &mut R, probabilities: &[f64]) -> Vec<usize>
+pub fn sample<R>(rand: &mut R, probabilities: &[f64]) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
@@ -8,7 +10,10 @@ where
     from_order(rand, probabilities, &order)
 }
 
-pub fn sample_random_order<R>(rand: &mut R, probabilities: &[f64]) -> Vec<usize>
+pub fn sample_random_order<R>(
+    rand: &mut R,
+    probabilities: &[f64],
+) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
@@ -16,12 +21,15 @@ where
     from_order(rand, probabilities, &order)
 }
 
-fn from_order<R>(rand: &mut R, probabilities: &[f64], order: &[usize]) -> Vec<usize>
+fn from_order<R>(
+    rand: &mut R,
+    probabilities: &[f64],
+    order: &[usize],
+) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert!(Probabilities::check(probabilities));
-    assert_eq!(probabilities.len(), order.len());
+    Probabilities::check(probabilities)?;
 
     let mut sample = Vec::<usize>::with_capacity(
         probabilities.iter().fold(0.0, |acc, p| acc + p).ceil() as usize,
@@ -38,7 +46,7 @@ where
         psum += probabilities[id];
     }
 
-    sample
+    Ok(sample)
 }
 
 fn shuffle<R>(rand: &mut R, len: usize) -> Vec<usize>

@@ -14,7 +14,7 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
     }
 
     #[inline]
-    fn into_row_iter(&self, row: usize) -> MatrixIterator {
+    fn row_iter(&self, row: usize) -> MatrixIterator {
         assert!(row < self.nrow());
         MatrixIterator {
             iter: self.data().iter().skip(row).step_by(self.nrow()),
@@ -24,8 +24,9 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         }
     }
 
+    #[allow(clippy::iter_skip_zero)]
     #[inline]
-    fn into_col_iter<'a>(&self, col: usize) -> MatrixIterator {
+    fn col_iter(&self, col: usize) -> MatrixIterator {
         assert!(col < self.ncol());
         MatrixIterator {
             iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
@@ -38,6 +39,8 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         }
     }
 
+    /// # Safety
+    /// See slice.get_unchecked
     #[inline]
     unsafe fn get_unchecked(&self, (row, col): MatrixIndex) -> &f64 {
         self.data().get_unchecked(col * self.nrow() + row)
@@ -65,9 +68,9 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         let mut prod = vec![0.0; self.nrow()];
         let mut index: usize = 0;
 
-        for j in 0..self.ncol() {
-            for i in 0..self.nrow() {
-                prod[i] += multiplicand[j] * data[index];
+        for &mul in multiplicand.iter() {
+            for pr in prod.iter_mut() {
+                *pr += mul * data[index];
                 index += 1;
             }
         }
@@ -150,8 +153,8 @@ impl Matrix {
         let cols = data.len() / rows;
         Self {
             data: data.to_vec(),
-            rows: rows,
-            cols: cols,
+            rows,
+            cols,
         }
     }
 
@@ -160,12 +163,12 @@ impl Matrix {
         assert!(cols > 0);
         Self {
             data: vec![data; rows * cols],
-            rows: rows,
-            cols: cols,
+            rows,
+            cols,
         }
     }
 
-    pub unsafe fn resize(&mut self, rows: usize, cols: usize) {
+    pub fn resize(&mut self, rows: usize, cols: usize) {
         assert!(rows > 0 && cols > 0);
         let new_size = rows * cols;
         self.data.resize(new_size, 0.0);

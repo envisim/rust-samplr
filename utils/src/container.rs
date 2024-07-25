@@ -1,41 +1,40 @@
-use crate::{indices::Indices, probability::Probabilities, random_generator::RandomGenerator};
+use crate::error::SamplingError;
+use crate::indices::Indices;
+use crate::probability::Probabilities;
+use crate::random_generator::RandomGenerator;
 
-pub struct Sample {
-    sample: Vec<usize>,
-}
+pub struct Sample(Vec<usize>);
 
 impl Sample {
     #[inline]
     pub fn new(capacity: usize) -> Self {
-        Sample {
-            sample: Vec::<usize>::with_capacity(capacity),
-        }
+        Sample(Vec::<usize>::with_capacity(capacity))
     }
 
     #[inline]
     pub fn clear(&mut self) {
-        self.sample.clear();
+        self.0.clear();
     }
 
     #[inline]
     pub fn add(&mut self, idx: usize) {
-        self.sample.push(idx);
+        self.0.push(idx);
     }
 
     #[inline]
     pub fn sort(&mut self) -> &mut Self {
-        self.sample.sort_unstable();
+        self.0.sort_unstable();
         self
     }
 
     #[inline]
     pub fn to_vec(&self) -> Vec<usize> {
-        self.sample.to_vec()
+        self.0.to_vec()
     }
 
     #[inline]
     pub fn get(&self) -> &[usize] {
-        &self.sample
+        &self.0
     }
 }
 
@@ -53,12 +52,12 @@ impl<'a, R> Container<'a, R>
 where
     R: RandomGenerator,
 {
-    pub fn new(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Self {
+    pub fn new(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Result<Self, SamplingError> {
         let population_size = probabilities.len();
 
         let mut container = Container {
             random: rand,
-            probabilities: Probabilities::with_values(probabilities),
+            probabilities: Probabilities::with_values(probabilities)?,
             indices: Indices::with_fill(population_size),
             sample: Sample::new(population_size),
         };
@@ -66,10 +65,10 @@ where
         container.probabilities.eps = eps;
 
         for i in 0..population_size {
-            container.decide_unit(i);
+            container.decide_unit(i)?;
         }
 
-        container
+        Ok(container)
     }
 
     #[inline]
@@ -118,27 +117,22 @@ where
     }
 
     #[inline]
-    pub fn decide_unit(&mut self, idx: usize) -> Option<bool> {
+    pub fn decide_unit(&mut self, idx: usize) -> Result<Option<bool>, SamplingError> {
         if self.probabilities.is_zero(idx) {
-            assert!(self.indices.remove(idx));
-            return Some(false);
+            self.indices.remove(idx)?;
+            return Ok(Some(false));
         } else if self.probabilities.is_one(idx) {
-            assert!(self.indices.remove(idx));
+            self.indices.remove(idx)?;
             self.sample.add(idx);
-            return Some(true);
+            return Ok(Some(true));
         }
 
-        None
+        Ok(None)
     }
 
     #[inline]
     pub fn update_last_unit(&mut self) -> Option<usize> {
-        let last = self.indices.last();
-        if last.is_none() {
-            return None;
-        }
-
-        let id = *last.unwrap();
+        let id = *self.indices.last()?;
 
         self.probabilities[id] = if self.random.rf64() < self.probabilities[id] {
             1.0
@@ -146,7 +140,7 @@ where
             0.0
         };
 
-        return Some(id);
+        Some(id)
     }
 }
 
@@ -159,11 +153,11 @@ mod tests {
     fn decide_unit() {
         let mut rand00 = gen_rand00();
         let (_data, prob) = data_10_2();
-        let mut c = Container::new(&mut rand00, &prob, EPS);
+        let mut c = Container::new(&mut rand00, &prob, EPS).unwrap();
         c.probabilities_mut()[0] = 1.0;
         c.probabilities_mut()[1] = 0.0;
-        assert_eq!(c.decide_unit(0), Some(true));
-        assert_eq!(c.decide_unit(1), Some(false));
-        assert_eq!(c.decide_unit(2), None);
+        assert_eq!(c.decide_unit(0).unwrap(), Some(true));
+        assert_eq!(c.decide_unit(1).unwrap(), Some(false));
+        assert_eq!(c.decide_unit(2).unwrap(), None);
     }
 }

@@ -1,7 +1,6 @@
-use std::{
-    ops::{Index, IndexMut},
-    slice::{Iter, IterMut},
-};
+use crate::error::InputError;
+use std::ops::{Index, IndexMut};
+use std::slice::{Iter, IterMut};
 
 pub struct Probabilities {
     pub eps: f64,
@@ -10,31 +9,55 @@ pub struct Probabilities {
 
 impl Probabilities {
     #[inline]
-    pub fn new(length: usize, value: f64) -> Self {
-        Self {
+    pub fn new(length: usize, value: f64) -> Result<Self, InputError> {
+        if value.is_nan() || (0.0..=1.0).contains(&value) {
+            return Err(InputError::InvalidProbability);
+        }
+
+        Ok(Self {
             eps: 0.0,
             probabilities: vec![value; length],
-        }
+        })
     }
 
     #[inline]
-    pub fn with_values(values: &[f64]) -> Self {
-        assert!(Self::check(values));
+    pub fn with_values(values: &[f64]) -> Result<Self, InputError> {
+        Self::check(values)?;
 
-        Self {
+        Ok(Self {
             eps: 0.0,
             probabilities: values.to_vec(),
-        }
+        })
     }
 
     #[inline]
-    pub fn check(probabilities: &[f64]) -> bool {
-        probabilities.iter().all(|&p| 0.0 <= p && p <= 1.0)
+    pub fn check(probabilities: &[f64]) -> Result<(), InputError> {
+        if probabilities
+            .iter()
+            .any(|p| p.is_nan() || !(0.0..=1.0).contains(p))
+        {
+            return Err(InputError::InvalidProbability);
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn check_eps(eps: f64) -> Result<(), InputError> {
+        if eps.is_nan() || (0.0..1.0).contains(&eps) {
+            return Err(InputError::InvalidEpsilon);
+        }
+
+        Ok(())
     }
 
     #[inline]
     pub fn len(&self) -> usize {
         self.probabilities.len()
+    }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.probabilities.is_empty()
     }
 
     #[inline]

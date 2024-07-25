@@ -1,36 +1,47 @@
+use crate::error::{InputError, SamplingError};
 use crate::kd_tree::{Node, Searcher};
 use crate::matrix::{OperateMatrix, RefMatrix};
 use crate::probability::Probabilities;
 use crate::utils::{sum, usize_to_f64};
 
 #[inline]
-pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> f64 {
-    assert_eq!(y_values.len(), probabilities.len());
-    assert!(Probabilities::check(probabilities));
+pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
+    InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
 
-    y_values
+    Ok(y_values
         .iter()
         .zip(probabilities.iter())
-        .fold(0.0, |acc, (&y, &p)| acc + y / p)
+        .fold(0.0, |acc, (&y, &p)| acc + y / p))
 }
 
 #[inline]
-pub fn ratio(y_values: &[f64], x_values: &[f64], probabilities: &[f64], x_total: f64) -> f64 {
-    assert!(x_total > 0.0);
-    estimate(y_values, probabilities) / estimate(x_values, probabilities) * x_total
+pub fn ratio(
+    y_values: &[f64],
+    x_values: &[f64],
+    probabilities: &[f64],
+    x_total: f64,
+) -> Result<f64, SamplingError> {
+    InputError::check_nonnegative(x_total)?;
+    Ok(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
 }
 
 pub fn variance(
     y_values: &[f64],
     probabilities: &[f64],
     probabilities_second_order: &RefMatrix,
-) -> f64 {
+) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
-    assert_eq!(sample_size, probabilities.len());
-    assert_eq!(sample_size, probabilities_second_order.nrow());
-    assert_eq!(sample_size, probabilities_second_order.ncol());
-    assert!(Probabilities::check(probabilities));
-    assert!(Probabilities::check(probabilities_second_order.data()));
+    InputError::check_lengths(y_values, probabilities)
+        .and(InputError::check_sizes(
+            sample_size,
+            probabilities_second_order.nrow(),
+        ))
+        .and(InputError::check_sizes(
+            sample_size,
+            probabilities_second_order.ncol(),
+        ))
+        .and(Probabilities::check(probabilities))
+        .and(Probabilities::check(probabilities_second_order.data()))?;
 
     let mut variance: f64 = 0.0;
 
@@ -44,20 +55,26 @@ pub fn variance(
         }
     }
 
-    variance
+    Ok(variance)
 }
 
 pub fn syg_variance(
     y_values: &[f64],
     probabilities: &[f64],
     probabilities_second_order: &RefMatrix,
-) -> f64 {
+) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
-    assert_eq!(sample_size, probabilities.len());
-    assert_eq!(sample_size, probabilities_second_order.nrow());
-    assert_eq!(sample_size, probabilities_second_order.ncol());
-    assert!(Probabilities::check(probabilities));
-    assert!(Probabilities::check(probabilities_second_order.data()));
+    InputError::check_lengths(y_values, probabilities)
+        .and(InputError::check_sizes(
+            sample_size,
+            probabilities_second_order.nrow(),
+        ))
+        .and(InputError::check_sizes(
+            sample_size,
+            probabilities_second_order.ncol(),
+        ))
+        .and(Probabilities::check(probabilities))
+        .and(Probabilities::check(probabilities_second_order.data()))?;
 
     let mut variance: f64 = 0.0;
 
@@ -70,10 +87,12 @@ pub fn syg_variance(
         }
     }
 
-    variance
+    Ok(variance)
 }
 
-pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> f64 {
+pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
+    InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
+
     let y_pi: Vec<f64> = y_values
         .iter()
         .zip(probabilities.iter())
@@ -95,7 +114,7 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> f64 {
         .zip(q.iter())
         .fold(0.0, |acc, (&a, &b)| acc + (a - s1mp_del).powi(2) * b);
 
-    1.0 / (1.0 - sak2) * dsum
+    Ok(1.0 / (1.0 - sak2) * dsum)
 }
 
 pub fn local_mean_variance(
@@ -104,17 +123,23 @@ pub fn local_mean_variance(
     auxilliaries: &RefMatrix,
     n_neighbours: usize,
     bucket_size: usize,
-) -> f64 {
+) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
-    assert_eq!(sample_size, probabilities.len());
-    assert!(Probabilities::check(probabilities));
-    assert!(n_neighbours > 1);
+    InputError::check_lengths(y_values, probabilities)
+        .and(InputError::check_sizes(sample_size, auxilliaries.nrow()))
+        .and(Probabilities::check(probabilities))?;
+
+    if n_neighbours <= 1 {
+        return Err(SamplingError::from(InputError::General(
+            "n_neighbours must be > 1".to_string(),
+        )));
+    }
 
     let tree = {
         let mut units: Vec<usize> = (0..sample_size).collect();
-        Node::new_midpoint_slide(bucket_size, auxilliaries, &mut units)
+        Node::new_midpoint_slide(bucket_size, auxilliaries, &mut units)?
     };
-    let mut searcher = Searcher::new(&tree, n_neighbours);
+    let mut searcher = Searcher::new(&tree, n_neighbours)?;
 
     let yp: Vec<f64> = y_values
         .iter()
@@ -124,7 +149,9 @@ pub fn local_mean_variance(
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
-        searcher.find_neighbours_of_iter(&tree, &mut auxilliaries.into_row_iter(i));
+        searcher
+            .find_neighbours_of_iter(&tree, &mut auxilliaries.row_iter(i))
+            .unwrap();
         let len = usize_to_f64(searcher.neighbours().len());
         variance += len / (len - 1.0)
             * (searcher
@@ -135,5 +162,5 @@ pub fn local_mean_variance(
                 .powi(2);
     }
 
-    variance
+    Ok(variance)
 }

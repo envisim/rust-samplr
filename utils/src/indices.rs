@@ -1,5 +1,14 @@
 use crate::random_generator::RandomGenerator;
 use rustc_hash::{FxBuildHasher, FxHashMap};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum IndicesError {
+    #[error("cannot access non-existing index {0}")]
+    GhostIndex(usize),
+    #[error("cannot access out-of-bounds k-index {0}")]
+    OutOfBoundsK(usize),
+}
 
 pub struct Indices {
     list: Vec<usize>,
@@ -11,10 +20,7 @@ impl Indices {
     pub fn new(capacity: usize) -> Self {
         Indices {
             list: Vec::<usize>::with_capacity(capacity),
-            indices: FxHashMap::<usize, usize>::with_capacity_and_hasher(
-                capacity,
-                FxBuildHasher::default(),
-            ),
+            indices: FxHashMap::<usize, usize>::with_capacity_and_hasher(capacity, FxBuildHasher),
         }
     }
 
@@ -66,23 +72,28 @@ impl Indices {
     }
 
     #[inline]
-    pub fn insert(&mut self, id: usize) -> bool {
+    pub fn insert(&mut self, id: usize) -> Result<usize, IndicesError> {
         if self.contains(id) {
-            return false;
+            return Err(IndicesError::GhostIndex(id));
         }
 
         self.list.push(id);
-        self.indices.insert(id, self.list.len() - 1);
-        true
+        let k = self.list.len() - 1;
+        self.indices.insert(id, k);
+        Ok(k)
     }
 
     #[inline]
     pub fn len(&self) -> usize {
         self.list.len()
     }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.list.is_empty()
+    }
 
     #[inline]
-    pub fn remove(&mut self, id: usize) -> bool {
+    pub fn remove(&mut self, id: usize) -> Result<(), IndicesError> {
         match self.indices.remove(&id) {
             Some(k) => {
                 self.list.swap_remove(k);
@@ -91,9 +102,9 @@ impl Indices {
                     *self.indices.get_mut(&self.list[k]).unwrap() = k;
                 }
 
-                true
+                Ok(())
             }
-            _ => false,
+            None => Err(IndicesError::GhostIndex(id)),
         }
     }
 }
@@ -108,8 +119,8 @@ mod tests {
         let list: Vec<usize> = vec![0, 1, 2, 3];
         assert_eq!(list, il.list);
 
-        assert!(il.remove(1));
-        assert!(!il.remove(1));
+        assert!(il.remove(1).is_ok());
+        assert!(il.remove(1).is_err());
         assert_eq!(il.last().unwrap(), &2);
     }
 }

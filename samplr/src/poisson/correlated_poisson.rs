@@ -1,10 +1,9 @@
-use envisim_samplr_utils::{
-    container::Container,
-    kd_tree::{midpoint_slide, Node, SearcherWeighted},
-    matrix::{OperateMatrix, RefMatrix},
-    random_generator::RandomList,
-    utils::usize_to_f64,
-};
+use envisim_samplr_utils::container::Container;
+use envisim_samplr_utils::error::SamplingError;
+use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, SearcherWeighted};
+use envisim_samplr_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_samplr_utils::random_generator::RandomList;
+use envisim_samplr_utils::utils::usize_to_f64;
 
 pub trait CorrelatedPoissonVariant<'a, R>
 where
@@ -50,25 +49,26 @@ impl SequentialCorrelatedPoissonSampling {
         rand: &'a mut R,
         probabilities: &[f64],
         eps: f64,
-    ) -> CorrelatedPoissonSampler<'a, R, Self>
+    ) -> Result<CorrelatedPoissonSampler<'a, R, Self>, SamplingError>
     where
         R: RandomList,
     {
-        CorrelatedPoissonSampler {
-            container: Box::new(Container::new(rand, probabilities, eps)),
+        Ok(CorrelatedPoissonSampler {
+            container: Box::new(Container::new(rand, probabilities, eps)?),
             variant: Box::new(SequentialCorrelatedPoissonSampling { unit: 0 }),
-        }
+        })
     }
 
     #[inline]
-    pub fn sample<'a, R>(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
+    pub fn sample<R>(
+        rand: &mut R,
+        probabilities: &[f64],
+        eps: f64,
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomList,
     {
-        Self::new(rand, probabilities, eps)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+        Self::new(rand, probabilities, eps).map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -79,27 +79,27 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> CorrelatedPoissonSampler<'a, R, Self>
+    ) -> Result<CorrelatedPoissonSampler<'a, R, Self>, SamplingError>
     where
         R: RandomList,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(SearcherWeighted::new(&tree));
+        )?);
+        let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
-        CorrelatedPoissonSampler {
-            container: container,
+        Ok(CorrelatedPoissonSampler {
+            container,
             variant: Box::new(SpatiallyCorrelatedPoissonSampling {
-                tree: tree,
-                searcher: searcher,
+                tree,
+                searcher,
                 unit: usize::MAX,
             }),
-        }
+        })
     }
 
     #[inline]
@@ -109,14 +109,12 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomList,
     {
         Self::new(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 
     pub fn new_sequential<R>(
@@ -125,27 +123,27 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> CorrelatedPoissonSampler<'a, R, Self>
+    ) -> Result<CorrelatedPoissonSampler<'a, R, Self>, SamplingError>
     where
         R: RandomList,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(SearcherWeighted::new(&tree));
+        )?);
+        let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
-        CorrelatedPoissonSampler {
-            container: container,
+        Ok(CorrelatedPoissonSampler {
+            container,
             variant: Box::new(SpatiallyCorrelatedPoissonSampling {
-                tree: tree,
-                searcher: searcher,
+                tree,
+                searcher,
                 unit: 0,
             }),
-        }
+        })
     }
 
     #[inline]
@@ -155,14 +153,12 @@ impl<'a> SpatiallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomList,
     {
         Self::new_sequential(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -173,30 +169,30 @@ impl<'a> LocallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> CorrelatedPoissonSampler<'a, R, Self>
+    ) -> Result<CorrelatedPoissonSampler<'a, R, Self>, SamplingError>
     where
         R: RandomList,
     {
-        let container = Box::new(Container::new(rand, probabilities, eps));
+        let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
             bucket_size,
             data,
             container.indices(),
-        ));
-        let searcher = Box::new(SearcherWeighted::new(&tree));
+        )?);
+        let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
-        CorrelatedPoissonSampler {
-            container: container,
+        Ok(CorrelatedPoissonSampler {
+            container,
             variant: Box::new(LocallyCorrelatedPoissonSampling {
                 scps: SpatiallyCorrelatedPoissonSampling {
-                    tree: tree,
-                    searcher: searcher,
+                    tree,
+                    searcher,
                     unit: usize::MAX,
                 },
                 candidates: Vec::<usize>::with_capacity(20),
             }),
-        }
+        })
     }
 
     #[inline]
@@ -206,14 +202,12 @@ impl<'a> LocallyCorrelatedPoissonSampling<'a> {
         eps: f64,
         data: &'a RefMatrix,
         bucket_size: usize,
-    ) -> Vec<usize>
+    ) -> Result<Vec<usize>, SamplingError>
     where
         R: RandomList,
     {
         Self::new(rand, probabilities, eps, data, bucket_size)
-            .sample()
-            .get_sorted_sample()
-            .to_vec()
+            .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 }
 
@@ -227,7 +221,7 @@ where
         let probability = self.container.probabilities()[id];
         let mut quota = probability;
 
-        if self.container.random().from_list(id) < probability {
+        if self.container.random().in_list(id) < probability {
             self.container.probabilities_mut()[id] = 1.0;
             quota -= 1.0;
         } else {
@@ -263,7 +257,7 @@ where
     R: RandomList,
 {
     fn select_unit(&mut self, container: &mut Container<'a, R>) -> Option<usize> {
-        if container.indices().len() == 0 {
+        if container.indices().is_empty() {
             return None;
         }
 
@@ -275,7 +269,7 @@ where
             self.unit += 1;
         }
 
-        panic!("unreachable code");
+        unsafe { std::hint::unreachable_unchecked() };
     }
     fn update_neighbours(
         &mut self,
@@ -303,7 +297,7 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id)
+        container.decide_unit(id).unwrap()
     }
 }
 
@@ -330,7 +324,7 @@ where
             self.unit += 1;
         }
 
-        panic!("unreachable code");
+        unsafe { std::hint::unreachable_unchecked() };
     }
     fn update_neighbours(
         &mut self,
@@ -339,16 +333,18 @@ where
         probability: f64,
         quota: f64,
     ) {
-        if container.indices().len() == 0 {
+        if container.indices().is_empty() {
             return;
         }
 
-        self.searcher.find_neighbours_of_iter(
-            &self.tree,
-            container.probabilities(),
-            self.tree.data().into_row_iter(id),
-            probability,
-        );
+        self.searcher
+            .find_neighbours_of_iter(
+                &self.tree,
+                container.probabilities(),
+                self.tree.data().row_iter(id),
+                probability,
+            )
+            .unwrap();
 
         let mut remaining_weight: f64 = 1.0;
         let mut i: usize = 0;
@@ -405,9 +401,9 @@ where
     }
     #[inline]
     fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).and_then(|r| {
-            self.tree.remove_unit(id);
-            Some(r)
+        container.decide_unit(id).unwrap().map(|r| {
+            self.tree.remove_unit(id).unwrap();
+            r
         })
     }
 }
@@ -430,11 +426,10 @@ where
         let mut i = 0;
         while i < container.indices().len() {
             let id = *container.indices().get(i).unwrap();
-            self.scps.searcher.find_neighbours_of_id(
-                &self.scps.tree,
-                container.probabilities(),
-                id,
-            );
+            self.scps
+                .searcher
+                .find_neighbours_of_id(&self.scps.tree, container.probabilities(), id)
+                .unwrap();
             // We are guaranteed to have at least one neighbour by the
             // if's in the beginning
             let distance = self
@@ -481,9 +476,9 @@ mod tests {
     fn cps_sampler() {
         let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
-        let mut cps = SequentialCorrelatedPoissonSampling::new(&mut rand00, &prob, EPS);
+        let mut cps = SequentialCorrelatedPoissonSampling::new(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(cps.decide_selected(7), (0.2, -0.8));
-        cps = SequentialCorrelatedPoissonSampling::new(&mut rand99, &prob, EPS);
+        cps = SequentialCorrelatedPoissonSampling::new(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(cps.decide_selected(7), (0.2, 0.2));
     }
 
@@ -506,7 +501,7 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (_data, prob) = data_10_2();
 
-        let mut cps = ST::new(&mut rand00, &prob, EPS);
+        let mut cps = ST::new(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
@@ -515,7 +510,7 @@ mod tests {
         assert_delta!(cps.container.probabilities()[4], 0.0, EPS);
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(5));
 
-        cps = ST::new(&mut rand99, &prob, EPS);
+        cps = ST::new(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.25, EPS);
@@ -524,9 +519,9 @@ mod tests {
         assert_delta!(cps.container.probabilities()[4], 0.25, EPS);
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(1));
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS);
+        let s0 = ST::sample(&mut rand00, &prob, EPS).unwrap();
         assert_eq!(s0, vec![0, 5]);
-        let s1 = ST::sample(&mut rand99, &prob, EPS);
+        let s1 = ST::sample(&mut rand99, &prob, EPS).unwrap();
         assert_eq!(s1, vec![4, 9]);
     }
 
@@ -536,7 +531,7 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(0));
         decide_and_update(&mut cps, 0);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
@@ -544,7 +539,7 @@ mod tests {
         assert_delta!(cps.container.probabilities()[4], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.0, EPS);
 
-        cps = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        cps = ST::new(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(9));
         decide_and_update(&mut cps, 9);
         assert_delta!(cps.container.probabilities()[4], 0.25, EPS);
@@ -552,7 +547,7 @@ mod tests {
         assert_delta!(cps.container.probabilities()[0], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[7], 0.25, EPS);
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(s0, vec![0, 9]);
     }
 
@@ -562,7 +557,7 @@ mod tests {
         let (mut rand00, mut rand99) = gen_rand();
         let (data, prob) = data_10_2();
 
-        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2);
+        let mut cps = ST::new(&mut rand00, &prob, EPS, &data, 2).unwrap();
 
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(8));
         decide_and_update(&mut cps, 8);
@@ -571,7 +566,7 @@ mod tests {
         assert_delta!(cps.container.probabilities()[2], 0.0, EPS);
         assert_delta!(cps.container.probabilities()[1], 0.0, EPS);
 
-        cps = ST::new(&mut rand99, &prob, EPS, &data, 2);
+        cps = ST::new(&mut rand99, &prob, EPS, &data, 2).unwrap();
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(8));
         decide_and_update(&mut cps, 8);
         assert_delta!(cps.container.probabilities()[3], 0.25, EPS);
@@ -579,7 +574,7 @@ mod tests {
         assert_delta!(cps.container.probabilities()[2], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[1], 0.25, EPS);
 
-        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2);
+        let s0 = ST::sample(&mut rand00, &prob, EPS, &data, 2).unwrap();
         assert_eq!(s0, vec![4, 8]);
     }
 }

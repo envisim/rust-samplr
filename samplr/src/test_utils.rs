@@ -1,9 +1,15 @@
-pub(crate) use crate::macros::assert_delta;
-use envisim_samplr_utils::{
-    matrix::RefMatrix,
-    random_generator::{Constant, RandomGenerator},
-};
+use envisim_samplr_utils::matrix::RefMatrix;
+use envisim_samplr_utils::random_generator::{Constant, RandomGenerator};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
+
+#[allow(dead_code)]
+macro_rules! assert_delta {
+    ($a:expr,$b:expr,$d:expr) => {
+        assert!(($a - $b).abs() < $d, "|{} - {}| >= {}", $a, $b, $d);
+    };
+}
+
+pub(crate) use assert_delta;
 
 #[allow(dead_code)]
 pub const fn gen_rand() -> (Constant, Constant) {

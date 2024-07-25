@@ -1,23 +1,26 @@
 use super::Probabilities;
+use crate::error::InputError;
 use crate::utils::usize_to_f64;
 
-pub fn pps_from_slice(arr: &[f64]) -> Probabilities {
-    if arr.len() == 0 {
+pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
+    if arr.is_empty() {
         return Probabilities::new(0, 0.0);
     }
 
     let mut sum: f64 = 0.0;
 
     for &x in arr {
-        assert!(x > 0.0);
+        if x <= 0.0 {
+            return Err(InputError::NonpositiveValue);
+        }
         sum += x;
     }
 
     Probabilities::with_values(&arr.iter().map(|&x| x / sum).collect::<Vec<f64>>())
 }
 
-pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Probabilities {
-    if arr.len() == 0 {
+pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<Probabilities, InputError> {
+    if arr.is_empty() {
         return Probabilities::new(0, 0.0);
     }
 
@@ -25,11 +28,13 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Probabilities {
         return Probabilities::new(arr.len(), 1.0);
     }
 
-    assert!(arr.iter().all(|&x| x > 0.0));
+    if arr.iter().any(|&x| x <= 0.0) {
+        return Err(InputError::NonpositiveValue);
+    }
 
     let mut n = usize_to_f64(sample_size);
 
-    let mut pips = Probabilities::new(arr.len(), 0.0);
+    let mut pips = Probabilities::new(arr.len(), 0.0)?;
     let mut failed: bool = true;
 
     while failed && n > 0.0 {
@@ -59,5 +64,5 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Probabilities {
         });
     }
 
-    pips
+    Ok(pips)
 }

@@ -10,7 +10,5 @@ pub mod proportional;
 pub mod srs;
 pub mod systematic;
 
-mod macros;
-
 #[cfg(test)]
 mod test_utils;

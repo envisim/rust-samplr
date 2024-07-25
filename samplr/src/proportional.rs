@@ -1,5 +1,5 @@
-use crate::macros::assert_delta;
-use crate::poisson::conditional_sample;
+use crate::poisson::sample_internal;
+use envisim_samplr_utils::error::{InputError, SamplingError};
 use envisim_samplr_utils::indices::Indices;
 use envisim_samplr_utils::probability::Probabilities;
 use envisim_samplr_utils::random_generator::RandomGenerator;
@@ -15,15 +15,15 @@ where
     let rv = rand.rf64();
     let mut psum: f64 = 0.0;
 
-    for i in 0..population_size {
-        psum += probabilities[i];
+    for (i, &p) in probabilities.iter().enumerate() {
+        psum += p;
 
         if rv <= psum {
             return i;
         }
     }
 
-    return population_size - 1;
+    population_size - 1
 }
 
 pub fn draw_probabilities_sample<R>(
@@ -31,15 +31,17 @@ pub fn draw_probabilities_sample<R>(
     probabilities: &[f64],
     eps: f64,
     n: usize,
-) -> Vec<usize>
+) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert!(Probabilities::check(probabilities));
-    assert_delta!(sum(probabilities), 1.0, eps);
+    Probabilities::check(probabilities)?;
+    if !(1.0 - eps..1.0 + eps).contains(&sum(probabilities)) {
+        return Err(SamplingError::Input(InputError::NotInteger));
+    }
 
     if n == 0 {
-        return vec![];
+        return Ok(vec![]);
     }
 
     let mut rvs = Vec::<f64>::with_capacity(n);
@@ -79,7 +81,7 @@ where
         }
     }
 
-    sample
+    Ok(sample)
 }
 
 pub fn sampford<R>(
@@ -87,13 +89,14 @@ pub fn sampford<R>(
     probabilities: &[f64],
     eps: f64,
     max_iterations: u32,
-) -> Result<Vec<usize>, &'static str>
+) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert!(Probabilities::check(probabilities));
     let psum = sum(probabilities);
-    assert_delta!(psum, psum.round(), eps);
+    Probabilities::check(probabilities)
+        .and(Probabilities::check_eps(eps))
+        .and(InputError::check_integer_approx(psum, eps))?;
     let sample_size = psum as usize;
 
     if sample_size == 0 {
@@ -103,14 +106,14 @@ where
     }
 
     let norm_probs: Vec<f64> = probabilities.iter().map(|&p| p / psum).collect();
-    let mut iterations: u32 = 0;
 
-    while iterations < max_iterations {
-        let mut sample =
-            match conditional_sample(rand, probabilities, sample_size - 1, max_iterations) {
-                Ok(s) => s,
-                Err(err) => return Err(err),
-            };
+    for _ in 0..max_iterations {
+        let mut sample = sample_internal(rand, probabilities);
+
+        if sample.len() != sample_size - 1 {
+            continue;
+        }
+
         let a_unit = draw(rand, &norm_probs);
 
         // Since sample is ordered, we don't need to check units with
@@ -124,23 +127,23 @@ where
             sample.sort_unstable();
             return Ok(sample);
         }
-
-        iterations += 1;
     }
 
-    Err("could not find a sample")
+    Err(SamplingError::MaxIterations)
 }
 
 /// Rosén, B. (2000).
 /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
 /// Stockholm: Statistiska Centralbyrån.
-pub fn pareto<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
+pub fn pareto<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert!(Probabilities::check(probabilities));
     let psum = sum(probabilities);
-    assert_delta!(psum, psum.round(), eps);
+    Probabilities::check(probabilities)
+        .and(Probabilities::check_eps(eps))
+        .and(InputError::check_integer_approx(psum, eps))?;
+
     let sample_size = psum as usize;
 
     let q_values: Vec<f64> = probabilities
@@ -165,16 +168,17 @@ where
     let mut sample: Vec<usize> = (0..probabilities.len()).collect();
     sample.sort_by(|&a, &b| q_values[a].partial_cmp(&q_values[b]).unwrap());
     sample.truncate(sample_size);
-    sample
+    Ok(sample)
 }
 
-pub fn brewer<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Vec<usize>
+pub fn brewer<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomGenerator,
 {
-    assert!(Probabilities::check(probabilities));
     let mut psum = sum(probabilities);
-    assert_delta!(psum, psum.round(), eps);
+    Probabilities::check(probabilities)
+        .and(Probabilities::check_eps(eps))
+        .and(InputError::check_integer_approx(psum, eps))?;
 
     let mut sample_size = psum as usize;
     let mut n_d = psum;
@@ -183,9 +187,9 @@ where
 
     for (id, &p) in probabilities.iter().enumerate() {
         if p <= eps {
-            indices.remove(id);
+            indices.remove(id).unwrap();
         } else if 1.0 - eps <= p {
-            indices.remove(id);
+            indices.remove(id).unwrap();
             sample.push(id);
             n_d -= 1.0;
             sample_size -= 1;
@@ -207,12 +211,12 @@ where
         }
 
         let a_unit = draw(rand, &q_probs);
-        indices.remove(a_unit);
+        indices.remove(a_unit).unwrap();
         sample.push(a_unit);
         q_probs[a_unit] = 0.0;
         n_d -= probabilities[a_unit];
     }
 
     sample.sort_unstable();
-    sample
+    Ok(sample)
 }
