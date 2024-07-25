@@ -16,6 +16,7 @@ pub trait RandomGenerator {
 
         self.rf64_scaled(scale as f64) as i64
     }
+    #[allow(clippy::cast_possible_wrap)]
     #[inline]
     fn rusize(&mut self, scale: usize) -> usize {
         self.ri64(scale as i64) as usize

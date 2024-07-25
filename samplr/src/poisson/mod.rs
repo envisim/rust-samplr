@@ -12,7 +12,7 @@ where
     probabilities
         .iter()
         .enumerate()
-        .filter_map(|(i, &p)| if rand.rf64() <= p { Some(i) } else { None })
+        .filter_map(|(i, &p)| (rand.rf64() <= p).then_some(i))
         .collect()
 }
 

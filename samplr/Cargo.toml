@@ -11,6 +11,22 @@ license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lints.clippy]
+assertions_on_result_states = "warn"
+cargo_common_metadata = "warn"
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+cognitive_complexity = "warn"
+equatable_if_let = "warn"
+exhaustive_enums = "deny"
+from_iter_instead_of_collect = "warn"
+get_unwrap = "warn"
+if_not_else = "warn"
+if_then_some_else_none = "warn"
+imprecise_flops = "warn"
+match_bool = "warn"
+needless_collect = "warn"
+
 [dependencies]
 envisim_samplr_utils = {version="0.1.0", path="../utils"}
 rustc-hash = "2.0.0"

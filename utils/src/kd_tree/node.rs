@@ -4,6 +4,7 @@ use crate::indices::Indices;
 use crate::matrix::{OperateMatrix, RefMatrix};
 use thiserror::Error;
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum NodeError {
     #[error("{0}")]

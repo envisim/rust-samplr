@@ -2,6 +2,7 @@ use crate::random_generator::RandomGenerator;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use thiserror::Error;
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum IndicesError {
     #[error("cannot access non-existing index {0}")]
@@ -27,8 +28,10 @@ impl Indices {
     #[inline]
     pub fn with_fill(length: usize) -> Self {
         Indices {
-            list: Vec::<usize>::from_iter(0..length),
-            indices: FxHashMap::<usize, usize>::from_iter((0..length).map(|v| (v, v))),
+            list: (0..length).collect::<Vec<usize>>(),
+            indices: (0..length)
+                .map(|v| (v, v))
+                .collect::<FxHashMap<usize, usize>>(),
         }
     }
 

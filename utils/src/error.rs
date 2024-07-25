@@ -2,6 +2,7 @@ use crate::indices::IndicesError;
 use crate::kd_tree::{NodeError, SearcherError};
 use thiserror::Error;
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum InputError {
     #[error("{0}")]
@@ -100,6 +101,7 @@ impl InputError {
     }
 }
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SamplingError {
     #[error("{0}")]

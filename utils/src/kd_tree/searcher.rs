@@ -4,6 +4,7 @@ use crate::probability::Probabilities;
 use std::cmp::Ordering;
 use thiserror::Error;
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SearcherError {
     #[error("{0}")]

@@ -44,7 +44,5 @@ pub fn nearest_neighbour(
     Ok(y_values
         .iter()
         .zip(sample.iter())
-        .fold(0.0, |acc, (&y, id)| {
-            acc + y * number_of_neighbours.get(id).unwrap()
-        }))
+        .fold(0.0, |acc, (&y, id)| acc + y * number_of_neighbours[id]))
 }
