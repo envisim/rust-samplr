@@ -1,7 +1,7 @@
-use crate::error::SamplingError;
-use crate::indices::Indices;
-use crate::probability::Probabilities;
-use crate::random_generator::RandomGenerator;
+use envisim_utils::error::SamplingError;
+use envisim_utils::indices::Indices;
+use envisim_utils::probability::Probabilities;
+use envisim_utils::random_generator::RandomGenerator;
 
 pub struct Sample(Vec<usize>);
 

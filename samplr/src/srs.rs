@@ -1,5 +1,5 @@
-use envisim_samplr_utils::error::{InputError, SamplingError};
-use envisim_samplr_utils::random_generator::RandomGenerator;
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::random_generator::RandomGenerator;
 
 pub struct SrsWor();
 impl SrsWor {
@@ -49,7 +49,7 @@ impl SrsWr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use envisim_samplr_utils::random_generator::Constant;
+    use envisim_utils::random_generator::Constant;
 
     #[test]
     fn test_srs_wor() {

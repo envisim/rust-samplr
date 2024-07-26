@@ -1,8 +1,8 @@
-use crate::error::{InputError, SamplingError};
-use crate::kd_tree::{Node, Searcher};
-use crate::matrix::{OperateMatrix, RefMatrix};
-use crate::probability::Probabilities;
-use crate::utils::{sum, usize_to_f64};
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{Node, Searcher};
+use envisim_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::probability::Probabilities;
+use envisim_utils::utils::{sum, usize_to_f64};
 
 #[inline]
 pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {

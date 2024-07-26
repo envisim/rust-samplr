@@ -1,9 +1,9 @@
-use envisim_samplr_utils::container::Container;
-use envisim_samplr_utils::error::{InputError, SamplingError};
-use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, Searcher};
-use envisim_samplr_utils::matrix::RefMatrix;
-use envisim_samplr_utils::random_generator::RandomGenerator;
-use envisim_samplr_utils::utils::{sum, usize_to_f64};
+use crate::utils::Container;
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{midpoint_slide, Node, Searcher};
+use envisim_utils::matrix::RefMatrix;
+use envisim_utils::random_generator::RandomGenerator;
+use envisim_utils::utils::{sum, usize_to_f64};
 use rustc_hash::FxHashSet;
 
 type Pair = (usize, usize);
@@ -596,7 +596,7 @@ mod tests {
 
     fn select_and_update<'a, R, T>(pm: &mut PivotalMethodSampler<'a, R, T>) -> Pair
     where
-        R: envisim_samplr_utils::random_generator::RandomGenerator,
+        R: envisim_utils::random_generator::RandomGenerator,
         T: PivotalMethodVariant<'a, R>,
     {
         let units = pm.variant.select_units(&mut pm.container).unwrap();

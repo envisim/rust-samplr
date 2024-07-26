@@ -1,5 +1,5 @@
-use crate::error::{InputError, SamplingError};
-use crate::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 
 #[inline]
 fn inclusions_check(inclusions: &[f64]) -> Result<(), InputError> {

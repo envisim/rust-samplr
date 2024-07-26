@@ -1,9 +1,9 @@
 use crate::srs::SrsWor;
-use envisim_samplr_utils::container::Container;
-use envisim_samplr_utils::error::{InputError, SamplingError};
-use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, Searcher};
-use envisim_samplr_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
-use envisim_samplr_utils::random_generator::RandomGenerator;
+use crate::utils::Container;
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{midpoint_slide, Node, Searcher};
+use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
+use envisim_utils::random_generator::RandomGenerator;
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
 

@@ -1,6 +1,5 @@
 use envisim_utils::matrix::RefMatrix;
-use envisim_utils::random_generator::{Constant, RandomGenerator};
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use envisim_utils::random_generator::Constant;
 
 #[allow(dead_code)]
 macro_rules! assert_delta {
@@ -25,23 +24,6 @@ pub const fn gen_rand99() -> Constant {
 }
 #[allow(dead_code)]
 pub const EPS: f64 = 1e-12;
-
-pub struct TestRandom {
-    rand: SmallRng,
-}
-impl TestRandom {
-    pub fn new(seed: u64) -> Self {
-        TestRandom {
-            rand: SmallRng::seed_from_u64(seed),
-        }
-    }
-}
-impl RandomGenerator for TestRandom {
-    #[inline]
-    fn rf64(&mut self) -> f64 {
-        self.rand.gen()
-    }
-}
 
 // DISTS:
 //            0         1         2         3         4         5         6         7         8         9
@@ -79,19 +61,4 @@ pub const DATA_10_2: [f64; 20] = [
 #[allow(dead_code)]
 pub fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
     (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
-}
-
-#[allow(dead_code)]
-pub const DATA_20_2: [f64; 40] = [
-    0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527, 0.66079779,
-    0.62911404, 0.06178627, 1.26550866, 1.37212390, 1.57285336, 1.90820779, 1.20168193, 1.89838968,
-    1.94467527, 1.66079779, 1.62911404, 1.06178627, //
-    0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185, 0.9919061,
-    0.3800352, 0.7774452, 0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992,
-    0.7176185, 0.9919061, 0.3800352, 0.7774452,
-];
-
-#[allow(dead_code)]
-pub fn data_20_2<'a>() -> (RefMatrix<'a>, [f64; 20]) {
-    (RefMatrix::new(&DATA_20_2, 20), [0.2f64; 20])
 }

@@ -1,5 +1,5 @@
 [package]
-name = "envisim_utils"
+name = "envisim_estimate"
 version = "0.1.0"
 edition = "2021"
 authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
@@ -28,5 +28,6 @@ match_bool = "warn"
 needless_collect = "warn"
 
 [dependencies]
+envisim_utils = {version="0.1.0", path="../utils"}
 rustc-hash = "2.0.0"
 thiserror = "1.0.63"

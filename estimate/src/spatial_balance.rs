@@ -1,7 +1,7 @@
-use crate::error::{InputError, SamplingError};
-use crate::kd_tree::{Node, Searcher};
-use crate::matrix::{Matrix, OperateMatrix, RefMatrix};
-use crate::utils::usize_to_f64;
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{Node, Searcher};
+use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
+use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 pub fn voronoi(

@@ -1,5 +1,5 @@
-use envisim_samplr_utils::error::{InputError, SamplingError};
-use envisim_samplr_utils::{probability::Probabilities, random_generator::RandomGenerator};
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::{probability::Probabilities, random_generator::RandomGenerator};
 
 mod correlated_poisson;
 pub use correlated_poisson::*;

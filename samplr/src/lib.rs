@@ -9,6 +9,7 @@ pub mod poisson;
 pub mod proportional;
 pub mod srs;
 pub mod systematic;
+mod utils;
 
 #[cfg(test)]
 mod test_utils;

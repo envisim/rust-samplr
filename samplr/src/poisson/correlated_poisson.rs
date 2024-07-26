@@ -1,9 +1,9 @@
-use envisim_samplr_utils::container::Container;
-use envisim_samplr_utils::error::SamplingError;
-use envisim_samplr_utils::kd_tree::{midpoint_slide, Node, SearcherWeighted};
-use envisim_samplr_utils::matrix::{OperateMatrix, RefMatrix};
-use envisim_samplr_utils::random_generator::RandomList;
-use envisim_samplr_utils::utils::usize_to_f64;
+use crate::utils::Container;
+use envisim_utils::error::SamplingError;
+use envisim_utils::kd_tree::{midpoint_slide, Node, SearcherWeighted};
+use envisim_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::random_generator::RandomList;
+use envisim_utils::utils::usize_to_f64;
 
 pub trait CorrelatedPoissonVariant<'a, R>
 where
@@ -487,7 +487,7 @@ mod tests {
         id: usize,
     ) -> (usize, f64, f64)
     where
-        R: envisim_samplr_utils::random_generator::RandomList,
+        R: envisim_utils::random_generator::RandomList,
         T: CorrelatedPoissonVariant<'a, R>,
     {
         let (p, q) = cps.decide_selected(id);

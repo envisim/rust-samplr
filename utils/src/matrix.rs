@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn iterator() {
         let data1 = Matrix::new(&[0.0, 1.0, 2.0, 0.1, 1.1, 2.1, 0.2, 1.2, 2.2], 3);
-        let mut iter = data1.into_row_iter(1);
+        let mut iter = data1.row_iter(1);
         assert_eq!(iter.len(), 3);
         assert_eq!(iter.next(), Some(&1.0));
         assert_eq!(iter.len(), 2);
@@ -367,7 +367,7 @@ mod tests {
         assert_eq!(iter.len(), 0);
         assert_eq!(iter.next(), None);
 
-        iter = data1.into_col_iter(1);
+        iter = data1.col_iter(1);
         assert_eq!(iter.len(), 3);
         assert_eq!(iter.next(), Some(&0.1));
         assert_eq!(iter.len(), 2);

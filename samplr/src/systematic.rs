@@ -1,6 +1,6 @@
-use envisim_samplr_utils::error::SamplingError;
-use envisim_samplr_utils::probability::Probabilities;
-use envisim_samplr_utils::random_generator::RandomGenerator;
+use envisim_utils::error::SamplingError;
+use envisim_utils::probability::Probabilities;
+use envisim_utils::random_generator::RandomGenerator;
 
 pub fn sample<R>(rand: &mut R, probabilities: &[f64]) -> Result<Vec<usize>, SamplingError>
 where

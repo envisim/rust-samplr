@@ -1,11 +1,8 @@
-use crate::error::{InputError, SamplingError};
-use crate::kd_tree::{Node, Searcher};
-use crate::matrix::{OperateMatrix, RefMatrix};
-use crate::utils::usize_to_f64;
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{Node, Searcher};
+use envisim_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap};
-
-pub mod hansen_hurwitz;
-pub mod horvitz_thompson;
 
 pub fn nearest_neighbour(
     y_values: &[f64],

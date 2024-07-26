@@ -1,9 +1,9 @@
 use crate::poisson::sample_internal;
-use envisim_samplr_utils::error::{InputError, SamplingError};
-use envisim_samplr_utils::indices::Indices;
-use envisim_samplr_utils::probability::Probabilities;
-use envisim_samplr_utils::random_generator::RandomGenerator;
-use envisim_samplr_utils::utils::{sum, usize_to_f64};
+use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::indices::Indices;
+use envisim_utils::probability::Probabilities;
+use envisim_utils::random_generator::RandomGenerator;
+use envisim_utils::utils::{sum, usize_to_f64};
 
 /// Assumes probabilites sum to 1.0
 #[inline]
