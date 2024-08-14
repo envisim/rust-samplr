@@ -64,3 +64,37 @@ pub fn midpoint_slide(
         value: split_value,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn midpoint_slide() {
+        let v = vec![0.0, 1.0, 2.0, 13.0];
+        let m = RefMatrix::new(&v, 4);
+        let split =
+            super::midpoint_slide(&vec![0.0], &vec![13.0], &m, &mut vec![0, 1, 2, 3]).unwrap();
+        assert_eq!(split.unit, 3);
+        assert_eq!(split.dimension, 0);
+        assert_eq!(split.value, 6.5);
+
+        let v = vec![0.0, 1.0, 2.0, 13.0, 0.0, 10.0, 20.0, 30.0];
+        let m = RefMatrix::new(&v, 4);
+        let split = super::midpoint_slide(
+            &vec![0.0, 0.0],
+            &vec![13.0, 30.0],
+            &m,
+            &mut vec![0, 1, 2, 3],
+        )
+        .unwrap();
+        assert_eq!(split.unit, 2);
+        assert_eq!(split.dimension, 1);
+        assert_eq!(split.value, 15.0);
+
+        let v = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let m = RefMatrix::new(&v, 3);
+        let split = super::midpoint_slide(&vec![0.0, 1.0], &vec![0.0, 1.0], &m, &mut vec![0, 1, 2]);
+        assert!(split.is_none());
+    }
+}

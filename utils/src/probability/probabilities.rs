@@ -10,7 +10,7 @@ pub struct Probabilities {
 impl Probabilities {
     #[inline]
     pub fn new(length: usize, value: f64) -> Result<Self, InputError> {
-        if value.is_nan() || (0.0..=1.0).contains(&value) {
+        if value.is_nan() || !(0.0..=1.0).contains(&value) {
             return Err(InputError::InvalidProbability);
         }
 
@@ -44,11 +44,16 @@ impl Probabilities {
 
     #[inline]
     pub fn check_eps(eps: f64) -> Result<(), InputError> {
-        if eps.is_nan() || (0.0..1.0).contains(&eps) {
+        if eps.is_nan() || !(0.0..1.0).contains(&eps) {
             return Err(InputError::InvalidEpsilon);
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn data(&self) -> &[f64] {
+        &self.probabilities
     }
 
     #[inline]

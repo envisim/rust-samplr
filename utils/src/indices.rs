@@ -1,4 +1,5 @@
-use crate::random_generator::RandomGenerator;
+use crate::utils::random_element;
+use rand::Rng;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use thiserror::Error;
 
@@ -62,11 +63,11 @@ impl Indices {
     }
 
     #[inline]
-    pub fn random<R>(&self, rand: &mut R) -> Option<&usize>
+    pub fn draw<R>(&self, rng: &mut R) -> Option<&usize>
     where
-        R: RandomGenerator,
+        R: Rng,
     {
-        rand.rslice(&self.list)
+        random_element(rng, &self.list)
     }
 
     #[inline]
@@ -117,13 +118,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fill() {
-        let mut il = Indices::with_fill(4);
-        let list: Vec<usize> = vec![0, 1, 2, 3];
-        assert_eq!(list, il.list);
+    fn new() {
+        let il = Indices::new(10);
+        assert!(il.list.capacity() >= 10);
+        assert!(il.indices.capacity() >= 10);
+    }
 
-        assert!(il.remove(1).is_ok());
-        assert!(il.remove(1).is_err());
-        assert_eq!(il.last().unwrap(), &2);
+    #[test]
+    fn with_fill() {
+        let il = Indices::with_fill(4);
+        assert_eq!(il.list(), vec![0, 1, 2, 3]);
     }
 }

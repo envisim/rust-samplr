@@ -2,6 +2,7 @@ use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
 use crate::indices::Indices;
 use crate::matrix::{OperateMatrix, RefMatrix};
+use std::num::NonZeroUsize;
 use thiserror::Error;
 
 #[non_exhaustive]
@@ -9,8 +10,6 @@ use thiserror::Error;
 pub enum NodeError {
     #[error("{0}")]
     General(String),
-    #[error("size of bucket must be positive")]
-    NoBucket,
     #[error("unit index must not be larger than data rows")]
     GhostUnit,
 }
@@ -62,7 +61,7 @@ pub struct Node<'a> {
 impl<'a> Node<'a> {
     fn create(
         find_split: FindSplit,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Self {
@@ -90,7 +89,7 @@ impl<'a> Node<'a> {
             }
         }
 
-        if node_size_is_zero || units.len() <= bucket_size {
+        if node_size_is_zero || units.len() <= bucket_size.get() {
             return Node::new_leaf(data, units, min_border, max_border);
         }
 
@@ -144,13 +143,10 @@ impl<'a> Node<'a> {
     #[inline]
     pub fn new(
         find_split: FindSplit,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Result<Self, NodeError> {
-        if bucket_size == 0 {
-            return Err(NodeError::NoBucket);
-        }
         if units.iter().any(|&id| data.nrow() <= id) {
             return Err(NodeError::GhostUnit);
         }
@@ -160,7 +156,7 @@ impl<'a> Node<'a> {
 
     #[inline]
     pub fn new_midpoint_slide(
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Result<Self, NodeError> {
@@ -170,7 +166,7 @@ impl<'a> Node<'a> {
     #[inline]
     pub fn new_from_indices(
         find_split: FindSplit,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         indices: &Indices,
     ) -> Result<Self, NodeError> {
@@ -289,100 +285,97 @@ impl<'a> Node<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::searcher::Searcher;
     use super::*;
-    use crate::{kd_tree::split_methods::midpoint_slide, matrix::RefMatrix};
 
-    const DATA_10_2: [f64; 20] = [
-        0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527,
-        0.66079779, 0.62911404, 0.06178627, //
-        0.2059746, 0.1765568, 0.6870228, 0.3841037, 0.7698414, 0.4976992, 0.7176185, 0.9919061,
-        0.3800352, 0.7774452,
+    const DATA_4_2: [f64; 10] = [
+        0.0, 1.0, 2.0, 13.0, 14.0, //
+        0.0, 10.0, 20.0, 30.0, 40.0, //
     ];
 
-    fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10], Vec<usize>) {
-        (
-            RefMatrix::new(&DATA_10_2, 10),
-            [0.2f64; 10],
-            (0..10).collect::<Vec<usize>>(),
-        )
-    }
-
-    const DATA_9_1: [f64; 9] = [2.0, 2.1, 2.2, 10.0, 10.1, 10.2, 1.0, 1.1, 1.2];
-
-    fn data_9_1<'a>() -> (RefMatrix<'a>, [f64; 9], Vec<usize>) {
-        (
-            RefMatrix::new(&DATA_9_1, 9),
-            [0.1f64; 9],
-            (0..9).collect::<Vec<usize>>(),
-        )
+    fn matrix_new<'a>() -> RefMatrix<'a> {
+        RefMatrix::new(&DATA_4_2, 5)
     }
 
     #[test]
-    fn find() {
-        let (data, _prob, mut indices) = data_10_2();
-        let root = Node::new(midpoint_slide, 2, &data, &mut indices).unwrap();
-        let mut searcher = Searcher::new(&root, 1).unwrap();
+    fn new_midpoint_slide() {
+        let m = matrix_new();
+        let t = Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
+            .unwrap();
 
-        let closest_neighbour: [usize; 10] = [1, 0, 8, 5, 9, 3, 5, 2, 3, 4];
-        let mut result: [usize; 10] = [0; 10];
+        let branch = t.kind.unwrap_branch();
+        assert_eq!(branch.dimension, 1);
+        assert!((10.0..20.0).contains(&branch.value));
 
-        for i in 0usize..10 {
-            searcher.find_neighbours_of_id(&root, i).unwrap();
-            result[i] = searcher.neighbours()[0];
-        }
+        let l = &branch.left_child;
+        assert_eq!(l.min_border, vec![0.0, 0.0]);
+        assert_eq!(l.max_border, vec![1.0, 10.0]);
+        let l = &l.kind;
+        assert!(l.unwrap_leaf().units.contains(&0));
+        assert!(l.unwrap_leaf().units.contains(&1));
+        assert!(!l.unwrap_leaf().units.contains(&2));
+        assert!(!l.unwrap_leaf().units.contains(&3));
+        assert!(!l.unwrap_leaf().units.contains(&4));
 
-        assert_eq!(result, closest_neighbour);
+        let r = &branch.right_child;
+        assert_eq!(r.min_border, vec![2.0, 20.0]);
+        assert_eq!(r.max_border, vec![13.0, 30.0]);
+        let r = &r.kind;
+        assert!(!r.unwrap_leaf().units.contains(&0));
+        assert!(!r.unwrap_leaf().units.contains(&1));
+        assert!(r.unwrap_leaf().units.contains(&2));
+        assert!(r.unwrap_leaf().units.contains(&3));
+        assert!(!r.unwrap_leaf().units.contains(&4));
     }
 
     #[test]
-    fn find_and_remove() {
-        let (data, _prob, mut indices) = data_10_2();
-        let mut root = Node::new(midpoint_slide, 2, &data, &mut indices).unwrap();
-        let mut searcher = Searcher::new(&root, 1).unwrap();
+    fn insert_unit() {
+        let m = matrix_new();
+        let mut t =
+            Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
+                .unwrap();
 
-        let closest_neighbour: [usize; 9] = [1, 8, 8, 5, 9, 6, 7, 8, 9];
-        let mut result: [usize; 9] = [0; 9];
+        assert_eq!(t.insert_unit(4).unwrap(), true);
+        assert!(t
+            .kind
+            .unwrap_branch()
+            .right_child
+            .kind
+            .unwrap_leaf()
+            .units
+            .contains(&4));
+        assert_eq!(t.insert_unit(4).unwrap(), false);
 
-        for i in 0usize..9 {
-            searcher.find_neighbours_of_id(&root, i).unwrap();
-            result[i] = searcher.neighbours()[0];
-            root.remove_unit(i).unwrap();
-        }
+        assert_eq!(t.remove_unit(1).unwrap(), true);
+        assert!(!t
+            .kind
+            .unwrap_branch()
+            .left_child
+            .kind
+            .unwrap_leaf()
+            .units
+            .contains(&1));
+        assert_eq!(t.remove_unit(1).unwrap(), false);
 
-        assert_eq!(result, closest_neighbour);
+        assert!(t.insert_unit(10).is_err());
+        assert!(t.remove_unit(10).is_err());
     }
 
     #[test]
-    fn node_splits() {
-        let (data, _prob, mut indices) = data_9_1();
-        let n0 = Node::new(midpoint_slide, 3, &data, &mut indices).unwrap();
+    fn distance_to_box_in_dimension() {
+        let m = matrix_new();
+        let t = Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
+            .unwrap();
 
-        let n0s = n0.kind.unwrap_branch();
-
-        assert_eq!(n0s.dimension, 0);
-        assert!(n0s.value >= 2.2 && n0s.value <= 10.0);
-
-        let n00 = &n0s.left_child;
-        let n01 = &n0s.right_child;
-
-        let n00s = n00.kind.unwrap_branch();
-
-        assert_eq!(n00s.dimension, 0);
-        assert!(n00s.value >= 1.2 && n00s.value <= 2.0);
-
-        let n000 = &n00s.left_child;
-        let n001 = &n00s.right_child;
-
-        let mut n01u = n01.kind.unwrap_leaf().units.to_vec();
-        let mut n000u = n000.kind.unwrap_leaf().units.to_vec();
-        let mut n001u = n001.kind.unwrap_leaf().units.to_vec();
-        n01u.sort();
-        n000u.sort();
-        n001u.sort();
-
-        assert_eq!(*n000u, vec![6usize, 7, 8]);
-        assert_eq!(*n001u, vec![0usize, 1, 2]);
-        assert_eq!(*n01u, vec![3usize, 4, 5]);
+        assert_eq!(t.distance_to_box_in_dimension(0, 5.0), 0.0);
+        assert_eq!(t.distance_to_box_in_dimension(0, -5.0), 5.0);
+        assert_eq!(t.distance_to_box_in_dimension(0, 19.0), 6.0);
+        assert_eq!(t.distance_to_box_in_dimension(1, -10.0), 10.0);
+        assert_eq!(
+            t.kind
+                .unwrap_branch()
+                .right_child
+                .distance_to_box_in_dimension(1, -10.0),
+            30.0
+        );
     }
 }

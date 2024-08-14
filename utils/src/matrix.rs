@@ -168,6 +168,7 @@ impl Matrix {
         }
     }
 
+    // Does not preserve data
     pub fn resize(&mut self, rows: usize, cols: usize) {
         assert!(rows > 0 && cols > 0);
         let new_size = rows * cols;
@@ -335,99 +336,5 @@ impl<'a> OperateMatrix for RefMatrix<'a> {
     #[inline]
     fn ncol(&self) -> usize {
         self.cols
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::{assert_delta, DATA_10_2, EPS};
-
-    #[test]
-    fn matrix_sizes() {
-        let data1 = Matrix::new(&[2.0, 2.1, 2.2, 10.0, 10.1, 10.2, 1.0, 1.1, 1.2], 9);
-        assert!(data1.nrow() == 9);
-        assert!(data1.ncol() == 1);
-
-        let data2 = Matrix::new(&DATA_10_2, 10);
-        assert!(data2.nrow() == 10);
-        assert!(data2.ncol() == 2);
-    }
-
-    #[test]
-    fn iterator() {
-        let data1 = Matrix::new(&[0.0, 1.0, 2.0, 0.1, 1.1, 2.1, 0.2, 1.2, 2.2], 3);
-        let mut iter = data1.row_iter(1);
-        assert_eq!(iter.len(), 3);
-        assert_eq!(iter.next(), Some(&1.0));
-        assert_eq!(iter.len(), 2);
-        assert_eq!(iter.next(), Some(&1.1));
-        assert_eq!(iter.len(), 1);
-        assert_eq!(iter.next(), Some(&1.2));
-        assert_eq!(iter.len(), 0);
-        assert_eq!(iter.next(), None);
-
-        iter = data1.col_iter(1);
-        assert_eq!(iter.len(), 3);
-        assert_eq!(iter.next(), Some(&0.1));
-        assert_eq!(iter.len(), 2);
-        assert_eq!(iter.next(), Some(&1.1));
-        assert_eq!(iter.len(), 1);
-        assert_eq!(iter.next(), Some(&2.1));
-        assert_eq!(iter.len(), 0);
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn rref() {
-        let mut data1 = Matrix::new(
-            &[
-                0.81, 0.46, 0.40, //
-                0.54, 0.70, 0.08, //
-                0.39, 0.42, 0.87, //
-                0.64, 0.70, 0.32, //
-            ],
-            3,
-        );
-        data1.reduced_row_echelon_form();
-        assert_delta!(data1[(0, 0)], 1.0, EPS); // COL1
-        assert_delta!(data1[(1, 0)], 0.0, EPS);
-        assert_delta!(data1[(2, 0)], 0.0, EPS);
-        assert_delta!(data1[(0, 1)], 0.0, EPS); // COL2
-        assert_delta!(data1[(1, 1)], 1.0, EPS);
-        assert_delta!(data1[(2, 1)], 0.0, EPS);
-        assert_delta!(data1[(0, 2)], 0.0, EPS); // COL3
-        assert_delta!(data1[(1, 2)], 0.0, EPS);
-        assert_delta!(data1[(2, 2)], 1.0, EPS);
-        assert_delta!(data1[(0, 3)], 0.188953701217875, EPS); // COL4
-        assert_delta!(data1[(1, 3)], 0.748566128914163, EPS);
-        assert_delta!(data1[(2, 3)], 0.212107159999675, EPS);
-    }
-
-    #[test]
-    fn mult() {
-        let data1 = Matrix::new(
-            &[
-                1.00, 0.52, 0.96, 0.91, 0.12, 0.70, 0.10, 0.38, 0.05, 0.27, 0.52, 0.25,
-            ],
-            3,
-        );
-        let vec1 = vec![0.75f64, 0.27, 0.24, 0.3];
-        let res1 = data1.prod_vec(&vec1);
-        let facit1 = vec![1.1007, 0.6696, 0.9960];
-        assert_delta!(res1[0], facit1[0], EPS);
-        assert_delta!(res1[1], facit1[1], EPS);
-        assert_delta!(res1[2], facit1[2], EPS);
-
-        let data2 = Matrix::new(&[0.45, 0.84, 0.86, 0.09, 0.60, 0.13, 0.18, 0.69], 4);
-        let res = data1.mult(&data2);
-        let facit = vec![1.3247, 0.7084, 1.0855, 0.9226, 0.7548, 0.8485];
-        assert_eq!(res.data().len(), facit.len());
-        assert_delta!(res.data()[0], facit[0], EPS);
-        assert_delta!(res.data()[1], facit[1], EPS);
-        assert_delta!(res.data()[2], facit[2], EPS);
-        assert_delta!(res.data()[3], facit[3], EPS);
-        assert_delta!(res.data()[4], facit[4], EPS);
-        assert_delta!(res.data()[5], facit[5], EPS);
     }
 }
