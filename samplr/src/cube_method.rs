@@ -1,15 +1,17 @@
-use crate::srs::SrsWor;
+use crate::srs;
 use crate::utils::Container;
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{midpoint_slide, Node, Searcher};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
-use envisim_utils::random_generator::RandomGenerator;
+use envisim_utils::utils::random_one_of_f64;
+use rand::Rng;
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 
 pub trait CubeMethodVariant<'a, R>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn select_units(
         &mut self,
@@ -22,7 +24,7 @@ where
 
 pub struct CubeMethodSampler<'a, R, T>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     container: Box<Container<'a, R>>,
@@ -46,7 +48,7 @@ impl CubeMethod {
         balancing_data: &'a RefMatrix,
     ) -> Result<CubeMethodSampler<'a, R, Self>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
         CubeMethodSampler::new(
             Box::new(Container::new(rand, probabilities, eps)?),
@@ -63,12 +65,13 @@ impl CubeMethod {
         balancing_data: &'a RefMatrix,
     ) -> Result<Vec<usize>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
         Self::new(rand, probabilities, eps, balancing_data)
             .map(|mut s| s.sample().get_sorted_sample().to_vec())
     }
 
+    // Assumes fixed sized samples within each stratum
     pub fn sample_stratified<'a, R>(
         rand: &'a mut R,
         probabilities: &'a [f64],
@@ -77,9 +80,9 @@ impl CubeMethod {
         strata: &'a [i64],
     ) -> Result<Vec<usize>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
-        let seed = rand.rusize(probabilities.len());
+        let seed = rand.gen::<usize>();
         let container = Box::new(Container::new(rand, probabilities, eps)?);
 
         let mut cs = CubeStratified {
@@ -117,10 +120,10 @@ impl<'a> LocalCubeMethod<'a> {
         eps: f64,
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
     ) -> Result<CubeMethodSampler<'a, R, Self>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
         let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
@@ -145,10 +148,10 @@ impl<'a> LocalCubeMethod<'a> {
         eps: f64,
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
     ) -> Result<Vec<usize>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
         Self::new(
             rand,
@@ -167,13 +170,13 @@ impl<'a> LocalCubeMethod<'a> {
         eps: f64,
         balancing_data: &'a RefMatrix,
         spreading_data: &'a RefMatrix,
-        bucket_size: usize,
+        bucket_size: NonZeroUsize,
         strata: &'a [i64],
     ) -> Result<Vec<usize>, SamplingError>
     where
-        R: RandomGenerator,
+        R: Rng + ?Sized,
     {
-        let seed = rand.rusize(probabilities.len());
+        let seed = rand.gen::<usize>();
         let container = Box::new(Container::new(rand, probabilities, eps)?);
         let tree = Box::new(Node::new_from_indices(
             midpoint_slide,
@@ -213,7 +216,7 @@ impl<'a> LocalCubeMethod<'a> {
 
 impl<'a, R, T> CubeMethodSampler<'a, R, T>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     fn new(
@@ -300,23 +303,24 @@ where
         let uvec = find_vector_in_null_space(&mut self.candidate_data);
         let mut lambdas = (f64::MAX, f64::MAX);
 
-        self.candidates
+        for (prob, &uval) in self
+            .candidates
             .iter()
             .map(|&id| self.container.probabilities()[id])
             .zip(uvec.iter())
-            .for_each(|(prob, &uval)| {
-                let lvals = ((prob / uval).abs(), ((1.0 - prob) / uval).abs());
+        {
+            let lvals = ((prob / uval).abs(), ((1.0 - prob) / uval).abs());
 
-                if uval >= 0.0 {
-                    lambdas.0 = lambdas.0.min(lvals.1);
-                    lambdas.1 = lambdas.1.min(lvals.0);
-                } else {
-                    lambdas.0 = lambdas.0.min(lvals.0);
-                    lambdas.1 = lambdas.1.min(lvals.1);
-                }
-            });
+            if uval >= 0.0 {
+                lambdas.0 = lambdas.0.min(lvals.1);
+                lambdas.1 = lambdas.1.min(lvals.0);
+            } else {
+                lambdas.0 = lambdas.0.min(lvals.0);
+                lambdas.1 = lambdas.1.min(lvals.1);
+            }
+        }
 
-        let lambda = if self.container.random().one_of_f64(lambdas.0, lambdas.1) {
+        let lambda = if random_one_of_f64(self.container.rng(), lambdas.0, lambdas.1) {
             lambdas.0
         } else {
             -lambdas.1
@@ -339,7 +343,7 @@ where
 
 impl<'a, R> CubeMethodVariant<'a, R> for CubeMethod
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn select_units(
         &mut self,
@@ -358,7 +362,7 @@ where
 
 impl<'a, R> CubeMethodVariant<'a, R> for LocalCubeMethod<'a>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn select_units(
         &mut self,
@@ -376,7 +380,7 @@ where
         }
 
         // Draw the first unit at random
-        let id1 = *container.indices_random().unwrap();
+        let id1 = *container.indices_draw().unwrap();
         candidates.push(id1);
 
         // Find the neighbours of this first unit
@@ -403,8 +407,8 @@ where
         }
 
         // Randomly add neighbours on the maximum distance
-        for k in SrsWor::sample(
-            container.random(),
+        for k in srs::sample_wor(
+            container.rng(),
             n_units - candidates.len(),
             self.searcher.neighbours().len() - i,
         )
@@ -424,20 +428,20 @@ where
 
 pub trait CubeStratifier<'a, R>: CubeMethodVariant<'a, R>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn reset_to(
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        data: Option<(&'a RefMatrix, usize)>,
+        data: Option<(&'a RefMatrix, NonZeroUsize)>,
         n_neighbours: usize,
     );
 }
 
 pub struct CubeStratified<'a, R, T>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     cube: CubeMethodSampler<'a, R, T>,
@@ -445,18 +449,18 @@ where
     probabilities: &'a [f64],
     balancing_data: &'a RefMatrix<'a>,
     strata_vec: &'a [i64],
-    data: Option<(&'a RefMatrix<'a>, usize)>,
+    data: Option<(&'a RefMatrix<'a>, NonZeroUsize)>,
 }
 
 impl<'a, R> CubeStratifier<'a, R> for CubeMethod
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn reset_to(
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        _data: Option<(&'a RefMatrix, usize)>,
+        _data: Option<(&'a RefMatrix, NonZeroUsize)>,
         _n_neighbours: usize,
     ) {
         container.indices_mut().clear();
@@ -468,13 +472,13 @@ where
 
 impl<'a, R> CubeStratifier<'a, R> for LocalCubeMethod<'a>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     fn reset_to(
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        data: Option<(&'a RefMatrix, usize)>,
+        data: Option<(&'a RefMatrix, NonZeroUsize)>,
         n_neighbours: usize,
     ) {
         assert!(data.is_some());
@@ -492,7 +496,7 @@ where
 
 impl<'a, R, T> CubeStratified<'a, R, T>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
     T: CubeStratifier<'a, R>,
 {
     fn prepare(&mut self) -> Result<&mut Self, SamplingError> {
@@ -693,130 +697,7 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, data_20_2, gen_rand, TestRandom, EPS};
-
-    #[test]
-    fn cube() {
-        let balmat = RefMatrix::new(
-            &[
-                0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, //
-                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, //
-            ],
-            10,
-        );
-        let (mut rand00, mut _rand99) = gen_rand();
-        let (_sprmat, prob) = data_10_2();
-
-        let mut cube = CubeMethod::new(&mut rand00, &prob, EPS, &balmat).unwrap();
-        cube.run_flight();
-        assert!(cube.container.indices().len() < 3);
-
-        let s = CubeMethod::sample(&mut rand00, &prob, EPS, &balmat).unwrap();
-        assert!(s.len() == 2);
-    }
-
-    #[test]
-    fn local_cube() {
-        let balmat = RefMatrix::new(
-            &[
-                0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, //
-                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, //
-            ],
-            10,
-        );
-        let (mut rand00, mut _rand99) = gen_rand();
-        let (sprmat, prob) = data_10_2();
-
-        let mut cube = LocalCubeMethod::new(&mut rand00, &prob, EPS, &balmat, &sprmat, 2).unwrap();
-        cube.run_flight();
-        assert!(cube.container.indices().len() < 3);
-
-        let s = LocalCubeMethod::sample(&mut rand00, &prob, EPS, &balmat, &sprmat, 2).unwrap();
-        assert!(s.len() == 2);
-    }
-
-    #[test]
-    fn cube_stratified() {
-        let (mut rand00, mut _rand99) = gen_rand();
-
-        {
-            let (balmat, prob) = data_10_2();
-            let s = CubeMethod::sample_stratified(
-                &mut rand00,
-                &prob,
-                EPS,
-                &balmat,
-                &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2],
-            )
-            .unwrap();
-            assert_eq!(s.len(), 2);
-            assert!((0..5).contains(&s[0]));
-            assert!((5..10).contains(&s[1]));
-        }
-        {
-            let (balmat, prob) = data_20_2();
-            let s = CubeMethod::sample_stratified(
-                &mut rand00,
-                &prob,
-                EPS,
-                &balmat,
-                &[
-                    1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                ],
-            )
-            .unwrap();
-            assert_eq!(s.len(), 4);
-            assert!((0..5).contains(&s[0]));
-            assert!((5..10).contains(&s[1]));
-            assert!((10..20).contains(&s[2]));
-            assert!((10..20).contains(&s[3]));
-        }
-    }
-
-    #[test]
-    fn lcube_stratified() {
-        let mut rand = TestRandom::new(0);
-
-        {
-            let (balmat, prob) = data_10_2();
-            let s = LocalCubeMethod::sample_stratified(
-                &mut rand,
-                &prob,
-                EPS,
-                &balmat,
-                &balmat,
-                2,
-                &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2],
-            )
-            .unwrap();
-            assert_eq!(s.len(), 2);
-            assert!((0..5).contains(&s[0]));
-            assert!((5..10).contains(&s[1]));
-        }
-        {
-            let (balmat, prob) = data_20_2();
-
-            for _ in 0..4 {
-                let s = LocalCubeMethod::sample_stratified(
-                    &mut rand,
-                    &prob,
-                    EPS,
-                    &balmat,
-                    &balmat,
-                    2,
-                    &[
-                        1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                    ],
-                )
-                .unwrap();
-                assert_eq!(s.len(), 4);
-                assert!((0..5).contains(&s[0]));
-                assert!((5..10).contains(&s[1]));
-                assert!((10..20).contains(&s[2]));
-                assert!((10..20).contains(&s[3]));
-            }
-        }
-    }
+    use envisim_test_utils::*;
 
     #[test]
     fn null() {
@@ -829,10 +710,7 @@ mod tests {
         mat1.reduced_row_echelon_form();
         assert!(mat1.data() == [1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
-        let res1 = mat1.prod_vec(&mat1_nullvec);
-        assert_delta!(res1[0], 0.0, EPS);
-        assert_delta!(res1[1], 0.0, EPS);
-        assert_delta!(res1[2], 0.0, EPS);
+        assert_fvec(&mat1.prod_vec(&mat1_nullvec), &[0.0, 0.0, 0.0]);
 
         let mut mat2 = Matrix::new(
             &[
@@ -842,13 +720,11 @@ mod tests {
         );
         mat2.reduced_row_echelon_form();
         assert!(&mat2.data()[0..9] == vec![1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
-        assert_delta!(mat2[(0, 3)], -2.5, EPS);
-        assert_delta!(mat2[(1, 3)], 1.833333333333333, EPS);
-        assert_delta!(mat2[(2, 3)], 0.166666666666667, EPS);
+        assert_fvec(
+            &mat2.data()[9..12], // col 3
+            &[-2.5, 1.833333333333333, 0.166666666666667],
+        );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
-        let res2 = mat2.prod_vec(&mat2_nullvec);
-        assert_delta!(res2[0], 0.0, EPS);
-        assert_delta!(res2[1], 0.0, EPS);
-        assert_delta!(res2[2], 0.0, EPS);
+        assert_fvec(&mat2.prod_vec(&mat2_nullvec), &[0.0, 0.0, 0.0]);
     }
 }

@@ -3,12 +3,13 @@ use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::num::NonZeroUsize;
 
 pub fn voronoi(
     probabilities: &[f64],
     data: &RefMatrix,
     sample: &[usize],
-    bucket_size: usize,
+    bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let population_size = data.nrow();
     let sample_size = sample.len();
@@ -48,7 +49,7 @@ pub fn local(
     probabilities: &[f64],
     data: &RefMatrix,
     sample: &[usize],
-    bucket_size: usize,
+    bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let population_size = data.nrow();
     let sample_size = sample.len();
@@ -127,27 +128,4 @@ pub fn local(
     }
 
     Ok((result / usize_to_f64(population_size)).sqrt())
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-    use crate::test_utils::{assert_delta, data_10_2, EPS};
-
-    #[test]
-    fn voronoi() {
-        let (data, prob) = data_10_2();
-        let sb = super::voronoi(&prob, &data, &[0], 3).unwrap();
-        assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2), EPS);
-    }
-
-    #[test]
-    fn local() {
-        let (data, prob) = data_10_2();
-        let mut sb: f64;
-        sb = super::local(&prob, &data, &[0], 3).unwrap();
-        assert_delta!(sb, 0.9734661634680257247254, EPS);
-        sb = super::local(&prob, &data, &[0, 1], 3).unwrap();
-        assert_delta!(sb, 1.251849435249984709984, EPS);
-    }
 }

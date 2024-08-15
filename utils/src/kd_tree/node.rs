@@ -286,6 +286,7 @@ impl<'a> Node<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use envisim_test_utils::*;
 
     const DATA_4_2: [f64; 10] = [
         0.0, 1.0, 2.0, 13.0, 14.0, //
@@ -299,8 +300,7 @@ mod tests {
     #[test]
     fn new_midpoint_slide() {
         let m = matrix_new();
-        let t = Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
-            .unwrap();
+        let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
         let branch = t.kind.unwrap_branch();
         assert_eq!(branch.dimension, 1);
@@ -330,9 +330,7 @@ mod tests {
     #[test]
     fn insert_unit() {
         let m = matrix_new();
-        let mut t =
-            Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
-                .unwrap();
+        let mut t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.insert_unit(4).unwrap(), true);
         assert!(t
@@ -363,8 +361,7 @@ mod tests {
     #[test]
     fn distance_to_box_in_dimension() {
         let m = matrix_new();
-        let t = Node::new_midpoint_slide(NonZeroUsize::new(2).unwrap(), &m, &mut vec![0, 1, 2, 3])
-            .unwrap();
+        let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.distance_to_box_in_dimension(0, 5.0), 0.0);
         assert_eq!(t.distance_to_box_in_dimension(0, -5.0), 5.0);

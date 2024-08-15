@@ -2,17 +2,17 @@ use crate::poisson::sample_internal;
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::indices::Indices;
 use envisim_utils::probability::Probabilities;
-use envisim_utils::random_generator::RandomGenerator;
 use envisim_utils::utils::{sum, usize_to_f64};
+use rand::Rng;
 
 /// Assumes probabilites sum to 1.0
 #[inline]
 fn draw<R>(rand: &mut R, probabilities: &[f64]) -> usize
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     let population_size = probabilities.len();
-    let rv = rand.rf64();
+    let rv = rand.gen::<f64>();
     let mut psum: f64 = 0.0;
 
     for (i, &p) in probabilities.iter().enumerate() {
@@ -33,7 +33,7 @@ pub fn draw_probabilities_sample<R>(
     n: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     Probabilities::check(probabilities)?;
     if !(1.0 - eps..1.0 + eps).contains(&sum(probabilities)) {
@@ -47,7 +47,7 @@ where
     let mut rvs = Vec::<f64>::with_capacity(n);
 
     for _ in 0..n {
-        rvs.push(rand.rf64());
+        rvs.push(rand.gen::<f64>());
     }
 
     rvs.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -91,13 +91,13 @@ pub fn sampford<R>(
     max_iterations: u32,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     let psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))
         .and(InputError::check_integer_approx(psum, eps))?;
-    let sample_size = psum as usize;
+    let sample_size = psum.round() as usize;
 
     if sample_size == 0 {
         return Ok(vec![]);
@@ -137,19 +137,19 @@ where
 /// Stockholm: Statistiska Centralbyrån.
 pub fn pareto<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     let psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))
         .and(InputError::check_integer_approx(psum, eps))?;
 
-    let sample_size = psum as usize;
+    let sample_size = psum.round() as usize;
 
     let q_values: Vec<f64> = probabilities
         .iter()
         .map(|&p| {
-            let u = rand.rf64();
+            let u = rand.gen::<f64>();
 
             if 1.0 - eps < u || p < eps {
                 return f64::INFINITY;
@@ -173,14 +173,14 @@ where
 
 pub fn brewer<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
     let mut psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))
         .and(InputError::check_integer_approx(psum, eps))?;
 
-    let mut sample_size = psum as usize;
+    let mut sample_size = psum.round() as usize;
     let mut n_d = psum;
     let mut indices = Indices::with_fill(probabilities.len());
     let mut sample = Vec::<usize>::with_capacity(sample_size);

@@ -1,28 +1,33 @@
-use envisim_utils::matrix::RefMatrix;
-use envisim_utils::random_generator::Constant;
+use rand::{rngs::SmallRng, SeedableRng};
+use std::num::NonZeroUsize;
 
-#[allow(dead_code)]
+#[macro_export]
 macro_rules! assert_delta {
     ($a:expr,$b:expr,$d:expr) => {
         assert!(($a - $b).abs() < $d, "|{} - {}| >= {}", $a, $b, $d);
     };
+
+    ($a:expr,$b:expr) => {
+        assert!(($a - $b).abs() < EPS, "|{} - {}| >= {}", $a, $b, EPS);
+    };
 }
 
-pub(crate) use assert_delta;
+#[allow(dead_code)]
+pub fn assert_fvec(v1: &[f64], v2: &[f64]) {
+    assert_eq!(v1.len(), v2.len());
+    for (a, b) in v1.iter().zip(v2.iter()) {
+        assert_delta!(a, b);
+    }
+}
 
 #[allow(dead_code)]
-pub const fn gen_rand() -> (Constant, Constant) {
-    (gen_rand00(), gen_rand99())
+pub fn assert_fvec_eps(v1: &[f64], v2: &[f64], d: f64) {
+    assert_eq!(v1.len(), v2.len());
+    for (a, b) in v1.iter().zip(v2.iter()) {
+        assert_delta!(a, b, d);
+    }
 }
-#[allow(dead_code)]
-pub const fn gen_rand00() -> Constant {
-    Constant::new(0.0)
-}
-#[allow(dead_code)]
-pub const fn gen_rand99() -> Constant {
-    Constant::new(0.999)
-}
-#[allow(dead_code)]
+
 pub const EPS: f64 = 1e-12;
 
 // DISTS:
@@ -50,7 +55,6 @@ pub const EPS: f64 = 1e-12;
 // 8:  8 3 5 2 1 0 6 4 7 9
 // 9:  9 4 2 0 7 1 8 5 6 3
 
-#[allow(dead_code)]
 pub const DATA_10_2: [f64; 20] = [
     0.26550866, 0.37212390, 0.57285336, 0.90820779, 0.20168193, 0.89838968, 0.94467527, 0.66079779,
     0.62911404, 0.06178627, //
@@ -58,7 +62,14 @@ pub const DATA_10_2: [f64; 20] = [
     0.3800352, 0.7774452,
 ];
 
-#[allow(dead_code)]
-pub fn data_10_2<'a>() -> (RefMatrix<'a>, [f64; 10]) {
-    (RefMatrix::new(&DATA_10_2, 10), [0.2f64; 10])
+pub const PROB_10_U: [f64; 10] = [
+    0.20f64, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90,
+];
+
+pub const PROB_10_E: [f64; 10] = [0.2f64; 10];
+
+pub const NONZERO_2: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(2) };
+
+pub fn seeded_rng() -> SmallRng {
+    SmallRng::seed_from_u64(4242)
 }

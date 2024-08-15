@@ -3,12 +3,13 @@ use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap};
+use std::num::NonZeroUsize;
 
 pub fn nearest_neighbour(
     y_values: &[f64],
     sample: &[usize],
     auxilliaries: &RefMatrix,
-    bucket_size: usize,
+    bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let population_size = auxilliaries.nrow();
     let sample_size = sample.len();

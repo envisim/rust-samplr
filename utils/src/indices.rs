@@ -65,7 +65,7 @@ impl Indices {
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<&usize>
     where
-        R: Rng,
+        R: Rng + ?Sized,
     {
         random_element(rng, &self.list)
     }

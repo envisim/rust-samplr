@@ -3,6 +3,7 @@ use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
+use std::num::NonZeroUsize;
 
 #[inline]
 pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
@@ -122,7 +123,7 @@ pub fn local_mean_variance(
     probabilities: &[f64],
     auxilliaries: &RefMatrix,
     n_neighbours: usize,
-    bucket_size: usize,
+    bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
     InputError::check_lengths(y_values, probabilities)

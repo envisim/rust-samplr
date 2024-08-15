@@ -1,7 +1,7 @@
 use envisim_utils::error::SamplingError;
 use envisim_utils::indices::Indices;
 use envisim_utils::probability::Probabilities;
-use envisim_utils::random_generator::RandomGenerator;
+use rand::Rng;
 
 pub struct Sample(Vec<usize>);
 
@@ -40,9 +40,9 @@ impl Sample {
 
 pub struct Container<'a, R>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
-    random: &'a mut R,
+    rng: &'a mut R,
     probabilities: Probabilities,
     indices: Indices,
     sample: Sample,
@@ -50,13 +50,13 @@ where
 
 impl<'a, R> Container<'a, R>
 where
-    R: RandomGenerator,
+    R: Rng + ?Sized,
 {
-    pub fn new(rand: &'a mut R, probabilities: &[f64], eps: f64) -> Result<Self, SamplingError> {
+    pub fn new(rng: &'a mut R, probabilities: &[f64], eps: f64) -> Result<Self, SamplingError> {
         let population_size = probabilities.len();
 
         let mut container = Container {
-            random: rand,
+            rng,
             probabilities: Probabilities::with_values(probabilities)?,
             indices: Indices::with_fill(population_size),
             sample: Sample::new(population_size),
@@ -72,8 +72,8 @@ where
     }
 
     #[inline]
-    pub fn random(&mut self) -> &mut R {
-        self.random
+    pub fn rng(&mut self) -> &mut R {
+        self.rng
     }
 
     #[inline]
@@ -97,8 +97,8 @@ where
     }
 
     #[inline]
-    pub fn indices_random(&mut self) -> Option<&usize> {
-        self.indices.random(self.random)
+    pub fn indices_draw(&mut self) -> Option<&usize> {
+        self.indices.draw(self.rng)
     }
 
     #[inline]
@@ -134,7 +134,7 @@ where
     pub fn update_last_unit(&mut self) -> Option<usize> {
         let id = *self.indices.last()?;
 
-        self.probabilities[id] = if self.random.rf64() < self.probabilities[id] {
+        self.probabilities[id] = if self.rng.gen::<f64>() < self.probabilities[id] {
             1.0
         } else {
             0.0
@@ -147,13 +147,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{data_10_2, gen_rand00, EPS};
+    use envisim_test_utils::*;
 
     #[test]
     fn decide_unit() {
-        let mut rand00 = gen_rand00();
-        let (_data, prob) = data_10_2();
-        let mut c = Container::new(&mut rand00, &prob, EPS).unwrap();
+        let mut rng = seeded_rng();
+        let prob = &PROB_10_E;
+        let mut c = Container::new(&mut rng, prob, EPS).unwrap();
         c.probabilities_mut()[0] = 1.0;
         c.probabilities_mut()[1] = 0.0;
         assert_eq!(c.decide_unit(0).unwrap(), Some(true));

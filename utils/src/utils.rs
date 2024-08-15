@@ -34,7 +34,7 @@ pub fn standard_deviance(vec: &[f64]) -> f64 {
 #[inline]
 pub fn random_element<'t, R, T>(rng: &mut R, slice: &'t [T]) -> Option<&'t T>
 where
-    R: rand::Rng,
+    R: rand::Rng + ?Sized,
 {
     if slice.is_empty() {
         return None;
@@ -47,7 +47,7 @@ where
 #[inline]
 pub fn random_one_of_f64<R>(rng: &mut R, v0: f64, v1: f64) -> bool
 where
-    R: rand::Rng,
+    R: rand::Rng + ?Sized,
 {
     rng.gen_range(0.0..(v0 + v1)) < v1
 }

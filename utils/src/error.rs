@@ -93,7 +93,7 @@ impl InputError {
     }
     #[inline]
     pub fn check_integer_approx(value: f64, eps: f64) -> Result<(), InputError> {
-        if (value - eps..value + eps).contains(&value.round()) {
+        if !(value - eps..value + eps).contains(&value.round()) {
             return Err(InputError::NotInteger);
         }
 
