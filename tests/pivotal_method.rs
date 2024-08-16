@@ -7,39 +7,29 @@ mod test_utils;
 use test_utils::*;
 
 #[test]
-fn spm() {
+fn test_spm() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
 
-    test_wor(
-        || SequentialPivotalMethod::sample(&mut rng, p, EPS),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| spm(&mut rng, p, EPS), p, 1e-2, 100000);
 }
 
 #[test]
-fn rpm() {
+fn test_rpm() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
 
-    test_wor(
-        || RandomPivotalMethod::sample(&mut rng, p, EPS),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| rpm(&mut rng, p, EPS), p, 1e-2, 100000);
 }
 
 #[test]
-fn lpm1() {
+fn test_lpm1() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
 
     test_wor(
-        || LocalPivotalMethod1::sample(&mut rng, p, EPS, &data, NONZERO_2),
+        || lpm_1(&mut rng, p, EPS, &data, NONZERO_2),
         p,
         1e-2,
         100000,
@@ -47,13 +37,13 @@ fn lpm1() {
 }
 
 #[test]
-fn lpm1s() {
+fn test_lpm1s() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
 
     test_wor(
-        || LocalPivotalMethod1S::sample(&mut rng, p, EPS, &data, NONZERO_2),
+        || lpm_1s(&mut rng, p, EPS, &data, NONZERO_2),
         p,
         1e-2,
         100000,
@@ -61,13 +51,13 @@ fn lpm1s() {
 }
 
 #[test]
-fn lpm2() {
+fn test_lpm2() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
 
     test_wor(
-        || LocalPivotalMethod2::sample(&mut rng, p, EPS, &data, NONZERO_2),
+        || lpm_2(&mut rng, p, EPS, &data, NONZERO_2),
         p,
         1e-2,
         100000,
@@ -75,7 +65,7 @@ fn lpm2() {
 }
 
 #[test]
-fn hlpm2() {
+fn test_hlpm2() {
     let eps = 1e-2;
     let iter = 100000;
 
@@ -87,15 +77,7 @@ fn hlpm2() {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = hierarchical_local_pivotal_method_2(
-                &mut rng,
-                probs,
-                EPS,
-                &data,
-                NONZERO_2,
-                &[1, 4],
-            )
-            .unwrap();
+            let s = hierarchical_lpm_2(&mut rng, probs, EPS, &data, NONZERO_2, &[1, 4]).unwrap();
             assert!(s.len() == 2 && s[0].len() == 1 && s[1].len() == 4);
             s.iter().flatten().for_each(|&id| sel[id] += 1);
         }
@@ -112,15 +94,7 @@ fn hlpm2() {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = hierarchical_local_pivotal_method_2(
-                &mut rng,
-                probs,
-                EPS,
-                &data,
-                NONZERO_2,
-                &[1, 3, 1],
-            )
-            .unwrap();
+            let s = hierarchical_lpm_2(&mut rng, probs, EPS, &data, NONZERO_2, &[1, 3, 1]).unwrap();
             assert!(s.len() == 3 && s[0].len() == 1 && s[1].len() == 3 && s[2].len() == 1);
             s.iter().flatten().for_each(|&id| sel[id] += 1);
         }

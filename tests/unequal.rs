@@ -1,4 +1,4 @@
-use envisim_samplr::proportional::*;
+use envisim_samplr::unequal::*;
 use envisim_test_utils::*;
 
 mod test_utils;

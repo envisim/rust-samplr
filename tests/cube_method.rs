@@ -15,28 +15,23 @@ const BAL_DATA_10_1_P: [f64; 20] = [
 ];
 
 #[test]
-fn cube() {
+fn test_cube() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let baldata = RefMatrix::new(&BAL_DATA_10_1_P, 10);
 
-    test_wor(
-        || CubeMethod::sample(&mut rng, p, EPS, &baldata),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| cube(&mut rng, p, EPS, &baldata), p, 1e-2, 100000);
 }
 
 #[test]
-fn lcube() {
+fn test_lcube() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
     let baldata = RefMatrix::new(&BAL_DATA_10_1_P, 10);
 
     test_wor(
-        || LocalCubeMethod::sample(&mut rng, p, EPS, &baldata, &data, NONZERO_2),
+        || local_cube(&mut rng, p, EPS, &baldata, &data, NONZERO_2),
         p,
         1e-2,
         100000,
@@ -44,7 +39,7 @@ fn lcube() {
 }
 
 #[test]
-fn cube_stratified() {
+fn test_cube_stratified() {
     let eps = 1e-2;
     let iter = 100000;
 
@@ -56,7 +51,7 @@ fn cube_stratified() {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = CubeMethod::sample_stratified(
+            let s = cube_stratified(
                 &mut rng,
                 probs,
                 EPS,
@@ -80,7 +75,7 @@ fn cube_stratified() {
 }
 
 #[test]
-fn lcube_stratified() {
+fn test_lcube_stratified() {
     let eps = 1e-2;
     let iter = 100000;
 
@@ -93,7 +88,7 @@ fn lcube_stratified() {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = LocalCubeMethod::sample_stratified(
+            let s = local_cube_stratified(
                 &mut rng,
                 probs,
                 EPS,

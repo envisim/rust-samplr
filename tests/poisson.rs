@@ -6,7 +6,7 @@ mod test_utils;
 use test_utils::*;
 
 #[test]
-fn poisson() {
+fn test_poisson() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
 
@@ -15,50 +15,35 @@ fn poisson() {
 
 // So inefficient...
 #[test]
-fn conditional() {
+fn test_conditional() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
 
-    test_wor(|| conditional_sample(&mut rng, p, 5, 1000), p, 1e-1, 100000);
+    test_wor(|| conditional(&mut rng, p, 5, 1000), p, 1e-1, 100000);
 }
 
 #[test]
-fn cps() {
+fn test_cps() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
 
-    test_wor(
-        || SequentialCorrelatedPoissonSampling::sample(&mut rng, p, EPS),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| cps(&mut rng, p, EPS), p, 1e-2, 100000);
 }
 
 #[test]
-fn scps() {
+fn test_scps() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
 
-    test_wor(
-        || SpatiallyCorrelatedPoissonSampling::sample(&mut rng, p, EPS, &data, NONZERO_2),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| scps(&mut rng, p, EPS, &data, NONZERO_2), p, 1e-2, 100000);
 }
 
 #[test]
-fn lcps() {
+fn test_lcps() {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
 
-    test_wor(
-        || LocallyCorrelatedPoissonSampling::sample(&mut rng, p, EPS, &data, NONZERO_2),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(|| lcps(&mut rng, p, EPS, &data, NONZERO_2), p, 1e-2, 100000);
 }

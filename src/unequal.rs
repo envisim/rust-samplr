@@ -1,18 +1,32 @@
-use crate::poisson::sample_internal;
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Unequal probability sampling designs
+
+use crate::poisson;
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::indices::Indices;
 use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
 use rand::Rng;
 
-/// Assumes probabilites sum to 1.0
+// Assumes probabilites sum to 1.0
 #[inline]
-fn draw<R>(rand: &mut R, probabilities: &[f64]) -> usize
+fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
 where
     R: Rng + ?Sized,
 {
     let population_size = probabilities.len();
-    let rv = rand.gen::<f64>();
+    let rv = rng.gen::<f64>();
     let mut psum: f64 = 0.0;
 
     for (i, &p) in probabilities.iter().enumerate() {
@@ -26,8 +40,20 @@ where
     population_size - 1
 }
 
-pub fn draw_probabilities_sample<R>(
-    rand: &mut R,
+/// Draw a with replacment sample according to draw probabilities
+/// Probabilities must sum to 1.0.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::with_replacement;
+/// use rand::{rngs::SmallRng, SeedableRng};
+/// let mut rng = SmallRng::from_entropy();
+/// let p: [f64; 10] = [0.1; 10];
+/// assert_eq!(with_replacement(&mut rng, &p, 1e-12, 5).unwrap().len(), 5);
+/// ```
+#[inline]
+pub fn with_replacement<R>(
+    rng: &mut R,
     probabilities: &[f64],
     eps: f64,
     n: usize,
@@ -47,7 +73,7 @@ where
     let mut rvs = Vec::<f64>::with_capacity(n);
 
     for _ in 0..n {
-        rvs.push(rand.gen::<f64>());
+        rvs.push(rng.gen::<f64>());
     }
 
     rvs.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -84,8 +110,20 @@ where
     Ok(sample)
 }
 
+/// Draw a sample using a sampford design.
+/// Probabilities must sum to an integer.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::sampford;
+/// use rand::{rngs::SmallRng, SeedableRng};
+/// let mut rng = SmallRng::from_entropy();
+/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// assert_eq!(sampford(&mut rng, &p, 1e-12, 1000).unwrap().len(), 5);
+/// ```
+#[inline]
 pub fn sampford<R>(
-    rand: &mut R,
+    rng: &mut R,
     probabilities: &[f64],
     eps: f64,
     max_iterations: u32,
@@ -102,19 +140,19 @@ where
     if sample_size == 0 {
         return Ok(vec![]);
     } else if sample_size == 1 {
-        return Ok(vec![draw(rand, probabilities)]);
+        return Ok(vec![draw(rng, probabilities)]);
     }
 
     let norm_probs: Vec<f64> = probabilities.iter().map(|&p| p / psum).collect();
 
     for _ in 0..max_iterations {
-        let mut sample = sample_internal(rand, probabilities);
+        let mut sample = poisson::internal(rng, probabilities);
 
         if sample.len() != sample_size - 1 {
             continue;
         }
 
-        let a_unit = draw(rand, &norm_probs);
+        let a_unit = draw(rng, &norm_probs);
 
         // Since sample is ordered, we don't need to check units with
         // higher id than a_unit
@@ -132,10 +170,24 @@ where
     Err(SamplingError::MaxIterations)
 }
 
+/// Draw a sample using a pareto design.
+/// Probabilities must sum to an integer.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::pareto;
+/// use rand::{rngs::SmallRng, SeedableRng};
+/// let mut rng = SmallRng::from_entropy();
+/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// assert_eq!(pareto(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// ```
+///
+/// # References
 /// Rosén, B. (2000).
 /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
 /// Stockholm: Statistiska Centralbyrån.
-pub fn pareto<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+#[inline]
+pub fn pareto<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
@@ -149,7 +201,7 @@ where
     let q_values: Vec<f64> = probabilities
         .iter()
         .map(|&p| {
-            let u = rand.gen::<f64>();
+            let u = rng.gen::<f64>();
 
             if 1.0 - eps < u || p < eps {
                 return f64::INFINITY;
@@ -171,7 +223,19 @@ where
     Ok(sample)
 }
 
-pub fn brewer<R>(rand: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+/// Draw a sample using a brewer design.
+/// Probabilities must sum to an integer.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::brewer;
+/// use rand::{rngs::SmallRng, SeedableRng};
+/// let mut rng = SmallRng::from_entropy();
+/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// assert_eq!(brewer(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// ```
+#[inline]
+pub fn brewer<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
@@ -210,7 +274,7 @@ where
             q_probs[id] /= psum;
         }
 
-        let a_unit = draw(rand, &q_probs);
+        let a_unit = draw(rng, &q_probs);
         indices.remove(a_unit).unwrap();
         sample.push(a_unit);
         q_probs[a_unit] = 0.0;
