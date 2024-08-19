@@ -1,18 +1,40 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Two different matrix containers are provided:
+//! - [`Matrix`], which is a mutable matrix owning it's own storage.
+//! - [`RefMatrix`], which provides matrix operations on a provided, immutable vector.
+
 use std::iter::{Skip, StepBy};
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 
+/// Matrix dimensions `(row, col)`
 type MatrixIndex = (usize, usize);
 
 pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
+    /// Returns the underlying data (stored in column major)
     fn data(&self) -> &[f64];
+    /// Returns the number of rows in the matrix
     fn nrow(&self) -> usize;
+    /// Returns the number of columns in the matrix
     fn ncol(&self) -> usize;
+    /// Returns the dimensions of the matrix
     #[inline]
     fn dim(&self) -> (usize, usize) {
         (self.nrow(), self.ncol())
     }
 
+    /// Returns an iterator on the row
     #[inline]
     fn row_iter(&self, row: usize) -> MatrixIterator {
         assert!(row < self.nrow());
@@ -23,7 +45,7 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
             count: 0,
         }
     }
-
+    /// Returns an iterator on the column
     #[allow(clippy::iter_skip_zero)]
     #[inline]
     fn col_iter(&self, col: usize) -> MatrixIterator {
@@ -39,13 +61,16 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
         }
     }
 
+    /// Returns the value at `(row, col)`, without doing bounds checking.
+    ///
     /// # Safety
-    /// See slice.get_unchecked
+    /// See [`slice.get_unchecked`]
     #[inline]
     unsafe fn get_unchecked(&self, (row, col): MatrixIndex) -> &f64 {
         self.data().get_unchecked(col * self.nrow() + row)
     }
 
+    /// Returns the squared eculidean distance between the `row` and the slice `unit`
     #[inline]
     fn distance_to_row(&self, row: usize, unit: &[f64]) -> f64 {
         assert!(unit.len() == self.ncol());
@@ -59,8 +84,8 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
             .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2))
     }
 
-    /// Performes the calculation of self * multiplicand, where self
-    /// is a matrix A, and multiplicand is a vector
+    /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand
+    /// is a vector.
     #[inline]
     fn prod_vec(&self, multiplicand: &[f64]) -> Vec<f64> {
         assert!(multiplicand.len() == self.ncol());
@@ -146,6 +171,7 @@ pub struct RefMatrix<'a> {
 }
 
 impl Matrix {
+    /// Constructs a new matrix, by copying the `data`
     #[inline]
     pub fn new(data: &[f64], rows: usize) -> Self {
         assert!(rows > 0);
@@ -158,6 +184,7 @@ impl Matrix {
         }
     }
 
+    /// Constructs a new matrix, filled with `data`
     pub fn new_fill(data: f64, (rows, cols): MatrixIndex) -> Self {
         assert!(rows > 0);
         assert!(cols > 0);
@@ -168,7 +195,7 @@ impl Matrix {
         }
     }
 
-    // Does not preserve data
+    /// Resizes the matrix, without guaranteeing the preservation of any data
     pub fn resize(&mut self, rows: usize, cols: usize) {
         assert!(rows > 0 && cols > 0);
         let new_size = rows * cols;
@@ -177,6 +204,7 @@ impl Matrix {
         self.cols = cols;
     }
 
+    /// Calculates the reduced row echelon form of the matrix, in place.
     pub fn reduced_row_echelon_form(&mut self) {
         let mut lead: usize = 0;
 

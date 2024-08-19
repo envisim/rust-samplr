@@ -1,3 +1,17 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! List of indices
+
 use crate::utils::random_element;
 use rand::Rng;
 use rustc_hash::{FxBuildHasher, FxHashMap};
@@ -12,12 +26,21 @@ pub enum IndicesError {
     OutOfBoundsK(usize),
 }
 
+/// A struct (list) for keeping track of indices in use. The internal list keeps track, without
+/// order, of the indices.
 pub struct Indices {
     list: Vec<usize>,
     indices: FxHashMap<usize, usize>,
 }
 
 impl Indices {
+    /// Constructs a new, empty `Indices`
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    /// let il = Indices::new(10);
+    /// ```
     #[inline]
     pub fn new(capacity: usize) -> Self {
         Indices {
@@ -26,6 +49,13 @@ impl Indices {
         }
     }
 
+    /// Constructs a new `Indices`, filled with (0..length)
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    /// let il = Indices::with_fill(10);
+    /// ```
     #[inline]
     pub fn with_fill(length: usize) -> Self {
         Indices {
@@ -36,32 +66,92 @@ impl Indices {
         }
     }
 
+    /// Clears the list of indices
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let mut il = Indices::with_fill(10);
+    /// il.clear();
+    /// assert_eq!(il.len(), 0);
+    /// ```
     #[inline]
     pub fn clear(&mut self) {
         self.list.clear();
         self.indices.clear();
     }
 
+    /// Returns a reference to the slice containing the indicies
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert_eq!(il.list(), vec![0, 1, 2, 3]);
+    /// ```
     #[inline]
     pub fn list(&self) -> &[usize] {
         &self.list
     }
 
+    /// Returns the index at position `k`, if any
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert_eq!(il.get(3).unwrap(), &3);
+    /// assert_eq!(il.get(10), None);
+    /// ```
     #[inline]
     pub fn get(&self, k: usize) -> Option<&usize> {
         self.list.get(k)
     }
 
+    /// Returns the index at the first position, if any
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert_eq!(il.first().unwrap(), &0);
+    /// ```
     #[inline]
     pub fn first(&self) -> Option<&usize> {
         self.list.first()
     }
 
+    /// Returns the index at the last position, if any
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert_eq!(il.last().unwrap(), &3);
+    /// ```
     #[inline]
     pub fn last(&self) -> Option<&usize> {
         self.list.last()
     }
 
+    /// Draws a random index from the list
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    /// use rand::{rngs::SmallRng, SeedableRng};
+    ///
+    /// let il = Indices::with_fill(4);
+    /// let mut rng = SmallRng::seed_from_u64(4242);
+    /// assert!(il.draw(&mut rng).is_some());
+    /// assert!(il.draw(&mut rng).is_some());
+    /// assert!(il.draw(&mut rng).is_some());
+    /// ```
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<&usize>
     where
@@ -70,11 +160,34 @@ impl Indices {
         random_element(rng, &self.list)
     }
 
+    /// Checks if the list contains an index
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert!(il.contains(3));
+    /// assert!(!il.contains(4));
+    /// ```
     #[inline]
     pub fn contains(&self, id: usize) -> bool {
         self.indices.contains_key(&id)
     }
 
+    /// Inserts an index. Returns [`IndicesError::GhostIndex`] if the index already exists
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let mut il = Indices::with_fill(4);
+    /// assert!(!il.contains(42));
+    /// assert!(il.insert(42).is_ok());
+    /// assert!(il.contains(42));
+    /// assert!(il.insert(42).is_err());
+    /// assert!(il.contains(42));
+    /// ```
     #[inline]
     pub fn insert(&mut self, id: usize) -> Result<usize, IndicesError> {
         if self.contains(id) {
@@ -87,15 +200,46 @@ impl Indices {
         Ok(k)
     }
 
+    /// Returns the number of indices
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// assert_eq!(il.len(), 4);
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.list.len()
     }
+    /// Returns `true` if the list is empty
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let mut il = Indices::with_fill(4);
+    /// assert!(!il.is_empty());
+    /// il.clear();
+    /// assert!(il.is_empty());
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.list.is_empty()
     }
 
+    /// Removes an index. Returns [`IndicesError::GhostIndex`] if the index already exists
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let mut il = Indices::with_fill(4);
+    /// assert!(il.contains(2));
+    /// assert!(il.remove(2).is_ok());
+    /// assert!(il.remove(2).is_err());
+    /// assert!(!il.contains(2));
     #[inline]
     pub fn remove(&mut self, id: usize) -> Result<(), IndicesError> {
         match self.indices.remove(&id) {

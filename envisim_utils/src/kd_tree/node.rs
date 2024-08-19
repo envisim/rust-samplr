@@ -1,3 +1,15 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
 use crate::indices::Indices;
@@ -49,6 +61,7 @@ impl<'a> NodeKind<'a> {
     }
 }
 
+/// A struct containing a k-d tree
 pub struct Node<'a> {
     kind: NodeKind<'a>,
 
@@ -140,6 +153,7 @@ impl<'a> Node<'a> {
         }
     }
 
+    /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
     #[inline]
     pub fn new(
         find_split: FindSplit,
@@ -154,6 +168,8 @@ impl<'a> Node<'a> {
         Ok(Self::create(find_split, bucket_size, data, units))
     }
 
+    /// Creates a new k-d tree of the indices in untis, given a data set.
+    /// Uses the [`midpoint_slide`] splitting method.
     #[inline]
     pub fn new_midpoint_slide(
         bucket_size: NonZeroUsize,
@@ -163,6 +179,7 @@ impl<'a> Node<'a> {
         Self::new(midpoint_slide, bucket_size, data, units)
     }
 
+    /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
     #[inline]
     pub fn new_from_indices(
         find_split: FindSplit,
@@ -173,11 +190,15 @@ impl<'a> Node<'a> {
         Self::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
+    /// Returns a reference to the data matrix
     #[inline]
     pub fn data(&self) -> &RefMatrix {
         self.data
     }
 
+    /// Tries to insert a unit into the tree.
+    /// Returns error if the index does not exist in the data matrix.
+    /// Returns `Ok(false)` if the index already existed in the tree.
     #[inline]
     pub fn insert_unit(&mut self, id: usize) -> Result<bool, NodeError> {
         if self.data.nrow() <= id {
@@ -187,6 +208,9 @@ impl<'a> Node<'a> {
         Ok(self.traverse_and_alter_unit(id, true))
     }
 
+    /// Tries to remove a unit from the tree.
+    /// Returns error if the index does not exist in the data matrix.
+    /// Returns `Ok(false)` if the index did not exist in the tree.
     #[inline]
     pub fn remove_unit(&mut self, id: usize) -> Result<bool, NodeError> {
         if self.data.nrow() <= id {

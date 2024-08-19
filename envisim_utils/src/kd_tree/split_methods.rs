@@ -1,3 +1,15 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::matrix::{OperateMatrix, RefMatrix};
 
 // (unit, variable, value)
@@ -9,6 +21,12 @@ pub struct Split {
 }
 pub type FindSplit = fn(&[f64], &[f64], &RefMatrix, &mut [usize]) -> Option<Split>;
 
+/// The midpoint slide splitting method.
+///
+/// # References
+/// Maneewongvatana, S., & Mount, D. M. (1999).
+/// It’s okay to be skinny, if your friends are fat.
+/// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
 pub fn midpoint_slide(
     min_border: &[f64],
     max_border: &[f64],

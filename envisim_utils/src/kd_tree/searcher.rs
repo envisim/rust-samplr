@@ -1,3 +1,15 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::Node;
 use crate::matrix::{OperateMatrix, RefMatrix};
 use crate::probability::Probabilities;
@@ -22,6 +34,7 @@ pub(super) trait TreeSearcher {
     fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix);
 }
 
+/// A struct used for searching the nearest neighbour of a unit.
 pub struct Searcher {
     unit_id: usize,
     unit: Vec<f64>,
@@ -67,6 +80,7 @@ impl TreeSearcher for Searcher {
 }
 
 impl Searcher {
+    /// Constructs a new k-d tree searcher, for finding `n_neighbours` number of neighbours
     #[inline]
     pub fn new(node: &Node, n_neighbours: usize) -> Result<Self, SearcherError> {
         if n_neighbours < 1 {
@@ -83,18 +97,21 @@ impl Searcher {
             n_neighbours,
         })
     }
+    /// Finds the neighbours of a unit positioned at `unit`
     #[inline]
     pub fn find_neighbours(&mut self, node: &Node, unit: &[f64]) -> Result<(), SearcherError> {
         self.set_unit_from_iter(unit.iter(), usize::MAX)?;
         node.find_neighbours(self);
         Ok(())
     }
+    /// Finds the neighbours of a unit in the data matrix
     #[inline]
     pub fn find_neighbours_of_id(&mut self, node: &Node, idx: usize) -> Result<(), SearcherError> {
         self.set_unit_from_iter(node.data().row_iter(idx), idx)?;
         node.find_neighbours(self);
         Ok(())
     }
+    /// Finds the neighbours of a unit positioned at the vector constructed by the iterator
     #[inline]
     pub fn find_neighbours_of_iter<'a, I>(
         &mut self,
@@ -122,6 +139,7 @@ impl Searcher {
         self.reset();
         Ok(())
     }
+    /// Set the number of neighbours to search for.
     #[inline]
     pub fn set_n_neighbours(&mut self, n: usize) -> Result<(), SearcherError> {
         if n < 1 {
@@ -132,11 +150,13 @@ impl Searcher {
         Ok(())
     }
 
+    /// Get the list of found neighbours
     #[inline]
     pub fn neighbours(&self) -> &[usize] {
         &self.neighbours
     }
 
+    /// Reset the list of found neighbours
     #[inline]
     pub fn reset(&mut self) {
         self.neighbours.clear();
@@ -191,6 +211,7 @@ impl Searcher {
             }
         });
     }
+    /// Get the squared euclidean distance to the `k`th neighbour
     #[inline]
     pub fn distance_k(&self, k: usize) -> f64 {
         self.distances[self.neighbours[k]]
@@ -223,6 +244,8 @@ pub struct SearcherWeighted {
 }
 
 impl SearcherWeighted {
+    /// Constructs a new k-d tree searcher, for finding a (probability) weighted number of
+    /// neighbours.
     #[inline]
     pub fn new(node: &Node) -> Result<Self, SearcherError> {
         Ok(Self {
@@ -230,6 +253,7 @@ impl SearcherWeighted {
             weights: vec![0.0f64; node.data().nrow()],
         })
     }
+    /// Finds the neighbours of a unit positioned at `unit`, with a specified probability
     #[inline]
     pub fn find_neighbours(
         &mut self,
@@ -248,6 +272,7 @@ impl SearcherWeighted {
         node.find_neighbours(&mut tree_searcher);
         Ok(())
     }
+    /// Finds the neighbours of a unit in the data matrix
     #[inline]
     pub fn find_neighbours_of_id(
         &mut self,
@@ -266,6 +291,7 @@ impl SearcherWeighted {
         node.find_neighbours(&mut tree_searcher);
         Ok(())
     }
+    /// Finds the neighbours of a unit positioned at the vector constructed by the iterator
     #[inline]
     pub fn find_neighbours_of_iter<'a, I>(
         &mut self,
@@ -288,24 +314,29 @@ impl SearcherWeighted {
         Ok(())
     }
 
+    /// Get the list of found neighbours
     #[inline]
     pub fn neighbours(&self) -> &[usize] {
         &self.searcher.neighbours
     }
 
+    /// Reset the list of found neighbours
     #[inline]
     pub fn reset(&mut self) {
         self.searcher.neighbours.clear();
     }
 
+    /// Get the squared euclidean distance to the `k`th neighbour
     #[inline]
     pub fn distance_k(&self, k: usize) -> f64 {
         self.searcher.distance_k(k)
     }
+    /// Get the assigned weight of the `k`th neighbour
     #[inline]
     pub fn weight_k(&self, k: usize) -> f64 {
         self.weights[self.searcher.neighbours[k]]
     }
+    /// Sort a subset of the neighbours by distance and weight
     pub fn sort_by_weight(&mut self, from: usize, to: usize) {
         self.searcher.neighbours[from..to].sort_unstable_by(|&a, &b| {
             if self.searcher.distances[a] < self.searcher.distances[b] {

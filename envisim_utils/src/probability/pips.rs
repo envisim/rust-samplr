@@ -1,7 +1,24 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Functions for calculating probabilities proportional to size
+
 use super::Probabilities;
 use crate::error::InputError;
 use crate::utils::usize_to_f64;
 
+/// Draw probabilities proportional to size.
+/// Given an array of positive values, returns draw probabilities proportional to size.
+/// Returns an error if any value is non-positive.
 pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
     if arr.is_empty() {
         return Probabilities::new(0, 0.0);
@@ -19,6 +36,11 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
     Probabilities::with_values(&arr.iter().map(|&x| x / sum).collect::<Vec<f64>>())
 }
 
+/// Inclusion probabilities proportional to size (approximate).
+/// Given an array of positive values, returns the inclusion probabilities proportional to size.
+/// Returns an error if any value is non-positive.
+///
+/// The caluclations are done by iteratively rescaling the inclusion probabilities.
 pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<Probabilities, InputError> {
     if arr.is_empty() {
         return Probabilities::new(0, 0.0);
