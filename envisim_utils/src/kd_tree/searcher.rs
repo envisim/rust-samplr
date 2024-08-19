@@ -62,12 +62,12 @@ impl TreeSearcher for Searcher {
         }
 
         if self.n_neighbours == 1 {
-            self.add_neighbours_from_node_1(ids, data);
+            self.assess_units_1(ids, data);
             return;
         }
 
         let original_length = self.neighbours.len();
-        self.add_neighbours_from_node(ids, data);
+        self.assess_units(ids, data);
 
         // If store size hasn't changed, we haven't added any new units
         if self.neighbours.len() == original_length {
@@ -167,7 +167,7 @@ impl Searcher {
         self.distances[idx] = distance;
     }
     #[inline]
-    fn add_neighbours_from_node_1(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units_1(&mut self, ids: &[usize], data: &RefMatrix) {
         let mut current_max = self.max_distance().unwrap_or(f64::INFINITY);
 
         ids.iter().for_each(|&id| {
@@ -187,7 +187,7 @@ impl Searcher {
         });
     }
     #[inline]
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units(&mut self, ids: &[usize], data: &RefMatrix) {
         // The case of when the store isn't filled yet
         // node_max will store the max _added_ distance from the node
         let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
@@ -336,7 +336,7 @@ impl SearcherWeighted {
     pub fn weight_k(&self, k: usize) -> f64 {
         self.weights[self.searcher.neighbours[k]]
     }
-    /// Sort a subset of the neighbours by distance and weight
+    /// Sort a section of the neighbours by distance and weight
     pub fn sort_by_weight(&mut self, from: usize, to: usize) {
         self.searcher.neighbours[from..to].sort_unstable_by(|&a, &b| {
             if self.searcher.distances[a] < self.searcher.distances[b] {
@@ -381,7 +381,7 @@ impl<'a> TreeSearcherWeighted<'a> {
         weight
     }
 
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units(&mut self, ids: &[usize], data: &RefMatrix) {
         // The case of when the store isn't filled yet
         // node_max will store the max _added_ distance from the node
         let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
@@ -447,7 +447,7 @@ impl<'a> TreeSearcher for TreeSearcherWeighted<'a> {
         }
 
         let original_length = self.base().neighbours.len();
-        self.add_neighbours_from_node(ids, data);
+        self.assess_units(ids, data);
 
         // If store size hasn't changed, we haven't added any new units
         if self.base().neighbours.len() == original_length {
