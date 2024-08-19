@@ -27,6 +27,8 @@ pub enum InputError {
     SampleSize,
     #[error("slice is empty")]
     IsEmpty,
+    #[error("input does not contain unique elements")]
+    NotUnique,
 }
 
 impl InputError {

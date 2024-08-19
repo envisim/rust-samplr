@@ -1,10 +1,46 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Spatial balance measures
+
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::usize_to_f64;
-use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::num::NonZeroUsize;
 
+/// Voronoi measure of spatial balance.
+///
+/// # Examples
+/// ```
+/// use envisim_estimate::spatial_balance::voronoi;
+/// use envisim_utils::matrix::RefMatrix;
+/// use std::num::NonZeroUsize;
+///
+/// let bucket_size = NonZeroUsize::new(2).unwrap();
+/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let m = RefMatrix::new(&dt, 10);
+///
+/// let s = [0, 3, 5, 8, 9];
+/// let sb = voronoi(&p, &m, &s, bucket_size).unwrap();
+/// ```
+///
+/// # References
+/// Grafström, A., & Schelin, L. (2014).
+/// How to select representative samples.
+/// Scandinavian Journal of Statistics, 41(2), 277-290.
+/// <https://doi.org/10.1111/sjos.12016>
 pub fn voronoi(
     probabilities: &[f64],
     data: &RefMatrix,
@@ -45,6 +81,28 @@ pub fn voronoi(
     Ok(result / usize_to_f64(sample_size))
 }
 
+/// Local measure of spatial balance.
+///
+/// # Examples
+/// ```
+/// use envisim_estimate::spatial_balance::local;
+/// use envisim_utils::matrix::RefMatrix;
+/// use std::num::NonZeroUsize;
+///
+/// let bucket_size = NonZeroUsize::new(2).unwrap();
+/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let m = RefMatrix::new(&dt, 10);
+///
+/// let s = [0, 3, 5, 8, 9];
+/// let sb = local(&p, &m, &s, bucket_size).unwrap();
+/// ```
+///
+/// # References
+/// Prentius, W., & Grafström, A. (2024).
+/// How to find the best sampling design: A new measure of spatial balance.
+/// Environmetrics, e2878.
+/// <https://doi.org/10.1002/env.2878>
 pub fn local(
     probabilities: &[f64],
     data: &RefMatrix,
@@ -59,27 +117,35 @@ pub fn local(
         return Ok(f64::NAN);
     }
 
-    let cols = data.ncol() + 1; // +1 for pi
-                                // Store in row-major
-    let mut diff_matrix = Matrix::new_fill(0.0, (cols, sample_size));
+    // One extra column for inclusion probabilitoies
+    let cols = data.ncol() + 1;
+    let mut voronoi_means =
+        FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
+
+    // The gram matrix
     let mut norm_matrix = Matrix::new_fill(0.0, (cols, cols * 2));
 
-    let mut sample_clone = sample.to_vec();
-    let tree = Node::new_midpoint_slide(bucket_size, data, &mut sample_clone)?;
+    let tree = {
+        let mut sample_clone = sample.to_vec();
+        Node::new_midpoint_slide(bucket_size, data, &mut sample_clone)?
+    };
     let mut searcher = Searcher::new(&tree, 1)?;
-    let sample_set = FxHashSet::<usize>::from_iter(sample_clone);
 
     for i in 0..cols {
         norm_matrix[(i, i + cols)] = 1.0;
     }
 
-    for (i, &id) in sample.iter().enumerate() {
+    for &id in sample.iter() {
         // Weird p_factor so we can skip tree search later
         let p_factor = (1.0 - probabilities[id]) / probabilities[id];
+        let mut mean = vec![p_factor; cols];
 
-        diff_matrix[(data.ncol(), i)] = p_factor;
-        for j in 0..data.ncol() {
-            diff_matrix[(j, i)] = data[(id, j)] * p_factor;
+        for (i, v) in data.row_iter(id).enumerate() {
+            mean[i] *= v;
+        }
+
+        if voronoi_means.insert(id, mean).is_some() {
+            return Err(SamplingError::Input(InputError::NotUnique));
         }
     }
 
@@ -93,7 +159,11 @@ pub fn local(
             norm_matrix[(i, data.ncol())] += data[(id, i)];
         }
 
-        if sample_set.contains(&id) {
+        // We have already added the sample units, so we can skip this
+        // Has an edge case, where two sample units are exactly overlapping. In this case, this
+        // implementation assumes that the "self" sample unit is the sole voronoi cluster, rather
+        // than sharing.
+        if voronoi_means.contains_key(&id) {
             continue;
         }
 
@@ -103,10 +173,11 @@ pub fn local(
 
         let share = usize_to_f64(searcher.neighbours().len());
         for &su in searcher.neighbours().iter() {
-            diff_matrix[(data.ncol(), su)] -= 1.0 / share;
-            for j in 0..data.ncol() {
-                diff_matrix[(j, su)] -= data[(id, j)] / share;
+            let mean = voronoi_means.get_mut(&su).unwrap();
+            for (i, v) in data.row_iter(id).enumerate() {
+                mean[i] -= v / share;
             }
+            mean[data.ncol()] -= 1.0 / share;
         }
     }
 
@@ -116,16 +187,12 @@ pub fn local(
         norm_matrix.nrow(),
     );
 
-    let mut result = 0.0f64;
-    let mut index = 0;
-    for _ in 0..sample.len() {
-        let vec = &diff_matrix.data()[index..(index + diff_matrix.nrow())];
-        result += RefMatrix::new(vec, 1)
+    let result = voronoi_means.iter().fold(0.0, |acc, (_, vec)| {
+        acc + RefMatrix::new(vec, 1)
             .mult(&inv_matrix)
-            .mult(&RefMatrix::new(vec, vec.len()))
-            .data()[0];
-        index += diff_matrix.nrow();
-    }
+            .mult(&RefMatrix::new(vec, cols))
+            .data()[0]
+    });
 
     Ok((result / usize_to_f64(population_size)).sqrt())
 }

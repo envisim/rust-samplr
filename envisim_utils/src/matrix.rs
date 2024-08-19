@@ -286,7 +286,8 @@ impl Index<MatrixIndex> for Matrix {
 
     #[inline]
     fn index(&self, (row, col): MatrixIndex) -> &f64 {
-        assert!(col < self.cols && row < self.rows);
+        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
+        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
         unsafe { self.data.get_unchecked(col * self.rows + row) }
     }
 }
@@ -294,7 +295,8 @@ impl Index<MatrixIndex> for Matrix {
 impl IndexMut<MatrixIndex> for Matrix {
     #[inline]
     fn index_mut(&mut self, (row, col): MatrixIndex) -> &mut f64 {
-        assert!(col < self.cols && row < self.rows);
+        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
+        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
         unsafe { self.data.get_unchecked_mut(col * self.rows + row) }
     }
 }
@@ -304,7 +306,8 @@ impl<'a> Index<MatrixIndex> for RefMatrix<'a> {
 
     #[inline]
     fn index(&self, (row, col): MatrixIndex) -> &f64 {
-        assert!(col < self.cols && row < self.rows);
+        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
+        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
         unsafe { self.data.get_unchecked(col * self.rows + row) }
     }
 }

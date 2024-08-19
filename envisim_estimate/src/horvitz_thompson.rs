@@ -1,3 +1,17 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Horvitz-Thompson estimators (single count estimators)
+
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
@@ -5,6 +19,17 @@ use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
 use std::num::NonZeroUsize;
 
+/// Horvitz-Thompson estimator of a total
+///
+/// # Examples
+/// ```
+/// use envisim_estimate::horvitz_thompson::estimate;
+///
+/// let y = [0.0, 0.1, 0.2, 0.3, 0.4];
+/// let pi = [0.2; 5];
+///
+/// estimate(&y, &pi).unwrap(); // Should be about 5.0
+/// ```
 #[inline]
 pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
     InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
@@ -15,6 +40,7 @@ pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, Sampling
         .fold(0.0, |acc, (&y, &p)| acc + y / p))
 }
 
+/// Ratio estimator of total, using auxilliary variable `x_values`.
 #[inline]
 pub fn ratio(
     y_values: &[f64],
@@ -26,6 +52,7 @@ pub fn ratio(
     Ok(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
 }
 
+/// Horvitz-Thompson estimator of variance of total estimate
 pub fn variance(
     y_values: &[f64],
     probabilities: &[f64],
@@ -59,6 +86,7 @@ pub fn variance(
     Ok(variance)
 }
 
+/// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample
 pub fn syg_variance(
     y_values: &[f64],
     probabilities: &[f64],
@@ -91,6 +119,7 @@ pub fn syg_variance(
     Ok(variance)
 }
 
+/// Deville estimator of variance of total estimate
 pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
     InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
 
@@ -118,6 +147,13 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, 
     Ok(1.0 / (1.0 - sak2) * dsum)
 }
 
+/// Local mean estimator of variance of total estimate.
+///
+/// # References
+/// Grafström, A., & Schelin, L. (2014).
+/// How to select representative samples.
+/// Scandinavian Journal of Statistics, 41(2), 277-290.
+/// <https://doi.org/10.1111/sjos.12016>
 pub fn local_mean_variance(
     y_values: &[f64],
     probabilities: &[f64],

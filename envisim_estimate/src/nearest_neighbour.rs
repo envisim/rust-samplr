@@ -1,3 +1,17 @@
+// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Nearest neighbour estimator
+
 use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
@@ -5,6 +19,8 @@ use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::num::NonZeroUsize;
 
+/// Nearest neighbour estimator of total.
+/// Is not an design-unbiased estimator of the total.
 pub fn nearest_neighbour(
     y_values: &[f64],
     sample: &[usize],
