@@ -13,7 +13,7 @@ fn matrix_new<'a>() -> envisim_utils::matrix::RefMatrix<'a> {
 #[test]
 fn searcher() {
     let m = matrix_new();
-    let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
+    let t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
     let mut s = Searcher::new(&t, 1).unwrap();
     s.find_neighbours(&t, &vec![5.0, 5.0]).unwrap();
@@ -30,7 +30,7 @@ fn searcher() {
 #[test]
 fn searcher_weighted() {
     let m = matrix_new();
-    let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3, 4]).unwrap();
+    let t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3, 4]).unwrap();
     let p = envisim_utils::probability::Probabilities::new(5, 0.25).unwrap();
 
     let mut s = SearcherWeighted::new(&t).unwrap();

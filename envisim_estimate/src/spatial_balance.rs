@@ -61,7 +61,7 @@ pub fn voronoi(
         voronoi_pi.insert(id, 0.0);
     }
 
-    let tree = Node::new_midpoint_slide(bucket_size, data, &mut sample.to_vec())?;
+    let tree = Node::with_midpoint_slide(bucket_size, data, &mut sample.to_vec())?;
     let mut searcher = Searcher::new(&tree, 1)?;
 
     for (i, &p) in probabilities.iter().enumerate() {
@@ -127,7 +127,7 @@ pub fn local(
 
     let tree = {
         let mut sample_clone = sample.to_vec();
-        Node::new_midpoint_slide(bucket_size, data, &mut sample_clone)?
+        Node::with_midpoint_slide(bucket_size, data, &mut sample_clone)?
     };
     let mut searcher = Searcher::new(&tree, 1)?;
 

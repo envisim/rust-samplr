@@ -14,7 +14,7 @@
 
 use crate::utils::Container;
 use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::kd_tree::{midpoint_slide, Node, SearcherWeighted};
+use envisim_utils::kd_tree::{Node, SearcherWeighted};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 use envisim_utils::utils::{random_element, usize_to_f64};
 use rand::Rng;
@@ -247,11 +247,10 @@ where
     }
 
     let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::new_from_indices(
-        midpoint_slide,
+    let tree = Box::new(Node::with_midpoint_slide(
         bucket_size,
         data,
-        container.indices(),
+        &mut container.indices().to_vec(),
     )?);
     let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
@@ -315,11 +314,10 @@ where
     R: Rng + ?Sized,
 {
     let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::new_from_indices(
-        midpoint_slide,
+    let tree = Box::new(Node::with_midpoint_slide(
         bucket_size,
         data,
-        container.indices(),
+        &mut container.indices().to_vec(),
     )?);
     let searcher = Box::new(SearcherWeighted::new(&tree)?);
 

@@ -18,69 +18,116 @@ pub struct Split {
     pub unit: usize,
     pub dimension: usize,
     pub value: f64,
+    pub leq: bool,
 }
-pub type FindSplit = fn(&[f64], &[f64], &RefMatrix, &mut [usize]) -> Option<Split>;
+pub type FindSplit = fn(&[(f64, f64)], &RefMatrix, &mut [usize]) -> Option<Split>;
 
 /// The midpoint slide splitting method.
+/// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have values
+/// > `value`.
+/// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
+/// contains equal elements.
+///
+/// Returns `None` if no such split exists
 ///
 /// # References
 /// Maneewongvatana, S., & Mount, D. M. (1999).
 /// It’s okay to be skinny, if your friends are fat.
 /// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
 pub fn midpoint_slide(
-    min_border: &[f64],
-    max_border: &[f64],
+    borders: &[(f64, f64)],
     data: &RefMatrix,
     units: &mut [usize],
 ) -> Option<Split> {
-    assert!(min_border.len() == max_border.len());
-    assert!(data.ncol() == min_border.len());
+    assert_eq!(data.ncol(), borders.len());
 
-    let (dimension, spread): (usize, f64) = min_border
-        .iter()
-        .zip(max_border.iter())
-        .map(|(&min, &max)| max - min)
-        .enumerate()
-        .reduce(|(dim, max_width), (i, width)| {
-            if width > max_width {
-                (i, width)
-            } else {
-                (dim, max_width)
-            }
-        })
-        .unwrap();
-
-    if spread <= f64::EPSILON {
+    if units.is_empty() {
         return None;
     }
 
-    let split_value = spread * 0.5 + min_border[dimension];
+    let mut sorted_dims: Vec<(usize, f64)> =
+        borders.iter().map(|&b| b.1 - b.0).enumerate().collect();
+    sorted_dims.sort_unstable_by(|a, b| (b.1).partial_cmp(&a.1).unwrap());
 
-    let mut split_unit: usize = 0;
-    let mut r: usize = units.len();
+    let mut split = Split {
+        unit: 0,
+        dimension: 0,
+        value: 0.0,
+        leq: true,
+    };
+
+    for dims in sorted_dims.iter() {
+        let spread = dims.1;
+
+        if spread <= f64::EPSILON {
+            return None;
+        }
+
+        split.dimension = dims.0;
+        split.value = spread * 0.5 + borders[split.dimension].0;
+        split.leq = true;
+
+        let left_max: f64;
+        let right_min: f64;
+
+        (left_max, right_min) = midpoint_slide_sort(data, units, &mut split);
+
+        if split.unit == 0 {
+            split.value = right_min;
+            midpoint_slide_sort(data, units, &mut split);
+
+            if split.unit == units.len() {
+                continue;
+            }
+        } else if split.unit == units.len() {
+            split.value = left_max;
+            split.leq = false;
+            midpoint_slide_sort(data, units, &mut split);
+
+            if split.unit == 0 {
+                continue;
+            }
+        }
+
+        return Some(split);
+    }
+
+    None
+}
+/// Sorts the `units` in two ranges, such that all units with a value `< split.value` goes first.
+/// Returns the tuple `(left_max, right_min)`, where
+/// - `left_max` is the largest value in the `0..split_unit` set
+/// - `right_min` is the smallest value in the `split_unit..` set
+#[inline]
+fn midpoint_slide_sort(data: &RefMatrix, units: &mut [usize], split: &mut Split) -> (f64, f64) {
+    split.unit = 0;
+    let mut right: usize = units.len();
+    let mut left_max: f64 = f64::MIN;
+    let mut right_min: f64 = f64::MAX;
 
     // Sort units so that we have
-    // x <= value is in range [0, l)
+    // x < value is in range [0, l)
     // x > value is in range [r, n)
-    while split_unit < r {
-        let lvalue = data[(units[split_unit], dimension)];
-        if lvalue <= split_value {
-            split_unit += 1;
+    // At end of loop: right == split.unit
+    while split.unit < right {
+        let v = data[(units[split.unit], split.dimension)];
+        if v < split.value || (split.leq && v == split.value) {
+            if v > left_max {
+                left_max = v;
+            }
+
+            split.unit += 1;
         } else {
-            r -= 1;
-            units.swap(split_unit, r);
+            if v < right_min {
+                right_min = v;
+            }
+
+            right -= 1;
+            units.swap(split.unit, right);
         }
     }
 
-    if split_unit == 0 || r == units.len() {
-        return None;
-    }
-
-    Some(Split {
-        unit: split_unit,
-        dimension,
-        value: split_value,
-    })
+    (left_max, right_min)
 }
 
 #[cfg(test)]
@@ -91,28 +138,23 @@ mod tests {
     fn midpoint_slide() {
         let v = vec![0.0, 1.0, 2.0, 13.0];
         let m = RefMatrix::new(&v, 4);
-        let split =
-            super::midpoint_slide(&vec![0.0], &vec![13.0], &m, &mut vec![0, 1, 2, 3]).unwrap();
+        let split = super::midpoint_slide(&vec![(0.0, 13.0)], &m, &mut vec![0, 1, 2, 3]).unwrap();
         assert_eq!(split.unit, 3);
         assert_eq!(split.dimension, 0);
         assert_eq!(split.value, 6.5);
 
         let v = vec![0.0, 1.0, 2.0, 13.0, 0.0, 10.0, 20.0, 30.0];
         let m = RefMatrix::new(&v, 4);
-        let split = super::midpoint_slide(
-            &vec![0.0, 0.0],
-            &vec![13.0, 30.0],
-            &m,
-            &mut vec![0, 1, 2, 3],
-        )
-        .unwrap();
+        let split =
+            super::midpoint_slide(&vec![(0.0, 13.0), (0.0, 30.0)], &m, &mut vec![0, 1, 2, 3])
+                .unwrap();
         assert_eq!(split.unit, 2);
         assert_eq!(split.dimension, 1);
         assert_eq!(split.value, 15.0);
 
         let v = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         let m = RefMatrix::new(&v, 3);
-        let split = super::midpoint_slide(&vec![0.0, 1.0], &vec![0.0, 1.0], &m, &mut vec![0, 1, 2]);
+        let split = super::midpoint_slide(&vec![(0.0, 0.0), (1.0, 1.0)], &m, &mut vec![0, 1, 2]);
         assert!(split.is_none());
     }
 }

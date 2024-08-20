@@ -96,6 +96,21 @@ impl Indices {
         &self.list
     }
 
+    /// Returns a copy of the slice containing the indices
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    ///
+    /// let il = Indices::with_fill(4);
+    /// let v: Vec<usize> = il.to_vec();
+    /// assert_eq!(il.list(), &v);
+    /// ```
+    #[inline]
+    pub fn to_vec(&self) -> Vec<usize> {
+        self.list.to_vec()
+    }
+
     /// Returns the index at position `k`, if any
     ///
     /// # Examples

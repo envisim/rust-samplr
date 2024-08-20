@@ -12,7 +12,6 @@
 
 use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
-use crate::indices::Indices;
 use crate::matrix::{OperateMatrix, RefMatrix};
 use std::num::NonZeroUsize;
 use thiserror::Error;
@@ -29,6 +28,7 @@ pub enum NodeError {
 struct NodeBranch<'a> {
     dimension: usize,
     value: f64,
+    leq: bool,
     left_child: Box<Node<'a>>,
     right_child: Box<Node<'a>>,
 }
@@ -67,89 +67,80 @@ pub struct Node<'a> {
 
     // Common
     data: &'a RefMatrix<'a>,
-    min_border: Vec<f64>,
-    max_border: Vec<f64>,
 }
 
 impl<'a> Node<'a> {
+    fn borders(data: &'a RefMatrix, units: &[usize]) -> Vec<(f64, f64)> {
+        let mut b = Vec::<(f64, f64)>::with_capacity(data.ncol());
+
+        for k in 0usize..data.ncol() {
+            b.push(units.iter().map(|&id| data[(id, k)]).fold(
+                (f64::MAX, f64::MIN),
+                |(min, max), v| {
+                    let nmin = min.min(v);
+                    let nmax = max.max(v);
+                    (nmin, nmax)
+                },
+            ));
+        }
+
+        b
+    }
+
     fn create(
         find_split: FindSplit,
         bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         units: &mut [usize],
+        borders: Vec<(f64, f64)>,
     ) -> Self {
-        let mut min_border = Vec::<f64>::with_capacity(data.ncol());
-        let mut max_border = Vec::<f64>::with_capacity(data.ncol());
-
-        let mut node_size_is_zero = true;
-
-        for k in 0usize..data.ncol() {
-            let (min, max) =
-                units
-                    .iter()
-                    .map(|&id| data[(id, k)])
-                    .fold((f64::MAX, 0.0f64), |(min, max), v| {
-                        let nmin = min.min(v);
-                        let nmax = max.max(v);
-                        (nmin, nmax)
-                    });
-
-            min_border.push(min);
-            max_border.push(max);
-
-            if node_size_is_zero && max - min > f64::EPSILON {
-                node_size_is_zero = false;
-            }
+        if units.len() <= bucket_size.get() {
+            return Node::new_leaf(data, units);
         }
 
-        if node_size_is_zero || units.len() <= bucket_size.get() {
-            return Node::new_leaf(data, units, min_border, max_border);
-        }
-
-        let split = match find_split(&min_border, &max_border, data, &mut *units) {
+        let split = match find_split(&borders, data, &mut *units) {
             Some(s) => s,
-            None => return Self::new_leaf(data, units, min_border, max_border),
+            None => return Self::new_leaf(data, units),
         };
 
         assert!(split.dimension < data.ncol());
+
+        let mut l_borders = borders.to_vec();
+        let mut r_borders = borders.to_vec();
+        l_borders[split.dimension].1 = split.value;
+        r_borders[split.dimension].0 = split.value;
 
         Self {
             kind: NodeKind::Branch(Box::new(NodeBranch {
                 dimension: split.dimension,
                 value: split.value,
+                leq: split.leq,
                 left_child: Box::new(Self::create(
                     find_split,
                     bucket_size,
                     data,
                     &mut units[..split.unit],
+                    l_borders,
                 )),
                 right_child: Box::new(Self::create(
                     find_split,
                     bucket_size,
                     data,
                     &mut units[split.unit..],
+                    r_borders,
                 )),
             })),
             data,
-            min_border,
-            max_border,
         }
     }
 
     #[inline]
-    fn new_leaf(
-        data: &'a RefMatrix,
-        units: &mut [usize],
-        min_border: Vec<f64>,
-        max_border: Vec<f64>,
-    ) -> Self {
+    fn new_leaf(data: &'a RefMatrix, units: &mut [usize]) -> Self {
         Node {
             kind: NodeKind::Leaf(Box::new(NodeLeaf {
                 units: units.to_vec(),
             })),
             data,
-            min_border,
-            max_border,
         }
     }
 
@@ -165,29 +156,20 @@ impl<'a> Node<'a> {
             return Err(NodeError::GhostUnit);
         }
 
-        Ok(Self::create(find_split, bucket_size, data, units))
+        let borders = Self::borders(data, units);
+
+        Ok(Self::create(find_split, bucket_size, data, units, borders))
     }
 
     /// Creates a new k-d tree of the indices in untis, given a data set.
     /// Uses the [`midpoint_slide`] splitting method.
     #[inline]
-    pub fn new_midpoint_slide(
+    pub fn with_midpoint_slide(
         bucket_size: NonZeroUsize,
         data: &'a RefMatrix,
         units: &mut [usize],
     ) -> Result<Self, NodeError> {
         Self::new(midpoint_slide, bucket_size, data, units)
-    }
-
-    /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
-    #[inline]
-    pub fn new_from_indices(
-        find_split: FindSplit,
-        bucket_size: NonZeroUsize,
-        data: &'a RefMatrix,
-        indices: &Indices,
-    ) -> Result<Self, NodeError> {
-        Self::new(find_split, bucket_size, data, &mut indices.list().to_vec())
     }
 
     /// Returns a reference to the data matrix
@@ -225,7 +207,7 @@ impl<'a> Node<'a> {
             NodeKind::Branch(ref mut branch) => {
                 let distance = self.data[(id, branch.dimension)] - branch.value;
 
-                if distance <= 0.0 {
+                if distance < 0.0 || (branch.leq && distance == 0.0) {
                     branch.left_child.traverse_and_alter_unit(id, insert)
                 } else {
                     branch.right_child.traverse_and_alter_unit(id, insert)
@@ -254,20 +236,6 @@ impl<'a> Node<'a> {
         }
     }
 
-    #[inline]
-    fn distance_to_box_in_dimension(&self, dimension: usize, value: f64) -> f64 {
-        let min = self.min_border[dimension];
-        let max = self.max_border[dimension];
-
-        if value <= min {
-            min - value
-        } else if value <= max {
-            0.0
-        } else {
-            value - max
-        }
-    }
-
     pub(super) fn find_neighbours<S>(&self, searcher: &mut S)
     where
         S: TreeSearcher,
@@ -277,28 +245,19 @@ impl<'a> Node<'a> {
 
             NodeKind::Branch(ref branch) => {
                 let unit_value = searcher.unit()[branch.dimension];
-                let dist = unit_value - branch.value;
+                let distance = unit_value - branch.value;
 
-                let (first_node, second_node) = if dist <= 0.0 {
+                let (first_node, second_node) = if distance < 0.0 || (branch.leq && distance == 0.0)
+                {
                     (&branch.left_child, &branch.right_child)
                 } else {
                     (&branch.right_child, &branch.left_child)
                 };
 
-                if !searcher.is_satisfied()
-                    || first_node
-                        .distance_to_box_in_dimension(branch.dimension, unit_value)
-                        .powi(2)
-                        <= searcher.max_distance().unwrap_or(f64::INFINITY)
-                {
-                    first_node.find_neighbours(searcher);
-                }
+                first_node.find_neighbours(searcher);
 
                 if !searcher.is_satisfied()
-                    || second_node
-                        .distance_to_box_in_dimension(branch.dimension, unit_value)
-                        .powi(2)
-                        <= searcher.max_distance().unwrap_or(f64::INFINITY)
+                    || distance.powi(2) <= searcher.max_distance().unwrap_or(f64::INFINITY)
                 {
                     second_node.find_neighbours(searcher);
                 }
@@ -324,15 +283,13 @@ mod tests {
     #[test]
     fn new_midpoint_slide() {
         let m = matrix_new();
-        let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
+        let t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
         let branch = t.kind.unwrap_branch();
         assert_eq!(branch.dimension, 1);
         assert!((10.0..20.0).contains(&branch.value));
 
         let l = &branch.left_child;
-        assert_eq!(l.min_border, vec![0.0, 0.0]);
-        assert_eq!(l.max_border, vec![1.0, 10.0]);
         let l = &l.kind;
         assert!(l.unwrap_leaf().units.contains(&0));
         assert!(l.unwrap_leaf().units.contains(&1));
@@ -341,8 +298,6 @@ mod tests {
         assert!(!l.unwrap_leaf().units.contains(&4));
 
         let r = &branch.right_child;
-        assert_eq!(r.min_border, vec![2.0, 20.0]);
-        assert_eq!(r.max_border, vec![13.0, 30.0]);
         let r = &r.kind;
         assert!(!r.unwrap_leaf().units.contains(&0));
         assert!(!r.unwrap_leaf().units.contains(&1));
@@ -354,7 +309,7 @@ mod tests {
     #[test]
     fn insert_unit() {
         let m = matrix_new();
-        let mut t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
+        let mut t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.insert_unit(4).unwrap(), true);
         assert!(t
@@ -380,23 +335,5 @@ mod tests {
 
         assert!(t.insert_unit(10).is_err());
         assert!(t.remove_unit(10).is_err());
-    }
-
-    #[test]
-    fn distance_to_box_in_dimension() {
-        let m = matrix_new();
-        let t = Node::new_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
-
-        assert_eq!(t.distance_to_box_in_dimension(0, 5.0), 0.0);
-        assert_eq!(t.distance_to_box_in_dimension(0, -5.0), 5.0);
-        assert_eq!(t.distance_to_box_in_dimension(0, 19.0), 6.0);
-        assert_eq!(t.distance_to_box_in_dimension(1, -10.0), 10.0);
-        assert_eq!(
-            t.kind
-                .unwrap_branch()
-                .right_child
-                .distance_to_box_in_dimension(1, -10.0),
-            30.0
-        );
     }
 }

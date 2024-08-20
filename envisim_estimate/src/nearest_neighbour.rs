@@ -41,7 +41,7 @@ pub fn nearest_neighbour(
         number_of_neighbours.insert(id, 0.0);
     }
 
-    let tree = Node::new_midpoint_slide(bucket_size, auxilliaries, &mut sample.to_vec())?;
+    let tree = Node::with_midpoint_slide(bucket_size, auxilliaries, &mut sample.to_vec())?;
     let mut searcher = Searcher::new(&tree, 1)?;
 
     for i in 0..population_size {

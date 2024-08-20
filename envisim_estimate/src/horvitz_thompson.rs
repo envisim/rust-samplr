@@ -174,7 +174,7 @@ pub fn local_mean_variance(
 
     let tree = {
         let mut units: Vec<usize> = (0..sample_size).collect();
-        Node::new_midpoint_slide(bucket_size, auxilliaries, &mut units)?
+        Node::with_midpoint_slide(bucket_size, auxilliaries, &mut units)?
     };
     let mut searcher = Searcher::new(&tree, n_neighbours)?;
 

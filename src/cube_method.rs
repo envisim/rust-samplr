@@ -15,7 +15,7 @@
 use crate::srs;
 use crate::utils::Container;
 use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::kd_tree::{midpoint_slide, Node, Searcher};
+use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::random_one_of_f64;
 use rand::Rng;
@@ -296,11 +296,10 @@ where
 {
     let seed = rng.gen::<usize>();
     let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::new_from_indices(
-        midpoint_slide,
+    let tree = Box::new(Node::with_midpoint_slide(
         bucket_size,
         spreading_data,
-        container.indices(),
+        &mut container.indices().to_vec(),
     )?);
     let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol() + 1)?);
 
@@ -343,11 +342,10 @@ where
     R: Rng + ?Sized,
 {
     let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::new_from_indices(
-        midpoint_slide,
+    let tree = Box::new(Node::with_midpoint_slide(
         bucket_size,
         spreading_data,
-        container.indices(),
+        &mut container.indices().to_vec(),
     )?);
     let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol())?);
 
@@ -637,7 +635,7 @@ where
 
         container.indices_mut().clear();
         self.tree =
-            Box::new(Node::new(midpoint_slide, data.unwrap().1, data.unwrap().0, ids).unwrap());
+            Box::new(Node::with_midpoint_slide(data.unwrap().1, data.unwrap().0, ids).unwrap());
 
         for id in ids.iter() {
             container.indices_mut().insert(*id).unwrap();
