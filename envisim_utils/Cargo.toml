@@ -1,0 +1,39 @@
+[package]
+name = "envisim_utils"
+version = "0.1.0"
+edition = "2021"
+authors = ["Wilmer Prentius <wilmer.prentius@slu.se>", "Anton Grafström"]
+homepage = "https://envisim.se"
+repository = "https://github.com/envisim/rust-samplr"
+description = "Utility methods for design-based sampling methods and estimation"
+keywords = ["sampling", "statistics"]
+categories = ["mathematics", "science", "science::geo"]
+license = "AGPL-3.0-only"
+include = ["/src", "LICENSE", "README.md", "CHANGELOG.md"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lints.clippy]
+assertions_on_result_states = "warn"
+cargo_common_metadata = "warn"
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+cognitive_complexity = "warn"
+equatable_if_let = "warn"
+exhaustive_enums = "deny"
+from_iter_instead_of_collect = "warn"
+get_unwrap = "warn"
+if_not_else = "warn"
+if_then_some_else_none = "warn"
+imprecise_flops = "warn"
+match_bool = "warn"
+needless_collect = "warn"
+
+[dependencies]
+rand = {version="0.8.5", features = ["small_rng"]}
+rustc-hash = "2.0.0"
+thiserror = "1.0.63"
+
+[dev-dependencies]
+envisim_test_utils = {path="../envisim_test_utils"}
+
