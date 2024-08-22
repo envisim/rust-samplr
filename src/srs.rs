@@ -12,17 +12,21 @@
 
 //! Simple random sampling
 
-use envisim_utils::error::{InputError, SamplingError};
+pub use envisim_utils::error::{InputError, SamplingError};
 use rand::Rng;
 
 /// Draw a simple random sample without replacement
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::srs::sample;
+/// use envisim_samplr::srs::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// assert_eq!(sample(&mut rng, 5, 10).unwrap().len(), 5);
+/// let s = sample(&mut rng, 5, 10)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample<R>(
@@ -50,10 +54,14 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::srs::sample_with_replacement;
+/// use envisim_samplr::srs::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// assert_eq!(sample_with_replacement(&mut rng, 5, 10).unwrap().len(), 5);
+/// let s = sample_with_replacement(&mut rng, 5, 10)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample_with_replacement<R>(

@@ -5,17 +5,19 @@ mod test_utils;
 use test_utils::*;
 
 #[test]
-fn systematic() {
+fn systematic() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
+    let opts = SampleOptions::new(p)?;
 
-    test_wor(|| sample(&mut rng, p), p, 1e-2, 100000);
+    test_wor(sample, &mut rng, &opts, p, 1e-2, 100000)
 }
 
 #[test]
-fn srs_wr() {
+fn srs_wr() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
+    let opts = SampleOptions::new(p)?;
 
-    test_wor(|| sample_random_order(&mut rng, p), p, 1e-2, 100000);
+    test_wor(sample_random_order, &mut rng, &opts, p, 1e-2, 100000)
 }

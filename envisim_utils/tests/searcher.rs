@@ -11,9 +11,11 @@ fn matrix_new<'a>() -> envisim_utils::matrix::RefMatrix<'a> {
 }
 
 #[test]
-fn searcher() {
+fn searcher() -> Result<(), NodeError> {
     let m = matrix_new();
-    let t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3]).unwrap();
+    let t = TreeBuilder::new(&m)
+        .try_bucket_size(2)?
+        .build(&mut [0, 1, 2, 3])?;
 
     let mut s = Searcher::new(&t, 1).unwrap();
     s.find_neighbours(&t, &vec![5.0, 5.0]).unwrap();
@@ -25,12 +27,16 @@ fn searcher() {
     assert_eq!(s.neighbours(), vec![2, 1]);
     assert_delta!(s.distance_k(0), 221.0);
     assert_delta!(s.distance_k(1), 544.0);
+
+    Ok(())
 }
 
 #[test]
-fn searcher_weighted() {
+fn searcher_weighted() -> Result<(), NodeError> {
     let m = matrix_new();
-    let t = Node::with_midpoint_slide(NONZERO_2, &m, &mut vec![0, 1, 2, 3, 4]).unwrap();
+    let t = TreeBuilder::new(&m)
+        .try_bucket_size(2)?
+        .build(&mut [0, 1, 2, 3, 4])?;
     let p = envisim_utils::probability::Probabilities::new(5, 0.25).unwrap();
 
     let mut s = SearcherWeighted::new(&t).unwrap();
@@ -44,4 +50,6 @@ fn searcher_weighted() {
     assert_delta!(s.weight_k(0), 1.0 / 3.0);
     assert_delta!(s.weight_k(1), 1.0 / 3.0);
     assert_delta!(s.weight_k(2), 1.0 / 3.0);
+
+    Ok(())
 }

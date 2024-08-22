@@ -12,28 +12,27 @@
 
 //! Spatial balance measures
 
-use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::kd_tree::{Node, Searcher};
+pub use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{Searcher, TreeBuilder};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use std::num::NonZeroUsize;
 
 /// Voronoi measure of spatial balance.
 ///
 /// # Examples
 /// ```
-/// use envisim_estimate::spatial_balance::voronoi;
+/// use envisim_estimate::spatial_balance::*;
 /// use envisim_utils::matrix::RefMatrix;
-/// use std::num::NonZeroUsize;
+/// use envisim_utils::kd_tree::TreeBuilder;
 ///
-/// let bucket_size = NonZeroUsize::new(2).unwrap();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
-///
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = voronoi(&p, &m, &s, bucket_size).unwrap();
+///
+/// // let sb = voronoi(&s, &p, &TreeBuilder::new(&m))?;
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -42,11 +41,14 @@ use std::num::NonZeroUsize;
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
 pub fn voronoi(
-    probabilities: &[f64],
-    data: &RefMatrix,
     sample: &[usize],
-    bucket_size: NonZeroUsize,
+    probabilities: &[f64],
+    tree_builder: &TreeBuilder,
 ) -> Result<f64, SamplingError> {
+    let tree = tree_builder.build(&mut sample.to_vec())?;
+    let mut searcher = Searcher::new(&tree, 1)?;
+    let data = tree.data();
+
     let population_size = data.nrow();
     let sample_size = sample.len();
     InputError::check_sizes(probabilities.len(), population_size)?;
@@ -60,9 +62,6 @@ pub fn voronoi(
     for &id in sample.iter() {
         voronoi_pi.insert(id, 0.0);
     }
-
-    let tree = Node::with_midpoint_slide(bucket_size, data, &mut sample.to_vec())?;
-    let mut searcher = Searcher::new(&tree, 1)?;
 
     for (i, &p) in probabilities.iter().enumerate() {
         searcher
@@ -85,17 +84,17 @@ pub fn voronoi(
 ///
 /// # Examples
 /// ```
-/// use envisim_estimate::spatial_balance::local;
+/// use envisim_estimate::spatial_balance::*;
 /// use envisim_utils::matrix::RefMatrix;
-/// use std::num::NonZeroUsize;
+/// use envisim_utils::kd_tree::TreeBuilder;
 ///
-/// let bucket_size = NonZeroUsize::new(2).unwrap();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
-///
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = local(&p, &m, &s, bucket_size).unwrap();
+///
+/// let sb = local(&s, &p, &TreeBuilder::new(&m))?;
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -104,11 +103,14 @@ pub fn voronoi(
 /// Environmetrics, e2878.
 /// <https://doi.org/10.1002/env.2878>
 pub fn local(
-    probabilities: &[f64],
-    data: &RefMatrix,
     sample: &[usize],
-    bucket_size: NonZeroUsize,
+    probabilities: &[f64],
+    tree_builder: &TreeBuilder,
 ) -> Result<f64, SamplingError> {
+    let tree = tree_builder.build(&mut sample.to_vec())?;
+    let mut searcher = Searcher::new(&tree, 1)?;
+    let data = tree.data();
+
     let population_size = data.nrow();
     let sample_size = sample.len();
     InputError::check_sizes(probabilities.len(), population_size)?;
@@ -124,12 +126,6 @@ pub fn local(
 
     // The gram matrix
     let mut norm_matrix = Matrix::new_fill(0.0, (cols, cols * 2));
-
-    let tree = {
-        let mut sample_clone = sample.to_vec();
-        Node::with_midpoint_slide(bucket_size, data, &mut sample_clone)?
-    };
-    let mut searcher = Searcher::new(&tree, 1)?;
 
     for i in 0..cols {
         norm_matrix[(i, i + cols)] = 1.0;

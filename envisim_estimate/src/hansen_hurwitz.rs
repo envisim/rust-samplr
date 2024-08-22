@@ -19,7 +19,7 @@ use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 fn inclusions_check(inclusions: &[f64]) -> Result<(), InputError> {
     inclusions.iter().try_for_each(|&inc| {
         InputError::check_nan(inc)
-            .and(InputError::check_nonnegative(inc))
+            .and(InputError::check_range_f64(inc, 0.0, f64::INFINITY))
             .and(InputError::check_integer(inc))
     })
 }

@@ -13,13 +13,12 @@
 //! Pivotal method designs
 
 use crate::utils::Container;
-use envisim_utils::error::{InputError, SamplingError};
+pub use crate::SampleOptions;
+pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
-use envisim_utils::matrix::RefMatrix;
 use envisim_utils::utils::{random_element, sum, usize_to_f64};
 use rand::Rng;
 use rustc_hash::FxHashSet;
-use std::num::NonZeroUsize;
 
 type Pair = (usize, usize);
 
@@ -65,13 +64,15 @@ pub struct LocalPivotalMethod2<'a> {
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::spm;
+/// use envisim_samplr::pivotal_method::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
 ///
-/// assert_eq!(spm(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -80,23 +81,22 @@ pub struct LocalPivotalMethod2<'a> {
 /// Biometrika, 85(1), 89-101.
 /// <https://doi.org/10.1093/biomet/85.1.89>
 #[inline]
-pub fn spm<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    spm_new(rng, probabilities, eps).map(|mut s| s.sample().get_sorted_sample().to_vec())
+    spm_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn spm_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
+    options: &SampleOptions,
 ) -> Result<PivotalMethodSampler<'a, R, SequentialPivotalMethod>, SamplingError>
 where
     R: Rng + ?Sized,
 {
     Ok(PivotalMethodSampler {
-        container: Box::new(Container::new(rng, probabilities, eps)?),
+        container: Container::new_boxed(rng, options)?,
         variant: Box::new(SequentialPivotalMethod { pair: (0, 1) }),
     })
 }
@@ -106,13 +106,15 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::rpm;
+/// use envisim_samplr::pivotal_method::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
 ///
-/// assert_eq!(rpm(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -121,23 +123,22 @@ where
 /// Biometrika, 85(1), 89-101.
 /// <https://doi.org/10.1093/biomet/85.1.89>
 #[inline]
-pub fn rpm<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    rpm_new(rng, probabilities, eps).map(|mut s| s.sample().get_sorted_sample().to_vec())
+    rpm_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn rpm_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
+    options: &SampleOptions,
 ) -> Result<PivotalMethodSampler<'a, R, RandomPivotalMethod>, SamplingError>
 where
     R: Rng + ?Sized,
 {
     Ok(PivotalMethodSampler {
-        container: Box::new(Container::new(rng, probabilities, eps)?),
+        container: Container::new_boxed(rng, options)?,
         variant: Box::new(RandomPivotalMethod {}),
     })
 }
@@ -147,17 +148,18 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::lpm_1;
+/// use envisim_samplr::pivotal_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
-/// assert_eq!(lpm_1(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -166,36 +168,23 @@ where
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
 #[inline]
-pub fn lpm_1<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-) -> Result<Vec<usize>, SamplingError>
+pub fn lpm_1<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    lpm_1_new(rng, probabilities, eps, data, bucket_size)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    lpm_1_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn lpm_1_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod1<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(Searcher::new(&tree, 1)?);
 
     Ok(PivotalMethodSampler {
@@ -213,52 +202,40 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::lpm_1s;
+/// use envisim_samplr::pivotal_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1s)?;
 ///
-/// assert_eq!(lpm_1s(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
 /// Prentius, W. (2024). Manuscript.
 #[inline]
-pub fn lpm_1s<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-) -> Result<Vec<usize>, SamplingError>
+pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    lpm_1s_new(rng, probabilities, eps, data, bucket_size)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    lpm_1s_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn lpm_1s_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod1S<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(Searcher::new(&tree, 1)?);
     let remaining_units = container.indices().len();
 
@@ -278,17 +255,18 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::lpm_2;
+/// use envisim_samplr::pivotal_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
-/// assert_eq!(lpm_2(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -297,36 +275,23 @@ where
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
 #[inline]
-pub fn lpm_2<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-) -> Result<Vec<usize>, SamplingError>
+pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    lpm_2_new(rng, probabilities, eps, data, bucket_size)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    lpm_2_new(rng, options)?.sample_with_return()
 }
 #[inline]
-pub fn lpm_2_new<'a, R>(
+fn lpm_2_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod2<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(Searcher::new(&tree, 1)?);
 
     Ok(PivotalMethodSampler {
@@ -341,7 +306,11 @@ where
     T: PivotalMethodVariant<'a, R>,
 {
     #[inline]
-    pub fn sample(&mut self) -> &mut Self {
+    fn sample_with_return(&mut self) -> Result<Vec<usize>, SamplingError> {
+        Ok(self.sample().get_sorted_sample().to_vec())
+    }
+    #[inline]
+    fn sample(&mut self) -> &mut Self {
         while let Some(units) = self.variant.select_units(&mut self.container) {
             let rv = self.container.rng().gen::<f64>();
             self.update_probabilities(units, rv);
@@ -383,11 +352,11 @@ where
         self.variant.decide_unit(&mut self.container, id2);
     }
     #[inline]
-    pub fn get_sample(&mut self) -> &[usize] {
+    fn get_sample(&mut self) -> &[usize] {
         self.container.sample().get()
     }
     #[inline]
-    pub fn get_sorted_sample(&mut self) -> &[usize] {
+    fn get_sorted_sample(&mut self) -> &[usize] {
         self.container.sample_mut().sort().get()
     }
 }
@@ -628,15 +597,21 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::pivotal_method::hierarchical_lpm_2;
+/// use envisim_samplr::pivotal_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
-/// assert_eq!(hierarchical_lpm_2(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap(), &[3, 2]).unwrap().len(), 2);
+/// let mut options = SampleOptions::new(&p)?;
+/// options.auxiliaries(&m)?;
+/// let sizes = [3, 2];
+/// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
+///
+/// assert_eq!(s.len(), 2);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -645,32 +620,27 @@ where
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
 #[inline]
-pub fn hierarchical_lpm_2<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+pub fn hierarchical_lpm_2<R>(
+    rng: &mut R,
+    options: &SampleOptions,
     sizes: &[usize],
 ) -> Result<Vec<Vec<usize>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    {
-        let psum = sum(probabilities);
-        let sizesum = usize_to_f64(sizes.iter().sum());
-        if !(psum - eps..psum + eps).contains(&sizesum) {
-            return Err(SamplingError::from(InputError::NotInteger));
-        }
-    }
+    InputError::check_integer_approx_equal(
+        sum(options.probabilities),
+        usize_to_f64(sizes.iter().sum()),
+        options.eps,
+    )?;
     InputError::check_empty(sizes)?;
 
     if sizes.len() == 1 {
-        return Ok(vec![lpm_2(rng, probabilities, eps, data, bucket_size)?]);
+        return Ok(vec![lpm_2(rng, options)?]);
     }
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
-    let mut pm = lpm_2_new(rng, probabilities, eps, data, bucket_size)?;
+    let mut pm = lpm_2_new(rng, options)?;
 
     let mut main_sample: FxHashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
 
@@ -720,9 +690,9 @@ mod tests {
     use envisim_test_utils::*;
 
     #[test]
-    fn update_probabilities() {
+    fn update_probabilities() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
-        let mut pm = spm_new(&mut rng, &PROB_10_E, EPS).unwrap();
+        let mut pm = spm_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
         pm.update_probabilities((0, 1), 0.0);
         assert_delta!(pm.container.probabilities()[0], 0.0);
         assert_delta!(pm.container.probabilities()[1], 0.4);
@@ -733,5 +703,6 @@ mod tests {
         pm.update_probabilities((4, 1), 0.0);
         assert!(!pm.container.indices().contains(1));
         assert!(pm.container.sample().get().contains(&1));
+        Ok(())
     }
 }

@@ -13,12 +13,12 @@
 //! Correlated poisson designs
 
 use crate::utils::Container;
-use envisim_utils::error::{InputError, SamplingError};
+use crate::SampleOptions;
+use envisim_utils::error::SamplingError;
 use envisim_utils::kd_tree::{Node, SearcherWeighted};
-use envisim_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::matrix::OperateMatrix;
 use envisim_utils::utils::{random_element, usize_to_f64};
 use rand::Rng;
-use std::num::NonZeroUsize;
 
 pub trait CorrelatedPoissonVariant<'a, R>
 where
@@ -52,7 +52,7 @@ pub struct SequentialCorrelatedPoissonSampling {
 pub struct SpatiallyCorrelatedPoissonSampling<'a> {
     tree: Box<Node<'a>>,
     searcher: Box<SearcherWeighted>,
-    unit: usize, // Sequential also, usize::MAX
+    unit: Option<usize>, // Sequential also, usize::MAX
 }
 
 pub struct LocallyCorrelatedPoissonSampling<'a> {
@@ -65,42 +65,31 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::poisson::cps;
+/// use envisim_samplr::poisson::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
 ///
-/// assert_eq!(cps(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
-/// # References
-/// Bondesson, L., & Thorburn, D. (2008).
-/// A list sequential sampling method suitable for real‐time sampling.
-/// Scandinavian Journal of Statistics, 35(3), 466-483.
-/// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
-#[inline]
-pub fn cps<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    cps_new(rng, probabilities, eps, None).map(|mut s| s.sample().get_sorted_sample().to_vec())
-}
-/// Draw a sample using the (sequential) correlated poisson sampling method.
-/// A variant of the cps where unit competes in order.
+/// ## Coordination
 /// `random_values` are used in order to decide the inclusions of units, allowing for coordination
 /// between multiple sampling efforts.
-///
-/// # Examples
 /// ```
-/// use envisim_samplr::poisson::cps_coordinated;
+/// use envisim_samplr::poisson::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let rv: [f64; 10] = [0.2; 10];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let rv = [0.2; 10];
+/// let s = SampleOptions::new(&p)?.random_values(&rv)?.sample(&mut rng, cps)?;
 ///
-/// assert_eq!(cps_coordinated(&mut rng, &p, 1e-12, &rv).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -109,36 +98,24 @@ where
 /// Scandinavian Journal of Statistics, 35(3), 466-483.
 /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
 #[inline]
-pub fn cps_coordinated<R>(
-    rng: &mut R,
-    probabilities: &[f64],
-    eps: f64,
-    random_values: &[f64],
-) -> Result<Vec<usize>, SamplingError>
+pub fn cps<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    cps_new(rng, probabilities, eps, Some(random_values))
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    cps_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn cps_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    random_values: Option<&'a [f64]>,
+    options: &SampleOptions<'a>,
 ) -> Result<CorrelatedPoissonSampler<'a, R, SequentialCorrelatedPoissonSampling>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    if let Some(rvs) = random_values {
-        InputError::check_lengths(probabilities, rvs)?;
-    }
-
     Ok(CorrelatedPoissonSampler {
-        container: Box::new(Container::new(rng, probabilities, eps)?),
+        container: Container::new_boxed(rng, options)?,
         variant: Box::new(SequentialCorrelatedPoissonSampling { unit: 0 }),
-        random_values,
+        random_values: options.random_values,
     })
 }
 
@@ -147,57 +124,37 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::poisson::scps;
+/// use envisim_samplr::poisson::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, scps)?;
 ///
-/// assert_eq!(scps(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
-/// # References
-/// Grafström, A. (2012).
-/// Spatially correlated Poisson sampling.
-/// Journal of Statistical Planning and Inference, 142(1), 139-147.
-/// <https://doi.org/10.1016/j.jspi.2011.07.003>
-#[inline]
-pub fn scps<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    scps_new(rng, probabilities, eps, data, bucket_size, None)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
-}
-/// Draw a sample using the spatially correlated poisson sampling method.
-/// The sample is spatially balanced on the provided auxilliary variables in `data`.
+/// ## Coordination
 /// `random_values` are used in order to decide the inclusions of units, allowing for coordination
 /// between multiple sampling efforts.
-///
-/// # Examples
 /// ```
-/// use envisim_samplr::poisson::scps_coordinated;
+/// use envisim_samplr::poisson::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
-/// let rv: [f64; 10] = [0.2; 10];
+/// let rv = [0.2; 10];
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.random_values(&rv)?.sample(&mut rng, scps)?;
 ///
-/// assert_eq!(scps_coordinated(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap(), &rv).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -206,52 +163,23 @@ where
 /// Journal of Statistical Planning and Inference, 142(1), 139-147.
 /// <https://doi.org/10.1016/j.jspi.2011.07.003>
 #[inline]
-pub fn scps_coordinated<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-    random_values: &'a [f64],
-) -> Result<Vec<usize>, SamplingError>
+pub fn scps<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    scps_new(
-        rng,
-        probabilities,
-        eps,
-        data,
-        bucket_size,
-        Some(random_values),
-    )
-    .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    scps_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn scps_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-    random_values: Option<&'a [f64]>,
+    options: &SampleOptions<'a>,
 ) -> Result<CorrelatedPoissonSampler<'a, R, SpatiallyCorrelatedPoissonSampling<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let mut sequential = usize::MAX;
-
-    if let Some(rvs) = random_values {
-        InputError::check_lengths(probabilities, rvs)?;
-        sequential = 0;
-    }
-
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
     Ok(CorrelatedPoissonSampler {
@@ -259,7 +187,7 @@ where
         variant: Box::new(SpatiallyCorrelatedPoissonSampling {
             tree,
             searcher,
-            unit: sequential,
+            unit: options.random_values.and(Some(0)),
         }),
         random_values: None,
     })
@@ -270,17 +198,18 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::poisson::lcps;
+/// use envisim_samplr::poisson::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let m = RefMatrix::new(&dt, 10);
+/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lcps)?;
 ///
-/// assert_eq!(lcps(&mut rng, &p, 1e-12, &m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -289,36 +218,23 @@ where
 /// Environmetrics, 35(2), e2832.
 /// <https://doi.org/10.1002/env.2832>
 #[inline]
-pub fn lcps<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
-) -> Result<Vec<usize>, SamplingError>
+pub fn lcps<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    lcps_new(rng, probabilities, eps, data, bucket_size)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    lcps_new(rng, options)?.sample_with_return()
 }
 #[inline]
 fn lcps_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<CorrelatedPoissonSampler<'a, R, LocallyCorrelatedPoissonSampling<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(SearcherWeighted::new(&tree)?);
 
     Ok(CorrelatedPoissonSampler {
@@ -327,7 +243,7 @@ where
             scps: SpatiallyCorrelatedPoissonSampling {
                 tree,
                 searcher,
-                unit: usize::MAX,
+                unit: None,
             },
             candidates: Vec::<usize>::with_capacity(20),
         }),
@@ -357,7 +273,11 @@ where
         (probability, quota)
     }
     #[inline]
-    pub fn sample(&mut self) -> &mut Self {
+    fn sample_with_return(&mut self) -> Result<Vec<usize>, SamplingError> {
+        Ok(self.sample().get_sorted_sample().to_vec())
+    }
+    #[inline]
+    fn sample(&mut self) -> &mut Self {
         while let Some(id) = self.variant.select_unit(&mut self.container) {
             let rv: f64 = match self.random_values {
                 Some(list) => list[id],
@@ -372,11 +292,7 @@ where
         self
     }
     #[inline]
-    pub fn get_sample(&mut self) -> &[usize] {
-        self.container.sample().get()
-    }
-    #[inline]
-    pub fn get_sorted_sample(&mut self) -> &[usize] {
+    fn get_sorted_sample(&mut self) -> &[usize] {
         self.container.sample_mut().sort().get()
     }
 }
@@ -439,18 +355,21 @@ where
             return container.indices().first().cloned();
         }
 
-        // Random order
-        if self.unit == usize::MAX {
-            return container.indices_draw().cloned();
-        }
+        match self.unit.as_mut() {
+            Some(u) => {
+                // Sequential order
+                while *u < container.population_size() {
+                    if container.indices().contains(*u) {
+                        return Some(*u);
+                    }
 
-        // Sequential order
-        while self.unit < container.population_size() {
-            if container.indices().contains(self.unit) {
-                return Some(self.unit);
+                    *u += 1;
+                }
             }
-
-            self.unit += 1;
+            None => {
+                // Random order
+                return container.indices_draw().cloned();
+            }
         }
 
         unsafe { std::hint::unreachable_unchecked() };
@@ -600,15 +519,16 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
+    use envisim_utils::matrix::RefMatrix;
 
     #[test]
-    fn cps_sampler() {
+    fn cps_sampler() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
-        let prob = &PROB_10_E;
-        let mut cps = super::cps_new(&mut rng, prob, EPS, None).unwrap();
+        let mut cps = cps_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
         assert_eq!(cps.decide_selected(7, 0.0), (0.2, -0.8));
-        let mut cps = super::cps_new(&mut rng, prob, EPS, None).unwrap();
+        let mut cps = cps_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
         assert_eq!(cps.decide_selected(7, 1.0), (0.2, 0.2));
+        Ok(())
     }
 
     fn decide_and_update<'a, R, T>(
@@ -626,32 +546,28 @@ mod tests {
     }
 
     #[test]
-    fn cps_variant() {
+    fn cps_variant() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
 
-        let mut cps = cps_new(&mut rng, &PROB_10_E, EPS, None).unwrap();
+        let mut cps = cps_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
         decide_and_update(&mut cps, 0, 0.0);
         assert_fvec(&cps.container.probabilities().data()[1..=4], &vec![0.0; 4]);
 
-        let mut cps = cps_new(&mut rng, &PROB_10_E, EPS, None).unwrap();
+        let mut cps = cps_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
         decide_and_update(&mut cps, 0, 0.999);
         assert_fvec(&cps.container.probabilities().data()[1..=4], &vec![0.25; 4]);
+        Ok(())
     }
 
     #[test]
-    fn scps_variant() {
+    fn scps_variant() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
         let data = RefMatrix::new(&DATA_10_2, 10);
 
         let mut cps = scps_new(
             &mut rng,
-            &PROB_10_E,
-            EPS,
-            &data,
-            NonZeroUsize::new(2).unwrap(),
-            None,
-        )
-        .unwrap();
+            SampleOptions::new(&PROB_10_E)?.auxiliaries(&data)?,
+        )?;
         decide_and_update(&mut cps, 0, 0.0);
         assert_delta!(cps.container.probabilities()[1], 0.0);
         assert_delta!(cps.container.probabilities()[8], 0.0);
@@ -660,33 +576,25 @@ mod tests {
 
         let mut cps = scps_new(
             &mut rng,
-            &PROB_10_E,
-            EPS,
-            &data,
-            NonZeroUsize::new(2).unwrap(),
-            None,
-        )
-        .unwrap();
+            SampleOptions::new(&PROB_10_E)?.auxiliaries(&data)?,
+        )?;
         decide_and_update(&mut cps, 9, 1.0);
         assert_delta!(cps.container.probabilities()[4], 0.25);
         assert_delta!(cps.container.probabilities()[2], 0.25);
         assert_delta!(cps.container.probabilities()[0], 0.25);
         assert_delta!(cps.container.probabilities()[7], 0.25);
+        Ok(())
     }
 
     #[test]
-    fn lcps_variant() {
+    fn lcps_variant() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
         let data = RefMatrix::new(&DATA_10_2, 10);
 
         let mut cps = lcps_new(
             &mut rng,
-            &PROB_10_E,
-            EPS,
-            &data,
-            NonZeroUsize::new(2).unwrap(),
-        )
-        .unwrap();
+            SampleOptions::new(&PROB_10_E)?.auxiliaries(&data)?,
+        )?;
         assert_eq!(cps.variant.select_unit(&mut cps.container), Some(8));
         decide_and_update(&mut cps, 8, 0.0);
         assert_delta!(cps.container.probabilities()[3], 0.0, EPS);
@@ -696,16 +604,13 @@ mod tests {
 
         let mut cps = lcps_new(
             &mut rng,
-            &PROB_10_E,
-            EPS,
-            &data,
-            NonZeroUsize::new(2).unwrap(),
-        )
-        .unwrap();
+            SampleOptions::new(&PROB_10_E)?.auxiliaries(&data)?,
+        )?;
         decide_and_update(&mut cps, 8, 1.0);
         assert_delta!(cps.container.probabilities()[3], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[5], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[2], 0.25, EPS);
         assert_delta!(cps.container.probabilities()[1], 0.25, EPS);
+        Ok(())
     }
 }

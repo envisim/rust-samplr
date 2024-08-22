@@ -31,3 +31,6 @@ pub mod srs;
 pub mod systematic;
 pub mod unequal;
 mod utils;
+
+mod sample_options;
+pub use sample_options::{SampleOptions, Sampler};

@@ -10,6 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::SampleOptions;
 use envisim_utils::error::SamplingError;
 use envisim_utils::indices::Indices;
 use envisim_utils::probability::Probabilities;
@@ -65,23 +66,27 @@ where
     R: Rng + ?Sized,
 {
     #[inline]
-    pub fn new(rng: &'a mut R, probabilities: &[f64], eps: f64) -> Result<Self, SamplingError> {
-        let population_size = probabilities.len();
+    pub fn new(rng: &'a mut R, options: &SampleOptions) -> Result<Self, SamplingError> {
+        let population_size = options.probabilities.len();
 
         let mut container = Container {
             rng,
-            probabilities: Probabilities::with_values(probabilities)?,
+            probabilities: unsafe {
+                Probabilities::with_values_uncheked(options.probabilities, options.eps)
+            },
             indices: Indices::with_fill(population_size),
             sample: Sample::new(population_size),
         };
-
-        container.probabilities.eps = eps;
 
         for i in 0..population_size {
             container.decide_unit(i)?;
         }
 
         Ok(container)
+    }
+    #[inline]
+    pub fn new_boxed(rng: &'a mut R, options: &SampleOptions) -> Result<Box<Self>, SamplingError> {
+        Self::new(rng, options).map(Box::new)
     }
 
     #[inline]
@@ -161,16 +166,20 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
+    use envisim_utils::error::InputError;
 
     #[test]
-    fn decide_unit() {
+    fn decide_unit() -> Result<(), InputError> {
         let mut rng = seeded_rng();
-        let prob = &PROB_10_E;
-        let mut c = Container::new(&mut rng, prob, EPS).unwrap();
+        let options = SampleOptions::new(&PROB_10_E)?;
+
+        let mut c = Container::new(&mut rng, &options).unwrap();
         c.probabilities_mut()[0] = 1.0;
         c.probabilities_mut()[1] = 0.0;
         assert_eq!(c.decide_unit(0).unwrap(), Some(true));
         assert_eq!(c.decide_unit(1).unwrap(), Some(false));
         assert_eq!(c.decide_unit(2).unwrap(), None);
+
+        Ok(())
     }
 }

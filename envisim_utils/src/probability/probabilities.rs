@@ -26,10 +26,7 @@ impl Probabilities {
     /// Returns error if `value` is [`f64::NAN`] or outside the range `(0.0..=1.0)`.
     #[inline]
     pub fn new(length: usize, value: f64) -> Result<Self, InputError> {
-        if value.is_nan() || !(0.0..=1.0).contains(&value) {
-            return Err(InputError::InvalidProbability);
-        }
-
+        InputError::check_nan(value).and(InputError::check_range_f64(value, 0.0, 1.0))?;
         Ok(Self {
             eps: 0.0,
             probabilities: vec![value; length],
@@ -48,27 +45,30 @@ impl Probabilities {
         })
     }
 
+    /// # Safety
+    /// Does not check if the probabilities are valid probabilities
+    #[inline]
+    pub unsafe fn with_values_uncheked(values: &[f64], eps: f64) -> Self {
+        Self {
+            eps,
+            probabilities: values.to_vec(),
+        }
+    }
+
     /// Returns error if any value is [`f64::NAN`] or outside the range `(0.0..=1.0)`.
     #[inline]
     pub fn check(probabilities: &[f64]) -> Result<(), InputError> {
-        if probabilities
-            .iter()
-            .any(|p| p.is_nan() || !(0.0..=1.0).contains(p))
-        {
-            return Err(InputError::InvalidProbability);
-        }
-
-        Ok(())
+        probabilities.iter().try_for_each(|&p| {
+            InputError::check_nan(p).and(InputError::check_range_f64(p, 0.0, 1.0))
+        })
     }
 
     /// Returns error if the epsilon is outside the range (0.0..1.0)
     #[inline]
-    pub fn check_eps(eps: f64) -> Result<(), InputError> {
-        if eps.is_nan() || !(0.0..1.0).contains(&eps) {
-            return Err(InputError::InvalidEpsilon);
-        }
-
-        Ok(())
+    pub fn check_eps(eps: f64) -> Result<f64, InputError> {
+        InputError::check_range_f64(eps, 0.0, 1.0)
+            .and(InputError::check_valid_f64(eps, 1.0))
+            .map(|_| eps)
     }
 
     /// Returns a reference to the underlying list of probabilities.
