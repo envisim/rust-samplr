@@ -14,9 +14,9 @@
 
 use crate::utils::Container;
 pub use crate::SampleOptions;
-pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::utils::{random_element, sum, usize_to_f64};
+use envisim_utils::{InputError, SamplingError};
 use rand::Rng;
 use rustc_hash::FxHashSet;
 
@@ -72,7 +72,7 @@ pub struct LocalPivotalMethod2<'a> {
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -114,7 +114,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -149,17 +149,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -203,17 +202,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1s)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -256,17 +254,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -598,20 +595,19 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let mut options = SampleOptions::new(&p)?;
 /// options.auxiliaries(&m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::matrix::{OperateMatrix, RefMatrix};
+use crate::Matrix;
 
 // (unit, variable, value)
 #[derive(Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct Split {
     pub value: f64,
     pub leq: bool,
 }
-pub type FindSplit = fn(&[(f64, f64)], &RefMatrix, &mut [usize]) -> Option<Split>;
+pub type FindSplit = fn(&[(f64, f64)], &Matrix, &mut [usize]) -> Option<Split>;
 
 /// The midpoint slide splitting method.
 /// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have values
@@ -34,11 +34,7 @@ pub type FindSplit = fn(&[(f64, f64)], &RefMatrix, &mut [usize]) -> Option<Split
 /// Maneewongvatana, S., & Mount, D. M. (1999).
 /// It’s okay to be skinny, if your friends are fat.
 /// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
-pub fn midpoint_slide(
-    borders: &[(f64, f64)],
-    data: &RefMatrix,
-    units: &mut [usize],
-) -> Option<Split> {
+pub fn midpoint_slide(borders: &[(f64, f64)], data: &Matrix, units: &mut [usize]) -> Option<Split> {
     assert_eq!(data.ncol(), borders.len());
 
     if units.is_empty() {
@@ -99,7 +95,7 @@ pub fn midpoint_slide(
 /// - `left_max` is the largest value in the `0..split_unit` set
 /// - `right_min` is the smallest value in the `split_unit..` set
 #[inline]
-fn midpoint_slide_sort(data: &RefMatrix, units: &mut [usize], split: &mut Split) -> (f64, f64) {
+fn midpoint_slide_sort(data: &Matrix, units: &mut [usize], split: &mut Split) -> (f64, f64) {
     split.unit = 0;
     let mut right: usize = units.len();
     let mut left_max: f64 = f64::MIN;
@@ -137,14 +133,14 @@ mod tests {
     #[test]
     fn midpoint_slide() {
         let v = vec![0.0, 1.0, 2.0, 13.0];
-        let m = RefMatrix::new(&v, 4);
+        let m = Matrix::new(&v, 4);
         let split = super::midpoint_slide(&vec![(0.0, 13.0)], &m, &mut vec![0, 1, 2, 3]).unwrap();
         assert_eq!(split.unit, 3);
         assert_eq!(split.dimension, 0);
         assert_eq!(split.value, 6.5);
 
         let v = vec![0.0, 1.0, 2.0, 13.0, 0.0, 10.0, 20.0, 30.0];
-        let m = RefMatrix::new(&v, 4);
+        let m = Matrix::new(&v, 4);
         let split =
             super::midpoint_slide(&vec![(0.0, 13.0), (0.0, 30.0)], &m, &mut vec![0, 1, 2, 3])
                 .unwrap();
@@ -153,7 +149,7 @@ mod tests {
         assert_eq!(split.value, 15.0);
 
         let v = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-        let m = RefMatrix::new(&v, 3);
+        let m = Matrix::new(&v, 3);
         let split = super::midpoint_slide(&vec![(0.0, 0.0), (1.0, 1.0)], &m, &mut vec![0, 1, 2]);
         assert!(split.is_none());
     }

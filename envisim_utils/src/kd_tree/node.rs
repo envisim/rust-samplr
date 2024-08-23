@@ -12,20 +12,20 @@
 
 use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
-use crate::matrix::{OperateMatrix, RefMatrix};
+use crate::Matrix;
 use std::fmt;
 use std::num::NonZeroUsize;
 use thiserror::Error;
 
 pub struct TreeBuilder<'a> {
-    data: &'a RefMatrix<'a>,
+    data: &'a Matrix<'a>,
     bucket_size: NonZeroUsize,
     split_method: FindSplit,
 }
 
 impl<'a> TreeBuilder<'a> {
     #[inline]
-    pub fn new(data: &'a RefMatrix) -> TreeBuilder<'a> {
+    pub fn new(data: &'a Matrix) -> TreeBuilder<'a> {
         Self {
             data,
             bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
@@ -64,9 +64,9 @@ impl<'a> TreeBuilder<'a> {
     }
 }
 
-impl<'a> From<&'a RefMatrix<'a>> for TreeBuilder<'a> {
+impl<'a> From<&'a Matrix<'a>> for TreeBuilder<'a> {
     #[inline]
-    fn from(mat: &'a RefMatrix) -> Self {
+    fn from(mat: &'a Matrix) -> Self {
         TreeBuilder::new(mat)
     }
 }
@@ -123,11 +123,11 @@ pub struct Node<'a> {
     kind: NodeKind<'a>,
 
     // Common
-    data: &'a RefMatrix<'a>,
+    data: &'a Matrix<'a>,
 }
 
 impl<'a> Node<'a> {
-    fn borders(data: &'a RefMatrix, units: &[usize]) -> Vec<(f64, f64)> {
+    fn borders(data: &'a Matrix, units: &[usize]) -> Vec<(f64, f64)> {
         let mut b = Vec::<(f64, f64)>::with_capacity(data.ncol());
 
         for k in 0usize..data.ncol() {
@@ -186,7 +186,7 @@ impl<'a> Node<'a> {
     }
 
     #[inline]
-    fn new_leaf(data: &'a RefMatrix, units: &mut [usize]) -> Self {
+    fn new_leaf(data: &'a Matrix, units: &mut [usize]) -> Self {
         Node {
             kind: NodeKind::Leaf(Box::new(NodeLeaf {
                 units: units.to_vec(),
@@ -197,7 +197,7 @@ impl<'a> Node<'a> {
 
     /// Returns a reference to the data matrix
     #[inline]
-    pub fn data(&self) -> &RefMatrix {
+    pub fn data(&self) -> &Matrix {
         self.data
     }
 
@@ -317,13 +317,14 @@ impl fmt::Debug for NodeLeaf {
 mod tests {
     use super::*;
 
-    const DATA_4_2: [f64; 10] = [
-        0.0, 1.0, 2.0, 13.0, 14.0, //
-        0.0, 10.0, 20.0, 30.0, 40.0, //
-    ];
-
-    fn matrix_new<'a>() -> RefMatrix<'a> {
-        RefMatrix::new(&DATA_4_2, 5)
+    fn matrix_new<'a>() -> Matrix<'a> {
+        Matrix::new(
+            &[
+                0.0, 1.0, 2.0, 13.0, 14.0, //
+                0.0, 10.0, 20.0, 30.0, 40.0, //
+            ],
+            5,
+        )
     }
 
     #[test]

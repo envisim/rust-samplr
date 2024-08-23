@@ -9,7 +9,7 @@ name = 'samplr'
 
 [dependencies]
 extendr-api = '*'
-envisim_estimate = {version="0.1.0", path="../../../envisim_estimate"}
-envisim_samplr = {version="0.1.0", path="../../../"}
-envisim_utils = {version="0.1.0", path="../../../envisim_utils"}
+envisim_estimate = {version="0.1.0", path="../../../../envisim_estimate"}
+envisim_samplr = {version="0.1.0", path="../../../../"}
+envisim_utils = {version="0.1.0", path="../../../../envisim_utils"}
 rand = {version="0.8.5", features = ["small_rng"]}

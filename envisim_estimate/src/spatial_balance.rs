@@ -12,10 +12,9 @@
 
 //! Spatial balance measures
 
-pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Searcher, TreeBuilder};
-use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::usize_to_f64;
+pub use envisim_utils::{InputError, Matrix, SamplingError};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// Voronoi measure of spatial balance.
@@ -23,12 +22,11 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// # Examples
 /// ```
 /// use envisim_estimate::spatial_balance::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = voronoi(&s, &p, &TreeBuilder::new(&m))?;
@@ -85,12 +83,11 @@ pub fn voronoi(
 /// # Examples
 /// ```
 /// use envisim_estimate::spatial_balance::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// let sb = local(&s, &p, &TreeBuilder::new(&m))?;
@@ -125,7 +122,7 @@ pub fn local(
         FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     // The gram matrix
-    let mut norm_matrix = Matrix::new_fill(0.0, (cols, cols * 2));
+    let mut norm_matrix = Matrix::from_value(0.0, (cols, cols * 2));
 
     for i in 0..cols {
         norm_matrix[(i, i + cols)] = 1.0;
@@ -178,15 +175,15 @@ pub fn local(
     }
 
     norm_matrix.reduced_row_echelon_form();
-    let inv_matrix = RefMatrix::new(
+    let inv_matrix = Matrix::new(
         &norm_matrix.data()[norm_matrix.nrow().pow(2)..],
         norm_matrix.nrow(),
     );
 
     let result = voronoi_means.iter().fold(0.0, |acc, (_, vec)| {
-        acc + RefMatrix::new(vec, 1)
+        acc + Matrix::from_ref(vec, 1)
             .mult(&inv_matrix)
-            .mult(&RefMatrix::new(vec, cols))
+            .mult(&Matrix::from_ref(vec, cols))
             .data()[0]
     });
 

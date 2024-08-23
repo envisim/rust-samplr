@@ -27,10 +27,10 @@
 pub mod cube_method;
 pub mod pivotal_method;
 pub mod poisson;
+mod sample_options;
 pub mod srs;
 pub mod systematic;
 pub mod unequal;
 mod utils;
 
-mod sample_options;
 pub use sample_options::{SampleOptions, Sampler};

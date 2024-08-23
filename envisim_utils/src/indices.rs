@@ -38,7 +38,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     /// let il = Indices::new(10);
     /// ```
     #[inline]
@@ -53,7 +53,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     /// let il = Indices::with_fill(10);
     /// ```
     #[inline]
@@ -70,7 +70,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let mut il = Indices::with_fill(10);
     /// il.clear();
@@ -86,7 +86,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.list(), vec![0, 1, 2, 3]);
@@ -100,7 +100,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// let v: Vec<usize> = il.to_vec();
@@ -115,7 +115,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.get(3).unwrap(), &3);
@@ -130,7 +130,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.first().unwrap(), &0);
@@ -144,7 +144,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.last().unwrap(), &3);
@@ -158,7 +158,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     /// use rand::{rngs::SmallRng, SeedableRng};
     ///
     /// let il = Indices::with_fill(4);
@@ -179,7 +179,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert!(il.contains(3));
@@ -194,7 +194,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.contains(42));
@@ -219,7 +219,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.len(), 4);
@@ -232,7 +232,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.is_empty());
@@ -248,7 +248,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::Indices;
     ///
     /// let mut il = Indices::with_fill(4);
     /// assert!(il.contains(2));

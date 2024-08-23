@@ -1,9 +1,8 @@
-use envisim_samplr::pivotal_method::lpm_2;
-use envisim_utils::matrix::RefMatrix;
+use envisim_samplr::pivotal_method::{lpm_2, SampleOptions};
+use envisim_utils::Matrix;
 use extendr_api::prelude::*;
 use extendr_api::wrapper::matrix::RMatrix;
 use rand::{rngs::SmallRng, SeedableRng};
-use std::num::NonZeroUsize;
 
 #[extendr]
 fn rust_lpm_2(
@@ -14,10 +13,18 @@ fn rust_lpm_2(
     r_seed: u64,
 ) -> Vec<usize> {
     let mut rng = SmallRng::seed_from_u64(r_seed);
-    let data = RefMatrix::new(r_data.data(), r_data.nrows());
-    let bucket_size = NonZeroUsize::new(r_bucket_size).unwrap();
+    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
 
-    lpm_2(&mut rng, r_prob, r_eps, &data, bucket_size).unwrap()
+    SampleOptions::new(r_prob)
+        .unwrap()
+        .auxiliaries(&data)
+        .unwrap()
+        .try_bucket_size(r_bucket_size)
+        .unwrap()
+        .eps(r_eps)
+        .unwrap()
+        .sample(&mut rng, lpm_2)
+        .unwrap()
 }
 
 // Macro to generate exports.

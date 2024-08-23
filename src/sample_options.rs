@@ -1,7 +1,5 @@
-use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{midpoint_slide, FindSplit, Node, TreeBuilder};
-use envisim_utils::matrix::*;
-use envisim_utils::probability::Probabilities;
+use envisim_utils::{InputError, Matrix, Probabilities, SamplingError};
 use rand::Rng;
 use std::num::NonZeroUsize;
 
@@ -11,12 +9,12 @@ pub struct SampleOptions<'a> {
     pub(crate) eps: f64,
 
     // Spatially balanced sampling
-    pub(crate) auxiliaries: Option<&'a RefMatrix<'a>>,
+    pub(crate) auxiliaries: Option<&'a Matrix<'a>>,
     pub(crate) bucket_size: NonZeroUsize,
     pub(crate) split_method: FindSplit,
 
     // Balanced sampling
-    pub(crate) balancing: Option<&'a RefMatrix<'a>>,
+    pub(crate) balancing: Option<&'a Matrix<'a>>,
 
     // Coordinated
     pub(crate) random_values: Option<&'a [f64]>,
@@ -43,7 +41,7 @@ impl<'a> SampleOptions<'a> {
         Ok(self)
     }
     #[inline]
-    pub fn auxiliaries(&mut self, auxiliaries: &'a RefMatrix<'a>) -> Result<&mut Self, InputError> {
+    pub fn auxiliaries(&mut self, auxiliaries: &'a Matrix<'a>) -> Result<&mut Self, InputError> {
         InputError::check_sizes(auxiliaries.nrow(), self.probabilities.len())?;
         self.auxiliaries = Some(auxiliaries);
         Ok(self)
@@ -69,7 +67,7 @@ impl<'a> SampleOptions<'a> {
         Ok(self)
     }
     #[inline]
-    pub fn balancing(&mut self, balancing: &'a RefMatrix<'a>) -> Result<&mut Self, InputError> {
+    pub fn balancing(&mut self, balancing: &'a Matrix<'a>) -> Result<&mut Self, InputError> {
         InputError::check_sizes(balancing.nrow(), self.probabilities.len())?;
         self.balancing = Some(balancing);
         Ok(self)

@@ -1,2 +1,3 @@
 ^LICENSE$
 ^src/\.cargo$
+^src/rust/vendor$

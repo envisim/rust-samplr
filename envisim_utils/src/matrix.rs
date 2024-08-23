@@ -21,22 +21,124 @@ use std::slice::Iter;
 /// Matrix dimensions `(row, col)`
 type MatrixIndex = (usize, usize);
 
-pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
-    /// Returns the underlying data (stored in column major)
-    fn data(&self) -> &[f64];
+#[allow(clippy::exhaustive_enums)]
+pub enum MatrixData<'a> {
+    Mutable(Vec<f64>),
+    Reference(&'a [f64]),
+}
+
+pub struct Matrix<'a> {
+    data: MatrixData<'a>,
+    rows: usize,
+    cols: usize,
+}
+
+impl<'a> Matrix<'a> {
+    #[inline]
+    fn matrix_index(&self, (row, col): MatrixIndex) -> usize {
+        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
+        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
+        row + col * self.rows
+    }
+    // #[inline]
+    // unsafe fn matrix_index_unchecked(&self, (row, col): MatrixIndex) -> usize {
+    //     col * self.rows + row
+    // }
+    /// If the matrix is a reference matrix, this method clones the underlying data and transforms
+    /// self into a mutable matrix.
+    /// Calling the method on a mutable matrix is a noop.
+    #[inline]
+    pub fn to_mut(&mut self) -> &Self {
+        if let MatrixData::Reference(v) = self.data {
+            self.data = MatrixData::Mutable(v.to_vec());
+        }
+        self
+    }
+    /// Constructs a new mutable matrix, by copying the `data`.
+    #[inline]
+    pub fn new(data: &[f64], rows: usize) -> Self {
+        assert!(rows > 0);
+        assert!(data.len() % rows == 0);
+        let cols = data.len() / rows;
+        Self {
+            data: MatrixData::Mutable(data.to_vec()),
+            rows,
+            cols,
+        }
+    }
+    /// Constructs a new mutable matrix, by moving the `data`.
+    #[inline]
+    pub fn from_vec(data: Vec<f64>, rows: usize) -> Self {
+        assert!(rows > 0);
+        assert!(data.len() % rows == 0);
+        let cols = data.len() / rows;
+        Self {
+            data: MatrixData::Mutable(data),
+            rows,
+            cols,
+        }
+    }
+    /// Constructs a new mutable matrix, filled with `data`
+    #[inline]
+    pub fn from_value(data: f64, (rows, cols): MatrixIndex) -> Self {
+        assert!(rows > 0);
+        assert!(cols > 0);
+        Self {
+            data: MatrixData::Mutable(vec![data; rows * cols]),
+            rows,
+            cols,
+        }
+    }
+    /// Constructs a new reference matrix by `data`
+    #[inline]
+    pub fn from_ref(data: &'a [f64], rows: usize) -> Self {
+        assert!(rows > 0);
+        assert!(data.len() % rows == 0);
+        let cols = data.len() / rows;
+        Self {
+            data: MatrixData::Reference(data),
+            rows,
+            cols,
+        }
+    }
+    /// Returns the underlying data (stored in column major).
+    #[inline]
+    pub fn data(&self) -> &[f64] {
+        match self.data {
+            MatrixData::Mutable(ref v) => v.as_slice(),
+            MatrixData::Reference(v) => v,
+        }
+    }
+    /// Returns the underlying data (stored in column major).
+    /// If the matrix is a reference matrix, the matrix is transformed to a mutable matrix.
+    #[inline]
+    pub fn data_mut(&mut self) -> &mut [f64] {
+        match self.data {
+            MatrixData::Mutable(ref mut v) => return v.as_mut_slice(),
+            _ => {
+                self.to_mut();
+                return self.data_mut();
+            }
+        };
+    }
     /// Returns the number of rows in the matrix
-    fn nrow(&self) -> usize;
+    #[inline]
+    pub fn nrow(&self) -> usize {
+        self.rows
+    }
     /// Returns the number of columns in the matrix
-    fn ncol(&self) -> usize;
+    #[inline]
+    pub fn ncol(&self) -> usize {
+        self.cols
+    }
     /// Returns the dimensions of the matrix
     #[inline]
-    fn dim(&self) -> (usize, usize) {
-        (self.nrow(), self.ncol())
+    pub fn dim(&self) -> (usize, usize) {
+        (self.rows, self.cols)
     }
-
     /// Returns an iterator on the row
     #[inline]
-    fn row_iter(&self, row: usize) -> MatrixIterator {
+    pub fn row_iter(&self, row: usize) -> MatrixIterator {
         assert!(row < self.nrow());
         MatrixIterator {
             iter: self.data().iter().skip(row).step_by(self.nrow()),
@@ -48,7 +150,7 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
     /// Returns an iterator on the column
     #[allow(clippy::iter_skip_zero)]
     #[inline]
-    fn col_iter(&self, col: usize) -> MatrixIterator {
+    pub fn col_iter(&self, col: usize) -> MatrixIterator {
         assert!(col < self.ncol());
         MatrixIterator {
             iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
@@ -60,152 +162,39 @@ pub trait OperateMatrix: Index<MatrixIndex, Output = f64> {
             count: 0,
         }
     }
-
-    /// Returns the value at `(row, col)`, without doing bounds checking.
-    ///
-    /// # Safety
-    /// See [`slice.get_unchecked`]
+    /// Resizes the matrix, without guaranteeing the preservation of any data.
+    /// If the matrix is a reference matrix, the matrix is transformed to a mutable matrix.
     #[inline]
-    unsafe fn get_unchecked(&self, (row, col): MatrixIndex) -> &f64 {
-        self.data().get_unchecked(col * self.nrow() + row)
-    }
+    pub fn resize(&mut self, (rows, cols): MatrixIndex) -> &Self {
+        assert!(rows > 0 && cols > 0);
+        let new_size = rows * cols;
 
-    /// Returns the squared eculidean distance between the `row` and the slice `unit`
-    #[inline]
-    fn distance_to_row(&self, row: usize, unit: &[f64]) -> f64 {
-        assert!(unit.len() == self.ncol());
-        assert!(row < self.nrow());
-
-        self.data()
-            .iter()
-            .skip(row)
-            .step_by(self.nrow())
-            .zip(unit.iter())
-            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2))
-    }
-
-    /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand
-    /// is a vector.
-    #[inline]
-    fn prod_vec(&self, multiplicand: &[f64]) -> Vec<f64> {
-        assert!(multiplicand.len() == self.ncol());
-        let data = self.data();
-        let mut prod = vec![0.0; self.nrow()];
-        let mut index: usize = 0;
-
-        for &mul in multiplicand.iter() {
-            for pr in prod.iter_mut() {
-                *pr += mul * data[index];
-                index += 1;
+        match self.data {
+            MatrixData::Mutable(ref mut v) => {
+                v.resize(new_size, 0.0);
+            }
+            _ => {
+                self.to_mut();
+                return self.resize((rows, cols));
             }
         }
 
-        prod
-    }
-
-    /// Performes the calculation of matrices self * mat
-    fn mult<M>(&self, mat: &M) -> Matrix
-    where
-        M: OperateMatrix,
-    {
-        assert!(self.ncol() == mat.nrow());
-        let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
-
-        let mut index = 0usize;
-        for _ in 0..mat.ncol() {
-            prod.extend_from_slice(&self.prod_vec(&mat.data()[index..(index + mat.nrow())]));
-            index += mat.nrow();
-        }
-
-        Matrix::new(&prod, self.nrow())
-    }
-}
-
-pub struct MatrixIterator<'a> {
-    iter: StepBy<Skip<Iter<'a, f64>>>,
-    dim: MatrixIndex,
-    step: usize,
-    count: usize,
-}
-
-impl<'a> MatrixIterator<'a> {
-    #[inline]
-    pub fn dim(&self) -> MatrixIndex {
-        if self.step == 1 {
-            (self.dim.0, 1)
-        } else {
-            (1, self.dim.1)
-        }
-    }
-}
-
-impl<'a> Iterator for MatrixIterator<'a> {
-    type Item = &'a f64;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.count += 1;
-        self.iter.next()
-    }
-}
-
-impl<'a> ExactSizeIterator for MatrixIterator<'a> {
-    fn len(&self) -> usize {
-        if self.step == 1 {
-            self.dim.0 - self.count
-        } else {
-            self.dim.1 - self.count
-        }
-    }
-}
-
-pub struct Matrix {
-    data: Vec<f64>,
-    rows: usize,
-    cols: usize,
-}
-
-pub struct RefMatrix<'a> {
-    data: &'a [f64],
-    rows: usize,
-    cols: usize,
-}
-
-impl Matrix {
-    /// Constructs a new matrix, by copying the `data`
-    #[inline]
-    pub fn new(data: &[f64], rows: usize) -> Self {
-        assert!(rows > 0);
-        assert!(data.len() % rows == 0);
-        let cols = data.len() / rows;
-        Self {
-            data: data.to_vec(),
-            rows,
-            cols,
-        }
-    }
-
-    /// Constructs a new matrix, filled with `data`
-    pub fn new_fill(data: f64, (rows, cols): MatrixIndex) -> Self {
-        assert!(rows > 0);
-        assert!(cols > 0);
-        Self {
-            data: vec![data; rows * cols],
-            rows,
-            cols,
-        }
-    }
-
-    /// Resizes the matrix, without guaranteeing the preservation of any data
-    pub fn resize(&mut self, rows: usize, cols: usize) {
-        assert!(rows > 0 && cols > 0);
-        let new_size = rows * cols;
-        self.data.resize(new_size, 0.0);
         self.rows = rows;
         self.cols = cols;
+        self
     }
-
     /// Calculates the reduced row echelon form of the matrix, in place.
+    /// If the matrix is a reference matrix, the matrix is transformed to a mutable matrix.
     pub fn reduced_row_echelon_form(&mut self) {
+        let index = |midx: MatrixIndex| midx.0 + midx.1 * self.rows;
+        let data = match self.data {
+            MatrixData::Mutable(ref mut v) => v.as_mut_slice(),
+            _ => {
+                self.to_mut();
+                return self.reduced_row_echelon_form();
+            }
+        };
+
         let mut lead: usize = 0;
 
         for row in 0..self.rows {
@@ -215,7 +204,7 @@ impl Matrix {
 
             let mut i: usize = row;
 
-            while unsafe { *self.get_unchecked((i, lead)) == 0.0 } {
+            while unsafe { *data.get_unchecked(index((i, lead))) == 0.0 } {
                 i += 1;
 
                 if i == self.rows {
@@ -233,24 +222,24 @@ impl Matrix {
                 let mut index_i = i;
                 let mut index_row = row;
                 for _ in 0..self.cols {
-                    self.data.swap(index_i, index_row);
+                    data.swap(index_i, index_row);
                     index_i += self.rows;
                     index_row += self.rows;
                 }
             }
 
             // Divide ROW by lead, assuming all is 0 before lead
-            let mut index_row = row + lead * self.rows;
-            let lead_value = unsafe { *self.data.get_unchecked(index_row) };
+            let mut index_row = index((row, lead));
+            let lead_value = unsafe { *data.get_unchecked(index_row) };
             if lead_value != 1.0 {
                 unsafe {
-                    *self.data.get_unchecked_mut(index_row) = 1.0;
+                    *data.get_unchecked_mut(index_row) = 1.0;
                 }
                 index_row += self.rows;
 
                 for _ in (lead + 1)..self.cols {
                     unsafe {
-                        *self.data.get_unchecked_mut(index_row) /= lead_value;
+                        *data.get_unchecked_mut(index_row) /= lead_value;
                     }
                     index_row += self.rows;
                 }
@@ -262,21 +251,21 @@ impl Matrix {
                     continue;
                 }
 
-                let mut index_j = j + lead * self.rows;
-                let lead_multiplicator = unsafe { *self.data.get_unchecked(index_j) };
+                let mut index_j = index((j, lead));
+                let lead_multiplicator = unsafe { *data.get_unchecked(index_j) };
                 if lead_multiplicator == 0.0 {
                     continue;
                 }
                 unsafe {
-                    *self.data.get_unchecked_mut(index_j) = 0.0;
+                    *data.get_unchecked_mut(index_j) = 0.0;
                 }
                 index_j += self.rows;
-                let mut index_row = row + (lead + 1) * self.rows;
+                let mut index_row = index((row, lead + 1));
 
                 for _ in (lead + 1)..self.cols {
                     unsafe {
-                        *self.data.get_unchecked_mut(index_j) -=
-                            *self.data.get_unchecked(index_row) * lead_multiplicator;
+                        *data.get_unchecked_mut(index_j) -=
+                            *data.get_unchecked(index_row) * lead_multiplicator;
                     }
                     index_j += self.rows;
                     index_row += self.rows;
@@ -286,86 +275,118 @@ impl Matrix {
             lead += 1;
         }
     }
+    /// Returns the squared eculidean distance between the `row` and the slice `unit`
+    #[inline]
+    pub fn distance_to_row(&self, row: usize, unit: &[f64]) -> f64 {
+        assert!(unit.len() == self.ncol());
+        assert!(row < self.nrow());
+
+        self.row_iter(row)
+            .zip(unit.iter())
+            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2))
+    }
+    /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand
+    /// is a vector.
+    #[inline]
+    pub fn prod_vec(&self, multiplicand: &[f64]) -> Vec<f64> {
+        assert!(multiplicand.len() == self.ncol());
+        let data = self.data();
+        let mut prod = vec![0.0; self.nrow()];
+        let mut index: usize = 0;
+
+        for &mul in multiplicand.iter() {
+            for pr in prod.iter_mut() {
+                *pr += mul * data[index];
+                index += 1;
+            }
+        }
+
+        prod
+    }
+    /// Performes the calculation of matrices self * mat
+    #[inline]
+    pub fn mult(&self, mat: &Matrix) -> Matrix {
+        assert!(self.ncol() == mat.nrow());
+        let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
+
+        let mut index = 0usize;
+        for _ in 0..mat.ncol() {
+            prod.extend_from_slice(&self.prod_vec(&mat.data()[index..(index + mat.nrow())]));
+            index += mat.nrow();
+        }
+
+        Matrix::new(&prod, self.nrow())
+    }
 }
 
-impl<'a> RefMatrix<'a> {
-    #[inline]
-    pub fn new(data: &[f64], rows: usize) -> RefMatrix {
-        assert!(rows > 0);
-        assert!(data.len() % rows == 0);
-        let cols = data.len() / rows;
-        RefMatrix { data, rows, cols }
-    }
+impl<'a> Index<MatrixIndex> for Matrix<'a> {
+    type Output = f64;
 
     #[inline]
-    pub fn from_matrix(mat: &Matrix) -> RefMatrix {
-        assert!(mat.nrow() > 0);
-        assert!(mat.ncol() > 0);
-        RefMatrix {
-            data: mat.data(),
-            rows: mat.nrow(),
-            cols: mat.ncol(),
+    fn index(&self, midx: MatrixIndex) -> &f64 {
+        unsafe { self.data().get_unchecked(self.matrix_index(midx)) }
+    }
+}
+impl<'a> IndexMut<MatrixIndex> for Matrix<'a> {
+    #[inline]
+    fn index_mut(&mut self, midx: MatrixIndex) -> &mut f64 {
+        let idx = self.matrix_index(midx);
+        match self.data {
+            MatrixData::Mutable(ref mut v) => unsafe { v.get_unchecked_mut(idx) },
+            _ => {
+                self.to_mut();
+                return self.index_mut(midx);
+            }
+        }
+    }
+}
+impl<'a> Clone for Matrix<'a> {
+    #[inline]
+    fn clone(&self) -> Self {
+        let slice = match self.data {
+            MatrixData::Mutable(ref v) => v.as_slice(),
+            MatrixData::Reference(v) => v,
+        };
+
+        Self {
+            rows: self.rows,
+            cols: self.cols,
+            data: MatrixData::Mutable(slice.to_vec()),
         }
     }
 }
 
-impl Index<MatrixIndex> for Matrix {
-    type Output = f64;
-
+pub struct MatrixIterator<'a> {
+    iter: StepBy<Skip<Iter<'a, f64>>>,
+    dim: MatrixIndex,
+    step: usize,
+    count: usize,
+}
+impl<'a> MatrixIterator<'a> {
     #[inline]
-    fn index(&self, (row, col): MatrixIndex) -> &f64 {
-        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
-        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
-        unsafe { self.data.get_unchecked(col * self.rows + row) }
+    pub fn dim(&self) -> MatrixIndex {
+        if self.step == 1 {
+            (self.dim.0, 1)
+        } else {
+            (1, self.dim.1)
+        }
     }
 }
-
-impl IndexMut<MatrixIndex> for Matrix {
+impl<'a> Iterator for MatrixIterator<'a> {
+    type Item = &'a f64;
     #[inline]
-    fn index_mut(&mut self, (row, col): MatrixIndex) -> &mut f64 {
-        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
-        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
-        unsafe { self.data.get_unchecked_mut(col * self.rows + row) }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        self.iter.next()
     }
 }
-
-impl<'a> Index<MatrixIndex> for RefMatrix<'a> {
-    type Output = f64;
-
+impl<'a> ExactSizeIterator for MatrixIterator<'a> {
     #[inline]
-    fn index(&self, (row, col): MatrixIndex) -> &f64 {
-        assert!(col < self.cols, "col {} larger than max {}", col, self.cols);
-        assert!(row < self.rows, "row {} larger than max {}", row, self.rows);
-        unsafe { self.data.get_unchecked(col * self.rows + row) }
-    }
-}
-
-impl OperateMatrix for Matrix {
-    #[inline]
-    fn data(&self) -> &[f64] {
-        &self.data
-    }
-    #[inline]
-    fn nrow(&self) -> usize {
-        self.rows
-    }
-    #[inline]
-    fn ncol(&self) -> usize {
-        self.cols
-    }
-}
-
-impl<'a> OperateMatrix for RefMatrix<'a> {
-    #[inline]
-    fn data(&self) -> &[f64] {
-        self.data
-    }
-    #[inline]
-    fn nrow(&self) -> usize {
-        self.rows
-    }
-    #[inline]
-    fn ncol(&self) -> usize {
-        self.cols
+    fn len(&self) -> usize {
+        if self.step == 1 {
+            self.dim.0 - self.count
+        } else {
+            self.dim.1 - self.count
+        }
     }
 }

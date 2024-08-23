@@ -12,10 +12,9 @@
 
 //! Nearest neighbour estimator
 
-use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Searcher, TreeBuilder};
-use envisim_utils::matrix::OperateMatrix;
 use envisim_utils::utils::usize_to_f64;
+use envisim_utils::{InputError, SamplingError};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// Nearest neighbour estimator of total.
@@ -24,8 +23,6 @@ pub fn nearest_neighbour(
     y_values: &[f64],
     sample: &[usize],
     tree_builder: &TreeBuilder,
-    // auxilliaries: &RefMatrix,
-    // bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let tree = tree_builder.build(&mut sample.to_vec())?;
     let mut searcher = Searcher::new(&tree, 1)?;

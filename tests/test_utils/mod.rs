@@ -1,6 +1,6 @@
 use envisim_samplr::{SampleOptions, Sampler};
-use envisim_utils::error::SamplingError;
 use envisim_utils::utils::sum;
+pub use envisim_utils::SamplingError;
 use rand::Rng;
 
 #[allow(dead_code)]

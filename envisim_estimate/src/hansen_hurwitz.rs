@@ -12,8 +12,7 @@
 
 //! Hansen-Hurwitz estimators (multiple count estimators)
 
-use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::matrix::{OperateMatrix, RefMatrix};
+use envisim_utils::{InputError, Matrix, SamplingError};
 
 #[inline]
 fn inclusions_check(inclusions: &[f64]) -> Result<(), InputError> {
@@ -67,7 +66,7 @@ pub fn variance(
     y_values: &[f64],
     expected: &[f64],
     inclusions: &[f64],
-    expected_second_order: &RefMatrix,
+    expected_second_order: &Matrix,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
     InputError::check_lengths(y_values, expected)
