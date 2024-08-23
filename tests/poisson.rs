@@ -1,6 +1,6 @@
 use envisim_samplr::poisson::*;
 use envisim_test_utils::*;
-use envisim_utils::matrix::RefMatrix;
+use envisim_utils::Matrix;
 
 mod test_utils;
 use test_utils::*;
@@ -37,7 +37,7 @@ fn test_cps() -> Result<(), SamplingError> {
 fn test_scps() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
-    let data = RefMatrix::new(&DATA_10_2, 10);
+    let data = Matrix::from_ref(&DATA_10_2, 10);
     let mut opts = SampleOptions::new(p)?;
     opts.auxiliaries(&data)?;
 
@@ -48,7 +48,7 @@ fn test_scps() -> Result<(), SamplingError> {
 fn test_lcps() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
-    let data = RefMatrix::new(&DATA_10_2, 10);
+    let data = Matrix::from_ref(&DATA_10_2, 10);
     let mut opts = SampleOptions::new(p)?;
     opts.auxiliaries(&data)?;
 

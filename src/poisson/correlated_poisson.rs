@@ -14,10 +14,9 @@
 
 use crate::utils::Container;
 use crate::SampleOptions;
-use envisim_utils::error::SamplingError;
 use envisim_utils::kd_tree::{Node, SearcherWeighted};
-use envisim_utils::matrix::OperateMatrix;
 use envisim_utils::utils::{random_element, usize_to_f64};
+use envisim_utils::SamplingError;
 use rand::Rng;
 
 pub trait CorrelatedPoissonVariant<'a, R>
@@ -73,7 +72,7 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// ## Coordination
@@ -89,7 +88,7 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 /// let s = SampleOptions::new(&p)?.random_values(&rv)?.sample(&mut rng, cps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -125,17 +124,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::poisson::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// ## Coordination
@@ -143,18 +141,17 @@ where
 /// between multiple sampling efforts.
 /// ```
 /// use envisim_samplr::poisson::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let rv = [0.2; 10];
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.random_values(&rv)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -199,17 +196,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::poisson::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let m = RefMatrix::new(&dt, 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lcps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -519,7 +515,7 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
-    use envisim_utils::matrix::RefMatrix;
+    use envisim_utils::Matrix;
 
     #[test]
     fn cps_sampler() -> Result<(), SamplingError> {
@@ -562,7 +558,7 @@ mod tests {
     #[test]
     fn scps_variant() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
-        let data = RefMatrix::new(&DATA_10_2, 10);
+        let data = Matrix::from_ref(&DATA_10_2, 10);
 
         let mut cps = scps_new(
             &mut rng,
@@ -589,7 +585,7 @@ mod tests {
     #[test]
     fn lcps_variant() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
-        let data = RefMatrix::new(&DATA_10_2, 10);
+        let data = Matrix::from_ref(&DATA_10_2, 10);
 
         let mut cps = lcps_new(
             &mut rng,

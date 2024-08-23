@@ -14,10 +14,8 @@
 
 use crate::poisson;
 pub use crate::SampleOptions;
-pub use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::indices::Indices;
-use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
+use envisim_utils::{Indices, InputError, Probabilities, SamplingError};
 use rand::Rng;
 
 // Assumes probabilites sum to 1.0
@@ -55,7 +53,7 @@ where
 /// let s = with_replacement(&mut rng, &options, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 #[inline]
 pub fn with_replacement<R>(
@@ -129,7 +127,7 @@ where
 /// let s = sampford(&mut rng, &options, 1000)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 #[inline]
 pub fn sampford<R>(
@@ -195,7 +193,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, pareto)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -255,7 +253,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, brewer)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 #[inline]
 pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>

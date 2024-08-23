@@ -13,8 +13,7 @@
 //! Poisson method designs
 
 pub use crate::SampleOptions;
-pub use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::probability::Probabilities;
+pub use envisim_utils::{InputError, Probabilities, SamplingError};
 use rand::Rng;
 
 // Re-export
@@ -43,7 +42,7 @@ where
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
@@ -67,7 +66,7 @@ where
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let options = SampleOptions::new(&p)?;
 /// let s = conditional(&mut rng, &options, 5, 1000);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 pub fn conditional<R>(
     rng: &mut R,

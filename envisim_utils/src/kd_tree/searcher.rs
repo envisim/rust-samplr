@@ -11,8 +11,7 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::Node;
-use crate::matrix::{OperateMatrix, RefMatrix};
-use crate::probability::Probabilities;
+use crate::{Matrix, Probabilities};
 use std::cmp::Ordering;
 use thiserror::Error;
 
@@ -31,7 +30,7 @@ pub(super) trait TreeSearcher {
     fn unit(&self) -> &[f64];
     fn max_distance(&self) -> Option<f64>;
     fn is_satisfied(&self) -> bool;
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix);
+    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix);
 }
 
 /// A struct used for searching the nearest neighbour of a unit.
@@ -56,7 +55,7 @@ impl TreeSearcher for Searcher {
     fn is_satisfied(&self) -> bool {
         self.neighbours.len() >= self.n_neighbours
     }
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix) {
         if ids.is_empty() {
             return;
         }
@@ -167,7 +166,7 @@ impl Searcher {
         self.distances[idx] = distance;
     }
     #[inline]
-    fn assess_units_1(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units_1(&mut self, ids: &[usize], data: &Matrix) {
         let mut current_max = self.max_distance().unwrap_or(f64::INFINITY);
 
         ids.iter().for_each(|&id| {
@@ -187,7 +186,7 @@ impl Searcher {
         });
     }
     #[inline]
-    fn assess_units(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units(&mut self, ids: &[usize], data: &Matrix) {
         // The case of when the store isn't filled yet
         // node_max will store the max _added_ distance from the node
         let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
@@ -381,7 +380,7 @@ impl<'a> TreeSearcherWeighted<'a> {
         weight
     }
 
-    fn assess_units(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn assess_units(&mut self, ids: &[usize], data: &Matrix) {
         // The case of when the store isn't filled yet
         // node_max will store the max _added_ distance from the node
         let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
@@ -441,7 +440,7 @@ impl<'a> TreeSearcher for TreeSearcherWeighted<'a> {
     fn is_satisfied(&self) -> bool {
         self.total_weight >= 1.0
     }
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &RefMatrix) {
+    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix) {
         if ids.is_empty() {
             return;
         }

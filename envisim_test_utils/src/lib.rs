@@ -1,5 +1,4 @@
 use rand::{rngs::SmallRng, SeedableRng};
-use std::num::NonZeroUsize;
 
 #[macro_export]
 macro_rules! assert_delta {
@@ -67,8 +66,6 @@ pub const PROB_10_U: [f64; 10] = [
 ];
 
 pub const PROB_10_E: [f64; 10] = [0.2f64; 10];
-
-pub const NONZERO_2: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(2) };
 
 pub fn seeded_rng() -> SmallRng {
     SmallRng::seed_from_u64(4242)

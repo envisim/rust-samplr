@@ -12,11 +12,9 @@
 
 //! Horvitz-Thompson estimators (single count estimators)
 
-use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Searcher, TreeBuilder};
-use envisim_utils::matrix::{OperateMatrix, RefMatrix};
-use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
+use envisim_utils::{InputError, Matrix, Probabilities, SamplingError};
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -55,7 +53,7 @@ pub fn ratio(
 pub fn variance(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &RefMatrix,
+    probabilities_second_order: &Matrix,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
     InputError::check_lengths(y_values, probabilities)
@@ -89,7 +87,7 @@ pub fn variance(
 pub fn syg_variance(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &RefMatrix,
+    probabilities_second_order: &Matrix,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
     InputError::check_lengths(y_values, probabilities)

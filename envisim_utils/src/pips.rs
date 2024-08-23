@@ -12,9 +12,8 @@
 
 //! Functions for calculating probabilities proportional to size
 
-use super::Probabilities;
-use crate::error::InputError;
 use crate::utils::usize_to_f64;
+use crate::{InputError, Probabilities};
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.

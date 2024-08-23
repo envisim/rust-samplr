@@ -11,9 +11,7 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::SampleOptions;
-use envisim_utils::error::SamplingError;
-use envisim_utils::indices::Indices;
-use envisim_utils::probability::Probabilities;
+use envisim_utils::{Indices, Probabilities, SamplingError};
 use rand::Rng;
 
 pub struct Sample(Vec<usize>);
@@ -166,7 +164,7 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
-    use envisim_utils::error::InputError;
+    use envisim_utils::InputError;
 
     #[test]
     fn decide_unit() -> Result<(), InputError> {

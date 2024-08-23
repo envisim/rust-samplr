@@ -15,10 +15,9 @@
 use crate::srs;
 use crate::utils::Container;
 pub use crate::SampleOptions;
-pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher, TreeBuilder};
-use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::random_one_of_f64;
+use envisim_utils::{InputError, Matrix, SamplingError};
 use rand::Rng;
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
@@ -45,8 +44,8 @@ where
     container: Box<Container<'a, R>>,
     variant: Box<T>,
     candidates: Vec<usize>,
-    adjusted_data: Box<Matrix>,
-    candidate_data: Box<Matrix>,
+    adjusted_data: Box<Matrix<'a>>,
+    candidate_data: Box<Matrix<'a>>,
 }
 
 pub struct CubeMethod();
@@ -62,20 +61,19 @@ pub struct LocalCubeMethod<'a> {
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_dt = [
-///   0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
-///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ];
-/// let bal_m = RefMatrix::new(&bal_dt, 10);
+/// let bal_m = Matrix::from_vec(vec![
+///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+/// ], 10);
 /// let s = SampleOptions::new(&p)?.balancing(&bal_m)?.sample(&mut rng, cube)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -99,23 +97,22 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2; 10];
-/// let bal_dt = [
-///   0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
-///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ];
-/// let bal_m = RefMatrix::new(&bal_dt, 10);
+/// let bal_m = Matrix::from_vec(vec![
+///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+/// ], 10);
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
 /// let mut options = SampleOptions::new(&p)?;
 /// options.balancing(&bal_m)?;
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -148,11 +145,11 @@ where
             container,
             variant: Box::new(CubeMethod()),
             candidates: Vec::<usize>::with_capacity(20),
-            adjusted_data: Box::new(Matrix::new_fill(
+            adjusted_data: Box::new(Matrix::from_value(
                 0.0,
                 (balancing_data.nrow(), balancing_data.ncol() + 1),
             )),
-            candidate_data: Box::new(Matrix::new_fill(
+            candidate_data: Box::new(Matrix::from_value(
                 0.0,
                 (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
             )),
@@ -193,25 +190,23 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_dt = [
-///   0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
-///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ];
-/// let spr_dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let bal_m = RefMatrix::new(&bal_dt, 10);
-/// let spr_m = RefMatrix::new(&spr_dt, 10);
+/// let bal_m = Matrix::from_vec(vec![
+///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+/// ], 10);
+/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?
 ///     .balancing(&bal_m)?
 ///     .auxiliaries(&spr_m)?
 ///     .sample(&mut rng, local_cube)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -243,25 +238,23 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::matrix::RefMatrix;
+/// use envisim_utils::Matrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2; 10];
-/// let bal_dt = [
-///   0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
-///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ];
-/// let spr_dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-/// let bal_m = RefMatrix::new(&bal_dt, 10);
-/// let spr_m = RefMatrix::new(&spr_dt, 10);
+/// let bal_m = Matrix::from_vec(vec![
+///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+/// ], 10);
+/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
 /// let mut options = SampleOptions::new(&p)?;
 /// options.balancing(&bal_m)?.auxiliaries(&spr_m)?;
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_utils::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -303,11 +296,11 @@ where
             container,
             variant: Box::new(LocalCubeMethod { tree, searcher }),
             candidates: Vec::<usize>::with_capacity(20),
-            adjusted_data: Box::new(Matrix::new_fill(
+            adjusted_data: Box::new(Matrix::from_value(
                 0.0,
                 (balancing_data.nrow(), balancing_data.ncol() + 1),
             )),
-            candidate_data: Box::new(Matrix::new_fill(
+            candidate_data: Box::new(Matrix::from_value(
                 0.0,
                 (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
             )),
@@ -355,7 +348,7 @@ where
     fn new(
         container: Box<Container<'a, R>>,
         variant: Box<T>,
-        balancing_data: &'a RefMatrix,
+        balancing_data: &'a Matrix,
     ) -> Result<Self, SamplingError> {
         let (b_nrow, b_ncol) = balancing_data.dim();
         InputError::check_sizes(b_nrow, container.population_size())?;
@@ -373,7 +366,7 @@ where
             variant,
             candidates: Vec::<usize>::with_capacity(20),
             adjusted_data,
-            candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
+            candidate_data: Box::new(Matrix::from_value(0.0, (b_ncol, b_ncol + 1))),
         })
     }
     #[inline]
@@ -408,7 +401,7 @@ where
         while self.container.indices().len() > 1 {
             let number_of_remaining_units = self.container.indices().len();
             self.candidate_data
-                .resize(number_of_remaining_units - 1, number_of_remaining_units);
+                .resize((number_of_remaining_units - 1, number_of_remaining_units));
 
             self.candidates.clear();
             self.candidates
@@ -575,7 +568,7 @@ where
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        data: Option<(&'a RefMatrix, NonZeroUsize)>,
+        data: Option<(&'a Matrix, NonZeroUsize)>,
         n_neighbours: usize,
     );
 }
@@ -588,9 +581,9 @@ where
     cube: CubeMethodSampler<'a, R, T>,
     strata: HashMap<i64, Vec<usize>, FxSeededState>,
     probabilities: &'a [f64],
-    balancing_data: &'a RefMatrix<'a>,
+    balancing_data: &'a Matrix<'a>,
     strata_vec: &'a [i64],
-    data: Option<(&'a RefMatrix<'a>, NonZeroUsize)>,
+    data: Option<(&'a Matrix<'a>, NonZeroUsize)>,
 }
 
 impl<'a, R> CubeStratifier<'a, R> for CubeMethod
@@ -602,7 +595,7 @@ where
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        _data: Option<(&'a RefMatrix, NonZeroUsize)>,
+        _data: Option<(&'a Matrix, NonZeroUsize)>,
         _n_neighbours: usize,
     ) {
         container.indices_mut().clear();
@@ -621,7 +614,7 @@ where
         &mut self,
         container: &mut Container<R>,
         ids: &mut [usize],
-        data: Option<(&'a RefMatrix, NonZeroUsize)>,
+        data: Option<(&'a Matrix, NonZeroUsize)>,
         n_neighbours: usize,
     ) {
         assert!(data.is_some());
@@ -722,14 +715,14 @@ where
     }
     #[inline]
     fn flight_on_full(&mut self) {
-        self.cube.adjusted_data.resize(
+        self.cube.adjusted_data.resize((
             self.balancing_data.nrow(),
             self.balancing_data.ncol() + self.strata.len(),
-        );
-        self.cube.candidate_data.resize(
+        ));
+        self.cube.candidate_data.resize((
             self.cube.adjusted_data.ncol(),
             self.cube.adjusted_data.ncol() + 1,
-        );
+        ));
 
         let mut all_units = Vec::<usize>::new();
 
@@ -769,11 +762,11 @@ where
     fn landing_per_stratum(&mut self) {
         self.cube
             .adjusted_data
-            .resize(self.balancing_data.nrow(), self.balancing_data.ncol() + 1);
-        self.cube.candidate_data.resize(
+            .resize((self.balancing_data.nrow(), self.balancing_data.ncol() + 1));
+        self.cube.candidate_data.resize((
             self.cube.adjusted_data.ncol(),
             self.cube.adjusted_data.ncol() + 1,
-        );
+        ));
 
         for (_key, stratum) in self.strata.iter_mut() {
             for &id in stratum.iter() {

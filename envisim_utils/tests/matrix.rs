@@ -1,13 +1,13 @@
 use envisim_test_utils::*;
-use envisim_utils::matrix::*;
+use envisim_utils::Matrix;
 
 const DATA_4_2: [f64; 8] = [
     0.0, 1.0, 2.0, 3.0, //
     10.0, 11.0, 12.0, 13.0, //
 ];
 
-fn matrix_new<'a>() -> (Matrix, RefMatrix<'a>) {
-    (Matrix::new(&DATA_4_2, 4), RefMatrix::new(&DATA_4_2, 4))
+fn matrix_new<'a>() -> (Matrix<'a>, Matrix<'a>) {
+    (Matrix::new(&DATA_4_2, 4), Matrix::from_ref(&DATA_4_2, 4))
 }
 
 #[test]
@@ -39,9 +39,6 @@ fn operate_matrix() {
         rm.col_iter(1).cloned().collect::<Vec<f64>>(),
         vec![10.0, 11.0, 12.0, 13.0]
     );
-
-    assert_eq!(unsafe { mm.get_unchecked((0, 0)) }, &0.0);
-    assert_eq!(unsafe { rm.get_unchecked((1, 1)) }, &11.0);
 }
 
 #[test]
@@ -67,17 +64,19 @@ fn prod_vec() {
 #[test]
 fn mult() {
     let (mm, rm) = matrix_new();
-    let one_mat = Matrix::new_fill(1.0, (2, 4));
-    let two_mat = Matrix::new_fill(2.0, (2, 4));
+    let one_mat = Matrix::from_value(1.0, (2, 4));
+    let two_mat = Matrix::from_value(2.0, (2, 4));
     assert_eq!(one_mat.mult(&mm).data(), vec![6.0, 6.0, 46.0, 46.0]);
     assert_eq!(two_mat.mult(&rm).data(), vec![12.0, 12.0, 92.0, 92.0]);
 }
 
 #[test]
 fn resize() {
-    let (mut mm, _) = matrix_new();
-    mm.resize(2, 2);
+    let (mut mm, mut rm) = matrix_new();
+    mm.resize((2, 2));
+    rm.resize((2, 2));
     assert_eq!(mm.dim(), (2, 2));
+    assert_eq!(rm.dim(), (2, 2));
 }
 
 #[test]

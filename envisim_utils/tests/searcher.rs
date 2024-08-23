@@ -1,13 +1,15 @@
 use envisim_test_utils::*;
 use envisim_utils::kd_tree::*;
+use envisim_utils::{Matrix, Probabilities};
 
-const DATA_4_2: [f64; 10] = [
-    0.0, 1.0, 2.0, 13.0, 14.0, //
-    0.0, 10.0, 20.0, 30.0, 40.0, //
-];
-
-fn matrix_new<'a>() -> envisim_utils::matrix::RefMatrix<'a> {
-    envisim_utils::matrix::RefMatrix::new(&DATA_4_2, 5)
+fn matrix_new<'a>() -> Matrix<'a> {
+    Matrix::new(
+        &[
+            0.0, 1.0, 2.0, 13.0, 14.0, //
+            0.0, 10.0, 20.0, 30.0, 40.0, //
+        ],
+        5,
+    )
 }
 
 #[test]
@@ -37,7 +39,7 @@ fn searcher_weighted() -> Result<(), NodeError> {
     let t = TreeBuilder::new(&m)
         .try_bucket_size(2)?
         .build(&mut [0, 1, 2, 3, 4])?;
-    let p = envisim_utils::probability::Probabilities::new(5, 0.25).unwrap();
+    let p = Probabilities::new(5, 0.25).unwrap();
 
     let mut s = SearcherWeighted::new(&t).unwrap();
     s.find_neighbours(&t, &p, &vec![5.0, 5.0], 0.5).unwrap();

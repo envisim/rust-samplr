@@ -16,9 +16,15 @@
 //! - [`envisim_estimate`]
 //! - [`envisim_samplr`]
 
-pub mod error;
-pub mod indices;
+mod error;
+mod indices;
 pub mod kd_tree;
-pub mod matrix;
-pub mod probability;
+mod matrix;
+pub mod pips;
+mod probabilities;
 pub mod utils;
+
+pub use error::{InputError, SamplingError};
+pub use indices::Indices;
+pub use matrix::Matrix;
+pub use probabilities::Probabilities;
