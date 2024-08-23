@@ -12,7 +12,8 @@
 
 //! Systematic sampling designs
 
-use envisim_utils::error::SamplingError;
+pub use crate::SampleOptions;
+pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::probability::Probabilities;
 use rand::Rng;
 
@@ -20,17 +21,22 @@ use rand::Rng;
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::systematic::sample;
+/// use envisim_samplr::systematic::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// assert_eq!(sample(&mut rng, &p).unwrap().len(), 5);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
-pub fn sample<R>(rng: &mut R, probabilities: &[f64]) -> Result<Vec<usize>, SamplingError>
+pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
     let order: Vec<usize> = (0usize..probabilities.len()).collect();
     from_order(rng.gen(), probabilities, &order)
 }
@@ -39,20 +45,25 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::systematic::sample_random_order;
+/// use envisim_samplr::systematic::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// assert_eq!(sample_random_order(&mut rng, &p).unwrap().len(), 5);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, sample_random_order)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample_random_order<R>(
     rng: &mut R,
-    probabilities: &[f64],
+    options: &SampleOptions,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
     let order = shuffle(rng, probabilities.len());
     from_order(rng.gen(), probabilities, &order)
 }

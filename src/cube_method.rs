@@ -14,8 +14,9 @@
 
 use crate::srs;
 use crate::utils::Container;
-use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::kd_tree::{Node, Searcher};
+pub use crate::SampleOptions;
+pub use envisim_utils::error::{InputError, SamplingError};
+use envisim_utils::kd_tree::{Node, Searcher, TreeBuilder};
 use envisim_utils::matrix::{Matrix, OperateMatrix, RefMatrix};
 use envisim_utils::utils::random_one_of_f64;
 use rand::Rng;
@@ -55,24 +56,26 @@ pub struct LocalCubeMethod<'a> {
 }
 
 /// Draw a sample using the cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing_data`.
+/// The sample is balanced on the provided auxilliary variables in `balancing`.
 /// For fixed sized samples, the first auxilliary variable should be the probability vector.
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::cube;
+/// use envisim_samplr::cube_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_dt: [f64; 20] = [
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let bal_dt = [
 ///   0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
 ///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ];
 /// let bal_m = RefMatrix::new(&bal_dt, 10);
+/// let s = SampleOptions::new(&p)?.balancing(&bal_m)?.sample(&mut rng, cube)?;
 ///
-/// assert_eq!(cube(&mut rng, &p, 1e-12, &bal_m).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -81,40 +84,38 @@ pub struct LocalCubeMethod<'a> {
 /// Biometrika, 91(4), 893-912.
 /// <https://doi.org/10.1093/biomet/91.4.893>
 #[inline]
-pub fn cube<'a, R>(
-    rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
-) -> Result<Vec<usize>, SamplingError>
+pub fn cube<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    cube_new(rng, probabilities, eps, balancing_data)
-        .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    cube_new(rng, options)?.sample_with_return()
 }
 
 /// Draw a sample using the stratified cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing_data`.
+/// The sample is balanced on the provided auxilliary variables in `balancing`.
 /// The first auxilliary variable should not be the probability vector.
 /// For fixed sized samples, the probabilities in each strata must be integer.
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::cube_stratified;
+/// use envisim_samplr::cube_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2; 10];
-/// let bal_dt: [f64; 20] = [
+/// let p = [0.2; 10];
+/// let bal_dt = [
 ///   0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ];
 /// let bal_m = RefMatrix::new(&bal_dt, 10);
-/// let strata: [i64; 10] = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+/// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+/// let mut options = SampleOptions::new(&p)?;
+/// options.balancing(&bal_m)?;
+/// let s = cube_stratified(&mut rng, &options, &strata)?;
 ///
-/// assert_eq!(cube_stratified(&mut rng, &p, 1e-12, &bal_m, &strata).unwrap().len(), 2);
+/// assert_eq!(s.len(), 2);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -129,16 +130,18 @@ where
 #[inline]
 pub fn cube_stratified<'a, R>(
     rng: &'a mut R,
-    probabilities: &'a [f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
+    options: &SampleOptions<'a>,
     strata: &'a [i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    options.check_balanced()?;
+    let balancing_data = options.balancing.unwrap();
+    let probabilities = options.probabilities;
+
     let seed = rng.gen::<usize>();
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
+    let container = Container::new_boxed(rng, options)?;
 
     let mut cs = CubeStratified {
         cube: CubeMethodSampler {
@@ -169,43 +172,46 @@ where
 #[inline]
 fn cube_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
+    options: &SampleOptions<'a>,
 ) -> Result<CubeMethodSampler<'a, R, CubeMethod>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    options.check_balanced()?;
     CubeMethodSampler::new(
-        Box::new(Container::new(rng, probabilities, eps)?),
+        Container::new_boxed(rng, options)?,
         Box::new(CubeMethod()),
-        balancing_data,
+        options.balancing.unwrap(),
     )
 }
 
 /// Draw a sample using the local cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing_data`.
-/// the sample is spatially balanced on the provided auxilliary variables in `spreading_data`.
+/// The sample is balanced on the provided auxilliary variables in `balancing`.
+/// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
 /// For fixed sized samples, the first auxilliary variable should be the probability vector.
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::local_cube;
+/// use envisim_samplr::cube_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_dt: [f64; 20] = [
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let bal_dt = [
 ///   0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
 ///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ];
-/// let spr_dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let spr_dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let bal_m = RefMatrix::new(&bal_dt, 10);
 /// let spr_m = RefMatrix::new(&spr_dt, 10);
+/// let s = SampleOptions::new(&p)?
+///     .balancing(&bal_m)?
+///     .auxiliaries(&spr_m)?
+///     .sample(&mut rng, local_cube)?;
 ///
-/// assert_eq!(local_cube(&mut rng, &p, 1e-12, &bal_m, &spr_m, NonZeroUsize::new(2).unwrap()).unwrap().len(), 5);
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -221,50 +227,41 @@ where
 #[inline]
 pub fn local_cube<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
-    spreading_data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    local_cube_new(
-        rng,
-        probabilities,
-        eps,
-        balancing_data,
-        spreading_data,
-        bucket_size,
-    )
-    .map(|mut s| s.sample().get_sorted_sample().to_vec())
+    local_cube_new(rng, options)?.sample_with_return()
 }
 /// Draw a sample using the stratified local cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing_data`.
-/// the sample is spatially balanced on the provided auxilliary variables in `spreading_data`.
+/// The sample is balanced on the provided auxilliary variables in `balancing`.
+/// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
 /// The first auxilliary variable should not be the probability vector.
 /// For fixed sized samples, the probabilities in each strata must be integer.
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::local_cube_stratified;
+/// use envisim_samplr::cube_method::*;
 /// use envisim_utils::matrix::RefMatrix;
 /// use rand::{rngs::SmallRng, SeedableRng};
-/// use std::num::NonZeroUsize;
 ///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2; 10];
-/// let bal_dt: [f64; 20] = [
+/// let p = [0.2; 10];
+/// let bal_dt = [
 ///   0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///   0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ];
-/// let spr_dt: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+/// let spr_dt = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 /// let bal_m = RefMatrix::new(&bal_dt, 10);
 /// let spr_m = RefMatrix::new(&spr_dt, 10);
-/// let strata: [i64; 10] = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+/// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+/// let mut options = SampleOptions::new(&p)?;
+/// options.balancing(&bal_m)?.auxiliaries(&spr_m)?;
+/// let s = local_cube_stratified(&mut rng, &options, &strata)?;
 ///
-/// assert_eq!(local_cube_stratified(&mut rng, &p, 1e-12, &bal_m, &spr_m, NonZeroUsize::new(2).unwrap(), &strata).unwrap().len(), 2);
+/// assert_eq!(s.len(), 2);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -284,23 +281,21 @@ where
 #[inline]
 pub fn local_cube_stratified<'a, R>(
     rng: &'a mut R,
-    probabilities: &'a [f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
-    spreading_data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
     strata: &'a [i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    options.check_spatially_balanced()?;
+    options.check_balanced()?;
+    let balancing_data = options.balancing.unwrap();
+    let spreading_data = options.auxiliaries.unwrap();
+    let probabilities = options.probabilities;
+
     let seed = rng.gen::<usize>();
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        spreading_data,
-        &mut container.indices().to_vec(),
-    )?);
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol() + 1)?);
 
     let mut cs = CubeStratified {
@@ -324,7 +319,7 @@ where
         probabilities,
         balancing_data,
         strata_vec: strata,
-        data: Some((spreading_data, bucket_size)),
+        data: Some((spreading_data, options.bucket_size)),
     };
 
     cs.prepare().map(|s| s.sample())
@@ -332,21 +327,16 @@ where
 #[inline]
 pub fn local_cube_new<'a, R>(
     rng: &'a mut R,
-    probabilities: &[f64],
-    eps: f64,
-    balancing_data: &'a RefMatrix,
-    spreading_data: &'a RefMatrix,
-    bucket_size: NonZeroUsize,
+    options: &SampleOptions<'a>,
 ) -> Result<CubeMethodSampler<'a, R, LocalCubeMethod<'a>>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    let container = Box::new(Container::new(rng, probabilities, eps)?);
-    let tree = Box::new(Node::with_midpoint_slide(
-        bucket_size,
-        spreading_data,
-        &mut container.indices().to_vec(),
-    )?);
+    options.check_spatially_balanced()?;
+    options.check_balanced()?;
+    let balancing_data = options.balancing.unwrap();
+    let container = Container::new_boxed(rng, options)?;
+    let tree = options.build_node(&mut container.indices().to_vec())?;
     let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol())?);
 
     CubeMethodSampler::new(
@@ -385,6 +375,10 @@ where
             adjusted_data,
             candidate_data: Box::new(Matrix::new_fill(0.0, (b_ncol, b_ncol + 1))),
         })
+    }
+    #[inline]
+    fn sample_with_return(&mut self) -> Result<Vec<usize>, SamplingError> {
+        Ok(self.sample().get_sorted_sample().to_vec())
     }
     #[inline]
     pub fn sample(&mut self) -> &mut Self {
@@ -634,8 +628,13 @@ where
         self.searcher.set_n_neighbours(n_neighbours).unwrap();
 
         container.indices_mut().clear();
-        self.tree =
-            Box::new(Node::with_midpoint_slide(data.unwrap().1, data.unwrap().0, ids).unwrap());
+        self.tree = Box::new(
+            TreeBuilder::new(data.unwrap().0)
+                .bucket_size(data.unwrap().1)
+                .unwrap()
+                .build(ids)
+                .unwrap(),
+        );
 
         for id in ids.iter() {
             container.indices_mut().insert(*id).unwrap();

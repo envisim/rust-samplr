@@ -13,11 +13,10 @@
 //! Horvitz-Thompson estimators (single count estimators)
 
 use envisim_utils::error::{InputError, SamplingError};
-use envisim_utils::kd_tree::{Node, Searcher};
+use envisim_utils::kd_tree::{Searcher, TreeBuilder};
 use envisim_utils::matrix::{OperateMatrix, RefMatrix};
 use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
-use std::num::NonZeroUsize;
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -48,7 +47,7 @@ pub fn ratio(
     probabilities: &[f64],
     x_total: f64,
 ) -> Result<f64, SamplingError> {
-    InputError::check_nonnegative(x_total)?;
+    InputError::check_range_f64(x_total, 0.0, f64::INFINITY)?;
     Ok(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
 }
 
@@ -157,11 +156,14 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, 
 pub fn local_mean_variance(
     y_values: &[f64],
     probabilities: &[f64],
-    auxilliaries: &RefMatrix,
+    tree_builder: &TreeBuilder,
     n_neighbours: usize,
-    bucket_size: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
+    let tree = tree_builder.build(&mut (0..sample_size).collect::<Vec<usize>>())?;
+    let mut searcher = Searcher::new(&tree, n_neighbours)?;
+    let auxilliaries = tree.data();
+
     InputError::check_lengths(y_values, probabilities)
         .and(InputError::check_sizes(sample_size, auxilliaries.nrow()))
         .and(Probabilities::check(probabilities))?;
@@ -171,12 +173,6 @@ pub fn local_mean_variance(
             "n_neighbours must be > 1".to_string(),
         )));
     }
-
-    let tree = {
-        let mut units: Vec<usize> = (0..sample_size).collect();
-        Node::with_midpoint_slide(bucket_size, auxilliaries, &mut units)?
-    };
-    let mut searcher = Searcher::new(&tree, n_neighbours)?;
 
     let yp: Vec<f64> = y_values
         .iter()

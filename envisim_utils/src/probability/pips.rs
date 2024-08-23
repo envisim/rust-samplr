@@ -27,9 +27,8 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
     let mut sum: f64 = 0.0;
 
     for &x in arr {
-        if x <= 0.0 {
-            return Err(InputError::NonpositiveValue);
-        }
+        InputError::check_range_f64(x, 0.0, f64::INFINITY)
+            .and(InputError::check_valid_f64(x, 0.0))?;
         sum += x;
     }
 
@@ -50,9 +49,9 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<Probabilities,
         return Probabilities::new(arr.len(), 1.0);
     }
 
-    if arr.iter().any(|&x| x <= 0.0) {
-        return Err(InputError::NonpositiveValue);
-    }
+    arr.iter().try_for_each(|&x| {
+        InputError::check_range_f64(x, 0.0, f64::INFINITY).and(InputError::check_valid_f64(x, 0.0))
+    })?;
 
     let mut n = usize_to_f64(sample_size);
 

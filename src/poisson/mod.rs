@@ -12,7 +12,8 @@
 
 //! Poisson method designs
 
-use envisim_utils::error::{InputError, SamplingError};
+pub use crate::SampleOptions;
+pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::probability::Probabilities;
 use rand::Rng;
 
@@ -36,16 +37,19 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::poisson::sample;
+/// use envisim_samplr::poisson::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// sample(&mut rng, &p).unwrap();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
+/// # Ok::<(), SamplingError>(())
 /// ```
-pub fn sample<R>(rng: &mut R, probabilities: &[f64]) -> Result<Vec<usize>, SamplingError>
+pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
     Probabilities::check(probabilities)?;
     Ok(internal(rng, probabilities))
 }
@@ -56,21 +60,25 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::poisson::conditional;
+/// use envisim_samplr::poisson::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// conditional(&mut rng, &p, 5, 1000);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let options = SampleOptions::new(&p)?;
+/// let s = conditional(&mut rng, &options, 5, 1000);
+/// # Ok::<(), SamplingError>(())
 /// ```
 pub fn conditional<R>(
     rng: &mut R,
-    probabilities: &[f64],
+    options: &SampleOptions,
     sample_size: usize,
     max_iterations: u32,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
     let population_size = probabilities.len();
     Probabilities::check(probabilities)
         .and(InputError::check_sample_size(sample_size, population_size))?;

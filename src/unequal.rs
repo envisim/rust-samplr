@@ -13,7 +13,8 @@
 //! Unequal probability sampling designs
 
 use crate::poisson;
-use envisim_utils::error::{InputError, SamplingError};
+pub use crate::SampleOptions;
+pub use envisim_utils::error::{InputError, SamplingError};
 use envisim_utils::indices::Indices;
 use envisim_utils::probability::Probabilities;
 use envisim_utils::utils::{sum, usize_to_f64};
@@ -45,26 +46,30 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::unequal::with_replacement;
+/// use envisim_samplr::unequal::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.1; 10];
-/// assert_eq!(with_replacement(&mut rng, &p, 1e-12, 5).unwrap().len(), 5);
+/// let p = [0.1; 10];
+/// let options = SampleOptions::new(&p)?;
+/// let s = with_replacement(&mut rng, &options, 5)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn with_replacement<R>(
     rng: &mut R,
-    probabilities: &[f64],
-    eps: f64,
+    options: &SampleOptions,
     n: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
-    Probabilities::check(probabilities)?;
-    if !(1.0 - eps..1.0 + eps).contains(&sum(probabilities)) {
-        return Err(SamplingError::Input(InputError::NotInteger));
-    }
+    let probabilities = options.probabilities;
+
+    Probabilities::check(options.probabilities)?;
+    InputError::check_integer_approx_equal(sum(options.probabilities), 1.0, options.eps)?;
 
     if n == 0 {
         return Ok(vec![]);
@@ -115,22 +120,29 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::unequal::sampford;
+/// use envisim_samplr::unequal::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// assert_eq!(sampford(&mut rng, &p, 1e-12, 1000).unwrap().len(), 5);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let options = SampleOptions::new(&p)?;
+/// let s = sampford(&mut rng, &options, 1000)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sampford<R>(
     rng: &mut R,
-    probabilities: &[f64],
-    eps: f64,
+    options: &SampleOptions,
     max_iterations: u32,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
+    let eps = options.eps;
+
     let psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))
@@ -175,11 +187,15 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::unequal::pareto;
+/// use envisim_samplr::unequal::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// assert_eq!(pareto(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, pareto)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -187,10 +203,13 @@ where
 /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
 /// Stockholm: Statistiska Centralbyrån.
 #[inline]
-pub fn pareto<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+pub fn pareto<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
+    let eps = options.eps;
+
     let psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))
@@ -228,17 +247,24 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::unequal::brewer;
+/// use envisim_samplr::unequal::*;
 /// use rand::{rngs::SmallRng, SeedableRng};
+///
 /// let mut rng = SmallRng::from_entropy();
-/// let p: [f64; 10] = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// assert_eq!(brewer(&mut rng, &p, 1e-12).unwrap().len(), 5);
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, brewer)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
-pub fn brewer<R>(rng: &mut R, probabilities: &[f64], eps: f64) -> Result<Vec<usize>, SamplingError>
+pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
+    let probabilities = options.probabilities;
+    let eps = options.eps;
+
     let mut psum = sum(probabilities);
     Probabilities::check(probabilities)
         .and(Probabilities::check_eps(eps))

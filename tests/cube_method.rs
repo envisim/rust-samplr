@@ -15,50 +15,44 @@ const BAL_DATA_10_1_P: [f64; 20] = [
 ];
 
 #[test]
-fn test_cube() {
+fn test_cube() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let baldata = RefMatrix::new(&BAL_DATA_10_1_P, 10);
+    let mut opts = SampleOptions::new(p)?;
+    opts.balancing(&baldata)?;
 
-    test_wor(|| cube(&mut rng, p, EPS, &baldata), p, 1e-2, 100000);
+    test_wor(cube, &mut rng, &opts, p, 1e-2, 100000)
 }
 
 #[test]
-fn test_lcube() {
+fn test_lcube() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
     let baldata = RefMatrix::new(&BAL_DATA_10_1_P, 10);
+    let mut opts = SampleOptions::new(p)?;
+    opts.balancing(&baldata)?.auxiliaries(&data)?;
 
-    test_wor(
-        || local_cube(&mut rng, p, EPS, &baldata, &data, NONZERO_2),
-        p,
-        1e-2,
-        100000,
-    );
+    test_wor(local_cube, &mut rng, &opts, p, 1e-2, 100000)
 }
 
 #[test]
-fn test_cube_stratified() {
+fn test_cube_stratified() -> Result<(), SamplingError> {
     let eps = 1e-2;
     let iter = 100000;
 
     let mut rng = seeded_rng();
     let probs = &PROB_10_E;
     let baldata = RefMatrix::new(&BAL_DATA_10_1, 10);
+    let mut opts = SampleOptions::new(probs)?;
+    opts.balancing(&baldata)?;
 
     {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = cube_stratified(
-                &mut rng,
-                probs,
-                EPS,
-                &baldata,
-                &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2],
-            )
-            .unwrap();
+            let s = cube_stratified(&mut rng, &opts, &[1i64, 1, 1, 1, 1, 2, 2, 2, 2, 2])?;
             assert_eq!(s.len(), 2);
             assert!((0..5).contains(&s[0]));
             assert!((5..10).contains(&s[1]));
@@ -72,10 +66,11 @@ fn test_cube_stratified() {
             panic!("{d:?} >= {eps}\n(sums: {} vs. {})", sum(probs), sum(&q));
         }
     }
+    Ok(())
 }
 
 #[test]
-fn test_lcube_stratified() {
+fn test_lcube_stratified() -> Result<(), SamplingError> {
     let eps = 1e-2;
     let iter = 100000;
 
@@ -83,21 +78,14 @@ fn test_lcube_stratified() {
     let probs = &PROB_10_U;
     let data = RefMatrix::new(&DATA_10_2, 10);
     let baldata = RefMatrix::new(&BAL_DATA_10_1, 10);
+    let mut opts = SampleOptions::new(probs)?;
+    opts.balancing(&baldata)?.auxiliaries(&data)?;
 
     {
         let mut sel: Vec<u32> = vec![0; probs.len()];
 
         for _ in 0..iter {
-            let s = local_cube_stratified(
-                &mut rng,
-                probs,
-                EPS,
-                &baldata,
-                &data,
-                NONZERO_2,
-                &[1i64, 1, 1, 1, 1, 2, 2, 2, 3, 3],
-            )
-            .unwrap();
+            let s = local_cube_stratified(&mut rng, &opts, &[1i64, 1, 1, 1, 1, 2, 2, 2, 3, 3])?;
             s.iter().for_each(|&id| sel[id] += 1);
         }
 
@@ -108,4 +96,5 @@ fn test_lcube_stratified() {
             panic!("{d:?} >= {eps}\n(sums: {} vs. {})", sum(probs), sum(&q));
         }
     }
+    Ok(())
 }

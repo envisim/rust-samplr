@@ -22,31 +22,67 @@ use thiserror::Error;
 pub enum InputError {
     #[error("{0}")]
     General(String),
-    #[error("probability must be in [0.0, 1.0]")]
-    InvalidProbability,
-    #[error("epsilon must be in [0.0, 1.0)")]
-    InvalidEpsilon,
-    #[error("index must be less than ({0})")]
-    InvalidIndex(usize),
-    #[error("value must be positive (0.0, +Inf)")]
-    NonpositiveValue,
-    #[error("value must be nonnegative [0.0, +Inf)")]
-    NegativeValue,
-    #[error("value must be integer valued")]
-    NotInteger,
-    #[error("value must not be NaN")]
-    NanValue,
-    #[error("sizes does not match, {0} vs {1}")]
-    SizeDiff(usize, usize),
-    #[error("sample size must not be larger than population size")]
-    SampleSize,
+    #[error("invalid range: {0} must be in the closed range [{1}, {2}]")]
+    InvalidRangeF64(f64, f64, f64),
+    #[error("invalid value: {0} cannot be {1}")]
+    InvalidValueF64(f64, f64), // actual, invalid
+    #[error("invalid range: {0} must be in the closed range [{1}, {2}]")]
+    InvalidRangeUsize(usize, usize, usize),
+    #[error("invalid value: {0} cannot be {1}")]
+    InvalidValueUsize(usize, usize),
+    #[error("value {0} must be integer")]
+    NotInteger(f64),
+    #[error("invalid size: {0} must be {1}")]
+    InvalidSize(usize, usize),
     #[error("slice is empty")]
     IsEmpty,
     #[error("input does not contain unique elements")]
     NotUnique,
+    #[error("missing input {0}")]
+    Missing(String),
+    #[error(transparent)]
+    Node(#[from] NodeError),
 }
 
 impl InputError {
+    #[inline]
+    pub fn check_valid_f64(v: f64, invalid: f64) -> Result<(), InputError> {
+        if v == invalid {
+            return Err(InputError::InvalidValueF64(v, invalid));
+        }
+        Ok(())
+    }
+    #[inline]
+    pub fn check_range_f64(v: f64, lo: f64, hi: f64) -> Result<(), InputError> {
+        if v < lo || v > hi {
+            return Err(InputError::InvalidRangeF64(v, lo, hi));
+        }
+        Ok(())
+    }
+    #[inline]
+    pub fn check_positive(v: f64) -> Result<(), InputError> {
+        if v == 0.0 {
+            return Err(InputError::InvalidValueF64(v, 0.0));
+        } else if v < 0.0 {
+            return Err(InputError::InvalidRangeF64(v, 0.0, f64::INFINITY));
+        }
+        Ok(())
+    }
+    #[inline]
+    pub fn check_valid_usize(v: usize, invalid: usize) -> Result<(), InputError> {
+        if v == invalid {
+            return Err(InputError::InvalidValueUsize(v, invalid));
+        }
+        Ok(())
+    }
+    #[inline]
+    pub fn check_range_usize(v: usize, lo: usize, hi: usize) -> Result<(), InputError> {
+        if v < lo || v > hi {
+            return Err(InputError::InvalidRangeUsize(v, lo, hi));
+        }
+
+        Ok(())
+    }
     #[inline]
     pub fn check_empty<T>(a: &[T]) -> Result<(), InputError> {
         if a.is_empty() {
@@ -55,7 +91,6 @@ impl InputError {
 
         Ok(())
     }
-
     #[inline]
     pub fn check_lengths<TA, TB>(a: &[TA], b: &[TB]) -> Result<(), InputError> {
         InputError::check_sizes(a.len(), b.len())
@@ -63,39 +98,22 @@ impl InputError {
     #[inline]
     pub fn check_sizes(a: usize, b: usize) -> Result<(), InputError> {
         if a != b {
-            return Err(InputError::SizeDiff(a, b));
+            return Err(InputError::InvalidSize(a, b));
         }
 
         Ok(())
     }
     #[inline]
     pub fn check_sample_size(sample_size: usize, population_size: usize) -> Result<(), InputError> {
-        if population_size < sample_size {
-            return Err(InputError::SampleSize);
+        if population_size == 0 {
+            return Err(InputError::InvalidValueUsize(population_size, 0));
         }
-
-        Ok(())
+        Self::check_range_usize(sample_size, 0, population_size - 1)
     }
     #[inline]
     pub fn check_nan(value: f64) -> Result<(), InputError> {
         if value.is_nan() {
-            return Err(InputError::NanValue);
-        }
-
-        Ok(())
-    }
-    #[inline]
-    pub fn check_positive(value: f64) -> Result<(), InputError> {
-        if value <= 0.0 {
-            return Err(InputError::NonpositiveValue);
-        }
-
-        Ok(())
-    }
-    #[inline]
-    pub fn check_nonnegative(value: f64) -> Result<(), InputError> {
-        if value < 0.0 {
-            return Err(InputError::NegativeValue);
+            return Err(InputError::InvalidValueF64(value, f64::NAN));
         }
 
         Ok(())
@@ -103,18 +121,27 @@ impl InputError {
     #[inline]
     pub fn check_integer(value: f64) -> Result<(), InputError> {
         if value != value.round() {
-            return Err(InputError::NotInteger);
+            return Err(InputError::NotInteger(value));
         }
 
         Ok(())
     }
     #[inline]
     pub fn check_integer_approx(value: f64, eps: f64) -> Result<(), InputError> {
-        if !(value - eps..value + eps).contains(&value.round()) {
-            return Err(InputError::NotInteger);
+        let round = value.round();
+        if !(round - eps..round + eps).contains(&value) {
+            return Err(InputError::NotInteger(value));
         }
 
         Ok(())
+    }
+    #[inline]
+    pub fn check_integer_approx_equal(value: f64, target: f64, eps: f64) -> Result<(), InputError> {
+        let round = value.round();
+        if target != round {
+            return Err(InputError::InvalidRangeF64(value, target, target));
+        }
+        Self::check_integer_approx(value, eps)
     }
 }
 
