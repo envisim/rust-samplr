@@ -26,7 +26,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(&[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = voronoi(&s, &p, &TreeBuilder::new(&m))?;
@@ -87,7 +87,7 @@ pub fn voronoi(
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(&[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// let sb = local(&s, &p, &TreeBuilder::new(&m))?;
