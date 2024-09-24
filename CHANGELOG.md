@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.2.0] - 2024-09-24
 ### Added
 - moved `SamplingError`, previously available from `envisim_utils`.
 - re-exports `SamplingError` from sub modules
@@ -18,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InputError`and `Probabilities` no longer exported from `poisson` module
 
 ### Removed
-- fix: removed unused `SamplingError::General`.
+- removed unused `SamplingError::General`.
 
 ## [0.1.0] - 2024-09-19
 Initial release.
