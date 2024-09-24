@@ -12,9 +12,10 @@
 
 //! Spatial balance measures
 
+use envisim_samplr::SamplingError;
 use envisim_utils::kd_tree::{Searcher, TreeBuilder};
 use envisim_utils::utils::usize_to_f64;
-pub use envisim_utils::{InputError, Matrix, SamplingError};
+use envisim_utils::{InputError, Matrix};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// Voronoi measure of spatial balance.
@@ -30,7 +31,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = voronoi(&s, &p, &TreeBuilder::new(&m))?;
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_samplr::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -44,7 +45,7 @@ pub fn voronoi(
     tree_builder: &TreeBuilder,
 ) -> Result<f64, SamplingError> {
     let tree = tree_builder.build(&mut sample.to_vec())?;
-    let mut searcher = Searcher::new(&tree, 1)?;
+    let mut searcher = Searcher::new_1(&tree);
     let data = tree.data();
 
     let population_size = data.nrow();
@@ -91,7 +92,7 @@ pub fn voronoi(
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// let sb = local(&s, &p, &TreeBuilder::new(&m))?;
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), envisim_samplr::SamplingError>(())
 /// ```
 ///
 /// # References
@@ -105,7 +106,7 @@ pub fn local(
     tree_builder: &TreeBuilder,
 ) -> Result<f64, SamplingError> {
     let tree = tree_builder.build(&mut sample.to_vec())?;
-    let mut searcher = Searcher::new(&tree, 1)?;
+    let mut searcher = Searcher::new_1(&tree);
     let data = tree.data();
 
     let population_size = data.nrow();

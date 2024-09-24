@@ -21,7 +21,7 @@ fn test_conditional() -> Result<(), SamplingError> {
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
-    test_wor2(|| conditional(&mut rng, &opts, 5, 1000), p, 1e-1, 100000)
+    test_wor2(|| conditional(&mut rng, &opts, 5), p, 1e-1, 100000)
 }
 
 #[test]

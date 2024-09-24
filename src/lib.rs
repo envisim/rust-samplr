@@ -25,6 +25,7 @@
 //! relationship between the auxilliaries and the variables of interest.
 
 pub mod cube_method;
+mod error;
 pub mod pivotal_method;
 pub mod poisson;
 mod sample_options;
@@ -33,4 +34,5 @@ pub mod systematic;
 pub mod unequal;
 mod utils;
 
+pub use error::SamplingError;
 pub use sample_options::{SampleOptions, Sampler};

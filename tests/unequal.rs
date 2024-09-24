@@ -10,7 +10,7 @@ fn test_sampford() -> Result<(), SamplingError> {
     let p = &PROB_10_E;
     let opts = SampleOptions::new(p)?;
 
-    test_wor2(|| sampford(&mut rng, &opts, 1000), p, 1e-2, 10000)
+    test_wor2(|| sampford(&mut rng, &opts), p, 1e-2, 10000)
 }
 
 #[test]

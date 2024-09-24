@@ -13,10 +13,9 @@
 //! Correlated poisson designs
 
 use crate::utils::Container;
-use crate::SampleOptions;
+pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::kd_tree::{Node, SearcherWeighted};
 use envisim_utils::utils::{random_element, usize_to_f64};
-use envisim_utils::SamplingError;
 use rand::Rng;
 
 pub trait CorrelatedPoissonVariant<'a, R>
@@ -72,7 +71,7 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// ## Coordination
@@ -88,7 +87,7 @@ pub struct LocallyCorrelatedPoissonSampling<'a> {
 /// let s = SampleOptions::new(&p)?.random_values(&rv)?.sample(&mut rng, cps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -133,7 +132,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// ## Coordination
@@ -151,7 +150,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.random_values(&rv)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -177,7 +176,7 @@ where
     options.check_spatially_balanced()?;
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(SearcherWeighted::new(&tree)?);
+    let searcher = Box::new(SearcherWeighted::new(&tree));
 
     Ok(CorrelatedPoissonSampler {
         container,
@@ -205,7 +204,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lcps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -231,7 +230,7 @@ where
     options.check_spatially_balanced()?;
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(SearcherWeighted::new(&tree)?);
+    let searcher = Box::new(SearcherWeighted::new(&tree));
 
     Ok(CorrelatedPoissonSampler {
         container,
