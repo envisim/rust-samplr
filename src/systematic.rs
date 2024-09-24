@@ -12,8 +12,8 @@
 
 //! Systematic sampling designs
 
-pub use crate::SampleOptions;
-use envisim_utils::{Probabilities, SamplingError};
+pub use crate::{SampleOptions, SamplingError};
+use envisim_utils::Probabilities;
 use rand::Rng;
 
 /// Draw a systematic sample, using the provided order
@@ -28,7 +28,7 @@ use rand::Rng;
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
@@ -52,7 +52,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample_random_order)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample_random_order<R>(

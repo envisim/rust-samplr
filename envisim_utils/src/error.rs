@@ -10,38 +10,29 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! General error types
+use std::num::NonZeroUsize;
 
-use crate::indices::IndicesError;
-use crate::kd_tree::{NodeError, SearcherError};
-use thiserror::Error;
-
-/// Input related error types
 #[non_exhaustive]
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum InputError {
-    #[error("{0}")]
-    General(String),
-    #[error("invalid range: {0} must be in the closed range [{1}, {2}]")]
+    // #[error("{0}")]
+    // General(String),
+    // 0 must be in closed range [1, 2]
     InvalidRangeF64(f64, f64, f64),
-    #[error("invalid value: {0} cannot be {1}")]
-    InvalidValueF64(f64, f64), // actual, invalid
-    #[error("invalid range: {0} must be in the closed range [{1}, {2}]")]
     InvalidRangeUsize(usize, usize, usize),
-    #[error("invalid value: {0} cannot be {1}")]
+    // 0 cannot be 1
+    InvalidValueF64(f64, f64),
     InvalidValueUsize(usize, usize),
-    #[error("value {0} must be integer")]
+    // 0 must be integer
     NotInteger(f64),
-    #[error("invalid size: {0} must be {1}")]
+    // 0 must be 1
     InvalidSize(usize, usize),
-    #[error("slice is empty")]
+    // empty slice
     IsEmpty,
-    #[error("input does not contain unique elements")]
+    // slice contains duplicates
     NotUnique,
-    #[error("missing input {0}")]
+    // Missing input
     Missing(String),
-    #[error(transparent)]
-    Node(#[from] NodeError),
 }
 
 impl InputError {
@@ -74,6 +65,10 @@ impl InputError {
             return Err(InputError::InvalidValueUsize(v, invalid));
         }
         Ok(())
+    }
+    #[inline]
+    pub fn into_nonzero_usize(v: usize) -> Result<NonZeroUsize, InputError> {
+        NonZeroUsize::new(v).ok_or(InputError::InvalidValueUsize(0, 0))
     }
     #[inline]
     pub fn check_range_usize(v: usize, lo: usize, hi: usize) -> Result<(), InputError> {
@@ -145,20 +140,47 @@ impl InputError {
     }
 }
 
-/// Sampling related error types
-#[non_exhaustive]
-#[derive(Error, Debug)]
-pub enum SamplingError {
-    #[error("{0}")]
-    General(String),
-    #[error(transparent)]
-    Indices(#[from] IndicesError),
-    #[error(transparent)]
-    Input(#[from] InputError),
-    #[error(transparent)]
-    Node(#[from] NodeError),
-    #[error(transparent)]
-    Searcher(#[from] SearcherError),
-    #[error("max iterations reached")]
-    MaxIterations,
+impl std::error::Error for InputError {}
+
+impl std::fmt::Display for InputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            // InputError::General(txt) => {
+            //     write!(f, "{}", txt)
+            // }
+            InputError::InvalidRangeF64(x, a, b) => {
+                write!(
+                    f,
+                    "invalid range: {x} must be in the closed range [{a}, {b}]"
+                )
+            }
+            InputError::InvalidValueF64(x, c) => {
+                write!(f, "invalid value: {x} cannot be {c}")
+            }
+            InputError::InvalidRangeUsize(x, a, b) => {
+                write!(
+                    f,
+                    "invalid range: {x} must be in the closed range [{a}, {b}]"
+                )
+            }
+            InputError::InvalidValueUsize(x, c) => {
+                write!(f, "invalid value: {x} cannot be {c}")
+            }
+            InputError::NotInteger(x) => {
+                write!(f, "value {x} must be integer")
+            }
+            InputError::InvalidSize(a, b) => {
+                write!(f, "invalid size: {a} must be {b}")
+            }
+            InputError::IsEmpty => {
+                write!(f, "slice is empty")
+            }
+            InputError::NotUnique => {
+                write!(f, "slice contains duplicate elements")
+            }
+            InputError::Missing(ref txt) => {
+                write!(f, "missing input {txt}")
+            }
+        }
+    }
 }

@@ -11,20 +11,9 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::Node;
-use crate::{Matrix, Probabilities};
+use crate::{InputError, Matrix, Probabilities};
 use std::cmp::Ordering;
-use thiserror::Error;
-
-#[non_exhaustive]
-#[derive(Error, Debug)]
-pub enum SearcherError {
-    #[error("{0}")]
-    General(String),
-    #[error("n_neighbours needs to be positive [1, +Inf)")]
-    NoNeighbours,
-    #[error("unit size must match data ncol")]
-    InvalidUnit,
-}
+use std::num::NonZeroUsize;
 
 pub(super) trait TreeSearcher {
     fn unit(&self) -> &[f64];
@@ -39,7 +28,7 @@ pub struct Searcher {
     unit: Vec<f64>,
     neighbours: Vec<usize>,
     distances: Vec<f64>,
-    n_neighbours: usize,
+    n_neighbours: NonZeroUsize,
 }
 
 impl TreeSearcher for Searcher {
@@ -53,14 +42,14 @@ impl TreeSearcher for Searcher {
     }
     #[inline]
     fn is_satisfied(&self) -> bool {
-        self.neighbours.len() >= self.n_neighbours
+        self.neighbours.len() >= self.n_neighbours.get()
     }
     fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix) {
         if ids.is_empty() {
             return;
         }
 
-        if self.n_neighbours == 1 {
+        if self.n_neighbours.get() == 1 {
             self.assess_units_1(ids, data);
             return;
         }
@@ -81,42 +70,39 @@ impl TreeSearcher for Searcher {
 impl Searcher {
     /// Constructs a new k-d tree searcher, for finding `n_neighbours` number of neighbours
     #[inline]
-    pub fn new(node: &Node, n_neighbours: usize) -> Result<Self, SearcherError> {
-        if n_neighbours < 1 {
-            return Err(SearcherError::NoNeighbours);
-        }
-
+    pub fn new(node: &Node, n_neighbours: NonZeroUsize) -> Searcher {
         let data = node.data();
 
-        Ok(Self {
+        Self {
             unit_id: usize::MAX,
             unit: vec![0.0f64; data.ncol()],
             neighbours: Vec::<usize>::with_capacity(data.nrow()),
             distances: vec![0.0f64; data.nrow()],
             n_neighbours,
-        })
+        }
+    }
+    /// Constructs a new k-d tree searcher, for finding closest neighbour
+    #[inline]
+    pub fn new_1(node: &Node) -> Searcher {
+        Self::new(node, unsafe { NonZeroUsize::new_unchecked(1) })
     }
     /// Finds the neighbours of a unit positioned at `unit`
     #[inline]
-    pub fn find_neighbours(&mut self, node: &Node, unit: &[f64]) -> Result<(), SearcherError> {
+    pub fn find_neighbours(&mut self, node: &Node, unit: &[f64]) -> Result<(), InputError> {
         self.set_unit_from_iter(unit.iter(), usize::MAX)?;
         node.find_neighbours(self);
         Ok(())
     }
     /// Finds the neighbours of a unit in the data matrix
     #[inline]
-    pub fn find_neighbours_of_id(&mut self, node: &Node, idx: usize) -> Result<(), SearcherError> {
+    pub fn find_neighbours_of_id(&mut self, node: &Node, idx: usize) -> Result<(), InputError> {
         self.set_unit_from_iter(node.data().row_iter(idx), idx)?;
         node.find_neighbours(self);
         Ok(())
     }
     /// Finds the neighbours of a unit positioned at the vector constructed by the iterator
     #[inline]
-    pub fn find_neighbours_of_iter<'a, I>(
-        &mut self,
-        node: &Node,
-        iter: I,
-    ) -> Result<(), SearcherError>
+    pub fn find_neighbours_of_iter<'a, I>(&mut self, node: &Node, iter: I) -> Result<(), InputError>
     where
         I: ExactSizeIterator<Item = &'a f64>,
     {
@@ -125,13 +111,11 @@ impl Searcher {
         Ok(())
     }
     #[inline]
-    fn set_unit_from_iter<'a, I>(&mut self, iter: I, idx: usize) -> Result<(), SearcherError>
+    fn set_unit_from_iter<'a, I>(&mut self, iter: I, idx: usize) -> Result<(), InputError>
     where
         I: ExactSizeIterator<Item = &'a f64>,
     {
-        if iter.len() != self.unit.len() {
-            return Err(SearcherError::InvalidUnit);
-        }
+        InputError::check_sizes(iter.len(), self.unit.len())?;
 
         self.unit_id = idx;
         self.unit.iter_mut().zip(iter).for_each(|(a, b)| *a = *b);
@@ -140,13 +124,8 @@ impl Searcher {
     }
     /// Set the number of neighbours to search for.
     #[inline]
-    pub fn set_n_neighbours(&mut self, n: usize) -> Result<(), SearcherError> {
-        if n < 1 {
-            return Err(SearcherError::NoNeighbours);
-        }
-
+    pub fn set_n_neighbours(&mut self, n: NonZeroUsize) {
         self.n_neighbours = n;
-        Ok(())
     }
 
     /// Get the list of found neighbours
@@ -204,7 +183,7 @@ impl Searcher {
 
             if distance <= node_max {
                 self.add(id, distance);
-            } else if self.neighbours.len() < self.n_neighbours {
+            } else if self.neighbours.len() < self.n_neighbours.get() {
                 self.add(id, distance);
                 node_max = distance;
             }
@@ -226,7 +205,7 @@ impl Searcher {
         let len: usize = self.neighbours.len();
 
         while i < len {
-            if i >= self.n_neighbours && self.distance_k(i - 1) < self.distance_k(i) {
+            if i >= self.n_neighbours.get() && self.distance_k(i - 1) < self.distance_k(i) {
                 break;
             }
 
@@ -246,11 +225,11 @@ impl SearcherWeighted {
     /// Constructs a new k-d tree searcher, for finding a (probability) weighted number of
     /// neighbours.
     #[inline]
-    pub fn new(node: &Node) -> Result<Self, SearcherError> {
-        Ok(Self {
-            searcher: Searcher::new(node, 1)?,
+    pub fn new(node: &Node) -> Self {
+        Self {
+            searcher: Searcher::new(node, unsafe { NonZeroUsize::new_unchecked(1) }),
             weights: vec![0.0f64; node.data().nrow()],
-        })
+        }
     }
     /// Finds the neighbours of a unit positioned at `unit`, with a specified probability
     #[inline]
@@ -260,7 +239,7 @@ impl SearcherWeighted {
         probabilities: &Probabilities,
         unit: &[f64],
         prob: f64,
-    ) -> Result<(), SearcherError> {
+    ) -> Result<(), InputError> {
         self.searcher.set_unit_from_iter(unit.iter(), usize::MAX)?;
         let mut tree_searcher = TreeSearcherWeighted {
             searcher: self,
@@ -278,7 +257,7 @@ impl SearcherWeighted {
         node: &Node,
         probabilities: &Probabilities,
         idx: usize,
-    ) -> Result<(), SearcherError> {
+    ) -> Result<(), InputError> {
         self.searcher
             .set_unit_from_iter(node.data().row_iter(idx), idx)?;
         let mut tree_searcher = TreeSearcherWeighted {
@@ -298,7 +277,7 @@ impl SearcherWeighted {
         probabilities: &Probabilities,
         iter: I,
         prob: f64,
-    ) -> Result<(), SearcherError>
+    ) -> Result<(), InputError>
     where
         I: ExactSizeIterator<Item = &'a f64>,
     {

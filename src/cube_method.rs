@@ -14,10 +14,10 @@
 
 use crate::srs;
 use crate::utils::Container;
-pub use crate::SampleOptions;
+pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher, TreeBuilder};
 use envisim_utils::utils::random_one_of_f64;
-use envisim_utils::{InputError, Matrix, SamplingError};
+use envisim_utils::{InputError, Matrix};
 use rand::Rng;
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
@@ -73,7 +73,7 @@ pub struct LocalCubeMethod<'a> {
 /// let s = SampleOptions::new(&p)?.balancing(&bal_m)?.sample(&mut rng, cube)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -112,7 +112,7 @@ where
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -206,7 +206,7 @@ where
 ///     .sample(&mut rng, local_cube)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -254,7 +254,7 @@ where
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -289,7 +289,10 @@ where
     let seed = rng.gen::<usize>();
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol() + 1)?);
+    let searcher = Box::new(Searcher::new(
+        &tree,
+        InputError::into_nonzero_usize(balancing_data.ncol() + 1)?,
+    ));
 
     let mut cs = CubeStratified {
         cube: CubeMethodSampler {
@@ -330,7 +333,10 @@ where
     let balancing_data = options.balancing.unwrap();
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new(&tree, balancing_data.ncol())?);
+    let searcher = Box::new(Searcher::new(
+        &tree,
+        InputError::into_nonzero_usize(balancing_data.ncol())?,
+    ));
 
     CubeMethodSampler::new(
         container,
@@ -618,7 +624,8 @@ where
         n_neighbours: usize,
     ) {
         assert!(data.is_some());
-        self.searcher.set_n_neighbours(n_neighbours).unwrap();
+        self.searcher
+            .set_n_neighbours(NonZeroUsize::new(n_neighbours).unwrap());
 
         container.indices_mut().clear();
         self.tree = Box::new(

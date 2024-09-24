@@ -12,7 +12,8 @@
 
 //! Hansen-Hurwitz estimators (multiple count estimators)
 
-use envisim_utils::{InputError, Matrix, SamplingError};
+use envisim_samplr::SamplingError;
+use envisim_utils::{InputError, Matrix};
 
 #[inline]
 fn inclusions_check(inclusions: &[f64]) -> Result<(), InputError> {

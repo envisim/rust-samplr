@@ -11,10 +11,6 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Utility functions for envisim
-//!
-//! # Links
-//! - [`envisim_estimate`]
-//! - [`envisim_samplr`]
 
 mod error;
 mod indices;
@@ -24,7 +20,7 @@ pub mod pips;
 mod probabilities;
 pub mod utils;
 
-pub use error::{InputError, SamplingError};
-pub use indices::Indices;
+pub use error::InputError;
+pub use indices::{Indices, IndicesError};
 pub use matrix::Matrix;
 pub use probabilities::Probabilities;
