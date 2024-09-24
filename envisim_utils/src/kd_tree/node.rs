@@ -13,9 +13,7 @@
 use super::searcher::TreeSearcher;
 use super::split_methods::{midpoint_slide, FindSplit};
 use crate::Matrix;
-use std::fmt;
 use std::num::NonZeroUsize;
-use thiserror::Error;
 
 pub struct TreeBuilder<'a> {
     data: &'a Matrix<'a>,
@@ -39,13 +37,8 @@ impl<'a> TreeBuilder<'a> {
     }
     #[inline]
     pub fn try_bucket_size(&mut self, bucket_size: usize) -> Result<&mut Self, NodeError> {
-        match NonZeroUsize::new(bucket_size) {
-            Some(bs) => {
-                self.bucket_size = bs;
-                Ok(self)
-            }
-            None => Err(NodeError::InvalidBucketSize),
-        }
+        self.bucket_size = NonZeroUsize::new(bucket_size).ok_or(NodeError::InvalidBucketSize)?;
+        Ok(self)
     }
     #[inline]
     pub fn split_method(&mut self, split_method: FindSplit) -> Result<&mut Self, NodeError> {
@@ -55,9 +48,9 @@ impl<'a> TreeBuilder<'a> {
     /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
     #[inline]
     pub fn build(&self, units: &mut [usize]) -> Result<Node<'a>, NodeError> {
-        if units.iter().any(|&id| self.data.nrow() <= id) {
-            return Err(NodeError::GhostUnit);
-        }
+        units
+            .iter()
+            .try_for_each(|&id| NodeError::check_ghost_index(id, self.data.nrow()))?;
 
         let borders = Node::borders(self.data, units);
         Ok(Node::create(self, units, borders))
@@ -69,17 +62,6 @@ impl<'a> From<&'a Matrix<'a>> for TreeBuilder<'a> {
     fn from(mat: &'a Matrix) -> Self {
         TreeBuilder::new(mat)
     }
-}
-
-#[non_exhaustive]
-#[derive(Error, Debug)]
-pub enum NodeError {
-    #[error("{0}")]
-    General(String),
-    #[error("unit index must not be larger than data rows")]
-    GhostUnit,
-    #[error("invalid bucket size")]
-    InvalidBucketSize,
 }
 
 struct NodeBranch<'a> {
@@ -206,10 +188,7 @@ impl<'a> Node<'a> {
     /// Returns `Ok(false)` if the index already existed in the tree.
     #[inline]
     pub fn insert_unit(&mut self, id: usize) -> Result<bool, NodeError> {
-        if self.data.nrow() <= id {
-            return Err(NodeError::GhostUnit);
-        }
-
+        NodeError::check_ghost_index(id, self.data.nrow())?;
         Ok(self.traverse_and_alter_unit(id, true))
     }
 
@@ -218,10 +197,7 @@ impl<'a> Node<'a> {
     /// Returns `Ok(false)` if the index did not exist in the tree.
     #[inline]
     pub fn remove_unit(&mut self, id: usize) -> Result<bool, NodeError> {
-        if self.data.nrow() <= id {
-            return Err(NodeError::GhostUnit);
-        }
-
+        NodeError::check_ghost_index(id, self.data.nrow())?;
         Ok(self.traverse_and_alter_unit(id, false))
     }
 
@@ -289,16 +265,16 @@ impl<'a> Node<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Node<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> std::fmt::Debug for Node<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             NodeKind::Leaf(ref leaf) => leaf.fmt(f),
             NodeKind::Branch(ref branch) => branch.fmt(f),
         }
     }
 }
-impl<'a> fmt::Debug for NodeBranch<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> std::fmt::Debug for NodeBranch<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Branch")
             .field("dim", &self.dimension)
             .field("value", &self.value)
@@ -307,9 +283,42 @@ impl<'a> fmt::Debug for NodeBranch<'a> {
             .finish()
     }
 }
-impl fmt::Debug for NodeLeaf {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for NodeLeaf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Leaf").field(&self.units).finish()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum NodeError {
+    // Accessing non-existing index
+    GhostIndex(usize),
+    InvalidBucketSize,
+}
+
+impl NodeError {
+    fn check_ghost_index(id: usize, max: usize) -> Result<(), Self> {
+        if id < max {
+            return Ok(());
+        }
+
+        Err(NodeError::GhostIndex(id))
+    }
+}
+
+impl std::error::Error for NodeError {}
+
+impl std::fmt::Display for NodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            NodeError::GhostIndex(id) => {
+                write!(f, "cannot access non-existing index {id}")
+            }
+            NodeError::InvalidBucketSize => {
+                write!(f, "invalid bucket size")
+            }
+        }
     }
 }
 

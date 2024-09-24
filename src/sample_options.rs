@@ -1,5 +1,6 @@
+use crate::SamplingError;
 use envisim_utils::kd_tree::{midpoint_slide, FindSplit, Node, TreeBuilder};
-use envisim_utils::{InputError, Matrix, Probabilities, SamplingError};
+use envisim_utils::{InputError, Matrix, Probabilities};
 use rand::Rng;
 use std::num::NonZeroUsize;
 
@@ -7,6 +8,7 @@ pub struct SampleOptions<'a> {
     // Base
     pub(crate) probabilities: &'a [f64],
     pub(crate) eps: f64,
+    pub(crate) max_iterations: NonZeroUsize,
 
     // Spatially balanced sampling
     pub(crate) auxiliaries: Option<&'a Matrix<'a>>,
@@ -28,6 +30,7 @@ impl<'a> SampleOptions<'a> {
         Ok(Self {
             probabilities,
             eps: 1e-12,
+            max_iterations: unsafe { NonZeroUsize::new_unchecked(1000) },
             auxiliaries: None,
             bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
             split_method: midpoint_slide,
@@ -38,6 +41,14 @@ impl<'a> SampleOptions<'a> {
     #[inline]
     pub fn eps(&mut self, eps: f64) -> Result<&mut Self, InputError> {
         self.eps = Probabilities::check_eps(eps)?;
+        Ok(self)
+    }
+    #[inline]
+    pub fn max_iterations(
+        &mut self,
+        max_iterations: NonZeroUsize,
+    ) -> Result<&mut Self, InputError> {
+        self.max_iterations = max_iterations;
         Ok(self)
     }
     #[inline]
@@ -53,13 +64,9 @@ impl<'a> SampleOptions<'a> {
     }
     #[inline]
     pub fn try_bucket_size(&mut self, bucket_size: usize) -> Result<&mut Self, InputError> {
-        match NonZeroUsize::new(bucket_size) {
-            Some(bs) => {
-                self.bucket_size = bs;
-                Ok(self)
-            }
-            None => Err(InputError::InvalidValueUsize(0, 0)),
-        }
+        self.bucket_size =
+            NonZeroUsize::new(bucket_size).ok_or(InputError::InvalidValueUsize(0, 0))?;
+        Ok(self)
     }
     #[inline]
     pub fn split_method(&mut self, split_method: FindSplit) -> Result<&mut Self, InputError> {

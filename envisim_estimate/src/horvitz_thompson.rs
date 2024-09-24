@@ -12,9 +12,11 @@
 
 //! Horvitz-Thompson estimators (single count estimators)
 
+use envisim_samplr::SamplingError;
 use envisim_utils::kd_tree::{Searcher, TreeBuilder};
 use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{InputError, Matrix, Probabilities, SamplingError};
+use envisim_utils::{InputError, Matrix, Probabilities};
+use std::num::NonZeroUsize;
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -155,22 +157,16 @@ pub fn local_mean_variance(
     y_values: &[f64],
     probabilities: &[f64],
     tree_builder: &TreeBuilder,
-    n_neighbours: usize,
+    n_neighbours: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
     let tree = tree_builder.build(&mut (0..sample_size).collect::<Vec<usize>>())?;
-    let mut searcher = Searcher::new(&tree, n_neighbours)?;
+    let mut searcher = Searcher::new(&tree, n_neighbours);
     let auxilliaries = tree.data();
 
     InputError::check_lengths(y_values, probabilities)
         .and(InputError::check_sizes(sample_size, auxilliaries.nrow()))
         .and(Probabilities::check(probabilities))?;
-
-    if n_neighbours <= 1 {
-        return Err(SamplingError::from(InputError::General(
-            "n_neighbours must be > 1".to_string(),
-        )));
-    }
 
     let yp: Vec<f64> = y_values
         .iter()

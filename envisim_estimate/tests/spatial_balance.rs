@@ -1,4 +1,5 @@
 use envisim_estimate::spatial_balance::*;
+use envisim_samplr::SamplingError;
 use envisim_test_utils::*;
 use envisim_utils::Matrix;
 

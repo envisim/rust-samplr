@@ -12,7 +12,8 @@
 
 //! Simple random sampling
 
-use envisim_utils::{InputError, SamplingError};
+pub use crate::SamplingError;
+use envisim_utils::InputError;
 use rand::Rng;
 
 /// Draw a simple random sample without replacement
@@ -26,7 +27,7 @@ use rand::Rng;
 /// let s = sample(&mut rng, 5, 10)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample<R>(
@@ -61,7 +62,7 @@ where
 /// let s = sample_with_replacement(&mut rng, 5, 10)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn sample_with_replacement<R>(

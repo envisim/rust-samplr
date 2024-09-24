@@ -15,16 +15,6 @@
 use crate::utils::random_element;
 use rand::Rng;
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use thiserror::Error;
-
-#[non_exhaustive]
-#[derive(Error, Debug)]
-pub enum IndicesError {
-    #[error("cannot access non-existing index {0}")]
-    GhostIndex(usize),
-    #[error("cannot access out-of-bounds k-index {0}")]
-    OutOfBoundsK(usize),
-}
 
 /// A struct (list) for keeping track of indices in use. The internal list keeps track, without
 /// order, of the indices.
@@ -268,6 +258,30 @@ impl Indices {
                 Ok(())
             }
             None => Err(IndicesError::GhostIndex(id)),
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum IndicesError {
+    // Accessing non-existing index
+    GhostIndex(usize),
+    // Accessing out-of-bounds internal index
+    OutOfBoundsK(usize),
+}
+
+impl std::error::Error for IndicesError {}
+
+impl std::fmt::Display for IndicesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            IndicesError::GhostIndex(id) => {
+                write!(f, "cannot access non-existing index {id}")
+            }
+            IndicesError::OutOfBoundsK(k) => {
+                write!(f, "cannot access out-of-bounds k-index {k}")
+            }
         }
     }
 }

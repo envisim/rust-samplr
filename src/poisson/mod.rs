@@ -12,8 +12,8 @@
 
 //! Poisson method designs
 
-pub use crate::SampleOptions;
-pub use envisim_utils::{InputError, Probabilities, SamplingError};
+pub use crate::{SampleOptions, SamplingError};
+use envisim_utils::{InputError, Probabilities};
 use rand::Rng;
 
 // Re-export
@@ -42,7 +42,7 @@ where
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
@@ -65,14 +65,13 @@ where
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let options = SampleOptions::new(&p)?;
-/// let s = conditional(&mut rng, &options, 5, 1000);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// let s = conditional(&mut rng, &options, 5);
+/// # Ok::<(), SamplingError>(())
 /// ```
 pub fn conditional<R>(
     rng: &mut R,
     options: &SampleOptions,
     sample_size: usize,
-    max_iterations: u32,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
@@ -82,17 +81,13 @@ where
     Probabilities::check(probabilities)
         .and(InputError::check_sample_size(sample_size, population_size))?;
 
-    let mut iterations: u32 = 0;
-
-    while iterations < max_iterations {
+    for _ in 0..options.max_iterations.get() {
         let s = internal(rng, probabilities);
 
         if s.len() == sample_size {
             return Ok(s);
         }
-
-        iterations += 1;
     }
 
-    Err(SamplingError::MaxIterations)
+    Err(SamplingError::MaxIterations(options.max_iterations))
 }

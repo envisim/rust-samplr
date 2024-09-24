@@ -13,10 +13,10 @@
 //! Pivotal method designs
 
 use crate::utils::Container;
-pub use crate::SampleOptions;
+pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::kd_tree::{Node, Searcher};
 use envisim_utils::utils::{random_element, sum, usize_to_f64};
-use envisim_utils::{InputError, SamplingError};
+use envisim_utils::InputError;
 use rand::Rng;
 use rustc_hash::FxHashSet;
 
@@ -72,7 +72,7 @@ pub struct LocalPivotalMethod2<'a> {
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -114,7 +114,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -158,7 +158,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -184,7 +184,7 @@ where
     options.check_spatially_balanced()?;
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new(&tree, 1)?);
+    let searcher = Box::new(Searcher::new_1(&tree));
 
     Ok(PivotalMethodSampler {
         container,
@@ -211,7 +211,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1s)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -234,7 +234,7 @@ where
     options.check_spatially_balanced()?;
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new(&tree, 1)?);
+    let searcher = Box::new(Searcher::new_1(&tree));
     let remaining_units = container.indices().len();
 
     Ok(PivotalMethodSampler {
@@ -263,7 +263,7 @@ where
 /// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -289,7 +289,7 @@ where
     options.check_spatially_balanced()?;
     let container = Container::new_boxed(rng, options)?;
     let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new(&tree, 1)?);
+    let searcher = Box::new(Searcher::new_1(&tree));
 
     Ok(PivotalMethodSampler {
         container,
@@ -607,7 +607,7 @@ where
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 ///
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References

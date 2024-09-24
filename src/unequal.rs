@@ -13,9 +13,9 @@
 //! Unequal probability sampling designs
 
 use crate::poisson;
-pub use crate::SampleOptions;
+pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{Indices, InputError, Probabilities, SamplingError};
+use envisim_utils::{Indices, InputError, Probabilities};
 use rand::Rng;
 
 // Assumes probabilites sum to 1.0
@@ -53,7 +53,7 @@ where
 /// let s = with_replacement(&mut rng, &options, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn with_replacement<R>(
@@ -124,17 +124,13 @@ where
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let options = SampleOptions::new(&p)?;
-/// let s = sampford(&mut rng, &options, 1000)?;
+/// let s = sampford(&mut rng, &options)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
-pub fn sampford<R>(
-    rng: &mut R,
-    options: &SampleOptions,
-    max_iterations: u32,
-) -> Result<Vec<usize>, SamplingError>
+pub fn sampford<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
     R: Rng + ?Sized,
 {
@@ -155,7 +151,7 @@ where
 
     let norm_probs: Vec<f64> = probabilities.iter().map(|&p| p / psum).collect();
 
-    for _ in 0..max_iterations {
+    for _ in 0..options.max_iterations.get() {
         let mut sample = poisson::internal(rng, probabilities);
 
         if sample.len() != sample_size - 1 {
@@ -177,7 +173,7 @@ where
         }
     }
 
-    Err(SamplingError::MaxIterations)
+    Err(SamplingError::MaxIterations(options.max_iterations))
 }
 
 /// Draw a sample using a pareto design.
@@ -193,7 +189,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, pareto)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 ///
 /// # References
@@ -253,7 +249,7 @@ where
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, brewer)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), envisim_utils::SamplingError>(())
+/// # Ok::<(), SamplingError>(())
 /// ```
 #[inline]
 pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
