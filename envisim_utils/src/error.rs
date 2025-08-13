@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -29,6 +29,8 @@ pub enum InputError {
     InvalidSize(usize, usize),
     // empty slice
     IsEmpty,
+    // is none
+    IsNone,
     // slice contains duplicates
     NotUnique,
     // Missing input
@@ -82,6 +84,14 @@ impl InputError {
     pub fn check_empty<T>(a: &[T]) -> Result<(), InputError> {
         if a.is_empty() {
             return Err(InputError::IsEmpty);
+        }
+
+        Ok(())
+    }
+    #[inline]
+    pub fn check_none<T>(a: Option<T>) -> Result<(), InputError> {
+        if a.is_none() {
+            return Err(InputError::IsNone);
         }
 
         Ok(())
@@ -174,6 +184,9 @@ impl std::fmt::Display for InputError {
             }
             InputError::IsEmpty => {
                 write!(f, "slice is empty")
+            }
+            InputError::IsNone => {
+                write!(f, "option is none")
             }
             InputError::NotUnique => {
                 write!(f, "slice contains duplicate elements")

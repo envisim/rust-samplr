@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -114,12 +114,12 @@ impl<'a> Matrix<'a> {
     #[inline]
     pub fn data_mut(&mut self) -> &mut [f64] {
         match self.data {
-            MatrixData::Mutable(ref mut v) => return v.as_mut_slice(),
+            MatrixData::Mutable(ref mut v) => v.as_mut_slice(),
             _ => {
                 self.to_mut();
-                return self.data_mut();
+                self.data_mut()
             }
-        };
+        }
     }
     /// Returns the number of rows in the matrix
     #[inline]
@@ -335,7 +335,7 @@ impl<'a> IndexMut<MatrixIndex> for Matrix<'a> {
             MatrixData::Mutable(ref mut v) => unsafe { v.get_unchecked_mut(idx) },
             _ => {
                 self.to_mut();
-                return self.index_mut(midx);
+                self.index_mut(midx)
             }
         }
     }
