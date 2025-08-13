@@ -138,7 +138,7 @@ impl<'a> Matrix<'a> {
     }
     /// Returns an iterator on the row
     #[inline]
-    pub fn row_iter(&self, row: usize) -> MatrixIterator {
+    pub fn row_iter(&'a self, row: usize) -> MatrixIterator<'a> {
         assert!(row < self.nrow());
         MatrixIterator {
             iter: self.data().iter().skip(row).step_by(self.nrow()),
@@ -150,7 +150,7 @@ impl<'a> Matrix<'a> {
     /// Returns an iterator on the column
     #[allow(clippy::iter_skip_zero)]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> MatrixIterator {
+    pub fn col_iter(&'a self, col: usize) -> MatrixIterator<'a> {
         assert!(col < self.ncol());
         MatrixIterator {
             iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
@@ -305,7 +305,7 @@ impl<'a> Matrix<'a> {
     }
     /// Performes the calculation of matrices self * mat
     #[inline]
-    pub fn mult(&self, mat: &Matrix) -> Matrix {
+    pub fn mult<'b>(&'a self, mat: &Matrix) -> Matrix<'b> {
         assert!(self.ncol() == mat.nrow());
         let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
 

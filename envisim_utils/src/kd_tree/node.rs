@@ -179,7 +179,7 @@ impl<'a> Node<'a> {
 
     /// Returns a reference to the data matrix
     #[inline]
-    pub fn data(&self) -> &Matrix {
+    pub fn data(&'a self) -> &'a Matrix<'a> {
         self.data
     }
 
