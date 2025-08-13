@@ -1,5 +1,5 @@
 Package: samplr
-Title: Balanced and spatially balanced Sampling
+Title: Spatially balanced sampling
 Version: 0.1.0
 Authors@R: c(
     person("Wilmer", "Prentius", , "wilmer.prentius@slu.se", role = c("aut", "cre"),
