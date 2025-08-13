@@ -1,0 +1,165 @@
+The binary compiled from the source code of this package contains the following Rust crates:
+
+
+-------------------------------------------------------------
+
+Name:        cfg-if
+Repository:  https://github.com/rust-lang/cfg-if
+Authors:     Alex Crichton
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        envisim_estimate
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius, Anton Grafström
+License:     AGPL-3.0-only
+
+-------------------------------------------------------------
+
+Name:        envisim_samplr
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius, Anton Grafström
+License:     AGPL-3.0-only
+
+-------------------------------------------------------------
+
+Name:        envisim_utils
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius, Anton Grafström
+License:     AGPL-3.0-only
+
+-------------------------------------------------------------
+
+Name:        extendr-api
+Repository:  https://github.com/extendr/extendr
+Authors:     andy-thomason, Thomas Down, Mossa Merhi Reimert, Josiah Parry, Claus O. Wilke, Hiroaki Yutani, Ilia A. Kosenkov, Michael Milton
+License:     MIT
+
+-------------------------------------------------------------
+
+Name:        extendr-ffi
+Repository:  https://github.com/extendr/extendr
+Authors:     andy-thomason, Thomas Down, Mossa Merhi Reimert, Josiah Parry, Claus O. Wilke, Hiroaki Yutani, Ilia A. Kosenkov, Michael Milton
+License:     MIT
+
+-------------------------------------------------------------
+
+Name:        extendr-macros
+Repository:  https://github.com/extendr/extendr
+Authors:     andy-thomason, Thomas Down, Mossa Merhi Reimert, Josiah Parry, Claus O. Wilke, Hiroaki Yutani, Ilia A. Kosenkov, Michael Milton
+License:     MIT
+
+-------------------------------------------------------------
+
+Name:        getrandom
+Repository:  https://github.com/rust-random/getrandom
+Authors:     The Rand Project Developers
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        libc
+Repository:  https://github.com/rust-lang/libc
+Authors:     The Rust Project Developers
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        once_cell
+Repository:  https://github.com/matklad/once_cell
+Authors:     Aleksey Kladov
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        paste
+Repository:  https://github.com/dtolnay/paste
+Authors:     David Tolnay
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        ppv-lite86
+Repository:  https://github.com/cryptocorrosion/cryptocorrosion
+Authors:     The CryptoCorrosion Contributors
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        proc-macro2
+Repository:  https://github.com/dtolnay/proc-macro2
+Authors:     David Tolnay, Alex Crichton
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        quote
+Repository:  https://github.com/dtolnay/quote
+Authors:     David Tolnay
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        rand
+Repository:  https://github.com/rust-random/rand
+Authors:     The Rand Project Developers, The Rust Project Developers
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        rand_chacha
+Repository:  https://github.com/rust-random/rand
+Authors:     The Rand Project Developers, The Rust Project Developers, The CryptoCorrosion Contributors
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        rand_core
+Repository:  https://github.com/rust-random/rand
+Authors:     The Rand Project Developers, The Rust Project Developers
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        rustc-hash
+Repository:  https://github.com/rust-lang/rustc-hash
+Authors:     The Rust Project Developers
+License:     Apache-2.0 OR MIT
+
+-------------------------------------------------------------
+
+Name:        syn
+Repository:  https://github.com/dtolnay/syn
+Authors:     David Tolnay
+License:     MIT OR Apache-2.0
+
+-------------------------------------------------------------
+
+Name:        unicode-ident
+Repository:  https://github.com/dtolnay/unicode-ident
+Authors:     David Tolnay
+License:     (MIT OR Apache-2.0) AND Unicode-3.0
+
+-------------------------------------------------------------
+
+Name:        wasi
+Repository:  https://github.com/bytecodealliance/wasi
+Authors:     The Cranelift Project Developers
+License:     Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+
+-------------------------------------------------------------
+
+Name:        zerocopy
+Repository:  https://github.com/google/zerocopy
+Authors:     Joshua Liebow-Feeser, Jack Wrenn
+License:     BSD-2-Clause OR Apache-2.0 OR MIT
+
+-------------------------------------------------------------
+
+Name:        zerocopy-derive
+Repository:  https://github.com/google/zerocopy
+Authors:     Joshua Liebow-Feeser, Jack Wrenn
+License:     BSD-2-Clause OR Apache-2.0 OR MIT
+
+-------------------------------------------------------------
