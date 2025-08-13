@@ -110,10 +110,6 @@ where
 
         Ok(self)
     }
-    // #[inline]
-    // pub fn new_boxed(rng: &'a mut R, options: &SampleOptions) -> Result<Box<Self>, SamplingError> {
-    //     Self::new(rng, options).map(Box::new)
-    // }
 
     #[inline]
     pub fn options(&self) -> &'a SampleOptions<'a> {
