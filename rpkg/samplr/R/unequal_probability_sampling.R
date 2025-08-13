@@ -6,6 +6,7 @@
 #' Selects samples with prescribed inclusion probabilities from finite populations.
 #'
 #' @param probabilities A vector of inclusion probabilities.
+#' @param sample_size The wanted sample size
 #' @inheritDotParams .sampling_defaults -bucket_size
 #'
 #' @references
@@ -36,6 +37,22 @@
 #' Sampford, M. R. (1967).
 #' On sampling without replacement with unequal probabilities of selection.
 #' Biometrika, 54(3-4), 499-513.
+#'
+#' @examples
+#' \dontrun{
+#' set.seed(12345);
+#' N = 1000;
+#' n = 100;
+#' prob = rep(n/N, N);
+#' rpm(prob);
+#' spm(prob);
+#' cps(prob);
+#' poisson(prob);
+#' conditional_poisson(prob, n);
+#' brewer(prob);
+#' pareto(prob);
+#' sampford(prob);
+#' }
 #'
 NULL
 
@@ -72,8 +89,16 @@ poisson = function(probabilities, ...) {
 }
 
 #' @describeIn unequal_probability_sampling Conditional Poisson sampling
-conditional_poisson = function(probabilities, ...) {
-  .unequal_wrapper("conditional_poisson", probabilities, ...)
+conditional_poisson = function(probabilities, sample_size, ...) {
+  args = .sampling_defaults(...);
+  .Call(
+    wrap__rust_unequal_conditional_poisson,
+    probabilities,
+    sample_size,
+    args$eps,
+    args$seed,
+    args$max_iter
+  ) + 1L
 }
 
 #' @describeIn unequal_probability_sampling Systematic sampling

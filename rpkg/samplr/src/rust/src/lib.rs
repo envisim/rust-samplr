@@ -1,18 +1,20 @@
+use envisim_estimate::balance::balance_deviation;
+use envisim_estimate::horvitz_thompson::local_mean_variance;
 use envisim_estimate::spatial_balance::{local as sb_local, voronoi as sb_voronoi};
+use envisim_samplr::correlated_poisson::{cps, lcps, scps};
 use envisim_samplr::cube_method::{cube, cube_stratified, local_cube, local_cube_stratified};
 use envisim_samplr::pivotal_method::{hierarchical_lpm_2, lpm_1, lpm_1s, lpm_2, rpm, spm};
-use envisim_samplr::poisson::{
-    conditional as conditional_poisson, cps, lcps, sample as poisson, scps,
-};
 use envisim_samplr::systematic::{
     sample as systematic, sample_random_order as systematic_random_order,
 };
-use envisim_samplr::unequal::{brewer, pareto, sampford};
-use envisim_samplr::SampleOptions;
-use envisim_utils::{kd_tree::TreeBuilder, Matrix};
+use envisim_samplr::unequal::{brewer, conditional_poisson, pareto, poisson, sampford};
+use envisim_samplr::{AuxiliariesOptions, SampleOptions};
+use envisim_utils::pips::pips_from_slice;
+use envisim_utils::Matrix;
 use extendr_api::prelude::*;
 use extendr_api::wrapper::matrix::RMatrix;
 use rand::{rngs::SmallRng, SeedableRng};
+use std::num::NonZeroUsize;
 
 #[extendr]
 fn rust_unequal(
@@ -23,24 +25,49 @@ fn rust_unequal(
     r_max_iter: usize,
 ) -> Vec<usize> {
     let mut rng = SmallRng::seed_from_u64(r_seed);
+    let max_iter = NonZeroUsize::new(r_max_iter).unwrap();
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options.eps(r_eps).unwrap();
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_eps(r_eps)
+        .unwrap()
+        .set_max_iterations(max_iter)
+        .unwrap();
 
     let s = match r_method {
-        "spm" => options.sample(&mut rng, spm),
-        "cps" => options.sample(&mut rng, cps),
+        "spm" => spm(&mut rng, &options),
+        "cps" => cps(&mut rng, &options),
         "poisson" => options.sample(&mut rng, poisson),
-        "conditional_poisson" => conditional_poisson(&mut rng, &options, r_max_iter),
-        "systematic" => options.sample(&mut rng, systematic),
-        "systematic_random_order" => options.sample(&mut rng, systematic_random_order),
-        "brewer" => options.sample(&mut rng, brewer),
-        "pareto" => options.sample(&mut rng, pareto),
-        "sampford" => options.sample(&mut rng, sampford),
-        "rpm" | &_ => options.sample(&mut rng, rpm),
+        "systematic" => systematic(&mut rng, &options),
+        "systematic_random_order" => systematic_random_order(&mut rng, &options),
+        "brewer" => brewer(&mut rng, &options),
+        "pareto" => pareto(&mut rng, &options),
+        "sampford" => sampford(&mut rng, &options),
+        "rpm" | &_ => rpm(&mut rng, &options),
     };
 
     s.unwrap()
+}
+
+#[extendr]
+fn rust_unequal_conditional_poisson(
+    r_prob: &[f64],
+    r_sample_size: usize,
+    r_eps: f64,
+    r_seed: u64,
+    r_max_iter: usize,
+) -> Vec<usize> {
+    let mut rng = SmallRng::seed_from_u64(r_seed);
+    let max_iter = NonZeroUsize::new(r_max_iter).unwrap();
+
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_eps(r_eps)
+        .unwrap()
+        .set_max_iterations(max_iter)
+        .unwrap();
+
+    conditional_poisson(&mut rng, &options, r_sample_size).unwrap()
 }
 
 #[extendr]
@@ -55,21 +82,23 @@ fn rust_spatially_balanced(
     let mut rng = SmallRng::seed_from_u64(r_seed);
     let data = Matrix::from_ref(r_data.data(), r_data.nrows());
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options
-        .auxiliaries(&data)
+    let aux = AuxiliariesOptions::new(&data)
         .unwrap()
         .try_bucket_size(r_bucket_size)
+        .unwrap();
+    let options = SampleOptions::new(r_prob)
         .unwrap()
-        .eps(r_eps)
+        .set_eps(r_eps)
+        .unwrap()
+        .set_spreading_options(aux)
         .unwrap();
 
     let s = match r_method {
-        "lpm_1" => options.sample(&mut rng, lpm_1),
-        "lpm_1s" => options.sample(&mut rng, lpm_1s),
-        "scps" => options.sample(&mut rng, scps),
-        "lcps" => options.sample(&mut rng, lcps),
-        "lpm_2" | &_ => options.sample(&mut rng, lpm_2),
+        "lpm_1" => lpm_1(&mut rng, &options),
+        "lpm_1s" => lpm_1s(&mut rng, &options),
+        "scps" => scps(&mut rng, &options),
+        "lcps" => lcps(&mut rng, &options),
+        "lpm_2" | &_ => lpm_2(&mut rng, &options),
     };
 
     s.unwrap()
@@ -86,11 +115,15 @@ fn rust_balanced(
     let mut rng = SmallRng::seed_from_u64(r_seed);
     let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options.balancing(&bal_data).unwrap().eps(r_eps).unwrap();
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_eps(r_eps)
+        .unwrap()
+        .set_balancing(&bal_data)
+        .unwrap();
 
     let s = match r_method {
-        "cube" | &_ => options.sample(&mut rng, cube),
+        "cube" | &_ => cube(&mut rng, &options),
     };
 
     s.unwrap()
@@ -110,19 +143,21 @@ fn rust_doubly_balanced(
     let data = Matrix::from_ref(r_data.data(), r_data.nrows());
     let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options
-        .balancing(&bal_data)
-        .unwrap()
-        .auxiliaries(&data)
+    let aux = AuxiliariesOptions::new(&data)
         .unwrap()
         .try_bucket_size(r_bucket_size)
+        .unwrap();
+    let options = SampleOptions::new(r_prob)
         .unwrap()
-        .eps(r_eps)
+        .set_eps(r_eps)
+        .unwrap()
+        .set_balancing(&bal_data)
+        .unwrap()
+        .set_spreading_options(aux)
         .unwrap();
 
     let s = match r_method {
-        "local_cube" | &_ => options.sample(&mut rng, local_cube),
+        "local_cube" | &_ => local_cube(&mut rng, &options),
     };
 
     s.unwrap()
@@ -141,13 +176,15 @@ fn rust_spatially_balanced_hierarchical(
     let mut rng = SmallRng::seed_from_u64(r_seed);
     let data = Matrix::from_ref(r_data.data(), r_data.nrows());
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options
-        .auxiliaries(&data)
+    let aux = AuxiliariesOptions::new(&data)
         .unwrap()
         .try_bucket_size(r_bucket_size)
+        .unwrap();
+    let options = SampleOptions::new(r_prob)
         .unwrap()
-        .eps(r_eps)
+        .set_eps(r_eps)
+        .unwrap()
+        .set_spreading_options(aux)
         .unwrap();
 
     let sizes: Vec<usize> = r_sizes
@@ -185,10 +222,14 @@ fn rust_balanced_stratified(
 ) -> Vec<usize> {
     let mut rng = SmallRng::seed_from_u64(r_seed);
     let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
-    let strata: Vec<i64> = r_strata.iter().map(|&x| x as i64).collect();
+    let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options.balancing(&bal_data).unwrap().eps(r_eps).unwrap();
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_eps(r_eps)
+        .unwrap()
+        .set_balancing(&bal_data)
+        .unwrap();
 
     let s = match r_method {
         "cube" | &_ => cube_stratified(&mut rng, &options, &strata),
@@ -211,17 +252,19 @@ fn rust_doubly_balanced_stratified(
     let mut rng = SmallRng::seed_from_u64(r_seed);
     let data = Matrix::from_ref(r_data.data(), r_data.nrows());
     let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
-    let strata: Vec<i64> = r_strata.iter().map(|&x| x as i64).collect();
+    let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let mut options = SampleOptions::new(r_prob).unwrap();
-    options
-        .balancing(&bal_data)
-        .unwrap()
-        .auxiliaries(&data)
+    let aux = AuxiliariesOptions::new(&data)
         .unwrap()
         .try_bucket_size(r_bucket_size)
+        .unwrap();
+    let options = SampleOptions::new(r_prob)
         .unwrap()
-        .eps(r_eps)
+        .set_eps(r_eps)
+        .unwrap()
+        .set_balancing(&bal_data)
+        .unwrap()
+        .set_spreading_options(aux)
         .unwrap();
 
     let s = match r_method {
@@ -229,6 +272,32 @@ fn rust_doubly_balanced_stratified(
     };
 
     s.unwrap()
+}
+
+#[extendr]
+fn rust_local_mean_variance(
+    r_values: &[f64],
+    r_prob: &[f64],
+    r_data: RMatrix<f64>,
+    r_neighbours: usize,
+) -> f64 {
+    if r_neighbours == 0 {
+        return f64::NAN;
+    }
+
+    let neighbours = NonZeroUsize::new(r_neighbours).unwrap();
+    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
+
+    let aux = AuxiliariesOptions::new(&data)
+        .unwrap()
+        .est_bucket_size()
+        .unwrap();
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_spreading_options(aux)
+        .unwrap();
+
+    local_mean_variance(r_values, &options, neighbours).unwrap()
 }
 
 #[extendr]
@@ -240,14 +309,39 @@ fn rust_spatial_balance_measure(
 ) -> f64 {
     let data = Matrix::from_ref(r_data.data(), r_data.nrows());
     let sample: Vec<usize> = r_sample.iter().map(|&x| x as usize).collect();
-    let tree = TreeBuilder::new(&data);
+
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_spreading(&data)
+        .unwrap();
 
     let v = match r_method {
-        "local" => sb_local(&sample, r_prob, &tree),
-        "voronoi" | &_ => sb_voronoi(&sample, r_prob, &tree),
+        "local" => sb_local(&sample, &options),
+        "voronoi" | &_ => sb_voronoi(&sample, &options),
     };
 
     v.unwrap_or(-1.0)
+}
+
+#[extendr]
+fn rust_balance_deviation(r_sample: &[i32], r_prob: &[f64], r_data: RMatrix<f64>) -> Vec<f64> {
+    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
+    let sample: Vec<usize> = r_sample.iter().map(|&x| x as usize).collect();
+
+    let options = SampleOptions::new(r_prob)
+        .unwrap()
+        .set_spreading(&data)
+        .unwrap();
+
+    balance_deviation(&sample, &options).unwrap().0.unwrap()
+}
+
+#[extendr]
+fn rust_pips_from_values(r_values: &[f64], r_sample_size: usize) -> Vec<f64> {
+    pips_from_slice(r_values, r_sample_size)
+        .unwrap()
+        .data()
+        .to_vec()
 }
 
 // Macro to generate exports.
@@ -256,11 +350,15 @@ fn rust_spatial_balance_measure(
 extendr_module! {
     mod samplr;
     fn rust_unequal;
+    fn rust_unequal_conditional_poisson;
     fn rust_spatially_balanced;
     fn rust_balanced;
     fn rust_doubly_balanced;
     fn rust_spatially_balanced_hierarchical;
     fn rust_balanced_stratified;
     fn rust_doubly_balanced_stratified;
+    fn rust_local_mean_variance;
     fn rust_spatial_balance_measure;
+    fn rust_balance_deviation;
+    fn rust_pips_from_values;
 }

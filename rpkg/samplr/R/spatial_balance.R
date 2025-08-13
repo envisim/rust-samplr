@@ -9,6 +9,8 @@
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
 #'
+#' @returns the measure, or in case of `balance_deviation`, the vector of deviations
+#'
 #' @references
 #' Stevens Jr, D. L., & Olsen, A. R. (2004).
 #' Spatially balanced sampling of natural resources.
@@ -29,7 +31,7 @@
 #' n = 70;
 #' prob = rep(n / N, N);
 #' maux = matrix(runif(N * 2), ncol = 2);
-#' s = lpm2(prob, maux);
+#' s = lpm_2(prob, maux);
 #' sb_v = spatial_balance_voronoi(s, prob, maux);
 #' sb_l = spatial_balance_local(s, prob, maux);
 #' }
@@ -39,7 +41,7 @@ NULL
 .spatial_balance_wrapper = function(method, sample, probabilities, spread_mat) {
   .Call(
     wrap__rust_spatial_balance_measure,
-    sample + 1L,
+    sample - 1L,
     probabilities,
     spread_mat,
     method
@@ -54,4 +56,14 @@ spatial_balance_local = function(sample, probabilities, spread_mat) {
 #' @describeIn spatial_balance_measure Voronoi spatial balance
 spatial_balance_voronoi = function(sample, probabilities, spread_mat) {
   .spatial_balance_wrapper("voronoi", sample, probabilities, spread_mat)
+}
+
+#' @describeIn spatial_balance_measure Balance deviation
+balance_devaition = function(sample, probabilities, spread_mat) {
+  .Call(
+    wrap__rust_balance_deviation,
+    sample - 1L,
+    probabilities,
+    spread_mat,
+  )
 }
