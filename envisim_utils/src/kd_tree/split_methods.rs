@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -23,8 +23,8 @@ pub struct Split {
 pub type FindSplit = fn(&[(f64, f64)], &Matrix, &mut [usize]) -> Option<Split>;
 
 /// The midpoint slide splitting method.
-/// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have values
-/// > `value`.
+/// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have
+/// values > `value`.
 /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
 /// contains equal elements.
 ///

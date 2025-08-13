@@ -19,8 +19,7 @@ fn test_cube() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let baldata = Matrix::from_ref(&BAL_DATA_10_1_P, 10);
-    let mut opts = SampleOptions::new(p)?;
-    opts.balancing(&baldata)?;
+    let opts = SampleOptions::new(p)?.set_balancing(&baldata)?;
 
     test_wor(cube, &mut rng, &opts, p, 1e-2, 100000)
 }
@@ -31,8 +30,9 @@ fn test_lcube() -> Result<(), SamplingError> {
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let baldata = Matrix::from_ref(&BAL_DATA_10_1_P, 10);
-    let mut opts = SampleOptions::new(p)?;
-    opts.balancing(&baldata)?.auxiliaries(&data)?;
+    let opts = SampleOptions::new(p)?
+        .set_balancing(&baldata)?
+        .set_spreading(&data)?;
 
     test_wor(local_cube, &mut rng, &opts, p, 1e-2, 100000)
 }
@@ -45,8 +45,7 @@ fn test_cube_stratified() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let probs = &PROB_10_E;
     let baldata = Matrix::from_ref(&BAL_DATA_10_1, 10);
-    let mut opts = SampleOptions::new(probs)?;
-    opts.balancing(&baldata)?;
+    let opts = SampleOptions::new(probs)?.set_balancing(&baldata)?;
 
     {
         let mut sel: Vec<u32> = vec![0; probs.len()];
@@ -78,8 +77,9 @@ fn test_lcube_stratified() -> Result<(), SamplingError> {
     let probs = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let baldata = Matrix::from_ref(&BAL_DATA_10_1, 10);
-    let mut opts = SampleOptions::new(probs)?;
-    opts.balancing(&baldata)?.auxiliaries(&data)?;
+    let opts = SampleOptions::new(probs)?
+        .set_balancing(&baldata)?
+        .set_spreading(&data)?;
 
     {
         let mut sel: Vec<u32> = vec![0; probs.len()];

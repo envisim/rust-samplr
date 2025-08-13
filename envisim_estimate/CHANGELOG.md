@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- added dependency `envisim_samplr`.
+- `balance_deviation`, to calculate deviation between total and total estimate.
 
 ### Changed
-- `n_neighbours` parameter of `local_mean_variance` changed type from `usize` to `NonZeroUsize`.
-
-### Removed
-- removed dependency `thiserror`.
-- removed re-exports from `spatial_balance` module.
+- `local_mean_variance`, `spatial_balance::local`, `spatial_balance::voronoi` use `SampleOptions`
+instead of `TreeBuilder`.
+- `nearest_neighbour` use `Matrix` instead of `TreeBuilder`.
+- `local_mean_variance`, `nearest_neighbour`, `spatial_balance::local`, `spatial_balance::voronoi`
+returns `f64::NAN` on empty sample.
 
 ## [0.2.0] - 2024-09-24
 ### Added
