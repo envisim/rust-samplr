@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,8 +12,8 @@
 
 //! Horvitz-Thompson estimators (single count estimators)
 
-use envisim_samplr::SamplingError;
-use envisim_utils::kd_tree::{Searcher, TreeBuilder};
+use envisim_samplr::{SampleOptions, SamplingError};
+use envisim_utils::kd_tree::Searcher;
 use envisim_utils::utils::{sum, usize_to_f64};
 use envisim_utils::{InputError, Matrix, Probabilities};
 use std::num::NonZeroUsize;
@@ -155,12 +155,21 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, 
 /// <https://doi.org/10.1111/sjos.12016>
 pub fn local_mean_variance(
     y_values: &[f64],
-    probabilities: &[f64],
-    tree_builder: &TreeBuilder,
+    options: &SampleOptions,
     n_neighbours: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
-    let tree = tree_builder.build(&mut (0..sample_size).collect::<Vec<usize>>())?;
+
+    if sample_size == 0 {
+        return Ok(f64::NAN);
+    }
+
+    let probabilities = options.probabilities();
+    let tree = options
+        .check_spreading()?
+        .spreading()
+        .unwrap()
+        .build_tree(&mut (0..sample_size).collect::<Vec<usize>>())?;
     let mut searcher = Searcher::new(&tree, n_neighbours);
     let auxilliaries = tree.data();
 
@@ -177,7 +186,7 @@ pub fn local_mean_variance(
 
     for i in 0..sample_size {
         searcher
-            .find_neighbours_of_iter(&tree, &mut auxilliaries.row_iter(i))
+            .find_neighbours_of_iter(&tree, auxilliaries.row_iter(i))
             .unwrap();
         let len = usize_to_f64(searcher.neighbours().len());
         variance += len / (len - 1.0)
