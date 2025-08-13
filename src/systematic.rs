@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -35,7 +35,8 @@ pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, Sam
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
+    options.check_base()?;
+    let probabilities = options.probabilities();
     let order: Vec<usize> = (0usize..probabilities.len()).collect();
     from_order(rng.gen(), probabilities, &order)
 }
@@ -62,7 +63,8 @@ pub fn sample_random_order<R>(
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
+    options.check_base()?;
+    let probabilities = options.probabilities();
     let order = shuffle(rng, probabilities.len());
     from_order(rng.gen(), probabilities, &order)
 }

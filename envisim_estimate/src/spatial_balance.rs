@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,8 +12,8 @@
 
 //! Spatial balance measures
 
-use envisim_samplr::SamplingError;
-use envisim_utils::kd_tree::{Searcher, TreeBuilder};
+use envisim_samplr::{SampleOptions, SamplingError};
+use envisim_utils::kd_tree::Searcher;
 use envisim_utils::utils::usize_to_f64;
 use envisim_utils::{InputError, Matrix};
 use rustc_hash::{FxBuildHasher, FxHashMap};
@@ -23,14 +23,16 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// # Examples
 /// ```
 /// use envisim_estimate::spatial_balance::*;
+/// use envisim_samplr::SampleOptions;
 /// use envisim_utils::Matrix;
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
-/// // let sb = voronoi(&s, &p, &TreeBuilder::new(&m))?;
+/// // let sb = voronoi(&s, &options)?;
 /// # Ok::<(), envisim_samplr::SamplingError>(())
 /// ```
 ///
@@ -39,18 +41,18 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn voronoi(
-    sample: &[usize],
-    probabilities: &[f64],
-    tree_builder: &TreeBuilder,
-) -> Result<f64, SamplingError> {
-    let tree = tree_builder.build(&mut sample.to_vec())?;
+pub fn voronoi(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingError> {
+    let tree = options
+        .check_base()?
+        .check_spreading()?
+        .spreading()
+        .unwrap()
+        .build_tree(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
     let data = tree.data();
+    let probabilities = options.probabilities();
 
-    let population_size = data.nrow();
     let sample_size = sample.len();
-    InputError::check_sizes(probabilities.len(), population_size)?;
 
     if sample_size == 0 {
         return Ok(f64::NAN);
@@ -64,7 +66,7 @@ pub fn voronoi(
 
     for (i, &p) in probabilities.iter().enumerate() {
         searcher
-            .find_neighbours_of_iter(&tree, &mut data.row_iter(i))
+            .find_neighbours_of_iter(&tree, data.row_iter(i))
             .unwrap();
         let partial_prob = p / usize_to_f64(searcher.neighbours().len());
         searcher.neighbours().iter().for_each(|&s| {
@@ -84,14 +86,16 @@ pub fn voronoi(
 /// # Examples
 /// ```
 /// use envisim_estimate::spatial_balance::*;
+/// use envisim_samplr::SampleOptions;
 /// use envisim_utils::Matrix;
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
-/// let sb = local(&s, &p, &TreeBuilder::new(&m))?;
+/// let sb = local(&s, &options)?;
 /// # Ok::<(), envisim_samplr::SamplingError>(())
 /// ```
 ///
@@ -100,24 +104,25 @@ pub fn voronoi(
 /// How to find the best sampling design: A new measure of spatial balance.
 /// Environmetrics, e2878.
 /// <https://doi.org/10.1002/env.2878>
-pub fn local(
-    sample: &[usize],
-    probabilities: &[f64],
-    tree_builder: &TreeBuilder,
-) -> Result<f64, SamplingError> {
-    let tree = tree_builder.build(&mut sample.to_vec())?;
+pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingError> {
+    let tree = options
+        .check_base()?
+        .check_spreading()?
+        .spreading()
+        .unwrap()
+        .build_tree(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
     let data = tree.data();
+    let probabilities = options.probabilities();
 
-    let population_size = data.nrow();
+    let population_size = options.population_size();
     let sample_size = sample.len();
-    InputError::check_sizes(probabilities.len(), population_size)?;
 
     if sample_size == 0 {
         return Ok(f64::NAN);
     }
 
-    // One extra column for inclusion probabilitoies
+    // One extra column for inclusion probabilities
     let cols = data.ncol() + 1;
     let mut voronoi_means =
         FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);

@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -24,10 +24,10 @@
 //! This generally yields low variances for the variable of interest, if there is a general
 //! relationship between the auxilliaries and the variables of interest.
 
+pub mod correlated_poisson;
 pub mod cube_method;
 mod error;
 pub mod pivotal_method;
-pub mod poisson;
 mod sample_options;
 pub mod srs;
 pub mod systematic;
@@ -35,4 +35,5 @@ pub mod unequal;
 mod utils;
 
 pub use error::SamplingError;
-pub use sample_options::{SampleOptions, Sampler};
+pub use sample_options::{AuxiliariesOptions, SampleOptions, Sampler};
+pub use utils::SampleContainer;

@@ -29,8 +29,7 @@ fn test_lpm1() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
-    let mut opts = SampleOptions::new(p)?;
-    opts.auxiliaries(&data)?;
+    let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_1, &mut rng, &opts, p, 1e-2, 12000)
 }
@@ -40,8 +39,7 @@ fn test_lpm1s() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
-    let mut opts = SampleOptions::new(p)?;
-    opts.auxiliaries(&data)?;
+    let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_1s, &mut rng, &opts, p, 1e-2, 10000)
 }
@@ -51,8 +49,7 @@ fn test_lpm2() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
-    let mut opts = SampleOptions::new(p)?;
-    opts.auxiliaries(&data)?;
+    let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_2, &mut rng, &opts, p, 1e-2, 10000)
 }
@@ -65,8 +62,7 @@ fn test_hlpm2() -> Result<(), SamplingError> {
     let mut rng = seeded_rng();
     let probs = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
-    let mut opts = SampleOptions::new(probs)?;
-    opts.auxiliaries(&data)?;
+    let opts = SampleOptions::new(probs)?.set_spreading(&data)?;
 
     {
         let mut sel: Vec<u32> = vec![0; probs.len()];

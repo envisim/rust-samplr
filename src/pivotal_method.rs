@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,9 +12,9 @@
 
 //! Pivotal method designs
 
-use crate::utils::Container;
+use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::kd_tree::{Node, Searcher};
+use envisim_utils::kd_tree::Searcher;
 use envisim_utils::utils::{random_element, sum, usize_to_f64};
 use envisim_utils::InputError;
 use rand::Rng;
@@ -22,300 +22,68 @@ use rustc_hash::FxHashSet;
 
 type Pair = (usize, usize);
 
+struct VariantSequential {
+    pair: Pair,
+}
+struct VariantRandom {}
+struct VariantLocal1 {
+    searcher: Searcher,
+    candidates: Vec<usize>,
+}
+struct VariantLocal1S {
+    searcher: Searcher,
+    candidates: Vec<usize>,
+    history: Vec<usize>,
+}
+struct VariantLocal2 {
+    searcher: Searcher,
+}
+
+pub struct PivotalMethod<'a, R, T>
+where
+    R: Rng + ?Sized,
+    T: PivotalMethodVariant<'a, R>,
+{
+    container: SampleContainer<'a, R>,
+    variant: T,
+}
+
 pub trait PivotalMethodVariant<'a, R>
 where
     R: Rng + ?Sized,
 {
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)>;
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool>;
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError>
+    where
+        Self: Sized;
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)>;
 }
 
-pub struct PivotalMethodSampler<'a, R, T>
-where
-    R: Rng + ?Sized,
-    T: PivotalMethodVariant<'a, R>,
-{
-    container: Box<Container<'a, R>>,
-    variant: Box<T>,
-}
-
-pub struct SequentialPivotalMethod {
-    pair: Pair,
-}
-pub struct RandomPivotalMethod {}
-pub struct LocalPivotalMethod1<'a> {
-    tree: Box<Node<'a>>,
-    searcher: Box<Searcher>,
-    candidates: Vec<usize>,
-}
-pub struct LocalPivotalMethod1S<'a> {
-    tree: Box<Node<'a>>,
-    searcher: Box<Searcher>,
-    candidates: Vec<usize>,
-    history: Vec<usize>,
-}
-pub struct LocalPivotalMethod2<'a> {
-    tree: Box<Node<'a>>,
-    searcher: Box<Searcher>,
-}
-
-/// Draw a sample using the sequential pivotal method.
-/// A variant of the pivotal method where unit competes in order.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
-///
-/// let mut rng = SmallRng::from_entropy();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tille, Y. (1998).
-/// Unequal probability sampling without replacement through a splitting method.
-/// Biometrika, 85(1), 89-101.
-/// <https://doi.org/10.1093/biomet/85.1.89>
-#[inline]
-pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    spm_new(rng, options)?.sample_with_return()
-}
-#[inline]
-fn spm_new<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions,
-) -> Result<PivotalMethodSampler<'a, R, SequentialPivotalMethod>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    Ok(PivotalMethodSampler {
-        container: Container::new_boxed(rng, options)?,
-        variant: Box::new(SequentialPivotalMethod { pair: (0, 1) }),
-    })
-}
-
-/// Draw a sample using the random pivotal method.
-/// A variant of the pivotal method where unit competes in a random order.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
-///
-/// let mut rng = SmallRng::from_entropy();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tille, Y. (1998).
-/// Unequal probability sampling without replacement through a splitting method.
-/// Biometrika, 85(1), 89-101.
-/// <https://doi.org/10.1093/biomet/85.1.89>
-#[inline]
-pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    rpm_new(rng, options)?.sample_with_return()
-}
-#[inline]
-fn rpm_new<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions,
-) -> Result<PivotalMethodSampler<'a, R, RandomPivotalMethod>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    Ok(PivotalMethodSampler {
-        container: Container::new_boxed(rng, options)?,
-        variant: Box::new(RandomPivotalMethod {}),
-    })
-}
-
-/// Draw a sample using the local pivotal method 1.
-/// The sample is spatially balanced on the provided auxilliary variables in `data`.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
-///
-/// let mut rng = SmallRng::from_entropy();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
-/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
-/// Spatially balanced sampling through the pivotal method.
-/// Biometrics, 68(2), 514-520.
-/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-#[inline]
-pub fn lpm_1<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    lpm_1_new(rng, options)?.sample_with_return()
-}
-#[inline]
-fn lpm_1_new<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod1<'a>>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    options.check_spatially_balanced()?;
-    let container = Container::new_boxed(rng, options)?;
-    let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new_1(&tree));
-
-    Ok(PivotalMethodSampler {
-        container,
-        variant: Box::new(LocalPivotalMethod1 {
-            tree,
-            searcher,
-            candidates: Vec::<usize>::with_capacity(20),
-        }),
-    })
-}
-
-/// Draw a sample using the local pivotal method 1S.
-/// The sample is spatially balanced on the provided auxilliary variables in `data`.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
-///
-/// let mut rng = SmallRng::from_entropy();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
-/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1s)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Prentius, W. (2024). Manuscript.
-#[inline]
-pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    lpm_1s_new(rng, options)?.sample_with_return()
-}
-#[inline]
-fn lpm_1s_new<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod1S<'a>>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    options.check_spatially_balanced()?;
-    let container = Container::new_boxed(rng, options)?;
-    let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new_1(&tree));
-    let remaining_units = container.indices().len();
-
-    Ok(PivotalMethodSampler {
-        container,
-        variant: Box::new(LocalPivotalMethod1S {
-            tree,
-            searcher,
-            candidates: Vec::<usize>::with_capacity(20),
-            history: Vec::<usize>::with_capacity(remaining_units),
-        }),
-    })
-}
-
-/// Draw a sample using the local pivotal method 2.
-/// The sample is spatially balanced on the provided auxilliary variables in `data`.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
-///
-/// let mut rng = SmallRng::from_entropy();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
-/// let s = SampleOptions::new(&p)?.auxiliaries(&m)?.sample(&mut rng, lpm_1)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
-/// Spatially balanced sampling through the pivotal method.
-/// Biometrics, 68(2), 514-520.
-/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-#[inline]
-pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    lpm_2_new(rng, options)?.sample_with_return()
-}
-#[inline]
-fn lpm_2_new<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-) -> Result<PivotalMethodSampler<'a, R, LocalPivotalMethod2<'a>>, SamplingError>
-where
-    R: Rng + ?Sized,
-{
-    options.check_spatially_balanced()?;
-    let container = Container::new_boxed(rng, options)?;
-    let tree = options.build_node(&mut container.indices().to_vec())?;
-    let searcher = Box::new(Searcher::new_1(&tree));
-
-    Ok(PivotalMethodSampler {
-        container,
-        variant: Box::new(LocalPivotalMethod2 { tree, searcher }),
-    })
-}
-
-impl<'a, R, T> PivotalMethodSampler<'a, R, T>
+impl<'a, R, T> PivotalMethod<'a, R, T>
 where
     R: Rng + ?Sized,
     T: PivotalMethodVariant<'a, R>,
 {
     #[inline]
-    fn sample_with_return(&mut self) -> Result<Vec<usize>, SamplingError> {
-        Ok(self.sample().get_sorted_sample().to_vec())
+    fn new(container: SampleContainer<'a, R>, variant: T) -> Result<Self, SamplingError> {
+        Ok(PivotalMethod { container, variant })
     }
     #[inline]
-    fn sample(&mut self) -> &mut Self {
+    fn sample(&mut self) -> Result<Vec<usize>, SamplingError> {
+        Ok(self.run().get_sorted_sample().to_vec())
+    }
+    #[inline]
+    fn run(&mut self) -> &mut Self {
         while let Some(units) = self.variant.select_units(&mut self.container) {
             let rv = self.container.rng().gen::<f64>();
             self.update_probabilities(units, rv);
         }
 
-        if let Some(id) = self.container.update_last_unit() {
-            self.variant.decide_unit(&mut self.container, id);
-        }
+        self.container
+            .update_last_unit()
+            .expect("last unit to be decided");
 
         self
     }
@@ -343,10 +111,12 @@ where
             p2 = 0.0;
         }
 
-        self.container.probabilities_mut()[id1] = p1;
-        self.container.probabilities_mut()[id2] = p2;
-        self.variant.decide_unit(&mut self.container, id1);
-        self.variant.decide_unit(&mut self.container, id2);
+        self.container
+            .set_probability_and_decide(id1, p1)
+            .expect("id1 to update");
+        self.container
+            .set_probability_and_decide(id2, p2)
+            .expect("id2 to update");
     }
     #[inline]
     fn get_sample(&mut self) -> &[usize] {
@@ -358,12 +128,22 @@ where
     }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for SequentialPivotalMethod
+impl<'a, R> PivotalMethodVariant<'a, R> for VariantSequential
 where
     R: Rng + ?Sized,
 {
     #[inline]
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
+        PivotalMethod::new(
+            SampleContainer::new(rng, options)?,
+            VariantSequential { pair: (0, 1) },
+        )
+    }
+    #[inline]
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
         if container.indices().len() <= 1 {
             return None;
         }
@@ -392,18 +172,21 @@ where
 
         Some(self.pair)
     }
-    #[inline]
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).unwrap()
-    }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for RandomPivotalMethod
+impl<'a, R> PivotalMethodVariant<'a, R> for VariantRandom
 where
     R: Rng + ?Sized,
 {
     #[inline]
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
+        PivotalMethod::new(SampleContainer::new(rng, options)?, VariantRandom {})
+    }
+    #[inline]
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -421,18 +204,30 @@ where
 
         Some((id1, id2))
     }
-    #[inline]
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).unwrap()
-    }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod1<'a>
+impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1
 where
     R: Rng + ?Sized,
 {
     #[inline]
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
+        let container = SampleContainer::new_with_tree(rng, options)?;
+        let searcher = Searcher::new_1(container.tree().unwrap());
+
+        PivotalMethod::new(
+            container,
+            VariantLocal1 {
+                searcher,
+                candidates: Vec::<usize>::with_capacity(20),
+            },
+        )
+    }
+    #[inline]
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -443,7 +238,7 @@ where
         loop {
             let id1 = *container.indices_draw().unwrap();
             self.searcher
-                .find_neighbours_of_id(&self.tree, id1)
+                .find_neighbours_of_id(container.tree().unwrap(), id1)
                 .unwrap();
             self.candidates.clear();
 
@@ -455,10 +250,10 @@ where
 
             while i < self.candidates.len() {
                 self.searcher
-                    .find_neighbours_of_id(&self.tree, self.candidates[i])
+                    .find_neighbours_of_id(container.tree().unwrap(), self.candidates[i])
                     .unwrap();
 
-                if self.searcher.neighbours().iter().any(|&id| id == id1) {
+                if self.searcher.neighbours().contains(&id1) {
                     i += 1;
                 } else {
                     self.candidates.swap_remove(i);
@@ -471,21 +266,32 @@ where
             }
         }
     }
-    #[inline]
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).unwrap().map(|r| {
-            self.tree.remove_unit(id).unwrap();
-            r
-        })
-    }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod1S<'a>
+impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1S
 where
     R: Rng + ?Sized,
 {
     #[inline]
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
+        let container = SampleContainer::new_with_tree(rng, options)?;
+        let searcher = Searcher::new_1(container.tree().unwrap());
+        let remaining_units = container.indices().len();
+
+        PivotalMethod::new(
+            container,
+            VariantLocal1S {
+                searcher,
+                candidates: Vec::<usize>::with_capacity(20),
+                history: Vec::<usize>::with_capacity(remaining_units),
+            },
+        )
+    }
+    #[inline]
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -508,7 +314,7 @@ where
         loop {
             let id1 = *self.history.last().unwrap();
             self.searcher
-                .find_neighbours_of_id(&self.tree, id1)
+                .find_neighbours_of_id(container.tree().unwrap(), id1)
                 .unwrap();
             self.candidates.clear();
 
@@ -521,10 +327,10 @@ where
 
             while i < len {
                 self.searcher
-                    .find_neighbours_of_id(&self.tree, self.candidates[i])
+                    .find_neighbours_of_id(container.tree().unwrap(), self.candidates[i])
                     .unwrap();
 
-                if self.searcher.neighbours().iter().any(|&id| id == id1) {
+                if self.searcher.neighbours().contains(&id1) {
                     i += 1;
                 } else {
                     // If we does not find any compatible matches, we use the candidates to continue our seach
@@ -547,21 +353,24 @@ where
                 .push(*random_element(container.rng(), &self.candidates).unwrap());
         }
     }
-    #[inline]
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).unwrap().map(|r| {
-            self.tree.remove_unit(id).unwrap();
-            r
-        })
-    }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for LocalPivotalMethod2<'a>
+impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal2
 where
     R: Rng + ?Sized,
 {
     #[inline]
-    fn select_units(&mut self, container: &mut Container<'a, R>) -> Option<(usize, usize)> {
+    fn new(
+        rng: &'a mut R,
+        options: &'a SampleOptions<'a>,
+    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
+        let container = SampleContainer::new_with_tree(rng, options)?;
+        let searcher = Searcher::new_1(container.tree().unwrap());
+
+        PivotalMethod::new(container, VariantLocal2 { searcher })
+    }
+    #[inline]
+    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
         let len = container.indices().len();
         if len <= 1 {
             return None;
@@ -571,19 +380,160 @@ where
 
         let id1 = *container.indices_draw().unwrap();
         self.searcher
-            .find_neighbours_of_id(&self.tree, id1)
+            .find_neighbours_of_id(container.tree().unwrap(), id1)
             .unwrap();
         let id2 = *random_element(container.rng(), self.searcher.neighbours()).unwrap();
 
         Some((id1, id2))
     }
-    #[inline]
-    fn decide_unit(&mut self, container: &mut Container<'a, R>, id: usize) -> Option<bool> {
-        container.decide_unit(id).unwrap().map(|r| {
-            self.tree.remove_unit(id).unwrap();
-            r
-        })
-    }
+}
+
+/// Draw a sample using the sequential pivotal method.
+/// A variant of the pivotal method where unit competes in order.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+///
+/// # References
+/// Deville, J. C., & Tille, Y. (1998).
+/// Unequal probability sampling without replacement through a splitting method.
+/// Biometrika, 85(1), 89-101.
+/// <https://doi.org/10.1093/biomet/85.1.89>
+#[inline]
+pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    VariantSequential::new(rng, options)?.sample()
+}
+
+/// Draw a sample using the random pivotal method.
+/// A variant of the pivotal method where unit competes in a random order.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+///
+/// # References
+/// Deville, J. C., & Tille, Y. (1998).
+/// Unequal probability sampling without replacement through a splitting method.
+/// Biometrika, 85(1), 89-101.
+/// <https://doi.org/10.1093/biomet/85.1.89>
+#[inline]
+pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    VariantRandom::new(rng, options)?.sample()
+}
+
+/// Draw a sample using the local pivotal method 1.
+/// The sample is spatially balanced on the provided auxilliary variables in `data`.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::Matrix;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+///
+/// # References
+/// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
+/// Spatially balanced sampling through the pivotal method.
+/// Biometrics, 68(2), 514-520.
+/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+#[inline]
+pub fn lpm_1<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    VariantLocal1::new(rng, options)?.sample()
+}
+
+/// Draw a sample using the local pivotal method 1S.
+/// The sample is spatially balanced on the provided auxilliary variables in `data`.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::Matrix;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1s)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+///
+/// # References
+/// Prentius, W. (2024). Manuscript.
+#[inline]
+pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    VariantLocal1S::new(rng, options)?.sample()
+}
+
+/// Draw a sample using the local pivotal method 2.
+/// The sample is spatially balanced on the provided auxilliary variables in `data`.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::Matrix;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+///
+/// # References
+/// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
+/// Spatially balanced sampling through the pivotal method.
+/// Biometrics, 68(2), 514-520.
+/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+#[inline]
+pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    VariantLocal2::new(rng, options)?.sample()
 }
 
 /// Draw a sample using the hierarchical local pivotal method 2.
@@ -601,8 +551,7 @@ where
 /// let mut rng = SmallRng::from_entropy();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
-/// let mut options = SampleOptions::new(&p)?;
-/// options.auxiliaries(&m)?;
+/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 ///
@@ -625,9 +574,9 @@ where
     R: Rng + ?Sized,
 {
     InputError::check_integer_approx_equal(
-        sum(options.probabilities),
+        sum(options.probabilities()),
         usize_to_f64(sizes.iter().sum()),
-        options.eps,
+        options.eps(),
     )?;
     InputError::check_empty(sizes)?;
 
@@ -636,9 +585,9 @@ where
     }
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
-    let mut pm = lpm_2_new(rng, options)?;
+    let mut pm = VariantLocal2::new(rng, options)?;
 
-    let mut main_sample: FxHashSet<usize> = pm.sample().get_sample().iter().cloned().collect();
+    let mut main_sample: FxHashSet<usize> = pm.run().get_sample().iter().cloned().collect();
 
     for (i, &size) in sizes[0..sizes.len() - 1].iter().enumerate() {
         assert!(pm.container.indices().is_empty());
@@ -656,13 +605,13 @@ where
             if main_sample.contains(&id) {
                 pm.container.probabilities_mut()[id] = prob;
                 pm.container.indices_mut().insert(id).unwrap();
-                pm.variant.tree.insert_unit(id).unwrap();
+                pm.container.tree_mut().unwrap().insert_unit(id).unwrap();
             } else {
                 pm.container.probabilities_mut()[id] = 0.0;
             }
         }
 
-        pm.sample();
+        pm.run();
         return_sample.push(Vec::<usize>::with_capacity(pm.get_sample().len()));
 
         for &id in pm.get_sorted_sample().iter() {
@@ -688,7 +637,8 @@ mod tests {
     #[test]
     fn update_probabilities() -> Result<(), SamplingError> {
         let mut rng = seeded_rng();
-        let mut pm = spm_new(&mut rng, &SampleOptions::new(&PROB_10_E)?)?;
+        let options = SampleOptions::new(&PROB_10_E)?;
+        let mut pm = VariantSequential::new(&mut rng, &options)?;
         pm.update_probabilities((0, 1), 0.0);
         assert_delta!(pm.container.probabilities()[0], 0.0);
         assert_delta!(pm.container.probabilities()[1], 0.4);
