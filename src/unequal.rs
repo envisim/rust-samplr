@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,10 +12,9 @@
 
 //! Unequal probability sampling designs
 
-use crate::poisson;
 pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{Indices, InputError, Probabilities};
+use envisim_utils::{Indices, InputError};
 use rand::Rng;
 
 // Assumes probabilites sum to 1.0
@@ -64,10 +63,9 @@ pub fn with_replacement<R>(
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
+    let probabilities = options.probabilities();
 
-    Probabilities::check(options.probabilities)?;
-    InputError::check_integer_approx_equal(sum(options.probabilities), 1.0, options.eps)?;
+    InputError::check_integer_approx_equal(sum(probabilities), 1.0, options.eps())?;
 
     if n == 0 {
         return Ok(vec![]);
@@ -134,13 +132,12 @@ pub fn sampford<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, S
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
-    let eps = options.eps;
+    options.check_base()?;
+    let probabilities = options.probabilities();
+    let eps = options.eps();
 
     let psum = sum(probabilities);
-    Probabilities::check(probabilities)
-        .and(Probabilities::check_eps(eps))
-        .and(InputError::check_integer_approx(psum, eps))?;
+    InputError::check_integer_approx(psum, eps)?;
     let sample_size = psum.round() as usize;
 
     if sample_size == 0 {
@@ -151,8 +148,8 @@ where
 
     let norm_probs: Vec<f64> = probabilities.iter().map(|&p| p / psum).collect();
 
-    for _ in 0..options.max_iterations.get() {
-        let mut sample = poisson::internal(rng, probabilities);
+    for _ in 0..options.max_iterations().get() {
+        let mut sample = poisson_internal(rng, probabilities);
 
         if sample.len() != sample_size - 1 {
             continue;
@@ -173,7 +170,7 @@ where
         }
     }
 
-    Err(SamplingError::MaxIterations(options.max_iterations))
+    Err(SamplingError::MaxIterations(options.max_iterations()))
 }
 
 /// Draw a sample using a pareto design.
@@ -201,13 +198,12 @@ pub fn pareto<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, Sam
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
-    let eps = options.eps;
+    options.check_base()?;
+    let probabilities = options.probabilities();
+    let eps = options.eps();
 
     let psum = sum(probabilities);
-    Probabilities::check(probabilities)
-        .and(Probabilities::check_eps(eps))
-        .and(InputError::check_integer_approx(psum, eps))?;
+    InputError::check_integer_approx(psum, eps)?;
 
     let sample_size = psum.round() as usize;
 
@@ -256,13 +252,12 @@ pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, Sam
 where
     R: Rng + ?Sized,
 {
-    let probabilities = options.probabilities;
-    let eps = options.eps;
+    options.check_base()?;
+    let probabilities = options.probabilities();
+    let eps = options.eps();
 
     let mut psum = sum(probabilities);
-    Probabilities::check(probabilities)
-        .and(Probabilities::check_eps(eps))
-        .and(InputError::check_integer_approx(psum, eps))?;
+    InputError::check_integer_approx(psum, eps)?;
 
     let mut sample_size = psum.round() as usize;
     let mut n_d = psum;
@@ -303,4 +298,75 @@ where
 
     sample.sort_unstable();
     Ok(sample)
+}
+
+#[inline]
+pub(crate) fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
+where
+    R: Rng + ?Sized,
+{
+    probabilities
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &p)| (rng.gen::<f64>() <= p).then_some(i))
+        .collect()
+}
+
+/// Draw a sample using a poisson design.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::*;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let s = SampleOptions::new(&p)?.sample(&mut rng, poisson)?;
+/// # Ok::<(), SamplingError>(())
+/// ```
+pub fn poisson<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    options.check_base()?;
+    Ok(poisson_internal(rng, options.probabilities()))
+}
+
+/// Draw a sample using a conditional poisson design.
+/// Redraws a poisson sample until the fixed sample size is achieved.
+/// May terminate after `max_iterations`.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::unequal::*;
+/// use rand::{rngs::SmallRng, SeedableRng};
+///
+/// let mut rng = SmallRng::from_entropy();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let options = SampleOptions::new(&p)?;
+/// let s = conditional_poisson(&mut rng, &options, 5);
+/// # Ok::<(), SamplingError>(())
+/// ```
+pub fn conditional_poisson<R>(
+    rng: &mut R,
+    options: &SampleOptions,
+    sample_size: usize,
+) -> Result<Vec<usize>, SamplingError>
+where
+    R: Rng + ?Sized,
+{
+    options.check_base()?;
+    let probabilities = options.probabilities();
+    let population_size = probabilities.len();
+    InputError::check_sample_size(sample_size, population_size)?;
+
+    for _ in 0..options.max_iterations().get() {
+        let s = poisson_internal(rng, probabilities);
+
+        if s.len() == sample_size {
+            return Ok(s);
+        }
+    }
+
+    Err(SamplingError::MaxIterations(options.max_iterations()))
 }
