@@ -62,8 +62,8 @@ impl<'a> AuxiliariesOptions<'a> {
         let len = self.data.nrow();
         self.set_bucket_size(unsafe {
             NonZeroUsize::new_unchecked(match len {
-                0usize..100 => 10usize,
-                100usize..400 => len / 10usize,
+                0usize..=100 => 10usize,
+                101usize..=400 => len / 10usize,
                 _ => 40usize,
             })
         })
