@@ -179,23 +179,18 @@ pub fn local_mean_variance(
 
     let yp: Vec<f64> = y_values
         .iter()
-        .zip(probabilities.iter())
+        .zip(probabilities)
         .map(|(&y, &p)| y / p)
         .collect();
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
-        searcher
-            .find_neighbours_of_iter(&tree, auxilliaries.row_iter(i))
-            .unwrap();
-        let len = usize_to_f64(searcher.neighbours().len());
-        variance += len / (len - 1.0)
-            * (searcher
-                .neighbours()
-                .iter()
-                .fold(0.0, |acc, &id| acc + yp[id])
-                / len)
-                .powi(2);
+        searcher.find_neighbours_of_id(&tree, i).unwrap();
+        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len()) + 1.0;
+        let local_mean: f64 = (yp[i] + searcher.neighbours().iter().map(|&id| yp[id]).sum::<f64>())
+            / number_of_neighbours;
+        variance +=
+            number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
     }
 
     Ok(variance)
