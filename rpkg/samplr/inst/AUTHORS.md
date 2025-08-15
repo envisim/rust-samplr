@@ -1,9 +1,9 @@
 # Authors of vendored cargo crates
 - cc 1.2.32: Alex Crichton
 - cfg-if 1.0.1: Alex Crichton
-- envisim_estimate 0.2.0: Wilmer Prentius, Anton Grafström
-- envisim_samplr 0.2.0: Wilmer Prentius, Anton Grafström
-- envisim_utils 0.2.0: Wilmer Prentius, Anton Grafström
+- envisim_estimate 0.3.0: Wilmer Prentius, Anton Grafström
+- envisim_samplr 0.3.0: Wilmer Prentius, Anton Grafström
+- envisim_utils 0.2.1: Wilmer Prentius, Anton Grafström
 - getrandom 0.2.16: The Rand Project Developers
 - libc 0.2.175: The Rust Project Developers
 - ppv-lite86 0.2.21: The CryptoCorrosion Contributors

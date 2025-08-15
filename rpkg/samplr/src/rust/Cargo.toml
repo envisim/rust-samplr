@@ -11,9 +11,12 @@ crate-type = ["staticlib", "lib"]
 
 [dependencies]
 savvy = "*"
-envisim_estimate = {version="0.2.0", path="../../../../envisim_estimate"}
-envisim_samplr = {version="0.2.0", path="../../../../"}
-envisim_utils = {version="0.2.0", path="../../../../envisim_utils"}
+envisim_estimate = {version="0.3.0"}
+envisim_samplr = {version="0.3.0"}
+envisim_utils = {version="0.2.1"}
+# envisim_estimate = {version="*", path="../../../../envisim_estimate"}
+# envisim_samplr = {version="*", path="../../../../"}
+# envisim_utils = {version="*", path="../../../../envisim_utils"}
 rand = {version="0.8.5", features = ["small_rng"]}
 
 [lints.clippy]
