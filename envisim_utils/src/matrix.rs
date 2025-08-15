@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -114,12 +114,12 @@ impl<'a> Matrix<'a> {
     #[inline]
     pub fn data_mut(&mut self) -> &mut [f64] {
         match self.data {
-            MatrixData::Mutable(ref mut v) => return v.as_mut_slice(),
+            MatrixData::Mutable(ref mut v) => v.as_mut_slice(),
             _ => {
                 self.to_mut();
-                return self.data_mut();
+                self.data_mut()
             }
-        };
+        }
     }
     /// Returns the number of rows in the matrix
     #[inline]
@@ -138,7 +138,7 @@ impl<'a> Matrix<'a> {
     }
     /// Returns an iterator on the row
     #[inline]
-    pub fn row_iter(&self, row: usize) -> MatrixIterator {
+    pub fn row_iter(&'a self, row: usize) -> MatrixIterator<'a> {
         assert!(row < self.nrow());
         MatrixIterator {
             iter: self.data().iter().skip(row).step_by(self.nrow()),
@@ -150,7 +150,7 @@ impl<'a> Matrix<'a> {
     /// Returns an iterator on the column
     #[allow(clippy::iter_skip_zero)]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> MatrixIterator {
+    pub fn col_iter(&'a self, col: usize) -> MatrixIterator<'a> {
         assert!(col < self.ncol());
         MatrixIterator {
             iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
@@ -305,7 +305,7 @@ impl<'a> Matrix<'a> {
     }
     /// Performes the calculation of matrices self * mat
     #[inline]
-    pub fn mult(&self, mat: &Matrix) -> Matrix {
+    pub fn mult<'b>(&'a self, mat: &Matrix) -> Matrix<'b> {
         assert!(self.ncol() == mat.nrow());
         let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
 
@@ -335,7 +335,7 @@ impl<'a> IndexMut<MatrixIndex> for Matrix<'a> {
             MatrixData::Mutable(ref mut v) => unsafe { v.get_unchecked_mut(idx) },
             _ => {
                 self.to_mut();
-                return self.index_mut(midx);
+                self.index_mut(midx)
             }
         }
     }

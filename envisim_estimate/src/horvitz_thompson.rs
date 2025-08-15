@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,8 +12,8 @@
 
 //! Horvitz-Thompson estimators (single count estimators)
 
-use envisim_samplr::SamplingError;
-use envisim_utils::kd_tree::{Searcher, TreeBuilder};
+use envisim_samplr::{SampleOptions, SamplingError};
+use envisim_utils::kd_tree::Searcher;
 use envisim_utils::utils::{sum, usize_to_f64};
 use envisim_utils::{InputError, Matrix, Probabilities};
 use std::num::NonZeroUsize;
@@ -155,12 +155,21 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, 
 /// <https://doi.org/10.1111/sjos.12016>
 pub fn local_mean_variance(
     y_values: &[f64],
-    probabilities: &[f64],
-    tree_builder: &TreeBuilder,
+    options: &SampleOptions,
     n_neighbours: NonZeroUsize,
 ) -> Result<f64, SamplingError> {
     let sample_size = y_values.len();
-    let tree = tree_builder.build(&mut (0..sample_size).collect::<Vec<usize>>())?;
+
+    if sample_size == 0 {
+        return Ok(f64::NAN);
+    }
+
+    let probabilities = options.probabilities();
+    let tree = options
+        .check_spreading()?
+        .spreading()
+        .unwrap()
+        .build_tree(&mut (0..sample_size).collect::<Vec<usize>>())?;
     let mut searcher = Searcher::new(&tree, n_neighbours);
     let auxilliaries = tree.data();
 
@@ -170,23 +179,18 @@ pub fn local_mean_variance(
 
     let yp: Vec<f64> = y_values
         .iter()
-        .zip(probabilities.iter())
+        .zip(probabilities)
         .map(|(&y, &p)| y / p)
         .collect();
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
-        searcher
-            .find_neighbours_of_iter(&tree, &mut auxilliaries.row_iter(i))
-            .unwrap();
-        let len = usize_to_f64(searcher.neighbours().len());
-        variance += len / (len - 1.0)
-            * (searcher
-                .neighbours()
-                .iter()
-                .fold(0.0, |acc, &id| acc + yp[id])
-                / len)
-                .powi(2);
+        searcher.find_neighbours_of_id(&tree, i).unwrap();
+        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len()) + 1.0;
+        let local_mean: f64 = (yp[i] + searcher.neighbours().iter().map(|&id| yp[id]).sum::<f64>())
+            / number_of_neighbours;
+        variance +=
+            number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
     }
 
     Ok(variance)
