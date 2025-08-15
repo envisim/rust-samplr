@@ -1,8 +1,6 @@
 #' @keywords internal
 #' @docType package
 #' @name samplr
-#' @useDynLib samplr, .registration = TRUE
-#' @exportPattern "^[[:alpha:]]+"
 #'
 #' @description
 #' Select probability samples in multi-dimensional spaces with any prescribed inclusion

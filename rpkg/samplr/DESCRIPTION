@@ -4,18 +4,19 @@ Version: 0.1.0
 Authors@R: c(
     person("Wilmer", "Prentius", , "wilmer.prentius@slu.se", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-3561-290X")),
-    person("Anton", "Grafström", role = "ctb", comment = c(ORCID = "0000-0002-4345-4024"))
+    person("Anton", "Grafström", role = "ctb", comment = c(ORCID = "0000-0002-4345-4024")),
+    person("Authors of the dependent Rust crates", role = "aut", comment = "see inst/AUTHORS file")
   )
 Description: Select balanced and spatially balanced probability samples in multi-dimensional spaces
     with any prescribed inclusion probabilities.
 URL:
     https://www.envisim.se/,
     https://github.com/envisim/rust-samplr/
-License: AGPL-3
+BugReports: https://github.com/envisim/rust-samplr/issues
+License: AGPL-3 + file LICENSE
 Encoding: UTF-8
+Language: en-GB
+Depends: R (>= 4.2)
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Config/rextendr/version: 0.4.1
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.70.0
-Depends: 
-    R (>= 4.2)

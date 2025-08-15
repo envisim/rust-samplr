@@ -19,12 +19,28 @@
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
+#' xs = matrix(runif(N * 2), ncol = 2);
 #' y = runif(N);
-#' s = lpm_2(prob, x);
-#' local_mean_variance(y[s], prob[s], x[s, ]);
+#'
+#' s = lpm_2(prob, xs);
+#' local_mean_variance(y[s], prob[s], xs[s, ], 4);
+#'
+#' # Compare SRS, empirical
+#' r = 1000L;
+#' v = matrix(0.0, r, 3L);
+#'
+#' for (i in seq_len(r)) {
+#'   s = lpm_2(prob, xs);
+#'   v[i, 1] = local_mean_variance(y[s], prob[s], xs[s, ], 4);
+#'   v[i, 2] = N^2 * sd(y[s]) / n;
+#'   v[i, 3] = sum(y[s] / prob[s]);
 #' }
 #'
+#' # Local mean variance, SRS variance, MSE
+#' print(c(mean(v[, 1]), mean(v[, 2]), mean((v[, 3] - sum(y))^2)));
+#' }
+#'
+#' @export
 local_mean_variance = function(values, probabilities, spread_mat, neighbours = 4L) {
   neighbours = as.integer(neighbours);
   if (neighbours < 1L) {
@@ -33,11 +49,10 @@ local_mean_variance = function(values, probabilities, spread_mat, neighbours = 4
     return (NaN);
   }
 
-  .Call(
-    wrap__rust_local_mean_variance,
-    values,
-    probabilities,
-    spread_mat,
+  rust_local_mean_variance(
+    as.double(values),
+    as.double(probabilities),
+    as.matrix(spread_mat),
     neighbours
   )
 }

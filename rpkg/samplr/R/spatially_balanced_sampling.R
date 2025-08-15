@@ -37,96 +37,100 @@
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' s = lpm_2(prob, x);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#' sizes = c(10L, 20L, 30L, 40L);
 #'
+#' s = lpm_1(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_1s(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_2(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = scps(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lcps(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_2_hierarchical(prob, x, sizes);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' # Respects inclusion probabilities
 #' set.seed(12345);
 #' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);
 #' N = length(prob);
-#' x = matrix(runif(N * 2), ncol = 2);
+#' xs = matrix(c(prob, runif(N * 2)), ncol = 3);
+#'
 #' ep = rep(0L, N);
 #' r = 10000L;
+#'
 #' for (i in seq_len(r)) {
-#'   s = lpm_2(prob, x);
+#'   s = lpm_2(prob, xs);
 #'   ep[s] = ep[s] + 1L;
 #' }
-#' print(ep / r);
 #'
-#' set.seed(12345);
-#' N = 1000;
-#' n = 100;
-#' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' lpm_1(prob, x);
-#' lpm_2(prob, x);
-#' lpm_1s(prob, x);
-#' scps(prob, x);
-#' lcps(prob, x);
-#'
-#' set.seed(12345);
-#' N = 1000;
-#' n = 100;
-#' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' sizes = c(10, 20, 30, 40);
-#' s = lpm_2_hierarchical(prob, x, sizes);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' print(ep / r - prob);
 #' }
 #'
 NULL
 
 .spatially_balanced_wrapper = function(method, probabilities, spread_mat, ...) {
   args = .sampling_defaults(...);
-  .Call(
-    wrap__rust_spatially_balanced,
-    probabilities,
-    spread_mat,
+
+  rust_spatially_balanced(
+    as.double(probabilities),
+    as.matrix(spread_mat),
     args$eps,
     args$bucket_size,
     args$seed,
     method
-  ) + 1L
+  )
 }
 
 #' @describeIn spatially_balanced_sampling Local pivotal method 1
+#' @export
 lpm_1 = function(probabilities, spread_mat, ...) {
   .spatially_balanced_wrapper("lpm_1", probabilities, spread_mat, ...)
 }
 
 #' @describeIn spatially_balanced_sampling Local pivotal method 1s
+#' @export
 lpm_1s = function(probabilities, spread_mat, ...) {
   .spatially_balanced_wrapper("lpm_1s", probabilities, spread_mat, ...)
 }
 
 #' @describeIn spatially_balanced_sampling Local pivotal method 2
+#' @export
 lpm_2 = function(probabilities, spread_mat, ...) {
   .spatially_balanced_wrapper("lpm_2", probabilities, spread_mat, ...)
 }
 
 #' @describeIn spatially_balanced_sampling Spatially correlated Poisson sampling
+#' @export
 scps = function(probabilities, spread_mat, ...) {
   .spatially_balanced_wrapper("scps", probabilities, spread_mat, ...)
 }
 
 #' @describeIn spatially_balanced_sampling Locally correlated Poisson sampling
+#' @export
 lcps = function(probabilities, spread_mat, ...) {
   .spatially_balanced_wrapper("lcps", probabilities, spread_mat, ...)
 }
 
 #' @describeIn spatially_balanced_sampling Hierarchical Local pivotal method 2
+#' @export
 lpm_2_hierarchical = function(probabilities, spread_mat, sizes, ...) {
   args = .sampling_defaults(...);
-  .Call(
-    wrap__rust_spatially_balanced_hierarchical,
-    probabilities,
-    spread_mat,
-    sizes,
+  rust_spatially_balanced_hierarchical(
+    as.double(probabilities),
+    as.matrix(spread_mat),
+    as.integer(sizes),
     args$eps,
     args$bucket_size,
     args$seed,
     "lpm_2"
-  );
+  )
 }

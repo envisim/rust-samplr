@@ -1,8 +1,8 @@
 #' Inclusion probabilities proportional-to-size
 #'
 #' @description
-#' Computes the first-order inclusion probabilties from a vector of positive numbers,
-#' for a probabilitiy proportional-to-size design.
+#' Computes the first-order inclusion probabilities from a vector of positive numbers,
+#' for a probability proportional-to-size design.
 #'
 #' @param values A vector of positive numbers
 #' @param sample_size The wanted sample size
@@ -17,12 +17,12 @@
 #' x = matrix(runif(N * 2), ncol = 2);
 #' prob = pips_from_vector(x[, 1], n);
 #' s = lpm_2(prob, x);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' plot(x[, 1], x[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #' }
 #'
+#' @export
 pips_from_vector = function(values, sample_size) {
-  values = as.numeric(values);
+  values = as.double(values);
   N = length(values);
   sample_size = as.integer(sample_size);
 
@@ -34,8 +34,7 @@ pips_from_vector = function(values, sample_size) {
   if (sample_size == 0)
     return(rep(0.0, N));
 
-  .Call(
-    wrap_rust_pips_from_values,
+  rust_pips_from_values(
     values,
     sample_size
   )

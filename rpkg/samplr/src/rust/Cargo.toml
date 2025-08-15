@@ -2,20 +2,15 @@
 name = "samplr"
 version = "0.1.0"
 edition = "2021"
-authors = ["Wilmer Prentius <wilmer.prentius@slu.se>", "Anton Grafström"]
-homepage = "https://envisim.se"
-repository = "https://github.com/envisim/rust-samplr"
-description = "Wrapper package for R"
-keywords = ["sampling", "statistics", "extendr"]
-categories = ["mathematics", "science", "science::geo"]
 license = "AGPL-3.0-only"
+publish = false
+rust-version = "1.70.0"
 
 [lib]
-crate-type = ["staticlib"]
-name = "samplr"
+crate-type = ["staticlib", "lib"]
 
 [dependencies]
-extendr-api = '*'
+savvy = "*"
 envisim_estimate = {version="0.2.0", path="../../../../envisim_estimate"}
 envisim_samplr = {version="0.2.0", path="../../../../"}
 envisim_utils = {version="0.2.0", path="../../../../envisim_utils"}
@@ -36,3 +31,15 @@ imprecise_flops = "warn"
 match_bool = "warn"
 needless_collect = "warn"
 too_many_arguments = "allow"
+
+[profile.release]
+# By default, on release build, savvy terminates the R session when a panic
+# occurs. This is the right behavior in that a panic means such a fatal event
+# where we can have no hope of recovery.
+#
+# cf. https://doc.rust-lang.org/book/ch09-03-to-panic-or-not-to-panic.html
+#
+# However, it's possible that the panic is thrown by some of the dependency
+# crate and there's little you can do. In such cases, you can change the
+# following line to `panic = "unwind"` to always catch a panic.
+panic = "abort"

@@ -1,8 +1,0 @@
-^LICENSE$
-^src/\.cargo$
-^src/rust/vendor$
-^src/rust/target$
-^src/Makevars$
-^src/Makevars\.win$
-
-^src/rust/\.cargo$

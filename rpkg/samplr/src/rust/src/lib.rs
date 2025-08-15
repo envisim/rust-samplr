@@ -1,3 +1,5 @@
+use savvy::{savvy, savvy_err, IntegerSexp, OwnedIntegerSexp, RealSexp, Sexp};
+
 use envisim_estimate::balance::balance_deviation;
 use envisim_estimate::horvitz_thompson::local_mean_variance;
 use envisim_estimate::spatial_balance::{local as sb_local, voronoi as sb_voronoi};
@@ -10,29 +12,25 @@ use envisim_samplr::systematic::{
 use envisim_samplr::unequal::{brewer, conditional_poisson, pareto, poisson, sampford};
 use envisim_samplr::{AuxiliariesOptions, SampleOptions};
 use envisim_utils::pips::pips_from_slice;
-use envisim_utils::Matrix;
-use extendr_api::prelude::*;
-use extendr_api::wrapper::matrix::RMatrix;
-use rand::{rngs::SmallRng, SeedableRng};
-use std::num::NonZeroUsize;
 
-#[extendr]
+mod matrix;
+mod utils;
+
+use matrix::*;
+use utils::*;
+
+#[savvy]
 fn rust_unequal(
-    r_prob: &[f64],
+    r_prob: RealSexp,
     r_eps: f64,
-    r_seed: u64,
+    r_seed: i32,
     r_method: &str,
-    r_max_iter: usize,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let max_iter = NonZeroUsize::new(r_max_iter).unwrap();
-
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_max_iterations(max_iter)
-        .unwrap();
+    r_max_iter: i32,
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
 
     let s = match r_method {
         "spm" => spm(&mut rng, &options),
@@ -44,54 +42,47 @@ fn rust_unequal(
         "pareto" => pareto(&mut rng, &options),
         "sampford" => sampford(&mut rng, &options),
         "rpm" | &_ => rpm(&mut rng, &options),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_unequal_conditional_poisson(
-    r_prob: &[f64],
-    r_sample_size: usize,
+    r_prob: RealSexp,
+    r_sample_size: i32,
     r_eps: f64,
-    r_seed: u64,
-    r_max_iter: usize,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let max_iter = NonZeroUsize::new(r_max_iter).unwrap();
+    r_seed: i32,
+    r_max_iter: i32,
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
+    let sample_size = i32_to_usize(r_sample_size)?;
 
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_max_iterations(max_iter)
-        .unwrap();
+    let s = conditional_poisson(&mut rng, &options, sample_size)?;
 
-    conditional_poisson(&mut rng, &options, r_sample_size).unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_spatially_balanced(
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
+    r_prob: RealSexp,
+    r_data: RealSexp,
     r_eps: f64,
-    r_bucket_size: usize,
-    r_seed: u64,
+    r_bucket_size: i32,
+    r_seed: i32,
     r_method: &str,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux = AuxiliariesOptions::new(&data)
-        .unwrap()
-        .try_bucket_size(r_bucket_size)
-        .unwrap();
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_spreading_options(aux)
-        .unwrap();
+    let aux =
+        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_spreading_options(aux)?;
 
     let s = match r_method {
         "lpm_1" => lpm_1(&mut rng, &options),
@@ -99,266 +90,229 @@ fn rust_spatially_balanced(
         "scps" => scps(&mut rng, &options),
         "lcps" => lcps(&mut rng, &options),
         "lpm_2" | &_ => lpm_2(&mut rng, &options),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_balanced(
-    r_prob: &[f64],
-    r_bal_data: RMatrix<f64>,
+    r_prob: RealSexp,
+    r_bal_data: RealSexp,
     r_eps: f64,
-    r_seed: u64,
+    r_seed: i32,
     r_method: &str,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_balancing(&bal_data)
-        .unwrap();
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_balancing(&bal_data)?;
 
     let s = match r_method {
         "cube" | &_ => cube(&mut rng, &options),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_doubly_balanced(
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
-    r_bal_data: RMatrix<f64>,
+    r_prob: RealSexp,
+    r_data: RealSexp,
+    r_bal_data: RealSexp,
     r_eps: f64,
-    r_bucket_size: usize,
-    r_seed: u64,
+    r_bucket_size: i32,
+    r_seed: i32,
     r_method: &str,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
-    let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
+    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
-    let aux = AuxiliariesOptions::new(&data)
-        .unwrap()
-        .try_bucket_size(r_bucket_size)
-        .unwrap();
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_balancing(&bal_data)
-        .unwrap()
-        .set_spreading_options(aux)
-        .unwrap();
+    let aux =
+        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_balancing(&bal_data)?
+        .set_spreading_options(aux)?;
 
     let s = match r_method {
         "local_cube" | &_ => local_cube(&mut rng, &options),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_spatially_balanced_hierarchical(
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
-    r_sizes: &[i32],
+    r_prob: RealSexp,
+    r_data: RealSexp,
+    r_sizes: IntegerSexp,
     r_eps: f64,
-    r_bucket_size: usize,
-    r_seed: u64,
+    r_bucket_size: i32,
+    r_seed: i32,
     r_method: &str,
-) -> RMatrix<i32> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
+) -> savvy::Result<Sexp> {
+    // Returns a matrix with sample indices (0) and groups (1)
+    let mut rng = seed_from_i32(r_seed)?;
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux = AuxiliariesOptions::new(&data)
-        .unwrap()
-        .try_bucket_size(r_bucket_size)
-        .unwrap();
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_spreading_options(aux)
-        .unwrap();
+    let aux =
+        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_spreading_options(aux)?;
 
     let sizes: Vec<usize> = r_sizes
         .iter()
-        .map(|&x| usize::try_from(x).unwrap_or(0))
-        .collect();
+        .map(|&x| i32_to_usize(x))
+        .collect::<savvy::Result<_>>()?;
 
     let s = match r_method {
         "lpm_2" | &_ => hierarchical_lpm_2(&mut rng, &options, &sizes),
-    };
+    }?;
 
     let n = sizes.iter().sum();
-    let mut return_matrix = RMatrix::<i32>::new(n, 2);
+    let mut return_matrix = OwnedIntegerSexp::new(n * 2)?;
 
     let mut idx: usize = 0;
-    for (i, vec) in s.unwrap().iter().enumerate() {
+    for (i, vec) in s.iter().enumerate() {
         for &j in vec.iter() {
-            return_matrix[[idx, 0usize]] = i32::try_from(j).unwrap_or(-1);
-            return_matrix[[idx, 1usize]] = i32::try_from(i).unwrap_or(-1);
+            return_matrix[idx] = usize_to_i32(j)? + 1;
+            return_matrix[idx + n] = usize_to_i32(i)?;
             idx += 1;
         }
     }
 
-    return_matrix
+    return_matrix.set_dim(&[n, 2])?;
+    return_matrix.into()
 }
 
-#[extendr]
+#[savvy]
 fn rust_balanced_stratified(
-    r_prob: &[f64],
-    r_bal_data: RMatrix<f64>,
-    r_strata: &[i32],
+    r_prob: RealSexp,
+    r_bal_data: RealSexp,
+    r_strata: IntegerSexp,
     r_eps: f64,
-    r_seed: u64,
+    r_seed: i32,
     r_method: &str,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_balancing(&bal_data)
-        .unwrap();
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_balancing(&bal_data)?;
 
     let s = match r_method {
         "cube" | &_ => cube_stratified(&mut rng, &options, &strata),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_doubly_balanced_stratified(
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
-    r_bal_data: RMatrix<f64>,
-    r_strata: &[i32],
+    r_prob: RealSexp,
+    r_data: RealSexp,
+    r_bal_data: RealSexp,
+    r_strata: IntegerSexp,
     r_eps: f64,
-    r_bucket_size: usize,
-    r_seed: u64,
+    r_bucket_size: i32,
+    r_seed: i32,
     r_method: &str,
-) -> Vec<usize> {
-    let mut rng = SmallRng::seed_from_u64(r_seed);
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
-    let bal_data = Matrix::from_ref(r_bal_data.data(), r_bal_data.nrows());
+) -> savvy::Result<Sexp> {
+    let mut rng = seed_from_i32(r_seed)?;
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
+    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let aux = AuxiliariesOptions::new(&data)
-        .unwrap()
-        .try_bucket_size(r_bucket_size)
-        .unwrap();
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_eps(r_eps)
-        .unwrap()
-        .set_balancing(&bal_data)
-        .unwrap()
-        .set_spreading_options(aux)
-        .unwrap();
+    let aux =
+        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
+    let options = SampleOptions::new(r_prob.as_slice())?
+        .set_eps(r_eps)?
+        .set_balancing(&bal_data)?
+        .set_spreading_options(aux)?;
 
     let s = match r_method {
         "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata),
-    };
+    }?;
 
-    s.unwrap()
+    return_sample(s)
 }
 
-#[extendr]
+#[savvy]
 fn rust_local_mean_variance(
-    r_values: &[f64],
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
-    r_neighbours: usize,
-) -> f64 {
-    if r_neighbours == 0 {
-        return f64::NAN;
+    r_values: RealSexp,
+    r_prob: RealSexp,
+    r_data: RealSexp,
+    r_neighbours: i32,
+) -> savvy::Result<Sexp> {
+    if r_neighbours <= 0 {
+        return f64::NAN.try_into();
     }
 
-    let neighbours = NonZeroUsize::new(r_neighbours).unwrap();
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
+    let neighbours = i32_to_nonzerousize(r_neighbours)?;
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux = AuxiliariesOptions::new(&data)
-        .unwrap()
-        .est_bucket_size()
-        .unwrap();
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_spreading_options(aux)
-        .unwrap();
+    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
+    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
 
-    local_mean_variance(r_values, &options, neighbours).unwrap()
+    local_mean_variance(r_values.as_slice(), &options, neighbours)?.try_into()
 }
 
-#[extendr]
+#[savvy]
 fn rust_spatial_balance_measure(
-    r_sample: &[i32],
-    r_prob: &[f64],
-    r_data: RMatrix<f64>,
+    r_sample: IntegerSexp,
+    r_prob: RealSexp,
+    r_data: RealSexp,
     r_method: &str,
-) -> f64 {
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
-    let sample: Vec<usize> = r_sample.iter().map(|&x| x as usize).collect();
+) -> savvy::Result<Sexp> {
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
+    let sample: Vec<usize> = r_sample
+        .iter()
+        .map(|&x| i32_to_usize(x - 1))
+        .collect::<savvy::Result<_>>()?;
 
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_spreading(&data)
-        .unwrap();
+    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
+    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
 
     let v = match r_method {
         "local" => sb_local(&sample, &options),
         "voronoi" | &_ => sb_voronoi(&sample, &options),
-    };
+    }?;
 
-    v.unwrap_or(-1.0)
+    v.try_into()
 }
 
-#[extendr]
-fn rust_balance_deviation(r_sample: &[i32], r_prob: &[f64], r_data: RMatrix<f64>) -> Vec<f64> {
-    let data = Matrix::from_ref(r_data.data(), r_data.nrows());
-    let sample: Vec<usize> = r_sample.iter().map(|&x| x as usize).collect();
+#[savvy]
+fn rust_balance_deviation(
+    r_sample: IntegerSexp,
+    r_prob: RealSexp,
+    r_data: RealSexp,
+) -> savvy::Result<Sexp> {
+    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
+    let sample: Vec<usize> = r_sample
+        .iter()
+        .map(|&x| i32_to_usize(x - 1))
+        .collect::<savvy::Result<_>>()?;
 
-    let options = SampleOptions::new(r_prob)
-        .unwrap()
-        .set_spreading(&data)
-        .unwrap();
+    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
+    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
 
-    balance_deviation(&sample, &options).unwrap().0.unwrap()
+    let v = balance_deviation(&sample, &options)?
+        .0
+        .ok_or(savvy_err!("no result returned...was matrix empty?"))?;
+
+    v.try_into()
 }
 
-#[extendr]
-fn rust_pips_from_values(r_values: &[f64], r_sample_size: usize) -> Vec<f64> {
-    pips_from_slice(r_values, r_sample_size)
-        .unwrap()
+#[savvy]
+fn rust_pips_from_values(r_values: RealSexp, r_sample_size: i32) -> savvy::Result<Sexp> {
+    pips_from_slice(r_values.as_slice(), i32_to_usize(r_sample_size)?)?
         .data()
-        .to_vec()
-}
-
-// Macro to generate exports.
-// This ensures exported functions are registered with R.
-// See corresponding C code in `entrypoint.c`.
-extendr_module! {
-    mod samplr;
-    fn rust_unequal;
-    fn rust_unequal_conditional_poisson;
-    fn rust_spatially_balanced;
-    fn rust_balanced;
-    fn rust_doubly_balanced;
-    fn rust_spatially_balanced_hierarchical;
-    fn rust_balanced_stratified;
-    fn rust_doubly_balanced_stratified;
-    fn rust_local_mean_variance;
-    fn rust_spatial_balance_measure;
-    fn rust_balance_deviation;
-    fn rust_pips_from_values;
+        .try_into()
 }

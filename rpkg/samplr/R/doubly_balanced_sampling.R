@@ -5,6 +5,11 @@
 #' @description
 #' Selects doubly balanced samples with prescribed inclusion probabilities from finite populations.
 #'
+#' @details
+#' For the `local_cube` method, a fixed sized sample is obtained if the first column of
+#' `balance_mat` is the inclusion probabilities. For `local_cube_stratified`, the inclusion
+#' probabilities are inserted automatically.
+#'
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
 #' @param balance_mat A matrix of balancing covariates.
@@ -33,67 +38,65 @@
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' xspr = matrix(runif(N * 2), ncol = 2);
-#' s = local_cube(prob, xspr, cbind(prob, x));
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' xb = matrix(c(prob, runif(N * 2)), ncol = 3);
+#' xs = matrix(runif(N * 2), ncol = 2);
 #'
-#' set.seed(12345);
-#' N = 1000;
-#' n = 100;
-#' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' xspr = matrix(runif(N * 2), ncol = 2);
-#' strata = c(rep(1L, 100), rep(2L, 200), rep(3L, 300), rep(4L, 400));
-#' s = local_cube_stratified(prob, xspr, x, strata);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' s = local_cube(prob, xs, xb);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
+#' s = local_cube_stratified(prob, xs, xb[, -1], strata);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' # Respects inclusion probabilities
 #' set.seed(12345);
 #' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);
 #' N = length(prob);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' xspr = matrix(runif(N * 2), ncol = 2);
+#' xb = matrix(c(prob, runif(N * 2)), ncol = 3);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#'
 #' ep = rep(0L, N);
 #' r = 10000L;
+#'
 #' for (i in seq_len(r)) {
-#'   s = local_cube(prob, xspr, cbind(prob, x));
+#'   s = local_cube(prob, xs, xb);
 #'   ep[s] = ep[s] + 1L;
 #' }
-#' print(ep / r);
+#'
+#' print(ep / r - prob);
 #' }
 #'
 NULL
 
-.balanced_wrapper = function(method, probabilities, spread_mat, balance_mat, ...) {
+.doubly_balanced_wrapper = function(method, probabilities, spread_mat, balance_mat, ...) {
   args = .sampling_defaults(...);
-  .Call(
-    wrap__rust_doubly_balanced,
-    probabilities,
-    spread_mat,
-    balance_mat,
+  rust_doubly_balanced(
+    as.double(probabilities),
+    as.matrix(spread_mat),
+    as.matrix(balance_mat),
     args$eps,
+    args$bucket_size,
     args$seed,
     method
-  ) + 1L
+  )
 }
 
 #' @describeIn balanced_sampling The local cube method
-local_cube = function(probabilities, balance_mat, ...) {
-  .balanced_wrapper("local_cube", probabilities, balance_mat, ...)
+#' @export
+local_cube = function(probabilities, spread_mat, balance_mat, ...) {
+  .doubly_balanced_wrapper("local_cube", probabilities, spread_mat, balance_mat, ...)
 }
 
 #' @describeIn balanced_sampling The stratified local cube method
+#' @export
 local_cube_stratified = function(probabilities, spread_mat, balance_mat, strata, ...) {
   args = .sampling_defaults(...);
-  .Call(
-    wrap__rust_doubly_balanced_stratified,
-    probabilities,
-    spread_mat,
-    balance_mat,
-    strata,
+  rust_doubly_balanced_stratified(
+    as.double(probabilities),
+    as.matrix(spread_mat),
+    as.matrix(balance_mat),
+    as.integer(strata),
     args$eps,
+    args$bucket_size,
     args$seed,
     "local_cube"
   );

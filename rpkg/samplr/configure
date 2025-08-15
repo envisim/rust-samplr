@@ -1,3 +1,85 @@
-#!/usr/bin/env sh
-: "${R_HOME=`R RHOME`}"
-"${R_HOME}/bin/Rscript" tools/config.R 
+#!/bin/sh
+
+# Even when `cargo` is on `PATH`, `rustc` might not in some cases. This adds
+# ~/.cargo/bin to PATH to address such cases. Note that is not always available
+# (e.g. or on Ubuntu with Rust installed via APT).
+if [ -d "${HOME}/.cargo/bin" ]; then
+  export PATH="${PATH}:${HOME}/.cargo/bin"
+fi
+
+CARGO_VERSION="$(cargo --version)"
+
+if [ $? -ne 0 ]; then
+  echo "-------------- ERROR: CONFIGURATION FAILED --------------------"
+  echo ""
+  echo "The cargo command is not available. To install Rust, please refer"
+  echo "to the official instruction:"
+  echo ""
+  echo "https://www.rust-lang.org/tools/install"
+  echo ""
+  echo "---------------------------------------------------------------"
+
+  exit 1
+fi
+
+# There's a little chance that rustc is not available on PATH while cargo is.
+# So, just ignore the error case.
+RUSTC_VERSION="$(rustc --version || true)"
+
+# Report the version of Rustc to comply with the CRAN policy
+echo "using Rust package manager: '${CARGO_VERSION}'"
+echo "using Rust compiler: '${RUSTC_VERSION}'"
+
+if [ "$(uname)" = "Emscripten" ]; then
+  TARGET="wasm32-unknown-emscripten"
+fi
+
+check_msrv() {
+  rustc_version="$(rustc -V | grep -o '[0-9]\+\(\.[0-9]\+\)\+')"
+  package_rust_version="$(
+    cargo metadata --manifest-path src/rust/Cargo.toml --no-deps --format-version 1 |
+      grep -o '"rust_version"\s*:\s*"[0-9]\+\(\.[0-9]\+\)\+"' |
+      grep -o '[0-9]\+\(\.[0-9]\+\)\+'
+  )"
+  lower_version="$(echo "${rustc_version} ${package_rust_version}" | tr ' ' '\n' | sort -V | head -n1)"
+
+  if [ "${rustc_version}" != "${package_rust_version}" ] && [ "${rustc_version}" = "${lower_version}" ]; then
+    cat <<EOF
+------------------- [NOT SUPPORTED RUST VERSION] -------------------
+The MSRV of this package is '${package_rust_version}',
+so this installation may fail with the current rustc version '${rustc_version}'.
+If this happens, please install the newer version of rustc
+from: https://www.rust-lang.org/tools/install
+--------------------------------------------------------------------
+EOF
+  else
+    cat <<EOF
+----------------- [MINIMUM SUPPORTED RUST VERSION] -----------------
+The MSRV of this package is '${package_rust_version}'.
+--------------------------------------------------------------------
+EOF
+  fi
+}
+
+check_msrv
+
+# allow overriding profile externally (e.g. on CI)
+if [ -n "${SAVVY_PROFILE}" ]; then
+  PROFILE="${SAVVY_PROFILE}"
+# catch DEBUG envvar, which is passed from pkgbuild::compile_dll()
+elif [ "${DEBUG}" = "true" ]; then
+  PROFILE=dev
+else
+  PROFILE=release
+fi
+
+# e.g. SAVVY_FEATURES="a b"  -->  "--features 'a b'"
+if [ -n "${SAVVY_FEATURES}" ]; then
+  FEATURE_FLAGS="--features '${SAVVY_FEATURES}'"
+fi
+
+sed \
+  -e "s/@TARGET@/${TARGET}/" \
+  -e "s/@PROFILE@/${PROFILE}/" \
+  -e "s/@FEATURE_FLAGS@/${FEATURE_FLAGS}/" \
+  src/Makevars.in > src/Makevars

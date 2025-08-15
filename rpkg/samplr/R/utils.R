@@ -7,16 +7,16 @@
 #' k-d-tree, but is faster to create and takes up less memory.
 #' @keywords internal
 .sampling_defaults = function(
-  eps = 1e-12,
+  eps = 1e-10,
   seed = sample.int(.Machine$integer.max, 1L),
   max_iter = 1000L,
   bucket_size = 50L
 ) {
   args = list(
-    as.numeric(eps),
-    as.integer(seed),
-    as.integer(max_iter),
-    as.integer(bucket_size)
+    eps = as.double(eps),
+    seed = as.integer(seed),
+    max_iter = as.integer(max_iter),
+    bucket_size = as.integer(bucket_size)
   );
 
   if (!(length(args$eps) == 1 && 0.0 <= args$eps && args$eps <= 1e-3)) {
@@ -35,37 +35,12 @@
     args$seed = sample.int(.Machine$integer.max, 1L);
   }
 
-
-  ## arguments = list(...);
-  ## rargs = list(
-  ##   eps = 1e-12,
-  ##   seed = 0L,
-  ##   max_iter = 1000L,
-  ##   bucket_size = 50L
-  ## );
-
-  ## eps = arguments["eps"];
-  ## if (!is.null(eps) && is.numeric(eps) && length(arguments$eps) == 1 && 0.0 <= eps && eps <= 1e-3) {
-  ##   rargs$eps = eps;
-  ## }
-
-  ## bucket_size = arguments["bucket_size"];
-  ## if (!is.null(bucket_size) && is.numeric(bucket_size) && length(bucket_size) == 1 && 0 < bucket_size) {
-  ##   rargs$bucket_size = as.integer(bucket_size);
-  ## }
-
-  ## max_iter = arguments["max_iter"];
-  ## if (!is.null(max_iter) && is.numeric(max_iter) && length(max_iter) == 1 && 0 < max_iter) {
-  ##   rargs$max_iter = as.integer(max_iter);
-  ## }
-
-  ## seed = arguments["seed"];
-  ## if (!is.null(seed) && is.numeric(seed) && length(seed) == 1 && 0 < seed) {
-  ##   rargs$seed = as.integer(seed);
-  ## } else {
-  ##   rargs$seed = sample.int(.Machine$integer.max, 1L);
-  ## }
-
   args
 }
 
+#' Transform a sample vector into an inclusion indicator vector
+#'
+#' @param sample A vector of sample indices.
+#'
+#' @export
+sample_to_indicator = function(sample, population_size) as.integer(seq_len(population_size) %in% sample)
