@@ -4,7 +4,7 @@
 \name{samplr}
 \alias{samplr-package}
 \alias{samplr}
-\title{samplr: Spatially balanced sampling}
+\title{samplr: Sampling algorithms and spatially balanced sampling}
 \description{
 Select probability samples in multi-dimensional spaces with any prescribed inclusion
 probabilities using fast rust implementations.

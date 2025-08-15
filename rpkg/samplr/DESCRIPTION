@@ -1,5 +1,5 @@
 Package: samplr
-Title: Spatially balanced sampling
+Title: Sampling algorithms and spatially balanced sampling
 Version: 0.1.0
 Authors@R: c(
     person("Wilmer", "Prentius", , "wilmer.prentius@slu.se", role = c("aut", "cre"),
@@ -7,8 +7,7 @@ Authors@R: c(
     person("Anton", "Grafström", role = "ctb", comment = c(ORCID = "0000-0002-4345-4024")),
     person("Authors of the dependent Rust crates", role = "aut", comment = "see inst/AUTHORS file")
   )
-Description: Select balanced and spatially balanced probability samples in multi-dimensional spaces
-    with any prescribed inclusion probabilities.
+Description: Unequal probability samples in multi-dimensional spaces via fast Rust implementations.
 URL:
     https://www.envisim.se/,
     https://github.com/envisim/rust-samplr/
