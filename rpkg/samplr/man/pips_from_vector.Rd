@@ -16,7 +16,7 @@ A vector of inclusion probabilities proportional-to-size
 }
 \description{
 Computes the first-order inclusion probabilities from a vector of positive numbers,
-for a probability proportional-to-size design.
+for an inclusion probabilities proportional-to-size design.
 }
 \examples{
 \dontrun{

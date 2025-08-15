@@ -6,8 +6,15 @@
 #' Selects spatially balanced samples with prescribed inclusion probabilities from finite
 #' populations.
 #'
+#' @details
+#' `lpm_2_hierarchical` selects an initial sample using the LPM2 algorithm, and then splits this
+#' sample into subsamples of given `sizes`, using successive, hierarchical selection with LPM2.
+#' When using `lpm_2_hierarchical`, the inclusion probabilities must sum to an integer, and the
+#' `sizes` vector (the subsamples) must sum to the same integer.
+#'
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
+#' @param sizes A vector of integers containing the sizes of the subsamples.
 #' @inheritDotParams .sampling_defaults -max_iter
 #'
 #' @references

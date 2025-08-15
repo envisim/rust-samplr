@@ -128,7 +128,7 @@ A list sequential sampling method suitable for real‐time sampling.
 Scandinavian Journal of Statistics, 35(3), 466-483.
 
 Brewer, K. E. (1975).
-A Simple Procedure for Sampling πpswor1.
+A Simple Procedure for Sampling pi-ps wor.
 Australian Journal of Statistics, 17(3), 166-172.
 
 Chauvet, G. (2012).

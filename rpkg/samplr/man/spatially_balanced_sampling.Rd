@@ -35,10 +35,18 @@ lpm_2_hierarchical(probabilities, spread_mat, sizes, ...)
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
   }}
+
+\item{sizes}{A vector of integers containing the sizes of the subsamples.}
 }
 \description{
 Selects spatially balanced samples with prescribed inclusion probabilities from finite
 populations.
+}
+\details{
+\code{lpm_2_hierarchical} selects an initial sample using the LPM2 algorithm, and then splits this
+sample into subsamples of given \code{sizes}, using successive, hierarchical selection with LPM2.
+When using \code{lpm_2_hierarchical}, the inclusion probabilities must sum to an integer, and the
+\code{sizes} vector (the subsamples) must sum to the same integer.
 }
 \section{Functions}{
 \itemize{

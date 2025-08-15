@@ -6,7 +6,7 @@
 #' @param values A vector of values of the variable of interest.
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
-#' @param n_neighbours The number of neighbours to construct the means around.
+#' @param neighbours The number of neighbours to construct the means around.
 #'
 #' @references
 #' Grafström, A., & Schelin, L. (2014).

@@ -2,7 +2,7 @@
 #'
 #' @description
 #' Computes the first-order inclusion probabilities from a vector of positive numbers,
-#' for a probability proportional-to-size design.
+#' for an inclusion probabilities proportional-to-size design.
 #'
 #' @param values A vector of positive numbers
 #' @param sample_size The wanted sample size

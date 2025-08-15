@@ -8,6 +8,8 @@ sample_to_indicator(sample, population_size)
 }
 \arguments{
 \item{sample}{A vector of sample indices.}
+
+\item{population_size}{The total size of the population.}
 }
 \description{
 Transform a sample vector into an inclusion indicator vector

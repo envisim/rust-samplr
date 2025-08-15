@@ -57,9 +57,18 @@ bal = matrix(0.0, r, 2L * ncol(xs));
 for (i in seq_len(r)) {
   s1 = lpm_2(prob, xs);
   s2 = sample(N, n);
-  sb_v[i, ] = c(spatial_balance_voronoi(s1, prob, xs), spatial_balance_voronoi(s2, prob, xs));
-  sb_l[i, ] = c(spatial_balance_local(s1, prob, xs), spatial_balance_local(s2, prob, xs));
-  bal[i, ] = c(balance_deviation(s1, prob, xs), balance_deviation(s2, prob, xs));
+  sb_v[i, ] = c(
+    spatial_balance_voronoi(s1, prob, xs),
+    spatial_balance_voronoi(s2, prob, xs)
+  );
+  sb_l[i, ] = c(
+    spatial_balance_local(s1, prob, xs),
+    spatial_balance_local(s2, prob, xs)
+  );
+  bal[i, ] = c(
+    balance_deviation(s1, prob, xs),
+    balance_deviation(s2, prob, xs)
+  );
 }
 
 # Spatial balance measure (voronoi), LPM vs SRS

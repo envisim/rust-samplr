@@ -13,7 +13,7 @@ local_mean_variance(values, probabilities, spread_mat, neighbours = 4L)
 
 \item{spread_mat}{A matrix of spreading covariates.}
 
-\item{n_neighbours}{The number of neighbours to construct the means around.}
+\item{neighbours}{The number of neighbours to construct the means around.}
 }
 \description{
 Variance estimator of HT estimator of population total.

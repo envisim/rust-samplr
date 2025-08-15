@@ -41,6 +41,7 @@
 #' Transform a sample vector into an inclusion indicator vector
 #'
 #' @param sample A vector of sample indices.
+#' @param population_size The total size of the population.
 #'
 #' @export
 sample_to_indicator = function(sample, population_size) as.integer(seq_len(population_size) %in% sample)

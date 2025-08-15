@@ -2,7 +2,14 @@
 % Please edit documentation in R/doubly_balanced_sampling.R
 \name{Doubly balanced sampling}
 \alias{Doubly balanced sampling}
+\alias{local_cube}
+\alias{local_cube_stratified}
 \title{Doubly balanced sampling}
+\usage{
+local_cube(probabilities, spread_mat, balance_mat, ...)
+
+local_cube_stratified(probabilities, spread_mat, balance_mat, strata, ...)
+}
 \arguments{
 \item{probabilities}{A vector of inclusion probabilities.}
 
@@ -18,6 +25,8 @@
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
   }}
+
+\item{strata}{An integer vector with stratum numbers for each unit.}
 }
 \description{
 Selects doubly balanced samples with prescribed inclusion probabilities from finite populations.
@@ -27,6 +36,13 @@ For the \code{local_cube} method, a fixed sized sample is obtained if the first 
 \code{balance_mat} is the inclusion probabilities. For \code{local_cube_stratified}, the inclusion
 probabilities are inserted automatically.
 }
+\section{Functions}{
+\itemize{
+\item \code{local_cube()}: The local cube method
+
+\item \code{local_cube_stratified()}: The stratified local cube method
+
+}}
 \examples{
 \dontrun{
 set.seed(12345);

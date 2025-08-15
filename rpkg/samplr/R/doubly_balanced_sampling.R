@@ -13,6 +13,7 @@
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
 #' @param balance_mat A matrix of balancing covariates.
+#' @param strata An integer vector with stratum numbers for each unit.
 #' @inheritDotParams .sampling_defaults -max_iter
 #'
 #' @references
@@ -80,13 +81,13 @@ NULL
   )
 }
 
-#' @describeIn balanced_sampling The local cube method
+#' @describeIn doubly_balanced_sampling The local cube method
 #' @export
 local_cube = function(probabilities, spread_mat, balance_mat, ...) {
   .doubly_balanced_wrapper("local_cube", probabilities, spread_mat, balance_mat, ...)
 }
 
-#' @describeIn balanced_sampling The stratified local cube method
+#' @describeIn doubly_balanced_sampling The stratified local cube method
 #' @export
 local_cube_stratified = function(probabilities, spread_mat, balance_mat, strata, ...) {
   args = .sampling_defaults(...);

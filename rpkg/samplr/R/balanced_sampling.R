@@ -12,6 +12,7 @@
 #'
 #' @param probabilities A vector of inclusion probabilities.
 #' @param balance_mat A matrix of balancing covariates.
+#' @param strata An integer vector with stratum numbers for each unit.
 #' @inheritDotParams .sampling_defaults -max_iter -bucket_size
 #'
 #' @references
