@@ -6,8 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.2.1] - 2025-08-15
 - Fixed elided lifetime warnings.
 - Added `InputError::IsNone` error.
+
+## [0.2.0] - 2024-09-24
+### Added
+- `Searcher::new_1`, shorthand for `Searcher::new(.., 1)`.
+
+### Changed
+- `NodeError::GhostUnit` changed to `NodeError::GhostIndex(usize)`.
+- `Searcher::new` returns `Self` instead of `Result`.
+- `Searcher::set_n_neighbours` returns void instead of `Result`.
+- `n_neighbours` of `searcher` changed type from `usize` to `NonZeroUsize`.
+
+### Removed
+- removed `SearcherError`.
+- removed dependency `thiserror`.
+- removed unused `NodeError::General`.
+- removed unused `InputError::General`.
+- removed unused `InputError::Node`.
+- moved `SamplingError`, now available in `envisim_samplr`.
+
 
 ## [0.2.0] - 2024-09-24
 ### Added
