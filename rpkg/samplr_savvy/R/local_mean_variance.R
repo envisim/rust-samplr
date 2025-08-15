@@ -24,24 +24,20 @@
 #'
 #' s = lpm_2(prob, xs);
 #' local_mean_variance(y[s], prob[s], xs[s, ], 4);
-#' BalancedSampling::vsb(prob[s], y[s], xs[s, ], 4);
 #'
-#' // Compare SRS, empirical
-#' N = 1000;
-#' n = 20;
-#' prob = rep(n/N, N);
+#' # Compare SRS, empirical
 #' r = 1000L;
-#' v = matrix(0.0, r, 3L+1);
+#' v = matrix(0.0, r, 3L);
 #'
 #' for (i in seq_len(r)) {
 #'   s = lpm_2(prob, xs);
 #'   v[i, 1] = local_mean_variance(y[s], prob[s], xs[s, ], 4);
 #'   v[i, 2] = N^2 * sd(y[s]) / n;
 #'   v[i, 3] = sum(y[s] / prob[s]);
-#'   v[i, 4] = BalancedSampling::vsb(prob[s], y[s], xs[s, ], 4);
 #' }
 #'
-#' print(c(mean(v[, 1]), mean(v[, 2]), var(v[, 3])));
+#' # Local mean variance, SRS variance, MSE
+#' print(c(mean(v[, 1]), mean(v[, 2]), mean((v[, 3] - sum(y))^2)));
 #' }
 #'
 #' @export

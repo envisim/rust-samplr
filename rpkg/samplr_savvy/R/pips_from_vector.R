@@ -17,8 +17,7 @@
 #' x = matrix(runif(N * 2), ncol = 2);
 #' prob = pips_from_vector(x[, 1], n);
 #' s = lpm_2(prob, x);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' plot(x[, 1], x[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #' }
 #'
 #' @export

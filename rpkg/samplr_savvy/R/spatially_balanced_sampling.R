@@ -37,43 +37,42 @@
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' s = lpm_2(prob, x);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#' sizes = c(10L, 20L, 30L, 40L);
 #'
+#' s = lpm_1(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_1s(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_2(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = scps(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lcps(prob, x);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = lpm_2_hierarchical(prob, x, sizes);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' # Respects inclusion probabilities
 #' set.seed(12345);
 #' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);
 #' N = length(prob);
-#' x = matrix(runif(N * 2), ncol = 2);
+#' xs = matrix(c(prob, runif(N * 2)), ncol = 3);
+#'
 #' ep = rep(0L, N);
 #' r = 10000L;
+#'
 #' for (i in seq_len(r)) {
-#'   s = lpm_2(prob, x);
+#'   s = lpm_2(prob, xs);
 #'   ep[s] = ep[s] + 1L;
 #' }
-#' print(ep / r);
 #'
-#' set.seed(12345);
-#' N = 1000;
-#' n = 100;
-#' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' lpm_1(prob, x);
-#' lpm_2(prob, x);
-#' lpm_1s(prob, x);
-#' scps(prob, x);
-#' lcps(prob, x);
-#'
-#' set.seed(12345);
-#' N = 1000;
-#' n = 100;
-#' prob = rep(n/N, N);
-#' x = matrix(runif(N * 2), ncol = 2);
-#' sizes = c(10, 20, 30, 40);
-#' s = lpm_2_hierarchical(prob, x, sizes);
-#' plot(x[, 1], x[, 2]);
-#' points(x[s, 1], x[s, 2], pch = 19);
+#' print(ep / r - prob);
 #' }
 #'
 NULL

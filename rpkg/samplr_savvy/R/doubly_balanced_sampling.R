@@ -47,7 +47,7 @@
 #' s = local_cube_stratified(prob, xs, xb[, -1], strata);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
-#' // Respects inclusion probabilities
+#' # Respects inclusion probabilities
 #' set.seed(12345);
 #' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);
 #' N = length(prob);

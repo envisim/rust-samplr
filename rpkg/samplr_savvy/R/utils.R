@@ -7,7 +7,7 @@
 #' k-d-tree, but is faster to create and takes up less memory.
 #' @keywords internal
 .sampling_defaults = function(
-  eps = 1e-12,
+  eps = 1e-10,
   seed = sample.int(.Machine$integer.max, 1L),
   max_iter = 1000L,
   bucket_size = 50L

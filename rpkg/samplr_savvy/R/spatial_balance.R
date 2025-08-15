@@ -30,10 +30,33 @@
 #' N = 500;
 #' n = 70;
 #' prob = rep(n / N, N);
-#' maux = matrix(runif(N * 2), ncol = 2);
-#' s = lpm_2(prob, maux);
-#' sb_v = spatial_balance_voronoi(s, prob, maux);
-#' sb_l = spatial_balance_local(s, prob, maux);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#'
+#' s = lpm_2(prob, xs);
+#' spatial_balance_voronoi(s, prob, xs);
+#' spatial_balance_local(s, prob, xs);
+#' balance_deviation(s, prob, xs);
+#'
+#' # Compare SRS
+#' r = 1000L;
+#' sb_v = matrix(0.0, r, 2L);
+#' sb_l = matrix(0.0, r, 2L);
+#' bal = matrix(0.0, r, 2L * ncol(xs));
+#'
+#' for (i in seq_len(r)) {
+#'   s1 = lpm_2(prob, xs);
+#'   s2 = sample(N, n);
+#'   sb_v[i, ] = c(spatial_balance_voronoi(s1, prob, xs), spatial_balance_voronoi(s2, prob, xs));
+#'   sb_l[i, ] = c(spatial_balance_local(s1, prob, xs), spatial_balance_local(s2, prob, xs));
+#'   bal[i, ] = c(balance_deviation(s1, prob, xs), balance_deviation(s2, prob, xs));
+#' }
+#'
+#' # Spatial balance measure (voronoi), LPM vs SRS
+#' print(colMeans(sb_v));
+#' # Spatial balance measure (local), LPM vs SRS
+#' print(colMeans(sb_l));
+#' # Abs. balance deviation, LPM vs SRS
+#' print(colMeans(abs(bal)));
 #' }
 #'
 NULL

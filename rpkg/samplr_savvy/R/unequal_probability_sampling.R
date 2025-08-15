@@ -44,14 +44,46 @@
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
-#' rpm(prob);
-#' spm(prob);
-#' cps(prob);
-#' poisson(prob);
-#' conditional_poisson(prob, n);
-#' brewer(prob);
-#' pareto(prob);
-#' sampford(prob);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#'
+#' s = rpm(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = spm(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = cps(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = poisson(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = conditional_poisson(prob, n);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = brewer(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = pareto(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = sampford(prob);
+#' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' # Respects inclusion probabilities
+#' set.seed(12345);
+#' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);
+#' N = length(prob);
+#'
+#' ep = rep(0L, N);
+#' r = 10000L;
+#'
+#' for (i in seq_len(r)) {
+#'   s = poisson(prob);
+#'   ep[s] = ep[s] + 1L;
+#' }
+#'
+#' print(ep / r - prob);
 #' }
 #'
 NULL
