@@ -360,6 +360,10 @@ where
     let population_size = probabilities.len();
     InputError::check_sample_size(sample_size, population_size)?;
 
+    if sample_size == 0 {
+        return Ok(vec![]);
+    }
+
     for _ in 0..options.max_iterations().get() {
         let s = poisson_internal(rng, probabilities);
 

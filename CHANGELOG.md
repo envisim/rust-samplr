@@ -15,6 +15,7 @@ Breaking changes:
 - `SamplingOptions` can set spreading by `AuxiliariesOptions`.
 - `poisson` module removed in favour of unequal module (conditional poisson, poisson) and correlated_poisson module.
 - Refactored sampling methods to use variant structs.
+- `conditional_poisson` early return for sample size 0.
 
 ## [0.2.0] - 2024-09-24
 ### Added

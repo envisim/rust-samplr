@@ -1,0 +1,42 @@
+rust_src_path := 'src/rust'
+vendor_path := rust_src_path + '/vendor'
+
+# Default to just --list
+default:
+	@just --list
+
+# Clean the environment
+clean-all:
+	rm -rf src/vendor || true
+
+# Check package
+check-pkg:
+	R -e 'devtools::check()'
+
+# Performs sanity check on code
+sanity-check: ## Perform code sanity checks if needed
+	R -e 'devtools::spell_check()'
+
+# Generate documentation
+document:
+	R -e 'devtools::document()'
+
+# Generate the AUTHORS file for rust crate vendor
+document-vendor:
+  Rscript {{rust_src_path}}/vendor-authors.R -m {{rust_src_path}}/Cargo.toml -o ./inst --verbose
+  Rscript {{rust_src_path}}/vendor-license-note.R
+
+# Build the package source
+build: build-vendor document-vendor document
+	R -e 'devtools::build()'
+
+# Build the packdown site
+build-pkgdown:
+	R -e 'pkgdown::build_site()'
+
+build-vendor:
+	rm -rf {{vendor_path}} {{rust_src_path}}/vendor.tar.xz
+	cd src/rust && cargo vendor
+	rm -rf {{vendor_path}}/windows_x86_64_gnullvm/lib/* {{vendor_path}}/windows_*_msvc/lib/* {{vendor_path}}/windows_i686*/lib/*
+	cd {{rust_src_path}} && XZ_OPT='-9' tar -cJ --no-xattrs -f vendor.tar.xz vendor
+	rm -rf {{vendor_path}}
