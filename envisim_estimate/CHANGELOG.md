@@ -15,6 +15,7 @@ instead of `TreeBuilder`.
 - `nearest_neighbour` use `Matrix` instead of `TreeBuilder`.
 - `local_mean_variance`, `nearest_neighbour`, `spatial_balance::local`, `spatial_balance::voronoi`
 returns `f64::NAN` on empty sample.
+- bug in `local_mean_variance`.
 
 ## [0.2.0] - 2024-09-24
 ### Added
