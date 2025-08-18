@@ -1,5 +1,5 @@
 Package: rsamplr
-Title: Sampling algorithms and spatially balanced sampling
+Title: Sampling Algorithms and Spatially Balanced Sampling
 Version: 0.1.0
 Authors@R: c(
     person("Wilmer", "Prentius", , "wilmer.prentius@slu.se", role = c("aut", "cre"),

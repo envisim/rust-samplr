@@ -1,38 +1,127 @@
 #!/bin/sh
 
-# Even when `cargo` is on `PATH`, `rustc` might not in some cases. This adds
-# ~/.cargo/bin to PATH to address such cases. Note that is not always available
-# (e.g. or on Ubuntu with Rust installed via APT).
-if [ -d "${HOME}/.cargo/bin" ]; then
-  export PATH="${PATH}:${HOME}/.cargo/bin"
-fi
+# Taken from https://github.com/PRQL/prqlc-r
 
-CARGO_VERSION="$(cargo --version)"
+export PATH="$PATH:$HOME/.cargo/bin"
 
-if [ $? -ne 0 ]; then
-  echo "-------------- ERROR: CONFIGURATION FAILED --------------------"
-  echo ""
-  echo "The cargo command is not available. To install Rust, please refer"
-  echo "to the official instruction:"
-  echo ""
-  echo "https://www.rust-lang.org/tools/install"
-  echo ""
-  echo "---------------------------------------------------------------"
+NOT_CRAN=${NOT_CRAN:-"false"}
+LIBRSAMPLR_BUILD=${LIBRSAMPLR_BUILD:-""}
 
-  exit 1
-fi
+LIBNAME="librsamplr.a"
+LIBRSAMPLR_DEFAULT_PATH="$(pwd)/tools/${LIBNAME}"
+LIBRSAMPLR_PATH=${LIBRSAMPLR_PATH:-${LIBRSAMPLR_DEFAULT_PATH}}
 
-# There's a little chance that rustc is not available on PATH while cargo is.
-# So, just ignore the error case.
-RUSTC_VERSION="$(rustc --version || true)"
+check_cargo() {
+  if [ ! "$(command -v cargo)" ]; then
+    cat <<EOF
+------------------------- [RUST NOT FOUND] -------------------------
+The 'cargo' command was not found on the PATH. Please install rustc
+from: https://www.rust-lang.org/tools/install
 
-# Report the version of Rustc to comply with the CRAN policy
-echo "using Rust package manager: '${CARGO_VERSION}'"
-echo "using Rust compiler: '${RUSTC_VERSION}'"
+Alternatively, you may install cargo from your OS package manager:
+  - Debian/Ubuntu: apt-get install cargo
+  - Fedora/CentOS: dnf install cargo
+  - macOS: brew install rustc
+--------------------------------------------------------------------
+EOF
+    exit 1
+  else
+    cat <<EOF
+--------------------------- [RUST FOUND] ---------------------------
+$(cargo -V)
 
-if [ "$(uname)" = "Emscripten" ]; then
-  TARGET="wasm32-unknown-emscripten"
-fi
+$(rustc -vV)
+--------------------------------------------------------------------
+EOF
+  fi
+}
+
+check_rustup() {
+  if [ "$(command -v rustup)" ]; then
+    cat <<EOF
+-------------------------- [RUSTUP FOUND] --------------------------
+$(rustup show)
+--------------------------------------------------------------------
+EOF
+  else
+    cat <<EOF
+------------------------ [RUSTUP NOT FOUND] ------------------------
+The 'rustup' command was not found on the PATH.
+--------------------------------------------------------------------
+EOF
+  fi
+}
+
+check_emscripten() {
+  if [ "$(uname)" = "Emscripten" ]; then
+    export TARGET="wasm32-unknown-emscripten"
+  fi
+}
+
+check_bin_lib() {
+  if [ "${NOT_CRAN}" = "true" ] && [ -z "${LIBRSAMPLR_BUILD}" ]; then
+    LIBRSAMPLR_BUILD="false"
+  fi
+
+  if [ "${LIBRSAMPLR_BUILD}" = "false" ]; then
+    if [ -f "tools/lib-sums.tsv" ] && [ ! -f "${LIBRSAMPLR_PATH}" ]; then
+      cat <<EOF
+---------------- [TRY TO DOWNLOAD PRE-BUILT BINARY] ----------------
+The library was not found at <${LIBRSAMPLR_PATH}>.
+Trying to download pre-built binary from the Internet...
+--------------------------------------------------------------------
+EOF
+      "${R_HOME}/bin${R_ARCH_BIN}/Rscript" "tools/prep-lib.R" && echo "Done!" ||
+        echo "Failed to download pre-built binary."
+    fi
+
+    if [ -f "${LIBRSAMPLR_PATH}" ] && [ "${LIBRSAMPLR_PATH}" != "${LIBRSAMPLR_DEFAULT_PATH}" ]; then
+      cat <<EOF
+------------------------- [COPYING BINARY] -------------------------
+Copying <${LIBRSAMPLR_PATH}> to <${LIBRSAMPLR_DEFAULT_PATH}>.
+--------------------------------------------------------------------
+EOF
+      mkdir -p "$(dirname "${LIBRSAMPLR_DEFAULT_PATH}")"
+      cp "${LIBRSAMPLR_PATH}" "${LIBRSAMPLR_DEFAULT_PATH}" && echo "Done!" || echo "Failed to copy binary."
+    fi
+
+    if [ -f "${LIBRSAMPLR_DEFAULT_PATH}" ]; then
+      cat <<EOF
+---------------------- [LIBRARY BINARY FOUND] ----------------------
+The library was found at <${LIBRSAMPLR_DEFAULT_PATH}>. No need to build it.
+
+Note: rustc version: $(command -v rustc >/dev/null && rustc -V || echo "Not found")
+--------------------------------------------------------------------
+EOF
+      export TARGET=""
+      generate_makevars
+    fi
+    cat <<EOF
+-------------------- [LIBRARY BINARY NOT FOUND] --------------------
+The library was not found at <${LIBRSAMPLR_PATH}>.
+Falling back to building from source.
+--------------------------------------------------------------------
+EOF
+  fi
+}
+
+detect_target_option() {
+  for option in "$@"; do
+    case "${option}" in
+    --host=*)
+      specified_target="$(echo "${option}" | sed -e 's/--host=//' | sed -E 's/([0-9]+\.)*[0-9]+$//')"
+      cat <<EOF
+------------------------ [DETECTED TARGET] ------------------------
+The target was specified as <${specified_target}> via the '--host' option.
+-------------------------------------------------------------------
+EOF
+      export TARGET="${specified_target}"
+      ;;
+    *) ;;
+    esac
+    shift
+  done
+}
 
 check_msrv() {
   rustc_version="$(rustc -V | grep -o '[0-9]\+\(\.[0-9]\+\)\+')"
@@ -61,25 +150,34 @@ EOF
   fi
 }
 
-check_msrv
+generate_makevars() {
+  for suffix in "" ".win"; do
+    makefile="src/Makevars${suffix}"
+    sed \
+      -e "s|@TARGET@|${TARGET}|" \
+      -e "s|@PROFILE@|${PROFILE}|" \
+      "$makefile.in" >"$makefile"
+  done
 
-# allow overriding profile externally (e.g. on CI)
-if [ -n "${SAVVY_PROFILE}" ]; then
-  PROFILE="${SAVVY_PROFILE}"
+  exit 0
+}
+
 # catch DEBUG envvar, which is passed from pkgbuild::compile_dll()
-elif [ "${DEBUG}" = "true" ]; then
+if [ "${DEBUG}" = "true" ]; then
   PROFILE=dev
 else
   PROFILE=release
 fi
 
-# e.g. SAVVY_FEATURES="a b"  -->  "--features 'a b'"
-if [ -n "${SAVVY_FEATURES}" ]; then
-  FEATURE_FLAGS="--features '${SAVVY_FEATURES}'"
-fi
+detect_target_option "$@"
+check_bin_lib
+check_rustup
+check_cargo
+check_msrv
+check_emscripten
 
-sed \
-  -e "s/@TARGET@/${TARGET}/" \
-  -e "s/@PROFILE@/${PROFILE}/" \
-  -e "s/@FEATURE_FLAGS@/${FEATURE_FLAGS}/" \
-  src/Makevars.in > src/Makevars
+TARGET="${TARGET:-$(rustc -vV | grep host | cut -d' ' -f2)}"
+
+generate_makevars
+
+
