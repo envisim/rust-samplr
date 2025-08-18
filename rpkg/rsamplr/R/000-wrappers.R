@@ -4,7 +4,8 @@
 #   This wrapper file is named as `000-wrappers.R` so that this file is loaded
 #   first, which allows users to override the functions defined here (e.g., a
 #   print() method for an enum).
-#' @useDynLib samplr, .registration = TRUE
+
+#' @useDynLib rsamplr, .registration = TRUE
 #' @keywords internal
 NULL
 
@@ -25,13 +26,13 @@ NULL
 # Prohibit modifying environments
 
 #' @export
-`$<-.savvy_samplr__sealed` <- function(x, name, value) {
+`$<-.savvy_rsamplr__sealed` <- function(x, name, value) {
   class <- gsub("__bundle$", "", class(x)[1])
   stop(class, " cannot be modified", call. = FALSE)
 }
 
 #' @export
-`[[<-.savvy_samplr__sealed` <- function(x, i, value) {
+`[[<-.savvy_rsamplr__sealed` <- function(x, i, value) {
   class <- gsub("__bundle$", "", class(x)[1])
   stop(class, " cannot be modified", call. = FALSE)
 }

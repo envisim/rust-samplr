@@ -1,4 +1,4 @@
-Package: samplr
+Package: rsamplr
 Title: Sampling algorithms and spatially balanced sampling
 Version: 0.1.0
 Authors@R: c(
