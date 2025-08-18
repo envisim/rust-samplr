@@ -4,12 +4,12 @@ PROFILE = @PROFILE@
 FEATURE_FLAGS = @FEATURE_FLAGS@
 
 # Add flags if necessary
-RUSTFLAGS = 
+RUSTFLAGS =
 
 TARGET_DIR = $(CURDIR)/rust/target
 LIBDIR = $(TARGET_DIR)/$(TARGET)/$(subst dev,debug,$(PROFILE))
-STATLIB = $(LIBDIR)/libsamplr.a
-PKG_LIBS = -L$(LIBDIR) -lsamplr -lws2_32 -ladvapi32 -luserenv -lbcrypt -lntdll
+STATLIB = $(LIBDIR)/librsamplr.a
+PKG_LIBS = -L$(LIBDIR) -lrsamplr -lws2_32 -ladvapi32 -luserenv -lbcrypt -lntdll
 
 # Rtools doesn't have the linker in the location that cargo expects, so we need
 # to overwrite it via configuration.

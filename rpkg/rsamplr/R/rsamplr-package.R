@@ -1,6 +1,6 @@
 #' @keywords internal
 #' @docType package
-#' @name samplr
+#' @name rsamplr
 #'
 #' @description
 #' Select probability samples in multi-dimensional spaces with any prescribed inclusion

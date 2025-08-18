@@ -4,12 +4,12 @@ PROFILE = @PROFILE@
 FEATURE_FLAGS = @FEATURE_FLAGS@
 
 # Add flags if necessary
-RUSTFLAGS = 
+RUSTFLAGS =
 
 TARGET_DIR = $(CURDIR)/rust/target
 LIBDIR = $(TARGET_DIR)/$(TARGET)/$(subst dev,debug,$(PROFILE))
-STATLIB = $(LIBDIR)/libsamplr.a
-PKG_LIBS = -L$(LIBDIR) -lsamplr
+STATLIB = $(LIBDIR)/librsamplr.a
+PKG_LIBS = -L$(LIBDIR) -lrsamplr
 
 CARGO_BUILD_ARGS = --lib --profile $(PROFILE) $(FEATURE_FLAGS) --manifest-path=./rust/Cargo.toml --target-dir $(TARGET_DIR)
 
