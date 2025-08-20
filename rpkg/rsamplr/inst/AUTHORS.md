@@ -25,4 +25,4 @@
 - zerocopy 0.8.26: Joshua Liebow-Feeser, Jack Wrenn
 - zerocopy-derive 0.8.26: Joshua Liebow-Feeser, Jack Wrenn
 
-(This file was auto-generated from 'cargo metadata' on 2025-08-18)
+(This file was auto-generated from 'cargo metadata' on 2025-08-20)

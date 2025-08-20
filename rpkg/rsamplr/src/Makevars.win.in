@@ -49,10 +49,8 @@ $(STATLIB): remove-prev
 		mkdir -p "$(CARGOTMP)" && \
 		cp "$(CURDIR)/rust/vendor-config.toml" "$(CARGOTMP)/config.toml"; \
 	fi && \
-	if [ "$(NOT_CRAN)" != "true" ]; then \
-		export CARGO_HOME="$(CARGOTMP)"; \
-		export CARGO_BUILD_JOBS=2; \
-	fi && \
+	export CARGO_HOME="$(CARGOTMP)"; \
+	export CARGO_BUILD_JOBS=2; \
 	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(CARGO_LINKER)" && \
 		export LIBRARY_PATH="$(LIBRARY_PATH);$(LIBGCC_MOCK_DIR)" && \
 		cargo build $(CARGO_BUILD_ARGS)
