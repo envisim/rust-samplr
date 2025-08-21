@@ -4,7 +4,7 @@ The following Rust crates are used or included in this package:
 -------------------------------------------------------------
 
 Name:        cc
-Version:     1.2.32
+Version:     1.2.33
 Repository:  https://github.com/rust-lang/cc-rs
 Authors:     Alex Crichton
 License:     Apache-2.0 OR MIT
@@ -12,7 +12,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        cfg-if
-Version:     1.0.1
+Version:     1.0.3
 Repository:  https://github.com/rust-lang/cfg-if
 Authors:     Alex Crichton
 License:     Apache-2.0 OR MIT
@@ -68,7 +68,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        proc-macro2
-Version:     1.0.97
+Version:     1.0.101
 Repository:  https://github.com/dtolnay/proc-macro2
 Authors:     David Tolnay, Alex Crichton
 License:     Apache-2.0 OR MIT
@@ -164,7 +164,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        syn
-Version:     2.0.105
+Version:     2.0.106
 Repository:  https://github.com/dtolnay/syn
 Authors:     David Tolnay
 License:     Apache-2.0 OR MIT
