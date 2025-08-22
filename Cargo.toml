@@ -35,4 +35,4 @@ rustc-hash = "2.1.1"
 
 [dev-dependencies]
 envisim_test_utils = {path="envisim_test_utils"}
-envisim_utils = {version="0.2.1", path="envisim_utils", default-features=false, features = ["rand"]}
+envisim_utils = {version="0.3.0", path="envisim_utils", default-features=false, features = ["rand"]}
