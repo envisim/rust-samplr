@@ -1,7 +1,6 @@
 use envisim_samplr::cube_method::*;
 use envisim_test_utils::*;
-use envisim_utils::utils::sum;
-use envisim_utils::Matrix;
+use envisim_utils::{random::*, utils::sum, Matrix};
 
 mod test_utils;
 use test_utils::*;
@@ -16,7 +15,7 @@ const BAL_DATA_10_1_P: [f64; 20] = [
 
 #[test]
 fn test_cube() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let baldata = Matrix::from_ref(&BAL_DATA_10_1_P, 10);
     let opts = SampleOptions::new(p)?.set_balancing(&baldata)?;
@@ -26,7 +25,7 @@ fn test_cube() -> Result<(), SamplingError> {
 
 #[test]
 fn test_lcube() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let baldata = Matrix::from_ref(&BAL_DATA_10_1_P, 10);
@@ -42,7 +41,7 @@ fn test_cube_stratified() -> Result<(), SamplingError> {
     let eps = 1e-2;
     let iter = 100000;
 
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let probs = &PROB_10_E;
     let baldata = Matrix::from_ref(&BAL_DATA_10_1, 10);
     let opts = SampleOptions::new(probs)?.set_balancing(&baldata)?;
@@ -73,7 +72,7 @@ fn test_lcube_stratified() -> Result<(), SamplingError> {
     let eps = 1e-2;
     let iter = 100000;
 
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let probs = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let baldata = Matrix::from_ref(&BAL_DATA_10_1, 10);

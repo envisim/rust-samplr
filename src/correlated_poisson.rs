@@ -14,9 +14,9 @@
 
 use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::kd_tree::SearcherWeighted;
-use envisim_utils::utils::{random_element, usize_to_f64};
-use rand::Rng;
+use envisim_utils::{
+    kd_tree::SearcherWeighted, random::RandomNumberGenerator, utils::usize_to_f64,
+};
 
 struct VariantSequential {
     unit: usize,
@@ -32,7 +32,7 @@ struct VariantLocal {
 
 pub struct CorrelatedPoissonMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CorrelatedPoissonVariant<'a, R>,
 {
     container: SampleContainer<'a, R>,
@@ -41,7 +41,7 @@ where
 
 pub trait CorrelatedPoissonVariant<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     fn new(
         rng: &'a mut R,
@@ -61,7 +61,7 @@ where
 
 impl<'a, R, T> CorrelatedPoissonMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CorrelatedPoissonVariant<'a, R>,
 {
     #[inline]
@@ -93,7 +93,7 @@ where
         while let Some(id) = self.variant.select_unit(&mut self.container) {
             let rv: f64 = match self.container.options().random_values() {
                 Some(list) => list[id],
-                None => self.container.rng().gen::<f64>(),
+                None => self.container.rng().rf64(),
             };
 
             let (probability, quota) = self.decide_selected(id, rv);
@@ -111,7 +111,7 @@ where
 
 impl<'a, R> CorrelatedPoissonVariant<'a, R> for VariantSequential
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -166,7 +166,7 @@ where
 
 impl<'a, R> CorrelatedPoissonVariant<'a, R> for VariantSpatial
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -286,7 +286,7 @@ where
 
 impl<'a, R> CorrelatedPoissonVariant<'a, R> for VariantLocal
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -343,7 +343,7 @@ where
             i += 1;
         }
 
-        random_element(container.rng(), &self.candidates).cloned()
+        container.rng().relement(&self.candidates).cloned()
     }
     #[inline]
     fn update_neighbours(
@@ -364,9 +364,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
 ///
@@ -379,9 +379,9 @@ where
 /// between multiple sampling efforts.
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let rv = [0.2; 10];
 /// let s = SampleOptions::new(&p)?.set_random_values(&rv)?.sample(&mut rng, cps)?;
@@ -398,7 +398,7 @@ where
 #[inline]
 pub fn cps<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantSequential::new(rng, options)?.sample()
 }
@@ -409,10 +409,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, scps)?;
@@ -426,10 +425,9 @@ where
 /// between multiple sampling efforts.
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let rv = [0.2; 10];
@@ -447,7 +445,7 @@ where
 #[inline]
 pub fn scps<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantSpatial::new(rng, options)?.sample()
 }
@@ -458,10 +456,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lcps)?;
@@ -478,7 +475,7 @@ where
 #[inline]
 pub fn lcps<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantLocal::new(rng, options)?.sample()
 }
@@ -487,11 +484,11 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
-    use envisim_utils::Matrix;
+    use envisim_utils::{random::*, Matrix};
 
     #[test]
     fn cps_sampler() -> Result<(), SamplingError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let options = SampleOptions::new(&PROB_10_E)?;
         let mut cps = VariantSequential::new(&mut rng, &options)?;
         assert_eq!(cps.decide_selected(7, 0.0), (0.2, -0.8));
@@ -506,7 +503,7 @@ mod tests {
         rv: f64,
     ) -> (usize, f64, f64)
     where
-        R: rand::Rng,
+        R: RandomNumberGenerator,
         T: CorrelatedPoissonVariant<'a, R>,
     {
         let (p, q) = cps.decide_selected(id, rv);
@@ -516,7 +513,7 @@ mod tests {
 
     #[test]
     fn cps_variant() -> Result<(), SamplingError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let options = SampleOptions::new(&PROB_10_E)?;
 
         let mut cps = VariantSequential::new(&mut rng, &options)?;
@@ -531,7 +528,7 @@ mod tests {
 
     #[test]
     fn scps_variant() -> Result<(), SamplingError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let data = Matrix::from_ref(&DATA_10_2, 10);
         let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
@@ -553,7 +550,7 @@ mod tests {
 
     #[test]
     fn lcps_variant() -> Result<(), SamplingError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let data = Matrix::from_ref(&DATA_10_2, 10);
         let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 

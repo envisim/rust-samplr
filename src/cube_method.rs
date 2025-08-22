@@ -15,10 +15,7 @@
 use crate::srs;
 use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::kd_tree::Searcher;
-use envisim_utils::utils::random_one_of_f64;
-use envisim_utils::{InputError, Matrix};
-use rand::Rng;
+use envisim_utils::{kd_tree::Searcher, random::RandomNumberGenerator, InputError, Matrix};
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -30,7 +27,7 @@ pub struct VariantLocalCube {
 
 pub struct CubeMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     container: SampleContainer<'a, R>,
@@ -42,7 +39,7 @@ where
 
 pub trait CubeMethodVariant<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     fn new(
         rng: &'a mut R,
@@ -60,7 +57,7 @@ where
 
 impl<'a, R, T> CubeMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     #[inline]
@@ -166,7 +163,12 @@ where
             }
         }
 
-        let lambda = if random_one_of_f64(self.container.rng(), lambdas.0, lambdas.1) {
+        let lambda = if self
+            .container
+            .rng()
+            .one_of_f64(lambdas.0, lambdas.1)
+            .unwrap()
+        {
             lambdas.0
         } else {
             -lambdas.1
@@ -190,7 +192,7 @@ where
 
 impl<'a, R> CubeMethodVariant<'a, R> for VariantCube
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -214,7 +216,7 @@ where
 
 impl<'a, R> CubeMethodVariant<'a, R> for VariantLocalCube
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -289,7 +291,7 @@ where
 
 pub struct CubeStratified<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CubeMethodVariant<'a, R>,
 {
     cube: CubeMethod<'a, R, T>,
@@ -299,7 +301,7 @@ where
 
 pub trait CubeStratifiedVariant<'a, R>: CubeMethodVariant<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     fn reset_to(
         &mut self,
@@ -316,10 +318,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
@@ -339,7 +340,7 @@ where
 #[inline]
 pub fn cube<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantCube::new(rng, options)?.sample()
 }
@@ -352,10 +353,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2; 10];
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
@@ -385,12 +385,12 @@ pub fn cube_stratified<'a, R>(
     strata: &'a [i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let balancing_data = options.check_balancing()?.balancing().unwrap();
     let probabilities = options.probabilities();
 
-    let seed = rng.gen::<usize>();
+    let seed = rng.rusize();
     let container = SampleContainer::new(rng, options)?;
 
     let mut cs = CubeStratified {
@@ -425,10 +425,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
@@ -460,7 +459,7 @@ pub fn local_cube<'a, R>(
     options: &SampleOptions<'a>,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantLocalCube::new(rng, options)?.sample()
 }
@@ -473,10 +472,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2; 10];
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
@@ -512,12 +510,12 @@ pub fn local_cube_stratified<'a, R>(
     strata: &'a [i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let balancing_data = options.check_balancing()?.balancing().unwrap();
     let probabilities = options.probabilities();
 
-    let seed = rng.gen::<usize>();
+    let seed = rng.rusize();
     let container = SampleContainer::new_with_tree(rng, options)?;
     let searcher = Searcher::new(
         container.tree().unwrap(),
@@ -550,7 +548,7 @@ where
 
 impl<'a, R> CubeStratifiedVariant<'a, R> for VariantCube
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn reset_to(
@@ -568,7 +566,7 @@ where
 
 impl<'a, R> CubeStratifiedVariant<'a, R> for VariantLocalCube
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn reset_to(
@@ -593,7 +591,7 @@ where
 
 impl<'a, R, T> CubeStratified<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: CubeStratifiedVariant<'a, R>,
 {
     #[inline]

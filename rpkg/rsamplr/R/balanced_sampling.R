@@ -68,7 +68,6 @@ NULL
     as.double(probabilities),
     as.matrix(balance_mat),
     args$eps,
-    args$seed,
     method
   )
 }
@@ -88,7 +87,6 @@ cube_stratified = function(probabilities, balance_mat, strata, ...) {
     as.matrix(balance_mat),
     as.integer(strata),
     args$eps,
-    args$seed,
     "cube"
   )
 }

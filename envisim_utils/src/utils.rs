@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -69,27 +69,4 @@ pub fn variance(vec: &[f64]) -> f64 {
 #[inline]
 pub fn standard_deviance(vec: &[f64]) -> f64 {
     variance(vec).sqrt()
-}
-
-/// Returns a random element of a vector.
-#[inline]
-pub fn random_element<'t, R, T>(rng: &mut R, slice: &'t [T]) -> Option<&'t T>
-where
-    R: rand::Rng + ?Sized,
-{
-    if slice.is_empty() {
-        return None;
-    }
-
-    let k: usize = rng.gen_range(0..slice.len());
-    Some(&slice[k])
-}
-
-/// Returns `true` with probability `v1 / (v0 + v1)`.
-#[inline]
-pub fn random_one_of_f64<R>(rng: &mut R, v0: f64, v1: f64) -> bool
-where
-    R: rand::Rng + ?Sized,
-{
-    rng.gen::<f64>() * (v0 + v1) < v1
 }

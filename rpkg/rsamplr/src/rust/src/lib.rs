@@ -14,20 +14,21 @@ use envisim_samplr::{AuxiliariesOptions, SampleOptions};
 use envisim_utils::pips::pips_from_slice;
 
 mod matrix;
+mod random;
 mod utils;
 
 use matrix::*;
+use random::*;
 use utils::*;
 
 #[savvy]
 fn rust_unequal(
     r_prob: RealSexp,
     r_eps: f64,
-    r_seed: i32,
     r_method: &str,
     r_max_iter: i32,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let options = SampleOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
@@ -52,10 +53,9 @@ fn rust_unequal_conditional_poisson(
     r_prob: RealSexp,
     r_sample_size: i32,
     r_eps: f64,
-    r_seed: i32,
     r_max_iter: i32,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let options = SampleOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
@@ -72,10 +72,9 @@ fn rust_spatially_balanced(
     r_data: RealSexp,
     r_eps: f64,
     r_bucket_size: i32,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
     let aux =
@@ -100,10 +99,9 @@ fn rust_balanced(
     r_prob: RealSexp,
     r_bal_data: RealSexp,
     r_eps: f64,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
     let options = SampleOptions::new(r_prob.as_slice())?
@@ -124,10 +122,9 @@ fn rust_doubly_balanced(
     r_bal_data: RealSexp,
     r_eps: f64,
     r_bucket_size: i32,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
@@ -152,11 +149,10 @@ fn rust_spatially_balanced_hierarchical(
     r_sizes: IntegerSexp,
     r_eps: f64,
     r_bucket_size: i32,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     // Returns a matrix with sample indices (0) and groups (1)
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
     let aux =
@@ -196,10 +192,9 @@ fn rust_balanced_stratified(
     r_bal_data: RealSexp,
     r_strata: IntegerSexp,
     r_eps: f64,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
@@ -222,10 +217,9 @@ fn rust_doubly_balanced_stratified(
     r_strata: IntegerSexp,
     r_eps: f64,
     r_bucket_size: i32,
-    r_seed: i32,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let mut rng = seed_from_i32(r_seed)?;
+    let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();

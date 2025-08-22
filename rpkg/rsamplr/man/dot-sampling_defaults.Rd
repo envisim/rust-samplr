@@ -4,22 +4,17 @@
 \alias{.sampling_defaults}
 \title{Sampling defaults}
 \usage{
-.sampling_defaults(
-  eps = 1e-10,
-  seed = sample.int(.Machine$integer.max, 1L),
-  max_iter = 1000L,
-  bucket_size = 50L
-)
+.sampling_defaults(eps = 1e-10, max_iter = 1000L, bucket_size = 50L)
 }
 \arguments{
 \item{eps}{A small value used when comparing floats.}
-
-\item{seed}{An integer used to determine the seed for the random number generator.}
 
 \item{max_iter}{The maximum number of iterations used in iterative algorithms.}
 
 \item{bucket_size}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
+
+\item{seed}{An integer used to determine the seed for the random number generator.}
 }
 \description{
 Sampling defaults
