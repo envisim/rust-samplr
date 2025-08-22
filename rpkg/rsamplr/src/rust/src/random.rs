@@ -1,8 +1,8 @@
 pub use envisim_utils::random::RandomNumberGenerator;
 
 extern "C" {
-    fn GetRNGstate() -> ();
-    fn PutRNGstate() -> ();
+    fn GetRNGstate();
+    fn PutRNGstate();
     fn unif_rand() -> f64;
     // fn norm_rand() -> f64;
     // fn exp_rand() -> f64;

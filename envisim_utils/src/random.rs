@@ -41,6 +41,7 @@ pub trait RandomNumberGenerator {
     }
 
     // Draws a random integer
+    #[allow(clippy::cast_possible_wrap)]
     #[inline]
     fn ri32(&mut self) -> i32 {
         self.ru32() as i32
@@ -59,6 +60,7 @@ pub trait RandomNumberGenerator {
     }
 
     // Draws a random integer
+    #[allow(clippy::cast_possible_wrap)]
     #[inline]
     fn ri64(&mut self) -> i64 {
         self.ru64() as i64
