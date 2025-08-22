@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -118,13 +118,13 @@ impl Probabilities {
 
     /// Returns an iterator over the probabilities
     #[inline]
-    pub fn iter<'a>(&'a self) -> Iter<'a, f64> {
+    pub fn iter(&self) -> Iter<f64> {
         self.probabilities.iter()
     }
 
     /// Returns a mutable iterator over the probabilities
     #[inline]
-    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, f64> {
+    pub fn iter_mut(&mut self) -> IterMut<f64> {
         self.probabilities.iter_mut()
     }
 }

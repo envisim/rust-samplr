@@ -8,13 +8,11 @@
 #' @keywords internal
 .sampling_defaults = function(
   eps = 1e-10,
-  seed = sample.int(.Machine$integer.max, 1L),
   max_iter = 1000L,
   bucket_size = 50L
 ) {
   args = list(
     eps = as.double(eps),
-    seed = as.integer(seed),
     max_iter = as.integer(max_iter),
     bucket_size = as.integer(bucket_size)
   );
@@ -29,10 +27,6 @@
 
   if (!(length(args$max_iter) == 1 && 0 < args$max_iter)) {
     args$max_iter = 1000L;
-  }
-
-  if (!(length(args$seed) == 1 && 0 < args$seed)) {
-    args$seed = sample.int(.Machine$integer.max, 1L);
   }
 
   args

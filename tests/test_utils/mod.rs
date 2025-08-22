@@ -1,6 +1,5 @@
 use envisim_samplr::{SampleOptions, Sampler, SamplingError};
-use envisim_utils::utils::sum;
-use rand::Rng;
+use envisim_utils::{random::RandomNumberGenerator, utils::sum};
 
 #[allow(dead_code)]
 pub fn test_wor<R>(
@@ -12,7 +11,7 @@ pub fn test_wor<R>(
     iter: u32,
 ) -> Result<(), SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let mut sel: Vec<u32> = vec![0; probs.len()];
 

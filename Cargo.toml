@@ -30,10 +30,9 @@ match_bool = "warn"
 needless_collect = "warn"
 
 [dependencies]
-envisim_utils = {version="0.2.1", path="envisim_utils"}
-rand = {version="0.8.5", features = ["small_rng"]}
-rustc-hash = "2.0.0"
+envisim_utils = {version="0.2.1", path="envisim_utils", default-features=false}
+rustc-hash = "2.1.1"
 
 [dev-dependencies]
 envisim_test_utils = {path="envisim_test_utils"}
-
+envisim_utils = {version="0.2.1", path="envisim_utils", default-features=false, features = ["rand"]}

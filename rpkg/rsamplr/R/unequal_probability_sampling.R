@@ -93,7 +93,6 @@ NULL
   rust_unequal(
     as.double(probabilities),
     args$eps,
-    args$seed,
     method,
     args$max_iter
   )
@@ -131,7 +130,6 @@ conditional_poisson = function(probabilities, sample_size, ...) {
     as.double(probabilities),
     as.integer(sample_size),
     args$eps,
-    args$seed,
     args$max_iter
   )
 }

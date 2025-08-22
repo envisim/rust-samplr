@@ -1,5 +1,3 @@
-use rand::{rngs::SmallRng, SeedableRng};
-
 #[macro_export]
 macro_rules! assert_delta {
     ($a:expr,$b:expr,$d:expr) => {
@@ -66,7 +64,3 @@ pub const PROB_10_U: [f64; 10] = [
 ];
 
 pub const PROB_10_E: [f64; 10] = [0.2f64; 10];
-
-pub fn seeded_rng() -> SmallRng {
-    SmallRng::seed_from_u64(4242)
-}

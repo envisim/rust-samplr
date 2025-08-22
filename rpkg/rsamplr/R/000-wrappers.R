@@ -43,23 +43,23 @@ NULL
 }
 
 
-`rust_balanced` <- function(`r_prob`, `r_bal_data`, `r_eps`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_balanced__impl, `r_prob`, `r_bal_data`, `r_eps`, `r_seed`, `r_method`)
+`rust_balanced` <- function(`r_prob`, `r_bal_data`, `r_eps`, `r_method`) {
+  .Call(savvy_rust_balanced__impl, `r_prob`, `r_bal_data`, `r_eps`, `r_method`)
 }
 
 
-`rust_balanced_stratified` <- function(`r_prob`, `r_bal_data`, `r_strata`, `r_eps`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_balanced_stratified__impl, `r_prob`, `r_bal_data`, `r_strata`, `r_eps`, `r_seed`, `r_method`)
+`rust_balanced_stratified` <- function(`r_prob`, `r_bal_data`, `r_strata`, `r_eps`, `r_method`) {
+  .Call(savvy_rust_balanced_stratified__impl, `r_prob`, `r_bal_data`, `r_strata`, `r_eps`, `r_method`)
 }
 
 
-`rust_doubly_balanced` <- function(`r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_doubly_balanced__impl, `r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`)
+`rust_doubly_balanced` <- function(`r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_method`) {
+  .Call(savvy_rust_doubly_balanced__impl, `r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_method`)
 }
 
 
-`rust_doubly_balanced_stratified` <- function(`r_prob`, `r_data`, `r_bal_data`, `r_strata`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_doubly_balanced_stratified__impl, `r_prob`, `r_data`, `r_bal_data`, `r_strata`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`)
+`rust_doubly_balanced_stratified` <- function(`r_prob`, `r_data`, `r_bal_data`, `r_strata`, `r_eps`, `r_bucket_size`, `r_method`) {
+  .Call(savvy_rust_doubly_balanced_stratified__impl, `r_prob`, `r_data`, `r_bal_data`, `r_strata`, `r_eps`, `r_bucket_size`, `r_method`)
 }
 
 
@@ -78,23 +78,23 @@ NULL
 }
 
 
-`rust_spatially_balanced` <- function(`r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_spatially_balanced__impl, `r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`)
+`rust_spatially_balanced` <- function(`r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_method`) {
+  .Call(savvy_rust_spatially_balanced__impl, `r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_method`)
 }
 
 
-`rust_spatially_balanced_hierarchical` <- function(`r_prob`, `r_data`, `r_sizes`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`) {
-  .Call(savvy_rust_spatially_balanced_hierarchical__impl, `r_prob`, `r_data`, `r_sizes`, `r_eps`, `r_bucket_size`, `r_seed`, `r_method`)
+`rust_spatially_balanced_hierarchical` <- function(`r_prob`, `r_data`, `r_sizes`, `r_eps`, `r_bucket_size`, `r_method`) {
+  .Call(savvy_rust_spatially_balanced_hierarchical__impl, `r_prob`, `r_data`, `r_sizes`, `r_eps`, `r_bucket_size`, `r_method`)
 }
 
 
-`rust_unequal` <- function(`r_prob`, `r_eps`, `r_seed`, `r_method`, `r_max_iter`) {
-  .Call(savvy_rust_unequal__impl, `r_prob`, `r_eps`, `r_seed`, `r_method`, `r_max_iter`)
+`rust_unequal` <- function(`r_prob`, `r_eps`, `r_method`, `r_max_iter`) {
+  .Call(savvy_rust_unequal__impl, `r_prob`, `r_eps`, `r_method`, `r_max_iter`)
 }
 
 
-`rust_unequal_conditional_poisson` <- function(`r_prob`, `r_sample_size`, `r_eps`, `r_seed`, `r_max_iter`) {
-  .Call(savvy_rust_unequal_conditional_poisson__impl, `r_prob`, `r_sample_size`, `r_eps`, `r_seed`, `r_max_iter`)
+`rust_unequal_conditional_poisson` <- function(`r_prob`, `r_sample_size`, `r_eps`, `r_max_iter`) {
+  .Call(savvy_rust_unequal_conditional_poisson__impl, `r_prob`, `r_sample_size`, `r_eps`, `r_max_iter`)
 }
 
 

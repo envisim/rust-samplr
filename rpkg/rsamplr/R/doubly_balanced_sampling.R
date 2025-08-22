@@ -76,7 +76,6 @@ NULL
     as.matrix(balance_mat),
     args$eps,
     args$bucket_size,
-    args$seed,
     method
   )
 }
@@ -98,7 +97,6 @@ local_cube_stratified = function(probabilities, spread_mat, balance_mat, strata,
     as.integer(strata),
     args$eps,
     args$bucket_size,
-    args$seed,
     "local_cube"
   );
 }

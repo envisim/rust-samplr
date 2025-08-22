@@ -1,13 +1,13 @@
 use envisim_samplr::correlated_poisson::*;
 use envisim_test_utils::*;
-use envisim_utils::Matrix;
+use envisim_utils::{random::*, Matrix};
 
 mod test_utils;
 use test_utils::*;
 
 #[test]
 fn test_cps() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
@@ -16,7 +16,7 @@ fn test_cps() -> Result<(), SamplingError> {
 
 #[test]
 fn test_scps() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
@@ -26,7 +26,7 @@ fn test_scps() -> Result<(), SamplingError> {
 
 #[test]
 fn test_lcps() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;

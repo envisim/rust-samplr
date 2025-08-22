@@ -1,12 +1,13 @@
 use envisim_samplr::systematic::*;
 use envisim_test_utils::*;
+use envisim_utils::random::*;
 
 mod test_utils;
 use test_utils::*;
 
 #[test]
 fn systematic() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
@@ -15,7 +16,7 @@ fn systematic() -> Result<(), SamplingError> {
 
 #[test]
 fn srs_wr() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
