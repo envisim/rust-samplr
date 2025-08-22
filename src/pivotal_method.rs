@@ -14,10 +14,8 @@
 
 use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::kd_tree::Searcher;
-use envisim_utils::utils::{random_element, sum, usize_to_f64};
-use envisim_utils::InputError;
-use rand::Rng;
+use envisim_utils::utils::{sum, usize_to_f64};
+use envisim_utils::{kd_tree::Searcher, random::RandomNumberGenerator, InputError};
 use rustc_hash::FxHashSet;
 
 type Pair = (usize, usize);
@@ -41,7 +39,7 @@ struct VariantLocal2 {
 
 pub struct PivotalMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: PivotalMethodVariant<'a, R>,
 {
     container: SampleContainer<'a, R>,
@@ -50,7 +48,7 @@ where
 
 pub trait PivotalMethodVariant<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     fn new(
         rng: &'a mut R,
@@ -63,7 +61,7 @@ where
 
 impl<'a, R, T> PivotalMethod<'a, R, T>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
     T: PivotalMethodVariant<'a, R>,
 {
     #[inline]
@@ -77,7 +75,7 @@ where
     #[inline]
     fn run(&mut self) -> &mut Self {
         while let Some(units) = self.variant.select_units(&mut self.container) {
-            let rv = self.container.rng().gen::<f64>();
+            let rv = self.container.rng().rf64();
             self.update_probabilities(units, rv);
         }
 
@@ -130,7 +128,7 @@ where
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantSequential
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -176,7 +174,7 @@ where
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantRandom
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -195,7 +193,7 @@ where
         }
 
         let id1 = *container.indices_draw().unwrap();
-        let k = container.rng().gen_range(0..(len - 1));
+        let k = container.rng().rusize_to(len - 1);
         let mut id2 = *container.indices().get(k).unwrap();
 
         if id1 == id2 {
@@ -208,7 +206,7 @@ where
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -261,7 +259,7 @@ where
             }
 
             if !self.candidates.is_empty() {
-                let id2 = *random_element(container.rng(), &self.candidates).unwrap();
+                let id2 = *container.rng().relement(&self.candidates).unwrap();
                 return Some((id1, id2));
             }
         }
@@ -270,7 +268,7 @@ where
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1S
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -340,7 +338,7 @@ where
             }
 
             if len > 0 {
-                let id2 = *random_element(container.rng(), &self.candidates[0..len]).unwrap();
+                let id2 = *container.rng().relement(&self.candidates[0..len]).unwrap();
                 return Some((id1, id2));
             }
 
@@ -350,14 +348,14 @@ where
             }
 
             self.history
-                .push(*random_element(container.rng(), &self.candidates).unwrap());
+                .push(*container.rng().relement(&self.candidates).unwrap());
         }
     }
 }
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal2
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     fn new(
@@ -382,7 +380,10 @@ where
         self.searcher
             .find_neighbours_of_id(container.tree().unwrap(), id1)
             .unwrap();
-        let id2 = *random_element(container.rng(), self.searcher.neighbours()).unwrap();
+        let id2 = *container
+            .rng()
+            .relement(self.searcher.neighbours())
+            .unwrap();
 
         Some((id1, id2))
     }
@@ -394,9 +395,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
 ///
@@ -412,7 +413,7 @@ where
 #[inline]
 pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantSequential::new(rng, options)?.sample()
 }
@@ -423,9 +424,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
 ///
@@ -441,7 +442,7 @@ where
 #[inline]
 pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantRandom::new(rng, options)?.sample()
 }
@@ -452,10 +453,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
@@ -472,7 +472,7 @@ where
 #[inline]
 pub fn lpm_1<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantLocal1::new(rng, options)?.sample()
 }
@@ -483,10 +483,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1s)?;
@@ -500,7 +499,7 @@ where
 #[inline]
 pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantLocal1S::new(rng, options)?.sample()
 }
@@ -511,10 +510,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
@@ -531,7 +529,7 @@ where
 #[inline]
 pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     VariantLocal2::new(rng, options)?.sample()
 }
@@ -545,10 +543,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::Matrix;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::{Matrix, random::*};
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
 /// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
@@ -571,7 +568,7 @@ pub fn hierarchical_lpm_2<R>(
     sizes: &[usize],
 ) -> Result<Vec<Vec<usize>>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     InputError::check_integer_approx_equal(
         sum(options.probabilities()),
@@ -633,10 +630,11 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
+    use envisim_utils::random::*;
 
     #[test]
     fn update_probabilities() -> Result<(), SamplingError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let options = SampleOptions::new(&PROB_10_E)?;
         let mut pm = VariantSequential::new(&mut rng, &options)?;
         pm.update_probabilities((0, 1), 0.0);

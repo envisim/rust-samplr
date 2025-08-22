@@ -14,17 +14,16 @@
 
 pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{Indices, InputError};
-use rand::Rng;
+use envisim_utils::{random::RandomNumberGenerator, Indices, InputError};
 
 // Assumes probabilites sum to 1.0
 #[inline]
 fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let population_size = probabilities.len();
-    let rv = rng.gen::<f64>();
+    let rv = rng.rf64();
     let mut psum: f64 = 0.0;
 
     for (i, &p) in probabilities.iter().enumerate() {
@@ -44,9 +43,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.1; 10];
 /// let options = SampleOptions::new(&p)?;
 /// let s = with_replacement(&mut rng, &options, 5)?;
@@ -61,7 +60,7 @@ pub fn with_replacement<R>(
     n: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let probabilities = options.probabilities();
 
@@ -74,7 +73,7 @@ where
     let mut rvs = Vec::<f64>::with_capacity(n);
 
     for _ in 0..n {
-        rvs.push(rng.gen::<f64>());
+        rvs.push(rng.rf64());
     }
 
     rvs.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -117,9 +116,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let options = SampleOptions::new(&p)?;
 /// let s = sampford(&mut rng, &options)?;
@@ -130,7 +129,7 @@ where
 #[inline]
 pub fn sampford<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();
@@ -179,9 +178,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, pareto)?;
 ///
@@ -196,7 +195,7 @@ where
 #[inline]
 pub fn pareto<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();
@@ -210,7 +209,7 @@ where
     let q_values: Vec<f64> = probabilities
         .iter()
         .map(|&p| {
-            let u = rng.gen::<f64>();
+            let u = rng.rf64();
 
             if 1.0 - eps < u || p < eps {
                 return f64::INFINITY;
@@ -238,9 +237,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, brewer)?;
 ///
@@ -250,7 +249,7 @@ where
 #[inline]
 pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();
@@ -303,12 +302,12 @@ where
 #[inline]
 pub(crate) fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     probabilities
         .iter()
         .enumerate()
-        .filter_map(|(i, &p)| (rng.gen::<f64>() <= p).then_some(i))
+        .filter_map(|(i, &p)| rng.rbern(p).and_then(|b| b.then_some(i)))
         .collect()
 }
 
@@ -317,16 +316,16 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, poisson)?;
 /// # Ok::<(), SamplingError>(())
 /// ```
 pub fn poisson<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     Ok(poisson_internal(rng, options.probabilities()))
@@ -339,9 +338,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::unequal::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let options = SampleOptions::new(&p)?;
 /// let s = conditional_poisson(&mut rng, &options, 5);
@@ -353,7 +352,7 @@ pub fn conditional_poisson<R>(
     sample_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();

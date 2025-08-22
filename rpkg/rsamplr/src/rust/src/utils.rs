@@ -1,12 +1,6 @@
-use rand::{rngs::SmallRng, SeedableRng};
 use std::num::NonZeroUsize;
 
 use savvy::{savvy_err, OwnedIntegerSexp, Sexp};
-
-pub fn i32_to_u64(v: i32) -> savvy::Result<u64> {
-    v.try_into()
-        .map_err(|_| savvy_err!("value must be non-negative"))
-}
 
 pub fn i32_to_usize(v: i32) -> savvy::Result<usize> {
     v.try_into()
@@ -21,10 +15,6 @@ pub fn i32_to_nonzerousize(v: i32) -> savvy::Result<NonZeroUsize> {
 pub fn usize_to_i32(v: usize) -> savvy::Result<i32> {
     v.try_into()
         .map_err(|_| savvy_err!("cannot convert from usize to i32"))
-}
-
-pub fn seed_from_i32(seed: i32) -> savvy::Result<SmallRng> {
-    i32_to_u64(seed).map(SmallRng::seed_from_u64)
 }
 
 pub fn return_sample(sample: Vec<usize>) -> savvy::Result<Sexp> {

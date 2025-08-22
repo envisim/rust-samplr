@@ -41,7 +41,6 @@ sampford(probabilities, ...)
   Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{seed}}{An integer used to determine the seed for the random number generator.}
     \item{\code{max_iter}}{The maximum number of iterations used in iterative algorithms.}
   }}
 
