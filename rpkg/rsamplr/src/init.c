@@ -39,23 +39,23 @@ SEXP savvy_rust_balance_deviation__impl(SEXP c_arg__r_sample, SEXP c_arg__r_prob
     return handle_result(res);
 }
 
-SEXP savvy_rust_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_bal_data, SEXP c_arg__r_eps, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_balanced__ffi(c_arg__r_prob, c_arg__r_bal_data, c_arg__r_eps, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_bal_data, SEXP c_arg__r_eps, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_balanced__ffi(c_arg__r_prob, c_arg__r_bal_data, c_arg__r_eps, c_arg__r_method);
     return handle_result(res);
 }
 
-SEXP savvy_rust_balanced_stratified__impl(SEXP c_arg__r_prob, SEXP c_arg__r_bal_data, SEXP c_arg__r_strata, SEXP c_arg__r_eps, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_balanced_stratified__ffi(c_arg__r_prob, c_arg__r_bal_data, c_arg__r_strata, c_arg__r_eps, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_balanced_stratified__impl(SEXP c_arg__r_prob, SEXP c_arg__r_bal_data, SEXP c_arg__r_strata, SEXP c_arg__r_eps, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_balanced_stratified__ffi(c_arg__r_prob, c_arg__r_bal_data, c_arg__r_strata, c_arg__r_eps, c_arg__r_method);
     return handle_result(res);
 }
 
-SEXP savvy_rust_doubly_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_bal_data, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_doubly_balanced__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_bal_data, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_doubly_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_bal_data, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_doubly_balanced__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_bal_data, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_method);
     return handle_result(res);
 }
 
-SEXP savvy_rust_doubly_balanced_stratified__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_bal_data, SEXP c_arg__r_strata, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_doubly_balanced_stratified__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_bal_data, c_arg__r_strata, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_doubly_balanced_stratified__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_bal_data, SEXP c_arg__r_strata, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_doubly_balanced_stratified__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_bal_data, c_arg__r_strata, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_method);
     return handle_result(res);
 }
 
@@ -74,40 +74,40 @@ SEXP savvy_rust_spatial_balance_measure__impl(SEXP c_arg__r_sample, SEXP c_arg__
     return handle_result(res);
 }
 
-SEXP savvy_rust_spatially_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_spatially_balanced__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_spatially_balanced__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_spatially_balanced__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_method);
     return handle_result(res);
 }
 
-SEXP savvy_rust_spatially_balanced_hierarchical__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_sizes, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_seed, SEXP c_arg__r_method) {
-    SEXP res = savvy_rust_spatially_balanced_hierarchical__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_sizes, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_seed, c_arg__r_method);
+SEXP savvy_rust_spatially_balanced_hierarchical__impl(SEXP c_arg__r_prob, SEXP c_arg__r_data, SEXP c_arg__r_sizes, SEXP c_arg__r_eps, SEXP c_arg__r_bucket_size, SEXP c_arg__r_method) {
+    SEXP res = savvy_rust_spatially_balanced_hierarchical__ffi(c_arg__r_prob, c_arg__r_data, c_arg__r_sizes, c_arg__r_eps, c_arg__r_bucket_size, c_arg__r_method);
     return handle_result(res);
 }
 
-SEXP savvy_rust_unequal__impl(SEXP c_arg__r_prob, SEXP c_arg__r_eps, SEXP c_arg__r_seed, SEXP c_arg__r_method, SEXP c_arg__r_max_iter) {
-    SEXP res = savvy_rust_unequal__ffi(c_arg__r_prob, c_arg__r_eps, c_arg__r_seed, c_arg__r_method, c_arg__r_max_iter);
+SEXP savvy_rust_unequal__impl(SEXP c_arg__r_prob, SEXP c_arg__r_eps, SEXP c_arg__r_method, SEXP c_arg__r_max_iter) {
+    SEXP res = savvy_rust_unequal__ffi(c_arg__r_prob, c_arg__r_eps, c_arg__r_method, c_arg__r_max_iter);
     return handle_result(res);
 }
 
-SEXP savvy_rust_unequal_conditional_poisson__impl(SEXP c_arg__r_prob, SEXP c_arg__r_sample_size, SEXP c_arg__r_eps, SEXP c_arg__r_seed, SEXP c_arg__r_max_iter) {
-    SEXP res = savvy_rust_unequal_conditional_poisson__ffi(c_arg__r_prob, c_arg__r_sample_size, c_arg__r_eps, c_arg__r_seed, c_arg__r_max_iter);
+SEXP savvy_rust_unequal_conditional_poisson__impl(SEXP c_arg__r_prob, SEXP c_arg__r_sample_size, SEXP c_arg__r_eps, SEXP c_arg__r_max_iter) {
+    SEXP res = savvy_rust_unequal_conditional_poisson__ffi(c_arg__r_prob, c_arg__r_sample_size, c_arg__r_eps, c_arg__r_max_iter);
     return handle_result(res);
 }
 
 
 static const R_CallMethodDef CallEntries[] = {
     {"savvy_rust_balance_deviation__impl", (DL_FUNC) &savvy_rust_balance_deviation__impl, 3},
-    {"savvy_rust_balanced__impl", (DL_FUNC) &savvy_rust_balanced__impl, 5},
-    {"savvy_rust_balanced_stratified__impl", (DL_FUNC) &savvy_rust_balanced_stratified__impl, 6},
-    {"savvy_rust_doubly_balanced__impl", (DL_FUNC) &savvy_rust_doubly_balanced__impl, 7},
-    {"savvy_rust_doubly_balanced_stratified__impl", (DL_FUNC) &savvy_rust_doubly_balanced_stratified__impl, 8},
+    {"savvy_rust_balanced__impl", (DL_FUNC) &savvy_rust_balanced__impl, 4},
+    {"savvy_rust_balanced_stratified__impl", (DL_FUNC) &savvy_rust_balanced_stratified__impl, 5},
+    {"savvy_rust_doubly_balanced__impl", (DL_FUNC) &savvy_rust_doubly_balanced__impl, 6},
+    {"savvy_rust_doubly_balanced_stratified__impl", (DL_FUNC) &savvy_rust_doubly_balanced_stratified__impl, 7},
     {"savvy_rust_local_mean_variance__impl", (DL_FUNC) &savvy_rust_local_mean_variance__impl, 4},
     {"savvy_rust_pips_from_values__impl", (DL_FUNC) &savvy_rust_pips_from_values__impl, 2},
     {"savvy_rust_spatial_balance_measure__impl", (DL_FUNC) &savvy_rust_spatial_balance_measure__impl, 4},
-    {"savvy_rust_spatially_balanced__impl", (DL_FUNC) &savvy_rust_spatially_balanced__impl, 6},
-    {"savvy_rust_spatially_balanced_hierarchical__impl", (DL_FUNC) &savvy_rust_spatially_balanced_hierarchical__impl, 7},
-    {"savvy_rust_unequal__impl", (DL_FUNC) &savvy_rust_unequal__impl, 5},
-    {"savvy_rust_unequal_conditional_poisson__impl", (DL_FUNC) &savvy_rust_unequal_conditional_poisson__impl, 5},
+    {"savvy_rust_spatially_balanced__impl", (DL_FUNC) &savvy_rust_spatially_balanced__impl, 5},
+    {"savvy_rust_spatially_balanced_hierarchical__impl", (DL_FUNC) &savvy_rust_spatially_balanced_hierarchical__impl, 6},
+    {"savvy_rust_unequal__impl", (DL_FUNC) &savvy_rust_unequal__impl, 4},
+    {"savvy_rust_unequal_conditional_poisson__impl", (DL_FUNC) &savvy_rust_unequal_conditional_poisson__impl, 4},
     {NULL, NULL, 0}
 };
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,17 +13,16 @@
 //! Simple random sampling
 
 pub use crate::SamplingError;
-use envisim_utils::InputError;
-use rand::Rng;
+use envisim_utils::{random::RandomNumberGenerator, InputError};
 
 /// Draw a simple random sample without replacement
 ///
 /// # Examples
 /// ```
 /// use envisim_samplr::srs::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let s = sample(&mut rng, 5, 10)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -36,14 +35,14 @@ pub fn sample<R>(
     population_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     InputError::check_sample_size(sample_size, population_size)?;
 
     let mut sample = Vec::<usize>::with_capacity(sample_size);
 
     for i in 0..population_size {
-        if rng.gen_range(0..(population_size - i)) < sample_size - sample.len() {
+        if rng.rusize_to(population_size - i) < sample_size - sample.len() {
             sample.push(i);
         }
     }
@@ -56,9 +55,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::srs::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let s = sample_with_replacement(&mut rng, 5, 10)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -71,12 +70,12 @@ pub fn sample_with_replacement<R>(
     population_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     InputError::check_sample_size(sample_size, population_size)?;
 
     let mut sample: Vec<usize> = (0..sample_size)
-        .map(|_| rng.gen_range(0..population_size))
+        .map(|_| rng.rusize_to(population_size))
         .collect();
 
     sample.sort_unstable();

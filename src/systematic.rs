@@ -13,17 +13,16 @@
 //! Systematic sampling designs
 
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::Probabilities;
-use rand::Rng;
+use envisim_utils::{random::RandomNumberGenerator, Probabilities};
 
 /// Draw a systematic sample, using the provided order
 ///
 /// # Examples
 /// ```
 /// use envisim_samplr::systematic::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
 ///
@@ -33,12 +32,12 @@ use rand::Rng;
 #[inline]
 pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();
     let order: Vec<usize> = (0usize..probabilities.len()).collect();
-    from_order(rng.gen(), probabilities, &order)
+    from_order(rng.rf64(), probabilities, &order)
 }
 
 /// Draw a systematic sample, using a random order
@@ -46,9 +45,9 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::systematic::*;
-/// use rand::{rngs::SmallRng, SeedableRng};
+/// use envisim_utils::random::*;
 ///
-/// let mut rng = SmallRng::from_entropy();
+/// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, sample_random_order)?;
 ///
@@ -61,12 +60,12 @@ pub fn sample_random_order<R>(
     options: &SampleOptions,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
     let probabilities = options.probabilities();
     let order = shuffle(rng, probabilities.len());
-    from_order(rng.gen(), probabilities, &order)
+    from_order(rng.rf64(), probabilities, &order)
 }
 
 #[inline]
@@ -98,12 +97,12 @@ fn from_order(
 #[inline]
 fn shuffle<R>(rng: &mut R, len: usize) -> Vec<usize>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     let mut order: Vec<usize> = (0..len).collect();
 
     for i in (1..len).rev() {
-        order.swap(i, rng.gen_range(0..(i + 1)));
+        order.swap(i, rng.rusize_to(i + 1));
     }
 
     order

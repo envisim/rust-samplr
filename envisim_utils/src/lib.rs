@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,6 +18,7 @@ pub mod kd_tree;
 mod matrix;
 pub mod pips;
 mod probabilities;
+pub mod random;
 pub mod utils;
 
 pub use error::InputError;

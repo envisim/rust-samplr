@@ -31,7 +31,6 @@ lpm_2_hierarchical(probabilities, spread_mat, sizes, ...)
   Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{seed}}{An integer used to determine the seed for the random number generator.}
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
   }}
@@ -72,22 +71,22 @@ prob = rep(n/N, N);
 xs = matrix(runif(N * 2), ncol = 2);
 sizes = c(10L, 20L, 30L, 40L);
 
-s = lpm_1(prob, x);
+s = lpm_1(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lpm_1s(prob, x);
+s = lpm_1s(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lpm_2(prob, x);
+s = lpm_2(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = scps(prob, x);
+s = scps(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lcps(prob, x);
+s = lcps(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lpm_2_hierarchical(prob, x, sizes);
+s = lpm_2_hierarchical(prob, xs, sizes);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
 # Respects inclusion probabilities

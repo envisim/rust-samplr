@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,9 +12,7 @@
 
 use crate::error::SamplingError;
 use crate::sample_options::SampleOptions;
-use envisim_utils::kd_tree::Node;
-use envisim_utils::{Indices, Probabilities};
-use rand::Rng;
+use envisim_utils::{kd_tree::Node, random::RandomNumberGenerator, Indices, Probabilities};
 
 pub struct Sample(Vec<usize>);
 
@@ -53,7 +51,7 @@ impl Sample {
 
 pub struct SampleContainer<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     options: &'a SampleOptions<'a>,
     rng: &'a mut R,
@@ -65,7 +63,7 @@ where
 
 impl<'a, R> SampleContainer<'a, R>
 where
-    R: Rng + ?Sized,
+    R: RandomNumberGenerator + ?Sized,
 {
     #[inline]
     pub fn new(rng: &'a mut R, options: &'a SampleOptions<'a>) -> Result<Self, SamplingError> {
@@ -206,7 +204,7 @@ where
             None => return Ok(None),
         };
 
-        if self.rng.gen::<f64>() < self.probabilities[id] {
+        if self.rng.rbern(self.probabilities[id]).unwrap() {
             self.set_probability_and_decide(id, 1.0)
         } else {
             self.set_probability_and_decide(id, 0.0)
@@ -218,11 +216,11 @@ where
 mod tests {
     use super::*;
     use envisim_test_utils::*;
-    use envisim_utils::InputError;
+    use envisim_utils::{random::*, InputError};
 
     #[test]
     fn decide_unit() -> Result<(), InputError> {
-        let mut rng = seeded_rng();
+        let mut rng = SmallRng::seed_from_u64(42);
         let options = SampleOptions::new(&PROB_10_E)?;
 
         let mut c = SampleContainer::new(&mut rng, &options).unwrap();

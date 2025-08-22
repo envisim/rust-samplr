@@ -19,7 +19,6 @@ cube_stratified(probabilities, balance_mat, strata, ...)
   Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{seed}}{An integer used to determine the seed for the random number generator.}
   }}
 
 \item{strata}{An integer vector with stratum numbers for each unit.}

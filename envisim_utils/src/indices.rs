@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2025 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,8 +12,7 @@
 
 //! List of indices
 
-use crate::utils::random_element;
-use rand::Rng;
+use crate::random::RandomNumberGenerator;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// A struct (list) for keeping track of indices in use. The internal list keeps track, without
@@ -148,8 +147,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::Indices;
-    /// use rand::{rngs::SmallRng, SeedableRng};
+    /// use envisim_utils::{Indices, random::*};
     ///
     /// let il = Indices::with_fill(4);
     /// let mut rng = SmallRng::seed_from_u64(4242);
@@ -160,9 +158,9 @@ impl Indices {
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<&usize>
     where
-        R: Rng + ?Sized,
+        R: RandomNumberGenerator + ?Sized,
     {
-        random_element(rng, &self.list)
+        rng.relement(&self.list)
     }
 
     /// Checks if the list contains an index

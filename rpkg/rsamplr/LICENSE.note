@@ -11,14 +11,6 @@ License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
 
-Name:        cfg-if
-Version:     1.0.3
-Repository:  https://github.com/rust-lang/cfg-if
-Authors:     Alex Crichton
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
 Name:        envisim_estimate
 Version:     0.3.0
 Repository:  https://github.com/envisim/rust-samplr
@@ -43,30 +35,6 @@ License:     AGPL-3.0
 
 -------------------------------------------------------------
 
-Name:        getrandom
-Version:     0.2.16
-Repository:  https://github.com/rust-random/getrandom
-Authors:     The Rand Project Developers
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        libc
-Version:     0.2.175
-Repository:  https://github.com/rust-lang/libc
-Authors:     The Rust Project Developers
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        ppv-lite86
-Version:     0.2.21
-Repository:  https://github.com/cryptocorrosion/cryptocorrosion
-Authors:     The CryptoCorrosion Contributors
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
 Name:        proc-macro2
 Version:     1.0.101
 Repository:  https://github.com/dtolnay/proc-macro2
@@ -79,30 +47,6 @@ Name:        quote
 Version:     1.0.40
 Repository:  https://github.com/dtolnay/quote
 Authors:     David Tolnay
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        rand
-Version:     0.8.5
-Repository:  https://github.com/rust-random/rand
-Authors:     The Rand Project Developers, The Rust Project Developers
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        rand_chacha
-Version:     0.3.1
-Repository:  https://github.com/rust-random/rand
-Authors:     The Rand Project Developers, The Rust Project Developers, The CryptoCorrosion Contributors
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        rand_core
-Version:     0.6.4
-Repository:  https://github.com/rust-random/rand
-Authors:     The Rand Project Developers, The Rust Project Developers
 License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
@@ -176,29 +120,5 @@ Version:     1.0.18
 Repository:  https://github.com/dtolnay/unicode-ident
 Authors:     David Tolnay
 License:     (Apache-2.0 OR MIT) AND Unicode-3.0
-
--------------------------------------------------------------
-
-Name:        wasi
-Version:     0.11.1+wasi-snapshot-preview1
-Repository:  https://github.com/bytecodealliance/wasi
-Authors:     The Cranelift Project Developers
-License:     Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT
-
--------------------------------------------------------------
-
-Name:        zerocopy
-Version:     0.8.26
-Repository:  https://github.com/google/zerocopy
-Authors:     Joshua Liebow-Feeser, Jack Wrenn
-License:     Apache-2.0 OR BSD-2-Clause OR MIT
-
--------------------------------------------------------------
-
-Name:        zerocopy-derive
-Version:     0.8.26
-Repository:  https://github.com/google/zerocopy
-Authors:     Joshua Liebow-Feeser, Jack Wrenn
-License:     Apache-2.0 OR BSD-2-Clause OR MIT
 
 -------------------------------------------------------------

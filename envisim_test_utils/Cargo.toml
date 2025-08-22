@@ -26,6 +26,3 @@ if_then_some_else_none = "warn"
 imprecise_flops = "warn"
 match_bool = "warn"
 needless_collect = "warn"
-
-[dependencies]
-rand = {version="0.8.5", features = ["small_rng"]}

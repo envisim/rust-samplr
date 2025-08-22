@@ -21,7 +21,6 @@ local_cube_stratified(probabilities, spread_mat, balance_mat, strata, ...)
   Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{seed}}{An integer used to determine the seed for the random number generator.}
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
   }}

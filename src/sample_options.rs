@@ -1,7 +1,18 @@
+// Copyright (C) 2025 Wilmer Prentius.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::SamplingError;
 use envisim_utils::kd_tree::{midpoint_slide, FindSplit, Node, TreeBuilder};
-use envisim_utils::{InputError, Matrix, Probabilities};
-use rand::Rng;
+use envisim_utils::{random::RandomNumberGenerator, InputError, Matrix, Probabilities};
 use std::num::NonZeroUsize;
 
 pub struct AuxiliariesOptions<'a> {
@@ -229,7 +240,7 @@ impl<'a> SampleOptions<'a> {
     #[inline]
     pub fn sample<R>(&self, rng: &mut R, sampler: Sampler<R>) -> Result<Vec<usize>, SamplingError>
     where
-        R: Rng + ?Sized,
+        R: RandomNumberGenerator + ?Sized,
     {
         sampler(rng, self)
     }

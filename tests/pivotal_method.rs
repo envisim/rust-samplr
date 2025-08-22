@@ -1,14 +1,13 @@
 use envisim_samplr::pivotal_method::*;
 use envisim_test_utils::*;
-use envisim_utils::utils::sum;
-use envisim_utils::Matrix;
+use envisim_utils::{random::*, utils::sum, Matrix};
 
 mod test_utils;
 use test_utils::*;
 
 #[test]
 fn test_spm() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
@@ -17,7 +16,7 @@ fn test_spm() -> Result<(), SamplingError> {
 
 #[test]
 fn test_rpm() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let opts = SampleOptions::new(p)?;
 
@@ -26,7 +25,7 @@ fn test_rpm() -> Result<(), SamplingError> {
 
 #[test]
 fn test_lpm1() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
@@ -36,7 +35,7 @@ fn test_lpm1() -> Result<(), SamplingError> {
 
 #[test]
 fn test_lpm1s() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
@@ -46,12 +45,12 @@ fn test_lpm1s() -> Result<(), SamplingError> {
 
 #[test]
 fn test_lpm2() -> Result<(), SamplingError> {
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
-    test_wor(lpm_2, &mut rng, &opts, p, 1e-2, 10000)
+    test_wor(lpm_2, &mut rng, &opts, p, 1e-2, 12000)
 }
 
 #[test]
@@ -59,7 +58,7 @@ fn test_hlpm2() -> Result<(), SamplingError> {
     let eps = 1e-2;
     let iter = 100000;
 
-    let mut rng = seeded_rng();
+    let mut rng = SmallRng::seed_from_u64(42);
     let probs = &PROB_10_U;
     let data = Matrix::from_ref(&DATA_10_2, 10);
     let opts = SampleOptions::new(probs)?.set_spreading(&data)?;
