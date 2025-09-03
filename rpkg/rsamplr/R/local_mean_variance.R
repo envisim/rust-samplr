@@ -8,13 +8,14 @@
 #' @param spread_mat A matrix of spreading covariates.
 #' @param neighbours The number of neighbours to construct the means around.
 #'
+#' @returns A vector of sample indices.
+#'
 #' @references
 #' Grafström, A., & Schelin, L. (2014).
 #' How to select representative samples.
 #' Scandinavian Journal of Statistics, 41(2), 277-290.
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(12345);
 #' N = 1000;
 #' n = 100;
@@ -25,6 +26,7 @@
 #' s = lpm_2(prob, xs);
 #' local_mean_variance(y[s], prob[s], xs[s, ], 4);
 #'
+#' \donttest{
 #' # Compare SRS, empirical
 #' r = 1000L;
 #' v = matrix(0.0, r, 3L);

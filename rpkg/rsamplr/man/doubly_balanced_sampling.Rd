@@ -27,6 +27,9 @@ k-d-tree, but is faster to create and takes up less memory.}
 
 \item{strata}{An integer vector with stratum numbers for each unit.}
 }
+\value{
+A vector of sample indices.
+}
 \description{
 Selects doubly balanced samples with prescribed inclusion probabilities from finite populations.
 }
@@ -43,7 +46,6 @@ probabilities are inserted automatically.
 
 }}
 \examples{
-\dontrun{
 set.seed(12345);
 N = 1000;
 n = 100;
@@ -57,6 +59,7 @@ plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 s = local_cube_stratified(prob, xs, xb[, -1], strata);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
+\donttest{
 # Respects inclusion probabilities
 set.seed(12345);
 prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);

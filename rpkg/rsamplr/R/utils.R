@@ -36,5 +36,7 @@
 #' @param sample A vector of sample indices.
 #' @param population_size The total size of the population.
 #'
+#' @returns An inclusion indicator vector, i.e. a `population_size`-sized vector of 0/1.
+#'
 #' @export
 sample_to_indicator = function(sample, population_size) as.integer(seq_len(population_size) %in% sample)

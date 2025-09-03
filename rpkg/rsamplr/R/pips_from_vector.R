@@ -7,10 +7,9 @@
 #' @param values A vector of positive numbers
 #' @param sample_size The wanted sample size
 #'
-#' @return A vector of inclusion probabilities proportional-to-size
+#' @return A vector of inclusion probabilities proportional-to-size.
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(12345);
 #' N = 1000;
 #' n = 100;
@@ -18,7 +17,6 @@
 #' prob = pips_from_vector(x[, 1], n);
 #' s = lpm_2(prob, x);
 #' plot(x[, 1], x[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
-#' }
 #'
 #' @export
 pips_from_vector = function(values, sample_size) {

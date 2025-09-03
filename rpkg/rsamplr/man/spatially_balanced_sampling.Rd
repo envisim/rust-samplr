@@ -37,6 +37,10 @@ k-d-tree, but is faster to create and takes up less memory.}
 
 \item{sizes}{A vector of integers containing the sizes of the subsamples.}
 }
+\value{
+A vector of sample indices, or in the case of hierarchical sampling, a matrix where the
+first column contains sample indices and the second column contains subsample indices (groups).
+}
 \description{
 Selects spatially balanced samples with prescribed inclusion probabilities from finite
 populations.
@@ -63,7 +67,6 @@ When using \code{lpm_2_hierarchical}, the inclusion probabilities must sum to an
 
 }}
 \examples{
-\dontrun{
 set.seed(12345);
 N = 1000;
 n = 100;
@@ -83,10 +86,11 @@ plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 s = scps(prob, xs);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lcps(prob, xs);
+s = lpm_2_hierarchical(prob, xs, sizes);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-s = lpm_2_hierarchical(prob, xs, sizes);
+\donttest{
+s = lcps(prob, xs); # May have a long execution time
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
 # Respects inclusion probabilities

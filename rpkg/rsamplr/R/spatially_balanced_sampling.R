@@ -17,6 +17,9 @@
 #' @param sizes A vector of integers containing the sizes of the subsamples.
 #' @inheritDotParams .sampling_defaults -max_iter
 #'
+#' @returns A vector of sample indices, or in the case of hierarchical sampling, a matrix where the
+#' first column contains sample indices and the second column contains subsample indices (groups).
+#'
 #' @references
 #' Deville, J.-C., &  Tillé, Y. (1998).
 #' Unequal probability sampling without replacement through a splitting method.
@@ -39,7 +42,6 @@
 #' Environmetrics, 35(2), e2832.
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(12345);
 #' N = 1000;
 #' n = 100;
@@ -59,10 +61,11 @@
 #' s = scps(prob, xs);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
-#' s = lcps(prob, xs);
+#' s = lpm_2_hierarchical(prob, xs, sizes);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
-#' s = lpm_2_hierarchical(prob, xs, sizes);
+#' \donttest{
+#' s = lcps(prob, xs); # May have a long execution time
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
 #' # Respects inclusion probabilities
