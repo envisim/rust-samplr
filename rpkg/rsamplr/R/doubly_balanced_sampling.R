@@ -42,6 +42,7 @@
 #' prob = rep(n/N, N);
 #' xb = matrix(c(prob, runif(N * 2)), ncol = 3);
 #' xs = matrix(runif(N * 2), ncol = 2);
+#' strata = c(rep(1L, 100), rep(2L, 200), rep(3L, 300), rep(4L, 400));
 #'
 #' s = local_cube(prob, xs, xb);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
