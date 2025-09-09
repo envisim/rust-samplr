@@ -15,4 +15,4 @@
 - syn 2.0.106: David Tolnay
 - unicode-ident 1.0.18: David Tolnay
 
-(This file was auto-generated from 'cargo metadata' on 2025-09-03)
+(This file was auto-generated from 'cargo metadata' on 2025-09-09)

@@ -110,14 +110,15 @@ plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 s = systematic_random_order(prob);
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
-\donttest{
 # Conditional poisson and sampford are not guaranteed to find a solution
-# s = conditional_poisson(prob, n, max_iter = 1000L);
-# plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+prob2 = rep(0.5, 10L);
+s = conditional_poisson(prob2, 5L, max_iter = 10000L);
+plot(xs[1:10, 1], xs[1:10, 2], pch = ifelse(sample_to_indicator(s, 10L), 19, 1));
 
-# s = sampford(prob, max_iter = 1000L);
-# plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+s = sampford(prob2, max_iter = 10000L);
+plot(xs[1:10, 1], xs[1:10, 2], pch = ifelse(sample_to_indicator(s, 10L), 19, 1));
 
+\donttest{
 # Respects inclusion probabilities
 set.seed(12345);
 prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);

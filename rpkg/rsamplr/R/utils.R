@@ -38,5 +38,9 @@
 #'
 #' @returns An inclusion indicator vector, i.e. a `population_size`-sized vector of 0/1.
 #'
+#' @examples
+#' s = c(1, 2, 10);
+#' si = sample_to_indicator(s, 10);
+#'
 #' @export
 sample_to_indicator = function(sample, population_size) as.integer(seq_len(population_size) %in% sample)
