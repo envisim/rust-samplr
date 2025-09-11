@@ -1,7 +1,6 @@
 #' Sampling defaults
 #'
 #' @param eps A small value used when comparing floats.
-#' @param seed An integer used to determine the seed for the random number generator.
 #' @param max_iter The maximum number of iterations used in iterative algorithms.
 #' @param bucket_size The maximum size of the k-d-tree nodes. A higher value gives a slower
 #' k-d-tree, but is faster to create and takes up less memory.
@@ -36,6 +35,12 @@
 #'
 #' @param sample A vector of sample indices.
 #' @param population_size The total size of the population.
+#'
+#' @returns An inclusion indicator vector, i.e. a `population_size`-sized vector of 0/1.
+#'
+#' @examples
+#' s = c(1, 2, 10);
+#' si = sample_to_indicator(s, 10);
 #'
 #' @export
 sample_to_indicator = function(sample, population_size) as.integer(seq_len(population_size) %in% sample)

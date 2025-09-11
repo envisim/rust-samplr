@@ -11,6 +11,14 @@ sample_to_indicator(sample, population_size)
 
 \item{population_size}{The total size of the population.}
 }
+\value{
+An inclusion indicator vector, i.e. a \code{population_size}-sized vector of 0/1.
+}
 \description{
 Transform a sample vector into an inclusion indicator vector
+}
+\examples{
+s = c(1, 2, 10);
+si = sample_to_indicator(s, 10);
+
 }

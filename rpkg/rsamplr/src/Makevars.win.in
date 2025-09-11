@@ -1,41 +1,75 @@
-TARGET = @TARGET@
-
+TARGET = x86_64-pc-windows-gnu
 PROFILE = @PROFILE@
-FEATURE_FLAGS = @FEATURE_FLAGS@
 
-# Add flags if necessary
-RUSTFLAGS =
-
+LIBNAME = librsamplr.a
 TARGET_DIR = $(CURDIR)/rust/target
 LIBDIR = $(TARGET_DIR)/$(TARGET)/$(subst dev,debug,$(PROFILE))
-STATLIB = $(LIBDIR)/librsamplr.a
-PKG_LIBS = -L$(LIBDIR) -lrsamplr -lws2_32 -ladvapi32 -luserenv -lbcrypt -lntdll
+STATLIB = $(LIBDIR)/$(LIBNAME)
+
+PKG_LIBS = -L$(LIBDIR) -lrsamplr \
+	-lws2_32 \
+	-ladvapi32 \
+	-luserenv \
+	-lbcrypt \
+	-lntdll
+
+CARGO_BUILD_ARGS = --lib \
+	--profile="$(PROFILE)" \
+	--manifest-path="$(CURDIR)/rust/Cargo.toml" \
+	--target-dir="$(TARGET_DIR)" \
+	--target=$(TARGET)
+
+CARGOTMP = $(CURDIR)/.cargo
+VENDOR_DIR = $(CURDIR)/rust/vendor
+LIBGCC_MOCK_DIR = $(CURDIR)/libgcc_mock
 
 # Rtools doesn't have the linker in the location that cargo expects, so we need
 # to overwrite it via configuration.
 CARGO_LINKER = x86_64-w64-mingw32.static.posix-gcc.exe
 
-all: $(SHLIB) clean_intermediate
+.PHONY: all
+all: cleanup
 
 $(SHLIB): $(STATLIB)
 
-$(STATLIB):
+$(STATLIB): remove-prev
 	# When the GNU toolchain is used (i.e. on CRAN), -lgcc_eh is specified for
 	# building proc-macro2, but Rtools doesn't contain libgcc_eh. This isn't used
 	# in actual, but we need this tweak to please the compiler.
-	mkdir -p $(LIBDIR)/libgcc_mock && touch $(LIBDIR)/libgcc_mock/libgcc_eh.a
+	mkdir -p "$(LIBGCC_MOCK_DIR)" && touch "$(LIBGCC_MOCK_DIR)/libgcc_eh.a"
 
+	if [ -f "$(CURDIR)/../tools/$(LIBNAME)" ]; then \
+		mkdir -p "$(LIBDIR)" ; \
+		mv "$(CURDIR)/../tools/$(LIBNAME)" "$(STATLIB)" ; \
+		exit 0; \
+	fi && \
+	if [ -f "$(CURDIR)/rust/vendor.tar.xz" ]; then \
+		mkdir -p "$(VENDOR_DIR)" && \
+		$(TAR) --extract --xz --file "$(CURDIR)/rust/vendor.tar.xz" -C "$(VENDOR_DIR)" && \
+		mkdir -p "$(CARGOTMP)" && \
+		cp "$(CURDIR)/rust/vendor-config.toml" "$(CARGOTMP)/config.toml"; \
+	fi && \
+	if [ "$(NOT_CRAN)" != "true" ]; then \
+		export CARGO_HOME="$(CARGOTMP)"; \
+		export CARGO_BUILD_JOBS=2; \
+	fi && \
 	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(CARGO_LINKER)" && \
-	  export LIBRARY_PATH="$${LIBRARY_PATH};$(LIBDIR)/libgcc_mock" && \
-	  export CC="$(CC)" && \
-	  export CFLAGS="$(CFLAGS)" && \
-	  export RUSTFLAGS="$(RUSTFLAGS)" && \
-	  cargo build --target $(TARGET) --lib --profile $(PROFILE) $(FEATURE_FLAGS) --manifest-path ./rust/Cargo.toml --target-dir $(TARGET_DIR)
+		export LIBRARY_PATH="$(LIBRARY_PATH);$(LIBGCC_MOCK_DIR)" && \
+		cargo build $(CARGO_BUILD_ARGS)
 
-clean_intermediate: $(SHLIB)
-	rm -f $(STATLIB)
+.PHONY: remove-prev
+# Remove previous build artifacts
+remove-prev:
+	rm -f "$(STATLIB)"
 
+.PHONY: cleanup
+# Clean up files that may cause warnings in R CMD check on CRAN just after the build
+cleanup: $(SHLIB)
+	rm -Rf "$(CARGOTMP)" "$(VENDOR_DIR)"
+	if [ "$(NOT_CRAN)" != "true" ]; then \
+		rm -Rf "$(STATLIB)" "$(LIBDIR)/build"; \
+	fi
+
+.PHONY: clean
 clean:
-	rm -Rf $(SHLIB) $(OBJECTS) $(STATLIB) ./rust/target
-
-.PHONY: all clean_intermediate clean
+	rm -Rf "$(SHLIB)" "$(STATLIB)" "$(OBJECTS)" "$(LIBGCC_MOCK_DIR)" "$(TARGET_DIR)"

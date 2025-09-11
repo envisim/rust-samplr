@@ -13,8 +13,6 @@
 
 \item{bucket_size}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
-
-\item{seed}{An integer used to determine the seed for the random number generator.}
 }
 \description{
 Sampling defaults

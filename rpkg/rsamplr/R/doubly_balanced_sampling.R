@@ -16,6 +16,8 @@
 #' @param strata An integer vector with stratum numbers for each unit.
 #' @inheritDotParams .sampling_defaults -max_iter
 #'
+#' @returns A vector of sample indices.
+#'
 #' @references
 #' Deville, J. C. and Tillé, Y. (2004).
 #' Efficient balanced sampling: the cube method.
@@ -34,13 +36,13 @@
 #' Environmetrics, 24(2), 120-131
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(12345);
 #' N = 1000;
 #' n = 100;
 #' prob = rep(n/N, N);
 #' xb = matrix(c(prob, runif(N * 2)), ncol = 3);
 #' xs = matrix(runif(N * 2), ncol = 2);
+#' strata = c(rep(1L, 100), rep(2L, 200), rep(3L, 300), rep(4L, 400));
 #'
 #' s = local_cube(prob, xs, xb);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
@@ -48,6 +50,7 @@
 #' s = local_cube_stratified(prob, xs, xb[, -1], strata);
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
+#' \donttest{
 #' # Respects inclusion probabilities
 #' set.seed(12345);
 #' prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);

@@ -9,7 +9,7 @@
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
 #'
-#' @returns the measure, or in case of `balance_deviation`, the vector of deviations
+#' @returns the measure, or in case of `balance_deviation`, the vector of deviations.
 #'
 #' @references
 #' Stevens Jr, D. L., & Olsen, A. R. (2004).
@@ -25,7 +25,6 @@
 #' Environmetrics, 35(7), e2878.
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(12345);
 #' N = 500;
 #' n = 70;
@@ -37,6 +36,7 @@
 #' spatial_balance_local(s, prob, xs);
 #' balance_deviation(s, prob, xs);
 #'
+#' \donttest{
 #' # Compare SRS
 #' r = 1000L;
 #' sb_v = matrix(0.0, r, 2L);

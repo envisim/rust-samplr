@@ -23,6 +23,9 @@ cube_stratified(probabilities, balance_mat, strata, ...)
 
 \item{strata}{An integer vector with stratum numbers for each unit.}
 }
+\value{
+A vector of sample indices.
+}
 \description{
 Selects balanced samples with prescribed inclusion probabilities from finite populations.
 }
@@ -39,7 +42,6 @@ automatically.
 
 }}
 \examples{
-\dontrun{
 set.seed(12345);
 N = 1000;
 n = 100;
@@ -53,6 +55,7 @@ plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 s = cube_stratified(prob, xb[, -1], strata);
 plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
+\donttest{
 # Respects inclusion probabilities
 set.seed(12345);
 prob = c(0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9);

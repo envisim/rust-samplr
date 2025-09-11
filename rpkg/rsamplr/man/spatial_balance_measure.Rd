@@ -21,7 +21,7 @@ balance_deviation(sample, probabilities, spread_mat)
 \item{spread_mat}{A matrix of spreading covariates.}
 }
 \value{
-the measure, or in case of \code{balance_deviation}, the vector of deviations
+the measure, or in case of \code{balance_deviation}, the vector of deviations.
 }
 \description{
 Calculates the spatial balance of a sample.
@@ -36,7 +36,6 @@ Calculates the spatial balance of a sample.
 
 }}
 \examples{
-\dontrun{
 set.seed(12345);
 N = 500;
 n = 70;
@@ -48,6 +47,7 @@ spatial_balance_voronoi(s, prob, xs);
 spatial_balance_local(s, prob, xs);
 balance_deviation(s, prob, xs);
 
+\donttest{
 # Compare SRS
 r = 1000L;
 sb_v = matrix(0.0, r, 2L);
