@@ -5,7 +5,7 @@ use envisim_utils::Matrix;
 
 #[test]
 fn test_balance() -> Result<(), SamplingError> {
-    let data = Matrix::new(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let mut options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
     let sb = balance_deviation(&[0], &options)?;

@@ -133,14 +133,14 @@ mod tests {
     #[test]
     fn midpoint_slide() {
         let v = vec![0.0, 1.0, 2.0, 13.0];
-        let m = Matrix::new(&v, 4);
+        let m = Matrix::new(&v, 4).unwrap();
         let split = super::midpoint_slide(&vec![(0.0, 13.0)], &m, &mut vec![0, 1, 2, 3]).unwrap();
         assert_eq!(split.unit, 3);
         assert_eq!(split.dimension, 0);
         assert_eq!(split.value, 6.5);
 
         let v = vec![0.0, 1.0, 2.0, 13.0, 0.0, 10.0, 20.0, 30.0];
-        let m = Matrix::new(&v, 4);
+        let m = Matrix::new(&v, 4).unwrap();
         let split =
             super::midpoint_slide(&vec![(0.0, 13.0), (0.0, 30.0)], &m, &mut vec![0, 1, 2, 3])
                 .unwrap();
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(split.value, 15.0);
 
         let v = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-        let m = Matrix::new(&v, 3);
+        let m = Matrix::new(&v, 3).unwrap();
         let split = super::midpoint_slide(&vec![(0.0, 0.0), (1.0, 1.0)], &m, &mut vec![0, 1, 2]);
         assert!(split.is_none());
     }

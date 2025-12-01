@@ -31,7 +31,7 @@ pub type BalanceDeviationResult = (Option<Vec<f64>>, Option<Vec<f64>>);
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///

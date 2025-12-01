@@ -23,5 +23,5 @@ pub mod utils;
 
 pub use error::InputError;
 pub use indices::{Indices, IndicesError};
-pub use matrix::Matrix;
+pub use matrix::{Matrix, MatrixIndex, MatrixIterator};
 pub use probabilities::Probabilities;

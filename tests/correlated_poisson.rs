@@ -18,7 +18,7 @@ fn test_cps() -> Result<(), SamplingError> {
 fn test_scps() -> Result<(), SamplingError> {
     let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(scps, &mut rng, &opts, p, 1e-2, 100000)
@@ -28,7 +28,7 @@ fn test_scps() -> Result<(), SamplingError> {
 fn test_lcps() -> Result<(), SamplingError> {
     let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lcps, &mut rng, &opts, p, 1e-2, 100000)

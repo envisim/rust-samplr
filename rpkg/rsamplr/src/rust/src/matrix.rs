@@ -8,5 +8,5 @@ pub fn get_nrow(mat: &RealSexp) -> savvy::Result<usize> {
 }
 
 pub fn to_matrix(mat: &[f64], nrow: usize) -> Matrix {
-    Matrix::from_ref(mat, nrow)
+    Matrix::new(mat, nrow).unwrap()
 }
