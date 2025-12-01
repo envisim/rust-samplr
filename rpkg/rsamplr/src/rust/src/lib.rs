@@ -275,7 +275,8 @@ fn rust_spatial_balance_measure(
     let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
 
     let v = match r_method {
-        "local" => sb_local(&sample, &options),
+        "local" => sb_local(&sample, &options, true),
+        "local2" => sb_local(&sample, &options, false),
         "voronoi" | &_ => sb_voronoi(&sample, &options),
     }?;
 

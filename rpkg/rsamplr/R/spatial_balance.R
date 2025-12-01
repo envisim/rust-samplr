@@ -8,6 +8,8 @@
 #' @param sample A vector of sample indices.
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
+#' @param balance_probabilities If `true` (default), includes the vector of inclusion probabilites
+#' as a balancing variable.
 #'
 #' @returns the measure, or in case of `balance_deviation`, the vector of deviations.
 #'
@@ -81,8 +83,12 @@ NULL
 
 #' @describeIn spatial_balance_measure Local spatial balance
 #' @export
-spatial_balance_local = function(sample, probabilities, spread_mat) {
-  .spatial_balance_measure_wrapper("local", sample, probabilities, spread_mat)
+spatial_balance_local = function(sample, probabilities, spread_mat, balance_probabilities = TRUE) {
+  if (balance_probabilities == FALSE) {
+    .spatial_balance_measure_wrapper("local2", sample, probabilities, spread_mat)
+  } else {
+    .spatial_balance_measure_wrapper("local", sample, probabilities, spread_mat)
+  }
 }
 
 #' @describeIn spatial_balance_measure Voronoi spatial balance

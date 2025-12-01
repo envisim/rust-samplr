@@ -95,7 +95,7 @@ pub fn voronoi(sample: &[usize], options: &SampleOptions) -> Result<f64, Samplin
 /// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
-/// let sb = local(&s, &options)?;
+/// let sb = local(&s, &options, true)?;
 /// # Ok::<(), envisim_samplr::SamplingError>(())
 /// ```
 ///
@@ -104,7 +104,11 @@ pub fn voronoi(sample: &[usize], options: &SampleOptions) -> Result<f64, Samplin
 /// How to find the best sampling design: A new measure of spatial balance.
 /// Environmetrics, e2878.
 /// <https://doi.org/10.1002/env.2878>
-pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingError> {
+pub fn local(
+    sample: &[usize],
+    options: &SampleOptions,
+    balance_probabilities: bool,
+) -> Result<f64, SamplingError> {
     let tree = options
         .check_base()?
         .check_spreading()?
@@ -123,7 +127,7 @@ pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingE
     }
 
     // One extra column for inclusion probabilities
-    let cols = data.ncol() + 1;
+    let cols = data.ncol() + if balance_probabilities { 1 } else { 0 };
     let mut voronoi_means =
         FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
@@ -149,13 +153,19 @@ pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingE
     }
 
     for id in 0..population_size {
-        norm_matrix[(data.ncol(), data.ncol())] += 1.0;
+        if balance_probabilities {
+            norm_matrix[(data.ncol(), data.ncol())] += 1.0;
+        }
+
         for i in 0..data.ncol() {
             for j in 0..data.ncol() {
                 norm_matrix[(i, j)] += data[(id, i)] * data[(id, j)];
             }
-            norm_matrix[(data.ncol(), i)] += data[(id, i)];
-            norm_matrix[(i, data.ncol())] += data[(id, i)];
+
+            if balance_probabilities {
+                norm_matrix[(data.ncol(), i)] += data[(id, i)];
+                norm_matrix[(i, data.ncol())] += data[(id, i)];
+            }
         }
 
         // We have already added the sample units, so we can skip this
@@ -176,7 +186,10 @@ pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingE
             for (i, v) in data.row_iter(id).enumerate() {
                 mean[i] -= v / share;
             }
-            mean[data.ncol()] -= 1.0 / share;
+
+            if balance_probabilities {
+                mean[data.ncol()] -= 1.0 / share;
+            }
         }
     }
 
