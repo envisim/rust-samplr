@@ -1,6 +1,6 @@
 [package]
 name = "rsamplr"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
@@ -11,9 +11,9 @@ crate-type = ["staticlib", "lib"]
 
 [dependencies]
 savvy = "*"
-envisim_estimate = {version="0.3.0"}
-envisim_samplr = {version="0.3.0"}
-envisim_utils = {version="0.2.1", default-features=false}
+envisim_estimate = {version="0.3.1"}
+envisim_samplr = {version="0.4.0"}
+envisim_utils = {version="0.3.0", default-features=false}
 # envisim_estimate = {version="*", path="../../../../envisim_estimate"}
 # envisim_samplr = {version="*", path="../../../../"}
 # envisim_utils = {version="*", path="../../../../envisim_utils", default-features=false}

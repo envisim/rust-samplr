@@ -15,11 +15,13 @@ local_mean_variance(values, probabilities, spread_mat, neighbours = 4L)
 
 \item{neighbours}{The number of neighbours to construct the means around.}
 }
+\value{
+A vector of sample indices.
+}
 \description{
 Variance estimator of HT estimator of population total.
 }
 \examples{
-\dontrun{
 set.seed(12345);
 N = 1000;
 n = 100;
@@ -30,6 +32,7 @@ y = runif(N);
 s = lpm_2(prob, xs);
 local_mean_variance(y[s], prob[s], xs[s, ], 4);
 
+\donttest{
 # Compare SRS, empirical
 r = 1000L;
 v = matrix(0.0, r, 3L);

@@ -3,6 +3,7 @@
 ^\.editorconfig$
 ^justfile$
 
+^dev$
 ^src/\.cargo$
 ^src/rust/\.cargo$
 ^src/vendor/*

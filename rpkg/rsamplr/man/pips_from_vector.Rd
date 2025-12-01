@@ -12,14 +12,13 @@ pips_from_vector(values, sample_size)
 \item{sample_size}{The wanted sample size}
 }
 \value{
-A vector of inclusion probabilities proportional-to-size
+A vector of inclusion probabilities proportional-to-size.
 }
 \description{
 Computes the first-order inclusion probabilities from a vector of positive numbers,
 for an inclusion probabilities proportional-to-size design.
 }
 \examples{
-\dontrun{
 set.seed(12345);
 N = 1000;
 n = 100;
@@ -27,6 +26,5 @@ x = matrix(runif(N * 2), ncol = 2);
 prob = pips_from_vector(x[, 1], n);
 s = lpm_2(prob, x);
 plot(x[, 1], x[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
-}
 
 }
