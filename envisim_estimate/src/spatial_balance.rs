@@ -212,3 +212,84 @@ pub fn local(
 
     Ok((result / usize_to_f64(population_size)).sqrt())
 }
+
+/// Energy distance between sample distribution and population.
+///
+/// # Examples
+/// ```
+/// use envisim_estimate::spatial_balance::*;
+/// use envisim_samplr::SampleOptions;
+/// use envisim_utils::Matrix;
+/// use envisim_utils::kd_tree::TreeBuilder;
+///
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
+/// let s = [0, 3, 5, 8, 9];
+///
+/// let sb = energy_distance(&s, &options, true)?;
+/// # Ok::<(), envisim_samplr::SamplingError>(())
+/// ```
+///
+pub fn energy_distance(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingError> {
+    let org_matrix: &Matrix = options
+        .check_base()?
+        .check_spreading()?
+        .spreading()
+        .unwrap()
+        .data();
+    let probabilities = options.probabilities();
+
+    let mut matrix = org_matrix.clone();
+    matrix.to_mut();
+
+    for unit in 0usize..matrix.nrow() {
+        let prob = probabilities[unit];
+
+        for j in 0usize..matrix.ncol() {
+            matrix[(unit, j)] /= prob;
+        }
+    }
+
+    let u_size = usize_to_f64(matrix.nrow());
+    let s_size = usize_to_f64(sample.len());
+    let mut s_spread: f64 = 0.0;
+    let mut u_spread: f64 = 0.0;
+    let mut inter_spread: f64 = 0.0;
+
+    let mut sorted_sample: Vec<usize> = sample.to_vec();
+    sorted_sample.sort();
+    let mut sample_iter = sorted_sample.iter();
+    let mut sample_next = sample_iter.next();
+
+    for unit_a in 0usize..matrix.nrow() {
+        let phi = (0usize..matrix.nrow()).fold(0.0, |acc, unit_b| {
+            acc + matrix.distance_between_rows(unit_a, unit_b).unwrap().sqrt()
+        }) / u_size;
+
+        u_spread += phi;
+
+        if let Some(s_id) = sample_next {
+            if *s_id == unit_a {
+                inter_spread += phi;
+                sample_next = sample_iter.next();
+            }
+        };
+    }
+
+    for &unit_a in sample.iter() {
+        let phi = sample.iter().fold(0.0, |acc, &unit_b| {
+            acc + matrix.distance_between_rows(unit_a, unit_b).unwrap().sqrt()
+        }) / s_size;
+
+        s_spread += phi;
+    }
+
+    u_spread /= u_size;
+    inter_spread /= s_size;
+    s_spread /= s_size;
+
+    let distance = inter_spread * 2.0 - u_spread - s_spread;
+
+    Ok(distance)
+}

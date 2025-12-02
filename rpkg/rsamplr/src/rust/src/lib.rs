@@ -2,7 +2,9 @@ use savvy::{savvy, savvy_err, IntegerSexp, OwnedIntegerSexp, RealSexp, Sexp};
 
 use envisim_estimate::balance::balance_deviation;
 use envisim_estimate::horvitz_thompson::local_mean_variance;
-use envisim_estimate::spatial_balance::{local as sb_local, voronoi as sb_voronoi};
+use envisim_estimate::spatial_balance::{
+    energy_distance as sb_energy, local as sb_local, voronoi as sb_voronoi,
+};
 use envisim_samplr::correlated_poisson::{cps, lcps, scps};
 use envisim_samplr::cube_method::{cube, cube_stratified, local_cube, local_cube_stratified};
 use envisim_samplr::pivotal_method::{hierarchical_lpm_2, lpm_1, lpm_1s, lpm_2, rpm, spm};
@@ -277,6 +279,7 @@ fn rust_spatial_balance_measure(
     let v = match r_method {
         "local" => sb_local(&sample, &options, true),
         "local2" => sb_local(&sample, &options, false),
+        "energy-distance" => sb_energy(&sample, &options),
         "voronoi" | &_ => sb_voronoi(&sample, &options),
     }?;
 

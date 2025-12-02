@@ -4,6 +4,7 @@
 \alias{Spatial balance measure}
 \alias{spatial_balance_local}
 \alias{spatial_balance_voronoi}
+\alias{spatial_balance_energy}
 \alias{balance_deviation}
 \title{Spatial balance measure}
 \usage{
@@ -15,6 +16,8 @@ spatial_balance_local(
 )
 
 spatial_balance_voronoi(sample, probabilities, spread_mat)
+
+spatial_balance_energy(sample, probabilities, spread_mat)
 
 balance_deviation(sample, probabilities, spread_mat)
 }
@@ -39,6 +42,8 @@ Calculates the spatial balance of a sample.
 \item \code{spatial_balance_local()}: Local spatial balance
 
 \item \code{spatial_balance_voronoi()}: Voronoi spatial balance
+
+\item \code{spatial_balance_energy()}: Energy spatial balance
 
 \item \code{balance_deviation()}: Balance deviation
 

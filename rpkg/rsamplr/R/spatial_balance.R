@@ -35,14 +35,17 @@
 #'
 #' s = lpm_2(prob, xs);
 #' spatial_balance_voronoi(s, prob, xs);
-#' spatial_balance_local(s, prob, xs);
+#' spatial_balance_local(s, prob, xs, TRUE);
+#' spatial_balance_local(s, prob, xs, FALSE);
+#' spatial_balance_energy(s, prob, xs);
 #' balance_deviation(s, prob, xs);
 #'
 #' \donttest{
 #' # Compare SRS
 #' r = 1000L;
 #' sb_v = matrix(0.0, r, 2L);
-#' sb_l = matrix(0.0, r, 2L);
+#' sb_l = matrix(0.0, r, 4L);
+#' sb_e = matrix(0.0, r, 2L);
 #' bal = matrix(0.0, r, 2L * ncol(xs));
 #'
 #' for (i in seq_len(r)) {
@@ -53,8 +56,14 @@
 #'     spatial_balance_voronoi(s2, prob, xs)
 #'   );
 #'   sb_l[i, ] = c(
-#'     spatial_balance_local(s1, prob, xs),
-#'     spatial_balance_local(s2, prob, xs)
+#'     spatial_balance_local(s1, prob, xs, TRUE),
+#'     spatial_balance_local(s2, prob, xs, TRUE),
+#'     spatial_balance_local(s1, prob, xs, FALSE),
+#'     spatial_balance_local(s2, prob, xs, FALSE)
+#'   );
+#'   sb_e[i, ] = c(
+#'     spatial_balance_energy(s1, prob, xs),
+#'     spatial_balance_energy(s2, prob, xs)
 #'   );
 #'   bal[i, ] = c(
 #'     balance_deviation(s1, prob, xs),
@@ -66,6 +75,8 @@
 #' print(colMeans(sb_v));
 #' # Spatial balance measure (local), LPM vs SRS
 #' print(colMeans(sb_l));
+#' # Spatial balance measure (energy), LPM vs SRS
+#' print(colMeans(sb_e));
 #' # Abs. balance deviation, LPM vs SRS
 #' print(colMeans(abs(bal)));
 #' }
@@ -95,6 +106,12 @@ spatial_balance_local = function(sample, probabilities, spread_mat, balance_prob
 #' @export
 spatial_balance_voronoi = function(sample, probabilities, spread_mat) {
   .spatial_balance_measure_wrapper("voronoi", sample, probabilities, spread_mat)
+}
+
+#' @describeIn spatial_balance_measure Energy spatial balance
+#' @export
+spatial_balance_energy = function(sample, probabilities, spread_mat) {
+  .spatial_balance_measure_wrapper("energy-distance", sample, probabilities, spread_mat)
 }
 
 #' @describeIn spatial_balance_measure Balance deviation

@@ -282,6 +282,21 @@ impl<'a> Matrix<'a> {
             .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
         Some(v)
     }
+    /// Returns the squared eculidean distance between the `row` and the slice `unit`
+    #[inline]
+    pub fn distance_between_rows(&self, row_a: usize, row_b: usize) -> Option<f64> {
+        if row_a >= self.nrow() || row_b >= self.nrow() {
+            return None;
+        } else if row_a == row_b {
+            return Some(0.0);
+        }
+
+        let v = self
+            .row_iter(row_a)
+            .zip(self.row_iter(row_b))
+            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
+        Some(v)
+    }
     /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand
     /// is a vector.
     #[inline]
