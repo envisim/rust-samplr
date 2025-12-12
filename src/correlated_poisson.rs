@@ -12,11 +12,12 @@
 
 //! Correlated poisson designs
 
-use crate::utils::SampleContainer;
-pub use crate::{SampleOptions, SamplingError};
 use envisim_utils::kd_tree::SearcherWeighted;
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::utils::usize_to_f64;
+
+use crate::utils::SampleContainer;
+pub use crate::{SampleOptions, SamplingError};
 
 struct VariantSequential {
     unit: usize,
@@ -485,9 +486,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use envisim_test_utils::*;
-    use envisim_utils::{random::*, Matrix};
+    use envisim_utils::random::*;
+    use envisim_utils::Matrix;
+
+    use super::*;
 
     #[test]
     fn cps_sampler() -> Result<(), SamplingError> {

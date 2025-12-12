@@ -109,11 +109,11 @@ impl InputError {
         Ok(())
     }
     #[inline]
-    pub fn check_sample_size(sample_size: usize, population_size: usize) -> Result<(), InputError> {
+    pub fn check_sample_size(population_size: usize, sample_size: usize) -> Result<(), InputError> {
         if population_size == 0 {
             return Err(InputError::InvalidValueUsize(population_size, 0));
         }
-        Self::check_range_usize(sample_size, 0, population_size - 1)
+        Self::check_range_usize(sample_size, 0, population_size)
     }
     #[inline]
     pub fn check_nan(value: f64) -> Result<(), InputError> {
@@ -147,6 +147,17 @@ impl InputError {
             return Err(InputError::InvalidRangeF64(value, target, target));
         }
         Self::check_integer_approx(value, eps)
+    }
+    #[inline]
+    pub fn check_eps(eps: f64) -> Result<(), InputError> {
+        if !(0.0..1.0).contains(&eps) {
+            if eps == 1.0 {
+                return Err(InputError::InvalidValueF64(eps, 1.0));
+            }
+            return Err(InputError::InvalidRangeF64(eps, 0.0, 1.0));
+        }
+
+        Ok(())
     }
 }
 

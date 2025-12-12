@@ -12,16 +12,12 @@
 
 //! Utility functions for envisim
 
-mod error;
-mod indices;
+pub mod error;
+pub mod indices;
 pub mod kd_tree;
-mod matrix;
+pub mod matrix;
 pub mod pips;
-mod probabilities;
+pub mod probabilities;
 pub mod random;
+pub mod sampling_options;
 pub mod utils;
-
-pub use error::InputError;
-pub use indices::{Indices, IndicesError};
-pub use matrix::{Matrix, MatrixIndex, MatrixIterator};
-pub use probabilities::Probabilities;

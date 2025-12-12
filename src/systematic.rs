@@ -12,8 +12,10 @@
 
 //! Systematic sampling designs
 
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::Probabilities;
+
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::{random::RandomNumberGenerator, Probabilities};
 
 /// Draw a systematic sample, using the provided order
 ///

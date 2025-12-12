@@ -12,9 +12,11 @@
 
 //! Unequal probability sampling designs
 
-pub use crate::{SampleOptions, SamplingError};
+use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{random::RandomNumberGenerator, Indices, InputError};
+use envisim_utils::{Indices, InputError};
+
+pub use crate::{SampleOptions, SamplingError};
 
 // Assumes probabilites sum to 1.0
 #[inline]
@@ -62,9 +64,9 @@ pub fn with_replacement<R>(
 where
     R: RandomNumberGenerator + ?Sized,
 {
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities_unequal();
 
-    InputError::check_integer_approx_equal(sum(probabilities), 1.0, options.eps())?;
+    InputError::check_integer_approx_equal(sum(probabilities.as_ref()), 1.0, options.eps())?;
 
     if n == 0 {
         return Ok(vec![]);
@@ -132,23 +134,23 @@ where
     R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities_unequal();
     let eps = options.eps();
 
-    let psum = sum(probabilities);
+    let psum = sum(probabilities.as_ref());
     InputError::check_integer_approx(psum, eps)?;
     let sample_size = psum.round() as usize;
 
     if sample_size == 0 {
         return Ok(vec![]);
     } else if sample_size == 1 {
-        return Ok(vec![draw(rng, probabilities)]);
+        return Ok(vec![draw(rng, probabilities.as_ref())]);
     }
 
     let norm_probs: Vec<f64> = probabilities.iter().map(|&p| p / psum).collect();
 
     for _ in 0..options.max_iterations().get() {
-        let mut sample = poisson_internal(rng, probabilities);
+        let mut sample = poisson_internal(rng, probabilities.as_ref());
 
         if sample.len() != sample_size - 1 {
             continue;
@@ -198,10 +200,10 @@ where
     R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities_unequal();
     let eps = options.eps();
 
-    let psum = sum(probabilities);
+    let psum = sum(probabilities.as_ref());
     InputError::check_integer_approx(psum, eps)?;
 
     let sample_size = psum.round() as usize;
@@ -252,10 +254,10 @@ where
     R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities_unequal();
     let eps = options.eps();
 
-    let mut psum = sum(probabilities);
+    let mut psum = sum(probabilities.as_ref());
     InputError::check_integer_approx(psum, eps)?;
 
     let mut sample_size = psum.round() as usize;
@@ -328,7 +330,10 @@ where
     R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
-    Ok(poisson_internal(rng, options.probabilities()))
+    Ok(poisson_internal(
+        rng,
+        options.probabilities_unequal().as_ref(),
+    ))
 }
 
 /// Draw a sample using a conditional poisson design.
@@ -355,7 +360,7 @@ where
     R: RandomNumberGenerator + ?Sized,
 {
     options.check_base()?;
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities_unequal();
     let population_size = probabilities.len();
     InputError::check_sample_size(sample_size, population_size)?;
 
@@ -364,7 +369,7 @@ where
     }
 
     for _ in 0..options.max_iterations().get() {
-        let s = poisson_internal(rng, probabilities);
+        let s = poisson_internal(rng, probabilities.as_ref());
 
         if s.len() == sample_size {
             return Ok(s);

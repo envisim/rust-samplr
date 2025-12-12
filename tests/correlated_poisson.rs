@@ -1,6 +1,7 @@
 use envisim_samplr::correlated_poisson::*;
 use envisim_test_utils::*;
-use envisim_utils::{random::*, Matrix};
+use envisim_utils::random::*;
+use envisim_utils::Matrix;
 
 mod test_utils;
 use test_utils::*;

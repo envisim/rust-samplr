@@ -1,5 +1,6 @@
 use envisim_samplr::{SampleOptions, Sampler, SamplingError};
-use envisim_utils::{random::RandomNumberGenerator, utils::sum};
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::utils::sum;
 
 #[allow(dead_code)]
 pub fn test_wor<R>(

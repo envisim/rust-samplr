@@ -12,22 +12,18 @@
 
 //! Pivotal method designs
 
-use crate::utils::SampleContainer;
-pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{kd_tree::Searcher, random::RandomNumberGenerator, InputError};
+use envisim_utils::kd_tree::Searcher;
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::utils::{
+    sum,
+    usize_to_f64,
+};
 use rustc_hash::FxHashSet;
+
+pub use crate::SamplingError;
 
 type Pair = (usize, usize);
 
-struct VariantSequential {
-    pair: Pair,
-}
-struct VariantRandom {}
-struct VariantLocal1 {
-    searcher: Searcher,
-    candidates: Vec<usize>,
-}
 struct VariantLocal1S {
     searcher: Searcher,
     candidates: Vec<usize>,
@@ -39,7 +35,7 @@ struct VariantLocal2 {
 
 pub struct PivotalMethod<'a, R, T>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
     T: PivotalMethodVariant<'a, R>,
 {
     container: SampleContainer<'a, R>,
@@ -48,7 +44,7 @@ where
 
 pub trait PivotalMethodVariant<'a, R>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     fn new(
         rng: &'a mut R,
@@ -61,7 +57,7 @@ where
 
 impl<'a, R, T> PivotalMethod<'a, R, T>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
     T: PivotalMethodVariant<'a, R>,
 {
     #[inline]
@@ -117,96 +113,14 @@ where
             .expect("id2 to update");
     }
     #[inline]
-    fn get_sample(&mut self) -> &[usize] {
-        self.container.sample().get()
-    }
+    fn get_sample(&mut self) -> &[usize] { self.container.sample().get() }
     #[inline]
-    fn get_sorted_sample(&mut self) -> &[usize] {
-        self.container.sample_mut().sort().get()
-    }
-}
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantSequential
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        PivotalMethod::new(
-            SampleContainer::new(rng, options)?,
-            VariantSequential { pair: (0, 1) },
-        )
-    }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        if container.indices().len() <= 1 {
-            return None;
-        }
-
-        if !container.indices().contains(self.pair.0) {
-            self.pair.0 = self.pair.1;
-
-            while !container.indices().contains(self.pair.0) {
-                self.pair.0 += 1;
-
-                if self.pair.0 >= container.population_size() {
-                    panic!("spm looped past last unit");
-                }
-            }
-
-            self.pair.1 = self.pair.0 + 1;
-        }
-
-        while !container.indices().contains(self.pair.1) {
-            self.pair.1 += 1;
-
-            if self.pair.1 >= container.population_size() {
-                panic!("spm looped past last unit");
-            }
-        }
-
-        Some(self.pair)
-    }
-}
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantRandom
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        PivotalMethod::new(SampleContainer::new(rng, options)?, VariantRandom {})
-    }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        let len = container.indices().len();
-        if len <= 1 {
-            return None;
-        } else if len == 2 {
-            return Some((container.indices().list()[0], container.indices().list()[1]));
-        }
-
-        let id1 = *container.indices_draw().unwrap();
-        let k = container.rng().rusize_to(len - 1);
-        let mut id2 = *container.indices().get(k).unwrap();
-
-        if id1 == id2 {
-            id2 = *container.indices().last().unwrap();
-        }
-
-        Some((id1, id2))
-    }
+    fn get_sorted_sample(&mut self) -> &[usize] { self.container.sample_mut().sort().get() }
 }
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     #[inline]
     fn new(
@@ -268,7 +182,7 @@ where
 
 impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1S
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     #[inline]
     fn new(
@@ -413,7 +327,7 @@ where
 #[inline]
 pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     VariantSequential::new(rng, options)?.sample()
 }
@@ -442,7 +356,7 @@ where
 #[inline]
 pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     VariantRandom::new(rng, options)?.sample()
 }
@@ -499,7 +413,7 @@ where
 #[inline]
 pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     VariantLocal1S::new(rng, options)?.sample()
 }
@@ -529,7 +443,7 @@ where
 #[inline]
 pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     VariantLocal2::new(rng, options)?.sample()
 }
@@ -568,7 +482,7 @@ pub fn hierarchical_lpm_2<R>(
     sizes: &[usize],
 ) -> Result<Vec<Vec<usize>>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     InputError::check_integer_approx_equal(
         sum(options.probabilities()),
@@ -628,9 +542,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use envisim_test_utils::*;
     use envisim_utils::random::*;
+
+    use super::*;
 
     #[test]
     fn update_probabilities() -> Result<(), SamplingError> {

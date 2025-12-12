@@ -12,8 +12,10 @@
 
 //! Simple random sampling
 
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::InputError;
+
 pub use crate::SamplingError;
-use envisim_utils::{random::RandomNumberGenerator, InputError};
 
 /// Draw a simple random sample without replacement
 ///
@@ -23,7 +25,7 @@ use envisim_utils::{random::RandomNumberGenerator, InputError};
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample(&mut rng, 5, 10)?;
+/// let s = sample(&mut rng, 10, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -31,13 +33,19 @@ use envisim_utils::{random::RandomNumberGenerator, InputError};
 #[inline]
 pub fn sample<R>(
     rng: &mut R,
-    sample_size: usize,
     population_size: usize,
+    sample_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomNumberGenerator + ?Sized,
 {
-    InputError::check_sample_size(sample_size, population_size)?;
+    InputError::check_sample_size(population_size, sample_size)?;
+
+    if sample_size == 0 {
+        return Ok(vec![]);
+    } else if sample_size == population_size {
+        return Ok((0usize..population_size).collect());
+    }
 
     let mut sample = Vec::<usize>::with_capacity(sample_size);
 
@@ -58,7 +66,7 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample_with_replacement(&mut rng, 5, 10)?;
+/// let s = sample_with_replacement(&mut rng, 10, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -66,13 +74,19 @@ where
 #[inline]
 pub fn sample_with_replacement<R>(
     rng: &mut R,
-    sample_size: usize,
     population_size: usize,
+    sample_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomNumberGenerator + ?Sized,
 {
-    InputError::check_sample_size(sample_size, population_size)?;
+    InputError::check_sample_size(population_size, sample_size)?;
+
+    if sample_size == 0 {
+        return Ok(vec![]);
+    } else if sample_size == population_size {
+        return Ok((0usize..population_size).collect());
+    }
 
     let mut sample: Vec<usize> = (0..sample_size)
         .map(|_| rng.rusize_to(population_size))

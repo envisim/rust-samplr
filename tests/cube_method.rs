@@ -1,6 +1,8 @@
 use envisim_samplr::cube_method::*;
 use envisim_test_utils::*;
-use envisim_utils::{random::*, utils::sum, Matrix};
+use envisim_utils::random::*;
+use envisim_utils::utils::sum;
+use envisim_utils::Matrix;
 
 mod test_utils;
 use test_utils::*;

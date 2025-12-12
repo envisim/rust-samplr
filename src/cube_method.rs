@@ -12,15 +12,17 @@
 
 //! Cube method designs
 
-use crate::srs;
-use crate::utils::SampleContainer;
-pub use crate::{SampleOptions, SamplingError};
+use std::collections::HashMap;
+use std::num::NonZeroUsize;
+
 use envisim_utils::kd_tree::Searcher;
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::{InputError, Matrix, MatrixIndex};
 use rustc_hash::FxSeededState;
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
+
+use crate::srs;
+use crate::utils::SampleContainer;
+pub use crate::{SampleOptions, SamplingError};
 
 pub struct VariantCube {}
 pub struct VariantLocalCube {
@@ -806,8 +808,9 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use envisim_test_utils::*;
+
+    use super::*;
 
     #[test]
     fn null() {
