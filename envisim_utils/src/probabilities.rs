@@ -183,6 +183,15 @@ impl Probabilities for ProbabilitiesEqual {
 }
 
 impl ProbabilitiesUnequal {
+    pub fn new<P, S, B>(options: &SamplingOptions<P, S, B>) -> Self
+    where
+        P: Probabilities,
+    {
+        Self {
+            eps: options.eps(),
+            probabilities: options.probabilities().slice().into(),
+        }
+    }
     /// Calulates the weight that can be assigned to the unit `idx1` from `idx0`
     pub fn weight(&self, idx0: usize, idx1: usize) -> f64 { self.weight_to(self[idx0], idx1) }
 
@@ -196,7 +205,9 @@ impl ProbabilitiesUnequal {
     }
 }
 
-impl ProbabilitiesEqual {}
+impl ProbabilitiesEqual {
+    pub fn new<S, B>(options: &SamplingOptions<Self, S, B>) -> Self { options.into() }
+}
 
 impl<'a, S, B> From<&SamplingOptions<'a, ProbabilitiesUnequal, S, B>> for ProbabilitiesUnequal {
     fn from(options: &SamplingOptions<'a, ProbabilitiesUnequal, S, B>) -> Self {

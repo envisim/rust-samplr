@@ -21,6 +21,7 @@ pub enum SamplingError {
     Input(InputError),
     // max iterations reached
     MaxIterations(NonZeroUsize),
+    IncorrectStratification,
 }
 
 impl std::error::Error for SamplingError {

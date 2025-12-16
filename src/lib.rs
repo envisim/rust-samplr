@@ -28,7 +28,6 @@ pub mod correlated_poisson;
 pub mod cube_method;
 mod error;
 pub mod pivotal_method;
-pub mod pivotal_method_new;
 pub mod sample_controller;
 pub mod srs;
 pub mod systematic;

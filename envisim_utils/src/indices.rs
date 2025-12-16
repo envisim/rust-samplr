@@ -12,6 +12,8 @@
 
 //! List of indices
 
+use std::usize;
+
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -21,6 +23,7 @@ use crate::random::RandomNumberGenerator;
 
 /// A struct (list) for keeping track of indices in use. The internal list keeps track, without
 /// order, of the indices.
+#[derive(Clone, Debug)]
 pub struct Indices {
     list: Vec<usize>,
     indices: FxHashMap<usize, usize>,
@@ -107,11 +110,11 @@ impl Indices {
     /// use envisim_utils::indices::Indices;
     ///
     /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.get(3).unwrap(), &3);
+    /// assert_eq!(il.get(3).unwrap(), 3);
     /// assert_eq!(il.get(10), None);
     /// ```
     #[inline]
-    pub fn get(&self, k: usize) -> Option<&usize> { self.list.get(k) }
+    pub fn get(&self, k: usize) -> Option<usize> { self.list.get(k).copied() }
 
     /// Returns the index at the first position, if any
     ///
@@ -120,10 +123,10 @@ impl Indices {
     /// use envisim_utils::indices::Indices;
     ///
     /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.first().unwrap(), &0);
+    /// assert_eq!(il.first().unwrap(), 0);
     /// ```
     #[inline]
-    pub fn first(&self) -> Option<&usize> { self.list.first() }
+    pub fn first(&self) -> Option<usize> { self.list.first().copied() }
 
     /// Returns the index at the last position, if any
     ///
@@ -132,10 +135,10 @@ impl Indices {
     /// use envisim_utils::indices::Indices;
     ///
     /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.last().unwrap(), &3);
+    /// assert_eq!(il.last().unwrap(), 3);
     /// ```
     #[inline]
-    pub fn last(&self) -> Option<&usize> { self.list.last() }
+    pub fn last(&self) -> Option<usize> { self.list.last().copied() }
 
     /// Draws a random index from the list
     ///
@@ -151,11 +154,35 @@ impl Indices {
     /// assert!(il.draw(&mut rng).is_some());
     /// ```
     #[inline]
-    pub fn draw<R>(&self, rng: &mut R) -> Option<&usize>
+    pub fn draw<R>(&self, rng: &mut R) -> Option<usize>
     where
         R: RandomNumberGenerator,
     {
-        rng.relement(&self.list)
+        rng.relement(&self.list).copied()
+    }
+
+    /// Returns the next sequential unit after `from`, not including itself, if it exists.
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_utils::indices::Indices;
+    /// use envisim_utils::random::*;
+    ///
+    /// let mut il = Indices::with_fill(4);
+    /// assert_eq!(il.seq_after(0, 4), Some(1));
+    /// assert_eq!(il.seq_after(3, 4), None);
+    /// il.remove(2);
+    /// assert_eq!(il.seq_after(1, 4), Some(3));
+    /// ```
+    #[inline]
+    pub fn seq_after(&self, from: usize, max: usize) -> Option<usize> {
+        for id in (from + 1)..max {
+            if self.contains(id) {
+                return Some(id);
+            }
+        }
+
+        None
     }
 
     /// Checks if the list contains an index
@@ -240,6 +267,42 @@ impl Indices {
             *self.indices.get_mut(&self.list[k]).unwrap() = k;
         }
         Some(id)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub enum Pair {
+    #[default]
+    Zero,
+    One(usize),
+    Two(usize, usize),
+    More(usize, usize),
+}
+impl Pair {
+    pub fn new((id1, id2): (usize, usize)) -> Self { Self::More(id1, id2) }
+    pub fn is_zero(&self) -> bool { matches!(self, Self::Zero) }
+    pub fn is_one(&self) -> bool { matches!(self, Self::One(..)) }
+    pub fn is_two(&self) -> bool { matches!(self, Self::Two(..)) }
+    pub fn is_more(&self) -> bool { matches!(self, Self::More(..)) }
+    pub fn is_full(&self) -> bool { matches!(self, Self::Two(..) | Self::More(..)) }
+}
+impl From<&Indices> for Pair {
+    fn from(indices: &Indices) -> Self {
+        use Pair::*;
+        let len = indices.len();
+        if len == 0 {
+            return Zero;
+        }
+        let id1 = indices.list()[0];
+        if len == 1 {
+            return One(id1);
+        }
+        let id2 = indices.list()[1];
+        if len == 2 {
+            return Two(id1, id2);
+        }
+        More(id1, id2)
     }
 }
 

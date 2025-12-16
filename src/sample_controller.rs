@@ -38,6 +38,7 @@ impl Sample {
     pub fn to_vec(&self) -> Vec<usize> { self.0.to_vec() }
     pub fn sort_to_vec(&mut self) -> Vec<usize> { self.sort().to_vec() }
     pub fn get(&self) -> &[usize] { &self.0 }
+    pub fn len(&self) -> usize { self.0.len() }
 }
 
 pub enum DecideUnit {
@@ -113,7 +114,7 @@ pub trait SampleController {
     where
         R: RandomNumberGenerator,
     {
-        let Some(&id) = self.indices().last() else {
+        let Some(id) = self.indices().last() else {
             return Some(DecideUnit::Undecided);
         };
 
@@ -141,112 +142,110 @@ where
     tree: Box<Node<'a>>,
 }
 
-impl<'a, P, S, B> From<&'a SamplingOptions<'a, P, S, B>> for BasicSampleController<P>
+impl<P> BasicSampleController<P>
 where
-    P: Probabilities + From<&'a SamplingOptions<'a, P, S, B>>,
+    P: Probabilities,
 {
-    fn from(options: &'a SamplingOptions<'a, P, S, B>) -> BasicSampleController<P> {
+    fn init(mut self) -> Self {
+        let population_size = self.population_size();
+        for i in 0..population_size {
+            self.unit_decide(i).unwrap();
+        }
+
+        self
+    }
+}
+
+impl<'a, S, B> From<&SamplingOptions<'a, ProbabilitiesUnequal, S, B>>
+    for BasicSampleController<ProbabilitiesUnequal>
+{
+    fn from(
+        options: &SamplingOptions<'a, ProbabilitiesUnequal, S, B>,
+    ) -> BasicSampleController<ProbabilitiesUnequal> {
         let population_size = options.population_size();
-        let mut controller = BasicSampleController::<P> {
+        let controller = BasicSampleController::<ProbabilitiesUnequal> {
             probabilities: options.into(),
             indices: Indices::with_fill(population_size),
             sample: Sample::new(population_size),
         };
-
-        for i in 0..population_size {
-            controller.unit_decide(i).unwrap();
-        }
-
-        controller
+        controller.init()
     }
 }
-
-// impl<'a, P, S, B> From<&SamplingOptions<'a, P, S, B>>
-//     for BasicSampleController<ProbabilitiesUnequal>
-// where
-//     P: Probabilities,
-// {
-//     fn from(options: &SamplingOptions<'a, P, S, B>) -> BasicSampleController<ProbabilitiesUnequal> {
-//         let population_size = options.population_size();
-//         let mut controller = BasicSampleController::<ProbabilitiesUnequal> {
-//             probabilities: options.into(),
-//             indices: Indices::with_fill(population_size),
-//             sample: Sample::new(population_size),
-//         };
-
-//         for i in 0..population_size {
-//             controller.unit_decide(i).unwrap();
-//         }
-
-//         controller
-//     }
-// }
-
-// impl<'a, S, B> From<&SamplingOptions<'a, ProbabilitiesEqual, S, B>>
-//     for BasicSampleController<ProbabilitiesEqual>
-// {
-//     fn from(
-//         options: &SamplingOptions<'a, ProbabilitiesEqual, S, B>,
-//     ) -> BasicSampleController<ProbabilitiesEqual> {
-//         let population_size = options.population_size();
-//         let mut controller = BasicSampleController::<ProbabilitiesEqual> {
-//             probabilities: options.into(),
-//             indices: Indices::with_fill(population_size),
-//             sample: Sample::new(population_size),
-//         };
-
-//         for i in 0..population_size {
-//             controller.unit_decide(i).unwrap();
-//         }
-
-//         controller
-//     }
-// }
-impl<'a, P, B> From<&'a SamplingOptions<'a, P, Enabled, B>> for SpreadingSampleController<'a, P>
-where
-    P: Probabilities + From<&'a SamplingOptions<'a, P, Enabled, B>>,
+impl<'a, S, B> From<&SamplingOptions<'a, ProbabilitiesEqual, S, B>>
+    for BasicSampleController<ProbabilitiesUnequal>
 {
-    fn from(options: &'a SamplingOptions<'a, P, Enabled, B>) -> SpreadingSampleController<'a, P> {
-        let controller: BasicSampleController<P> = options.into();
+    fn from(
+        options: &SamplingOptions<'a, ProbabilitiesEqual, S, B>,
+    ) -> BasicSampleController<ProbabilitiesUnequal> {
+        let population_size = options.population_size();
+        let controller = BasicSampleController::<ProbabilitiesUnequal> {
+            probabilities: options.into(),
+            indices: Indices::with_fill(population_size),
+            sample: Sample::new(population_size),
+        };
+        controller.init()
+    }
+}
+impl<'a, S, B> From<&SamplingOptions<'a, ProbabilitiesEqual, S, B>>
+    for BasicSampleController<ProbabilitiesEqual>
+{
+    fn from(
+        options: &SamplingOptions<'a, ProbabilitiesEqual, S, B>,
+    ) -> BasicSampleController<ProbabilitiesEqual> {
+        let population_size = options.population_size();
+        let controller = BasicSampleController::<ProbabilitiesEqual> {
+            probabilities: options.into(),
+            indices: Indices::with_fill(population_size),
+            sample: Sample::new(population_size),
+        };
+        controller.init()
+    }
+}
+impl<'a, B> From<&'a SamplingOptions<'a, ProbabilitiesUnequal, Enabled, B>>
+    for SpreadingSampleController<'a, ProbabilitiesUnequal>
+{
+    fn from(
+        options: &'a SamplingOptions<'a, ProbabilitiesUnequal, Enabled, B>,
+    ) -> SpreadingSampleController<'a, ProbabilitiesUnequal> {
+        let controller: BasicSampleController<ProbabilitiesUnequal> = options.into();
         let mut units = controller.indices().to_vec();
 
-        SpreadingSampleController::<'a, P> {
+        SpreadingSampleController::<'a, ProbabilitiesUnequal> {
             controller,
             tree: options.spreading().build(&mut units).unwrap().into(),
         }
     }
 }
-// impl<'a, P, B> From<&'a SamplingOptions<'a, P, Enabled, B>>
-//     for SpreadingSampleController<'a, ProbabilitiesUnequal>
-// where
-//     P: Probabilities,
-// {
-//     fn from(
-//         options: &'a SamplingOptions<'a, P, Enabled, B>,
-//     ) -> SpreadingSampleController<'a, ProbabilitiesUnequal> {
-//         let controller: BasicSampleController<ProbabilitiesUnequal> = options.into();
-//         let mut units = controller.indices().to_vec();
+impl<'a, B> From<&'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>>
+    for SpreadingSampleController<'a, ProbabilitiesUnequal>
+{
+    fn from(
+        options: &'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>,
+    ) -> SpreadingSampleController<'a, ProbabilitiesUnequal> {
+        let controller: BasicSampleController<ProbabilitiesUnequal> = options.into();
+        let mut units = controller.indices().to_vec();
 
-//         SpreadingSampleController::<'a, ProbabilitiesUnequal> {
-//             controller,
-//             tree: options.spreading().build(&mut units).unwrap().into(),
-//         }
-//     }
-// }
-// impl<'a, B> From<&'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>>
-//     for SpreadingSampleController<'a, ProbabilitiesEqual>
-// {
-//     fn from(
-//         options: &'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>,
-//     ) -> SpreadingSampleController<ProbabilitiesEqual> {
-//         let controller: BasicSampleController<ProbabilitiesEqual> = options.into();
-//         let mut units = controller.indices().to_vec();
-//         SpreadingSampleController::<ProbabilitiesEqual> {
-//             controller,
-//             tree: options.spreading().build(&mut units).unwrap().into(),
-//         }
-//     }
-// }
+        SpreadingSampleController::<'a, ProbabilitiesUnequal> {
+            controller,
+            tree: options.spreading().build(&mut units).unwrap().into(),
+        }
+    }
+}
+impl<'a, B> From<&'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>>
+    for SpreadingSampleController<'a, ProbabilitiesEqual>
+{
+    fn from(
+        options: &'a SamplingOptions<'a, ProbabilitiesEqual, Enabled, B>,
+    ) -> SpreadingSampleController<'a, ProbabilitiesEqual> {
+        let controller: BasicSampleController<ProbabilitiesEqual> = options.into();
+        let mut units = controller.indices().to_vec();
+
+        SpreadingSampleController::<'a, ProbabilitiesEqual> {
+            controller,
+            tree: options.spreading().build(&mut units).unwrap().into(),
+        }
+    }
+}
 
 impl<P> SampleController for BasicSampleController<P>
 where

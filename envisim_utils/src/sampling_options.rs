@@ -30,6 +30,7 @@ pub struct Enabled;
 pub struct Disabled;
 
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum ProbabilitySpec<'a> {
     Equal { sample_size: usize },
     Unequal { values: Cow<'a, [f64]> },
@@ -48,6 +49,7 @@ impl<'a, P> IncProbOptions<'a, P>
 where
     P: Probabilities,
 {
+    pub fn spec(&self) -> &ProbabilitySpec<'a> { &self.spec }
     pub fn population_size(&self) -> usize { self.population_size }
     pub fn slice(&'a self) -> Cow<'a, [f64]> {
         match self.spec {
@@ -285,41 +287,6 @@ impl<'a, P, S, B> SamplingOptions<'a, P, S, B>
 where
     P: Probabilities,
 {
-    pub fn new(
-        probabilities: &'a [f64],
-    ) -> Result<SamplingOptions<'a, ProbabilitiesUnequal>, SamplingOptionsError> {
-        let population_size = probabilities.len();
-        if population_size == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        } else if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
-            return Err(SamplingOptionsError::InvalidProbability);
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesUnequal> = probabilities.into();
-        let opts = SamplingOptions::<'a, ProbabilitiesUnequal> {
-            probabilities: p_opts,
-            ..Default::default()
-        };
-        Ok(opts)
-    }
-    pub fn new_equal(
-        population_size: usize,
-        sample_size: usize,
-    ) -> Result<SamplingOptions<'a, ProbabilitiesEqual>, SamplingOptionsError> {
-        if population_size == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        } else if population_size < sample_size {
-            return Err(SamplingOptionsError::InvalidSampleSize);
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesEqual> = (population_size, sample_size).into();
-        let opts = SamplingOptions::<'a, ProbabilitiesEqual> {
-            probabilities: p_opts,
-            ..Default::default()
-        };
-        Ok(opts)
-    }
-
     pub fn probabilities(&self) -> &IncProbOptions<'a, P> { &self.probabilities }
     pub fn population_size(&self) -> usize { self.probabilities.population_size() }
     pub fn set_probabilities_unequal(
@@ -445,6 +412,45 @@ where
             spreading: self.spreading,
             balancing: Some(balancing),
             _phantom: PhantomData,
+        };
+        Ok(opts)
+    }
+}
+impl<'a> SamplingOptions<'a, ProbabilitiesUnequal, Disabled, Disabled> {
+    pub fn new(
+        probabilities: &'a [f64],
+    ) -> Result<SamplingOptions<'a, ProbabilitiesUnequal, Disabled, Disabled>, SamplingOptionsError>
+    {
+        let population_size = probabilities.len();
+        if population_size == 0 {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        } else if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
+            return Err(SamplingOptionsError::InvalidProbability);
+        }
+
+        let p_opts: IncProbOptions<'a, ProbabilitiesUnequal> = probabilities.into();
+        let opts = SamplingOptions::<'a, ProbabilitiesUnequal> {
+            probabilities: p_opts,
+            ..Default::default()
+        };
+        Ok(opts)
+    }
+}
+impl<'a> SamplingOptions<'a, ProbabilitiesEqual, Disabled, Disabled> {
+    pub fn new_equal(
+        population_size: usize,
+        sample_size: usize,
+    ) -> Result<SamplingOptions<'a, ProbabilitiesEqual>, SamplingOptionsError> {
+        if population_size == 0 {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        } else if population_size < sample_size {
+            return Err(SamplingOptionsError::InvalidSampleSize);
+        }
+
+        let p_opts: IncProbOptions<'a, ProbabilitiesEqual> = (population_size, sample_size).into();
+        let opts = SamplingOptions::<'a, ProbabilitiesEqual> {
+            probabilities: p_opts,
+            ..Default::default()
         };
         Ok(opts)
     }
