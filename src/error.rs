@@ -13,11 +13,13 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::error::InputError;
+use envisim_utils::sampling_options::SamplingOptionsError;
 
 /// Sampling related error types
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum SamplingError {
+    Options(SamplingOptionsError),
     Input(InputError),
     // max iterations reached
     MaxIterations(NonZeroUsize),
@@ -35,10 +37,15 @@ impl std::error::Error for SamplingError {
 
 impl std::fmt::Display for SamplingError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SamplingError::*;
         match *self {
-            SamplingError::Input(ref err) => err.fmt(f),
-            SamplingError::MaxIterations(max_iter) => {
+            Options(ref err) => err.fmt(f),
+            Input(ref err) => err.fmt(f),
+            MaxIterations(max_iter) => {
                 write!(f, "max iterations ({max_iter}) reached")
+            }
+            IncorrectStratification => {
+                write!(f, "incorrect stratification")
             }
         }
     }
@@ -46,4 +53,8 @@ impl std::fmt::Display for SamplingError {
 
 impl From<InputError> for SamplingError {
     fn from(err: InputError) -> SamplingError { SamplingError::Input(err) }
+}
+
+impl From<SamplingOptionsError> for SamplingError {
+    fn from(err: SamplingOptionsError) -> SamplingError { SamplingError::Options(err) }
 }

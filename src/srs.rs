@@ -12,10 +12,12 @@
 
 //! Simple random sampling
 
+use envisim_utils::probabilities::ProbabilitiesEqual;
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::InputError;
-
-pub use crate::SamplingError;
+pub use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+};
 
 /// Draw a simple random sample without replacement
 ///
@@ -25,26 +27,26 @@ pub use crate::SamplingError;
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample(&mut rng, 10, 5)?;
+/// let s = sample(&mut rng, (10, 5).try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample<R>(
+pub fn sample<R, S, B>(
     rng: &mut R,
-    population_size: usize,
-    sample_size: usize,
-) -> Result<Vec<usize>, SamplingError>
+    options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    InputError::check_sample_size(population_size, sample_size)?;
+    let population_size = options.population_size();
+    let sample_size = options.sample_size();
 
     if sample_size == 0 {
-        return Ok(vec![]);
+        return vec![];
     } else if sample_size == population_size {
-        return Ok((0usize..population_size).collect());
+        return (0usize..population_size).collect();
     }
 
     let mut sample = Vec::<usize>::with_capacity(sample_size);
@@ -55,7 +57,7 @@ where
         }
     }
 
-    Ok(sample)
+    sample
 }
 
 /// Draw a simple random sample with replacement
@@ -69,23 +71,23 @@ where
 /// let s = sample_with_replacement(&mut rng, 10, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample_with_replacement<R>(
+pub fn sample_with_replacement<R, S, B>(
     rng: &mut R,
-    population_size: usize,
-    sample_size: usize,
-) -> Result<Vec<usize>, SamplingError>
+    options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    InputError::check_sample_size(population_size, sample_size)?;
+    let population_size = options.population_size();
+    let sample_size = options.sample_size();
 
     if sample_size == 0 {
-        return Ok(vec![]);
+        return vec![];
     } else if sample_size == population_size {
-        return Ok((0usize..population_size).collect());
+        return (0usize..population_size).collect();
     }
 
     let mut sample: Vec<usize> = (0..sample_size)
@@ -93,5 +95,5 @@ where
         .collect();
 
     sample.sort_unstable();
-    Ok(sample)
+    sample
 }

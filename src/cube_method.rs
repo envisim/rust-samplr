@@ -12,151 +12,125 @@
 
 //! Cube method designs
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use envisim_utils::kd_tree::Searcher;
+use envisim_utils::matrix::{
+    Matrix,
+    MatrixIndex,
+};
+use envisim_utils::probabilities::{
+    Probabilities,
+    ProbabilitiesUnequal,
+};
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::{InputError, Matrix, MatrixIndex};
+use envisim_utils::sampling_options::{
+    BalancingOptions,
+    Enabled,
+    SpreadingOptions,
+};
+pub use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+};
 use rustc_hash::FxSeededState;
 
-use crate::srs;
-use crate::utils::SampleContainer;
-pub use crate::{SampleOptions, SamplingError};
+pub use crate::SamplingError;
+use crate::sample_controller::{
+    BasicSampleController,
+    SampleController,
+    SpreadingSampleController,
+};
+use crate::srs::sample as srs_sample;
 
-pub struct VariantCube {}
-pub struct VariantLocalCube {
-    searcher: Searcher,
-}
-
-pub struct CubeMethod<'a, R, T>
+struct BaseCube<'a, C>
 where
-    R: RandomNumberGenerator + ?Sized,
-    T: CubeMethodVariant<'a, R>,
+    C: SampleController,
 {
-    container: SampleContainer<'a, R>,
-    variant: T,
+    controller: C,
     candidates: Vec<usize>,
     adjusted_data: Matrix<'a>,
     candidate_data: Matrix<'a>,
 }
-
-pub trait CubeMethodVariant<'a, R>
+impl<'a, C> BaseCube<'a, C>
 where
-    R: RandomNumberGenerator + ?Sized,
+    C: SampleController<Probs = ProbabilitiesUnequal>,
 {
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<CubeMethod<'a, R, Self>, SamplingError>
+    fn new<P, S>(options: &'a SamplingOptions<'a, P, S, Enabled>, controller: C) -> Self
     where
-        Self: Sized;
-    fn select_units(
-        &mut self,
-        candidates: &mut Vec<usize>,
-        container: &mut SampleContainer<'a, R>,
-        n_units: usize,
-    );
-}
-
-impl<'a, R, T> CubeMethod<'a, R, T>
-where
-    R: RandomNumberGenerator + ?Sized,
-    T: CubeMethodVariant<'a, R>,
-{
-    #[inline]
-    fn new(container: SampleContainer<'a, R>, variant: T) -> Result<Self, SamplingError> {
-        let balancing_data = container.options().check_balancing()?.balancing().unwrap();
+        P: Probabilities,
+    {
+        // let balancing_data = container.options().check_balancing()?.balancing().unwrap();
+        let balancing_data = options.balancing().data();
         let b_dims = balancing_data.dims();
         let mut adjusted_data = Matrix::new(balancing_data.data(), b_dims.row())
-            .ok_or_else(|| InputError::InvalidSize(b_dims.row(), container.population_size()))?;
+            .expect("balancing data should be non-empty");
 
         for i in 0..b_dims.row() {
-            let p = container.probabilities()[i];
+            let p = controller.probabilities().get(i);
             for j in 0..b_dims.col() {
                 adjusted_data[(i, j)] /= p;
             }
         }
 
-        Ok(CubeMethod {
-            container,
-            variant,
+        Self {
+            controller,
             candidates: Vec::<usize>::with_capacity(20),
             adjusted_data,
             candidate_data: Matrix::from_value(0.0, (b_dims.col(), b_dims.col() + 1)).unwrap(),
-        })
-    }
-    #[inline]
-    fn sample(&mut self) -> Result<Vec<usize>, SamplingError> {
-        Ok(self.run().get_sorted_sample().to_vec())
-    }
-    #[inline]
-    pub fn run(&mut self) -> &mut Self {
-        self.run_flight().run_landing()
-    }
-    fn run_flight(&mut self) -> &mut Self {
-        let b_cols = self.adjusted_data.ncol();
-        assert_eq!(b_cols, self.candidate_data.nrow());
-
-        while self.container.indices().len() > b_cols {
-            self.variant
-                .select_units(&mut self.candidates, &mut self.container, b_cols + 1);
-            self.set_candidate_data().update_probabilities();
         }
-
-        self
     }
-    fn run_landing(&mut self) -> &mut Self {
-        let b_cols = self.adjusted_data.ncol();
-        assert!(
-            self.container.indices().len() <= b_cols,
-            "landing phase committed early: {} units remaining, with {} cols",
-            self.container.indices().len(),
-            b_cols,
-        );
-
-        while self.container.indices().len() > 1 {
-            let number_of_remaining_units = self.container.indices().len();
-            self.candidate_data
-                .resize((number_of_remaining_units - 1, number_of_remaining_units));
-
-            self.candidates.clear();
-            self.candidates
-                .extend_from_slice(self.container.indices().list());
-            self.set_candidate_data().update_probabilities();
-        }
-
-        self.container
-            .update_last_unit()
-            .expect("last unit to be decided");
-
-        self
-    }
-    #[inline]
-    fn set_candidate_data(&mut self) -> &mut Self {
-        let b_cols = self.candidates.len() - 1;
-        assert_eq!(
-            self.candidate_data.dims(),
-            MatrixIndex(b_cols, self.candidates.len())
-        );
+    fn set_candidate_data(&mut self) {
+        let n_candidates = self.candidates.len();
+        assert!(n_candidates <= self.adjusted_data.ncol());
+        let dims = MatrixIndex(n_candidates - 1, n_candidates);
+        self.candidate_data.resize(dims);
 
         for (i, &id) in self.candidates.iter().enumerate() {
-            for j in 0..b_cols {
+            for j in 0..dims.row() {
                 self.candidate_data[(j, i)] = self.adjusted_data[(id, j)];
             }
         }
-
-        self
     }
-    #[inline]
-    fn update_probabilities(&mut self) {
+    fn clear_candidates(&mut self) { self.candidates.clear(); }
+    fn set_candidates_from_slice(&mut self, candidates: &[usize]) {
+        let len = candidates.len();
+        assert!(len <= self.adjusted_data.ncol());
+
+        // Set candidates
+        self.candidates.clear();
+        self.candidates.extend_from_slice(candidates);
+
+        // Set data
+        self.set_candidate_data();
+    }
+    fn set_candidates_from_indices(&mut self, len: usize) {
+        let number_of_remaining_units = self.controller.indices().len();
+        let len = if len == 0 || len > number_of_remaining_units {
+            number_of_remaining_units
+        } else {
+            len
+        };
+        assert!(len <= self.adjusted_data.ncol());
+
+        // Set candidates
+        self.candidates.clear();
+        self.candidates
+            .extend_from_slice(&self.controller.indices().list()[0..len]);
+
+        // Set data
+        self.set_candidate_data();
+    }
+    fn update_probabilities<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
         let uvec = find_vector_in_null_space(&mut self.candidate_data);
         let mut lambdas = (f64::MAX, f64::MAX);
 
         for (prob, &uval) in self
             .candidates
             .iter()
-            .map(|&id| self.container.probabilities()[id])
+            .map(|&id| self.controller.probabilities().get(id))
             .zip(uvec.iter())
         {
             let lvals = ((prob / uval).abs(), ((1.0 - prob) / uval).abs());
@@ -170,154 +144,121 @@ where
             }
         }
 
-        let lambda = if self
-            .container
-            .rng()
-            .one_of_f64(lambdas.0, lambdas.1)
-            .unwrap()
-        {
+        let lambda = if rng.one_of_f64(lambdas.0, lambdas.1).unwrap() {
             lambdas.0
         } else {
             -lambdas.1
         };
 
         for (i, &id) in self.candidates.iter().enumerate() {
-            self.container
-                .add_probability_and_decide(id, lambda * uvec[i])
+            self.controller
+                .unit_add_and_decide(id, lambda * uvec[i])
                 .expect("id to update");
         }
     }
-    #[inline]
-    pub fn get_sample(&mut self) -> &[usize] {
-        self.container.sample().get()
+}
+impl<'a, P, S> From<&'a SamplingOptions<'a, P, S, Enabled>>
+    for BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>>
+where
+    P: Probabilities,
+    BasicSampleController<ProbabilitiesUnequal>: From<&'a SamplingOptions<'a, P, S, Enabled>>,
+{
+    fn from(options: &'a SamplingOptions<'a, P, S, Enabled>) -> Self {
+        let controller = options.into();
+        BaseCube::new(options, controller)
     }
-    #[inline]
-    pub fn get_sorted_sample(&mut self) -> &[usize] {
-        self.container.sample_mut().sort().get()
+}
+impl<'a, P> From<&'a SamplingOptions<'a, P, Enabled, Enabled>>
+    for BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>>
+where
+    P: Probabilities,
+    SpreadingSampleController<'a, ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
+{
+    fn from(options: &'a SamplingOptions<'a, P, Enabled, Enabled>) -> Self {
+        let controller = options.into();
+        BaseCube::new(options, controller)
     }
 }
 
-impl<'a, R> CubeMethodVariant<'a, R> for VariantCube
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<CubeMethod<'a, R, Self>, SamplingError> {
-        CubeMethod::new(SampleContainer::new(rng, options)?, VariantCube {})
+pub trait CubeMethod<'a> {
+    type Controller: SampleController<Probs = ProbabilitiesUnequal>;
+    fn base(&self) -> &BaseCube<'a, Self::Controller>;
+    fn base_mut(&mut self) -> &mut BaseCube<'a, Self::Controller>;
+    // fn controller(&self) -> &C { &self.base().controller }
+    // fn controller_mut(&mut self) -> &mut C { &mut self.base_mut().controller }
+    fn sample<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Vec<usize> {
+        self.run(rng);
+        self.base_mut().controller.sample_mut().sort_to_vec()
     }
-    #[inline]
-    fn select_units(
-        &mut self,
-        candidates: &mut Vec<usize>,
-        container: &mut SampleContainer<'a, R>,
-        n_units: usize,
-    ) {
-        assert!(container.indices().len() >= n_units);
-        candidates.clear();
-        candidates.extend_from_slice(&container.indices().list()[0..n_units]);
+    fn run<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        self.run_flight(rng);
+        self.run_landing(rng);
     }
-}
+    fn run_flight<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        let b_cols = self.base().adjusted_data.ncol();
+        assert_eq!(b_cols, self.base().candidate_data.nrow());
 
-impl<'a, R> CubeMethodVariant<'a, R> for VariantLocalCube
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<CubeMethod<'a, R, Self>, SamplingError> {
-        let balancing = options.check_balancing()?.balancing().unwrap();
-        let container = SampleContainer::new_with_tree(rng, options)?;
-        let searcher = Searcher::new(
-            container.tree().unwrap(),
-            InputError::into_nonzero_usize(balancing.ncol())?,
+        while self.base().controller.indices().len() > b_cols {
+            self.select_units(rng, b_cols + 1);
+            self.base_mut().set_candidate_data();
+            self.base_mut().update_probabilities(rng);
+        }
+    }
+    fn run_landing<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        let b_cols = self.base().adjusted_data.ncol();
+        let len = self.base().controller.indices().len();
+        assert!(
+            len <= b_cols,
+            "landing phase committed early: {len} units remaining, with {b_cols} cols",
         );
 
-        CubeMethod::new(container, VariantLocalCube { searcher })
+        while self.base().controller.indices().len() > 1 {
+            self.base_mut().set_candidates_from_indices(0);
+            self.base_mut().update_probabilities(rng)
+        }
+
+        self.base_mut()
+            .controller
+            .unit_decide_last(rng)
+            .expect("last unit to be decided");
     }
-    #[inline]
-    fn select_units(
-        &mut self,
-        candidates: &mut Vec<usize>,
-        container: &mut SampleContainer<'a, R>,
-        n_units: usize,
-    ) {
-        assert!(n_units > 1);
-        assert!(container.indices().len() >= n_units);
-        candidates.clear();
 
-        if container.indices().len() == n_units {
-            candidates.extend_from_slice(container.indices().list());
-            return;
-        }
+    fn select_units<R: RandomNumberGenerator>(&mut self, rng: &mut R, n_units: usize);
+    // Used for stratified
+    fn reset_to_ids(&mut self, ids: &mut [usize], n_neighbours: usize);
+}
 
-        // Draw the first unit at random
-        let id1 = *container.indices_draw().unwrap();
-        candidates.push(id1);
-
-        // Find the neighbours of this first unit
-        self.searcher
-            .find_neighbours_of_id(container.tree().unwrap(), id1)
-            .unwrap();
-
-        // Add all neighbours, if no equals
-        if self.searcher.neighbours().len() == n_units - 1 {
-            candidates.extend_from_slice(self.searcher.neighbours());
-            return;
-        }
-
-        let mut i: usize = 0;
-        let maximum_distance = self
-            .searcher
-            .distance_k(self.searcher.neighbours().len() - 1);
-
-        // Add all neighbours that are not on maximum distance
-        while i < n_units - 1 && self.searcher.distance_k(i) < maximum_distance {
-            let id = self.searcher.neighbours()[i];
-            candidates.push(id);
-            i += 1;
-        }
-
-        // Randomly add neighbours on the maximum distance
-        for k in srs::sample(
-            container.rng(),
-            n_units - candidates.len(),
-            self.searcher.neighbours().len() - i,
-        )
-        .unwrap()
-        .iter()
-        {
-            candidates.push(self.searcher.neighbours()[i + k]);
+struct Cube<'a> {
+    base: BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>>,
+}
+impl<'a> CubeMethod<'a> for Cube<'a> {
+    type Controller = BasicSampleController<ProbabilitiesUnequal>;
+    fn base(&self) -> &BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>> { &self.base }
+    fn base_mut(&mut self) -> &mut BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>> {
+        &mut self.base
+    }
+    fn select_units<R: RandomNumberGenerator>(&mut self, _: &mut R, n_units: usize) {
+        self.base.set_candidates_from_indices(n_units);
+    }
+    fn reset_to_ids(&mut self, ids: &mut [usize], _n_neighbours: usize) {
+        self.base.controller.indices_mut().clear();
+        for &id in ids.iter() {
+            self.base.controller.indices_mut().insert(id).unwrap();
         }
     }
 }
-
-pub struct CubeStratified<'a, R, T>
-where
-    R: RandomNumberGenerator + ?Sized,
-    T: CubeMethodVariant<'a, R>,
-{
-    cube: CubeMethod<'a, R, T>,
-    strata: HashMap<i64, Vec<usize>, FxSeededState>,
-    strata_vec: &'a [i64],
+impl<'a> Cube<'a> {
+    pub fn new<P, S>(options: &'a SamplingOptions<'a, P, S, Enabled>) -> Self
+    where
+        P: Probabilities,
+        BasicSampleController<ProbabilitiesUnequal>: From<&'a SamplingOptions<'a, P, S, Enabled>>,
+    {
+        Self {
+            base: options.into(),
+        }
+    }
 }
-
-pub trait CubeStratifiedVariant<'a, R>: CubeMethodVariant<'a, R>
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    fn reset_to(
-        &mut self,
-        container: &mut SampleContainer<R>,
-        ids: &mut [usize],
-        n_neighbours: usize,
-    );
-}
-
 /// Draw a sample using the cube method.
 /// The sample is balanced on the provided auxilliary variables in `balancing`.
 /// For fixed sized samples, the first auxilliary variable should be the probability vector.
@@ -344,12 +285,319 @@ where
 /// Efficient balanced sampling: the cube method.
 /// Biometrika, 91(4), 893-912.
 /// <https://doi.org/10.1093/biomet/91.4.893>
-#[inline]
-pub fn cube<'a, R>(rng: &'a mut R, options: &SampleOptions<'a>) -> Result<Vec<usize>, SamplingError>
+pub fn cube<R, P, S>(rng: &mut R, options: &SamplingOptions<'_, P, S, Enabled>) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> BasicSampleController<ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, S, Enabled>>,
 {
-    VariantCube::new(rng, options)?.sample()
+    Cube::new(options).sample(rng)
+}
+
+struct LocalCube<'a> {
+    base: BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>>,
+    spreading_options: &'a SpreadingOptions<'a>,
+    searcher: Searcher,
+}
+impl<'a> CubeMethod<'a> for LocalCube<'a> {
+    type Controller = SpreadingSampleController<'a, ProbabilitiesUnequal>;
+    fn base(&self) -> &BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>> {
+        &self.base
+    }
+    fn base_mut(
+        &mut self,
+    ) -> &mut BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>> {
+        &mut self.base
+    }
+    fn select_units<R: RandomNumberGenerator>(&mut self, rng: &mut R, n_units: usize) {
+        assert!(n_units > 1);
+        let len = self.base.controller.indices().len();
+        assert!(len >= n_units);
+
+        if len == n_units {
+            self.base.set_candidates_from_indices(n_units);
+            return;
+        }
+
+        self.base.clear_candidates();
+
+        // Draw the first unit at random
+        let id1 = self.base.controller.indices().draw(rng).unwrap();
+        self.base.candidates.push(id1);
+
+        // Find the neighbours of this first unit
+        self.searcher
+            .find_neighbours_of_id(self.base.controller.tree(), id1)
+            .unwrap();
+
+        // Add all neighbours, if no equals
+        if self.searcher.neighbours().len() == n_units - 1 {
+            self.base
+                .candidates
+                .extend_from_slice(self.searcher.neighbours());
+            return;
+        }
+
+        // There exists multiple max_distance neighbours, we need to add the non max, and then
+        // sample amongst the max'es
+        let mut i: usize = 0;
+        let maximum_distance = self
+            .searcher
+            .distance_k(self.searcher.neighbours().len() - 1);
+
+        // Add all neighbours that are not on maximum distance
+        while i < n_units - 1 && self.searcher.distance_k(i) < maximum_distance {
+            let id = self.searcher.neighbours()[i];
+            self.base.candidates.push(id);
+            i += 1;
+        }
+
+        // Randomly add neighbours on the maximum distance
+        // We need to draw from the
+        let n_remaining_units = self.searcher.neighbours().len() - i;
+        // the number left to fill amongst the candidates
+        let n_open_spots = n_units - self.base.candidates.len();
+        let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots).unwrap();
+
+        let s = srs_sample(rng, &opts);
+        for k in s {
+            self.base.candidates.push(self.searcher.neighbours()[i + k]);
+        }
+    }
+    fn reset_to_ids(&mut self, ids: &mut [usize], n_neighbours: usize) {
+        self.searcher.set_n_neighbours(
+            NonZeroUsize::new(n_neighbours).expect("n_neighbours to be positive"),
+        );
+
+        self.base.controller.indices_mut().clear();
+        self.base
+            .controller
+            .reset_tree(self.spreading_options, ids)
+            .expect("tree should be resettable");
+
+        for id in ids.iter() {
+            self.base.controller.indices_mut().insert(*id).unwrap();
+        }
+    }
+}
+impl<'a> LocalCube<'a> {
+    pub fn new<P>(options: &'a SamplingOptions<'a, P, Enabled, Enabled>) -> Self
+    where
+        P: Probabilities,
+        SpreadingSampleController<'a, ProbabilitiesUnequal>:
+            From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
+    {
+        let base: BaseCube<SpreadingSampleController<ProbabilitiesUnequal>> = options.into();
+        let cols = options.balancing().data().ncol();
+        let searcher = Searcher::new(
+            base.controller.tree(),
+            NonZeroUsize::new(cols).expect("balancing to have columns"),
+        );
+        Self {
+            base,
+            spreading_options: options.spreading(),
+            searcher,
+        }
+    }
+}
+/// Draw a sample using the local cube method.
+/// The sample is balanced on the provided auxilliary variables in `balancing`.
+/// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
+/// For fixed sized samples, the first auxilliary variable should be the probability vector.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::cube_method::*;
+/// use envisim_utils::{Matrix, random::*};
+///
+/// let mut rng = SmallRng::from_os_rng();
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let bal_m = Matrix::from_vec(vec![
+///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+/// ], 10).unwrap();
+/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
+///     .unwrap();
+/// let opts = SampleOptions::new(&p)?
+///     .set_balancing(&bal_m)?
+///     .set_spreading(&spr_m)?;
+/// let s = local_cube(&mut rng, local_cube);
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingOptionsError>(())
+/// ```
+///
+/// # References
+/// Deville, J. C., & Tillé, Y. (2004).
+/// Efficient balanced sampling: the cube method.
+/// Biometrika, 91(4), 893-912.
+/// <https://doi.org/10.1093/biomet/91.4.893>
+///
+/// Grafström, A., & Tillé, Y. (2013).
+/// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
+/// Environmetrics, 24(2), 120-131.
+/// <https://doi.org/10.1002/env.2194>
+pub fn local_cube<R, P>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, P, Enabled, Enabled>,
+) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> SpreadingSampleController<'a, ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
+{
+    LocalCube::new(options).sample(rng)
+}
+
+pub struct CubeStratified<'a, T>
+where
+    T: CubeMethod<'a>,
+{
+    cube: T,
+    strata: HashMap<i64, Vec<usize>, FxSeededState>,
+    strata_vec: &'a [i64],
+    org_probabilities: Cow<'a, [f64]>,
+    balancing_options: &'a BalancingOptions<'a>,
+}
+impl<'a, T> CubeStratified<'a, T>
+where
+    T: CubeMethod<'a>,
+{
+    fn prepare(&mut self) -> Result<&mut Self, SamplingError> {
+        if self.strata_vec.len() != self.cube.base().controller.population_size() {
+            return Err(SamplingError::IncorrectStratification);
+        }
+
+        let balancing_data = self.balancing_options.data();
+        let probabilities = self.org_probabilities.as_ref();
+        let population_size = self.org_probabilities.len();
+
+        for i in 0..population_size {
+            if !self.cube.base().controller.indices().contains(i) {
+                continue;
+            }
+
+            let stratum = self.strata_vec[i];
+            match self.strata.get_mut(&stratum) {
+                Some(uvec) => {
+                    uvec.push(i);
+                }
+                None => {
+                    self.strata.insert(stratum, vec![i]);
+                }
+            };
+
+            // Order doesn't matter during flight
+            self.cube.base_mut().adjusted_data[(i, balancing_data.ncol())] = 1.0;
+            for j in 0..balancing_data.ncol() {
+                self.cube.base_mut().adjusted_data[(i, j)] =
+                    balancing_data[(i, j)] / probabilities[i];
+            }
+        }
+
+        Ok(self)
+    }
+    fn sample<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Vec<usize> {
+        self.flight_per_stratum(rng);
+        if self.strata.is_empty() {
+            return self.cube.base_mut().controller.sample_mut().sort_to_vec();
+        }
+        self.flight_on_full(rng);
+        if self.cube.base().controller.indices().is_empty() {
+            return self.cube.base_mut().controller.sample_mut().sort_to_vec();
+        }
+        self.landing_per_stratum(rng);
+        self.cube.base_mut().controller.sample_mut().sort_to_vec()
+    }
+    fn flight_per_stratum<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        let mut removable_stratums = Vec::<i64>::new();
+        for (stratum_key, stratum) in self.strata.iter_mut() {
+            self.cube
+                .reset_to_ids(stratum, self.cube.base().adjusted_data.ncol() + 1);
+
+            self.cube.run_flight(rng);
+
+            if self.cube.base().controller.indices().is_empty() {
+                removable_stratums.push(*stratum_key);
+                continue;
+            }
+
+            stratum.clear();
+            stratum.extend_from_slice(self.cube.base().controller.indices().list());
+        }
+
+        for key in removable_stratums.iter() {
+            self.strata.remove(key);
+        }
+    }
+    fn flight_on_full<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        let balancing_data = self.balancing_options.data();
+
+        let adj_data_dim = MatrixIndex(
+            balancing_data.nrow(),
+            balancing_data.ncol() + self.strata.len(),
+        );
+        let cand_data_dim = MatrixIndex(adj_data_dim.col(), adj_data_dim.col() + 1);
+
+        self.cube.base_mut().adjusted_data.resize(adj_data_dim);
+        self.cube.base_mut().candidate_data.resize(cand_data_dim);
+
+        let mut all_units = Vec::<usize>::new();
+
+        for (si, (_, stratum)) in self.strata.iter().enumerate() {
+            all_units.extend_from_slice(stratum);
+
+            for &id in stratum.iter() {
+                self.cube.base_mut().adjusted_data[(id, si + balancing_data.ncol())] = 1.0;
+            }
+        }
+
+        self.cube
+            .reset_to_ids(&mut all_units, self.cube.base().adjusted_data.ncol() + 1);
+
+        self.cube.run_flight(rng);
+
+        // Fix stratas
+        self.strata.clear();
+
+        for &id in self.cube.base().controller.indices().list().iter() {
+            let stratum = self.strata_vec[id];
+            match self.strata.get_mut(&stratum) {
+                Some(uvec) => {
+                    uvec.push(id);
+                }
+                None => {
+                    self.strata.insert(stratum, vec![id]);
+                }
+            };
+        }
+    }
+    fn landing_per_stratum<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        let balancing_data = self.balancing_options.data();
+        let probabilities = self.org_probabilities.as_ref();
+
+        let adj_data_dim = MatrixIndex(balancing_data.nrow(), balancing_data.ncol() + 1);
+        let cand_data_dim = MatrixIndex(adj_data_dim.col(), adj_data_dim.col() + 1);
+
+        self.cube.base_mut().adjusted_data.resize(adj_data_dim);
+        self.cube.base_mut().candidate_data.resize(cand_data_dim);
+
+        for (_key, stratum) in self.strata.iter_mut() {
+            for &id in stratum.iter() {
+                self.cube.base_mut().adjusted_data[(id, 0)] = 1.0;
+                for j in 0..balancing_data.ncol() {
+                    self.cube.base_mut().adjusted_data[(id, j + 1)] =
+                        balancing_data[(id, j)] / probabilities[id];
+                }
+            }
+
+            self.cube.reset_to_ids(stratum, cand_data_dim.col());
+
+            self.cube.run_landing(rng);
+        }
+    }
 }
 
 /// Draw a sample using the stratified cube method.
@@ -360,7 +608,8 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2; 10];
@@ -385,94 +634,58 @@ where
 /// Efficient balanced sampling: the cube method.
 /// Biometrika, 91(4), 893-912.
 /// <https://doi.org/10.1093/biomet/91.4.893>
-#[inline]
-pub fn cube_stratified<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-    strata: &'a [i64],
+pub fn cube_stratified<R, P, S>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, P, S, Enabled>,
+    strata: &[i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> BasicSampleController<ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, S, Enabled>>,
 {
-    let balancing_data = options.check_balancing()?.balancing().unwrap();
-    let probabilities = options.probabilities();
+    let balancing_data = options.balancing();
+    let org_probabilities = options.probabilities().slice();
 
+    let controller: BasicSampleController<ProbabilitiesUnequal> = options.into();
     let seed = rng.rusize();
-    let container = SampleContainer::new(rng, options)?;
 
     let mut cs = CubeStratified {
-        cube: CubeMethod {
-            container,
-            variant: VariantCube {},
-            candidates: Vec::<usize>::with_capacity(20),
-            adjusted_data: Matrix::from_value(
-                0.0,
-                (balancing_data.nrow(), balancing_data.ncol() + 1),
-            )
-            .unwrap(),
-            candidate_data: Matrix::from_value(
-                0.0,
-                (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
-            )
-            .unwrap(),
+        cube: Cube {
+            base: BaseCube::<BasicSampleController<ProbabilitiesUnequal>> {
+                controller,
+                candidates: Vec::<usize>::with_capacity(20),
+                adjusted_data: Matrix::from_value(
+                    0.0,
+                    (
+                        balancing_data.data().nrow(),
+                        balancing_data.data().ncol() + 1,
+                    ),
+                )
+                .unwrap(),
+                candidate_data: Matrix::from_value(
+                    0.0,
+                    (
+                        balancing_data.data().ncol() + 1,
+                        balancing_data.data().ncol() + 2,
+                    ),
+                )
+                .unwrap(),
+            },
         },
         strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
-            probabilities.len() / 10,
+            org_probabilities.len() / 10,
             FxSeededState::with_seed(seed),
         ),
         strata_vec: strata,
+        org_probabilities,
+        balancing_options: balancing_data,
     };
 
-    cs.prepare().map(|s| s.sample())
+    cs.prepare().map(|s| s.sample(rng))
 }
 
-/// Draw a sample using the local cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing`.
-/// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
-/// For fixed sized samples, the first auxilliary variable should be the probability vector.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::cube_method::*;
-/// use envisim_utils::{Matrix, random::*};
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_m = Matrix::from_vec(vec![
-///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
-///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10).unwrap();
-/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-///     .unwrap();
-/// let s = SampleOptions::new(&p)?
-///     .set_balancing(&bal_m)?
-///     .set_spreading(&spr_m)?
-///     .sample(&mut rng, local_cube)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tillé, Y. (2004).
-/// Efficient balanced sampling: the cube method.
-/// Biometrika, 91(4), 893-912.
-/// <https://doi.org/10.1093/biomet/91.4.893>
-///
-/// Grafström, A., & Tillé, Y. (2013).
-/// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
-/// Environmetrics, 24(2), 120-131.
-/// <https://doi.org/10.1002/env.2194>
-#[inline]
-pub fn local_cube<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-) -> Result<Vec<usize>, SamplingError>
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    VariantLocalCube::new(rng, options)?.sample()
-}
 /// Draw a sample using the stratified local cube method.
 /// The sample is balanced on the provided auxilliary variables in `balancing`.
 /// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
@@ -482,7 +695,8 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2; 10];
@@ -514,249 +728,66 @@ where
 /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
 /// Environmetrics, 24(2), 120-131.
 /// <https://doi.org/10.1002/env.2194>
-#[inline]
-pub fn local_cube_stratified<'a, R>(
-    rng: &'a mut R,
-    options: &SampleOptions<'a>,
-    strata: &'a [i64],
+pub fn local_cube_stratified<R, P>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, P, Enabled, Enabled>,
+    strata: &[i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> SpreadingSampleController<'a, ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
 {
-    let balancing_data = options.check_balancing()?.balancing().unwrap();
-    let probabilities = options.probabilities();
+    let balancing_data = options.balancing();
+    let org_probabilities = options.probabilities().slice();
 
-    let seed = rng.rusize();
-    let container = SampleContainer::new_with_tree(rng, options)?;
+    let controller: SpreadingSampleController<ProbabilitiesUnequal> = options.into();
     let searcher = Searcher::new(
-        container.tree().unwrap(),
-        InputError::into_nonzero_usize(balancing_data.ncol() + 1)?,
+        controller.tree(),
+        NonZeroUsize::new(balancing_data.data().ncol() + 1).unwrap(),
     );
+    let seed = rng.rusize();
 
     let mut cs = CubeStratified {
-        cube: CubeMethod {
-            container,
-            variant: VariantLocalCube { searcher },
-            candidates: Vec::<usize>::with_capacity(20),
-            adjusted_data: Matrix::from_value(
-                0.0,
-                (balancing_data.nrow(), balancing_data.ncol() + 1),
-            )
-            .unwrap(),
-            candidate_data: Matrix::from_value(
-                0.0,
-                (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
-            )
-            .unwrap(),
+        cube: LocalCube {
+            base: BaseCube::<SpreadingSampleController<ProbabilitiesUnequal>> {
+                controller,
+                candidates: Vec::<usize>::with_capacity(20),
+                adjusted_data: Matrix::from_value(
+                    0.0,
+                    (
+                        balancing_data.data().nrow(),
+                        balancing_data.data().ncol() + 1,
+                    ),
+                )
+                .unwrap(),
+                candidate_data: Matrix::from_value(
+                    0.0,
+                    (
+                        balancing_data.data().ncol() + 1,
+                        balancing_data.data().ncol() + 2,
+                    ),
+                )
+                .unwrap(),
+            },
+            spreading_options: options.spreading(),
+            searcher,
         },
         strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
-            probabilities.len() / 10,
+            org_probabilities.len() / 10,
             FxSeededState::with_seed(seed),
         ),
         strata_vec: strata,
+        org_probabilities,
+        balancing_options: balancing_data,
     };
 
-    cs.prepare().map(|s| s.sample())
-}
-
-impl<'a, R> CubeStratifiedVariant<'a, R> for VariantCube
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn reset_to(
-        &mut self,
-        container: &mut SampleContainer<R>,
-        ids: &mut [usize],
-        _n_neighbours: usize,
-    ) {
-        container.indices_mut().clear();
-        for id in ids.iter() {
-            container.indices_mut().insert(*id).unwrap();
-        }
-    }
-}
-
-impl<'a, R> CubeStratifiedVariant<'a, R> for VariantLocalCube
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    #[inline]
-    fn reset_to(
-        &mut self,
-        container: &mut SampleContainer<R>,
-        ids: &mut [usize],
-        n_neighbours: usize,
-    ) {
-        self.searcher
-            .set_n_neighbours(NonZeroUsize::new(n_neighbours).unwrap());
-
-        container.indices_mut().clear();
-        container
-            .reset_tree(ids)
-            .expect("tree should be resettable");
-
-        for id in ids.iter() {
-            container.indices_mut().insert(*id).unwrap();
-        }
-    }
-}
-
-impl<'a, R, T> CubeStratified<'a, R, T>
-where
-    R: RandomNumberGenerator + ?Sized,
-    T: CubeStratifiedVariant<'a, R>,
-{
-    #[inline]
-    fn prepare(&mut self) -> Result<&mut Self, SamplingError> {
-        InputError::check_sizes(self.strata_vec.len(), self.cube.container.population_size())?;
-        let balancing_data = self.cube.container.options().balancing().unwrap();
-        let probabilities = self.cube.container.options().probabilities();
-
-        for i in 0..self.cube.container.probabilities().len() {
-            if !self.cube.container.indices().contains(i) {
-                continue;
-            }
-
-            let stratum = self.strata_vec[i];
-            match self.strata.get_mut(&stratum) {
-                Some(uvec) => {
-                    uvec.push(i);
-                }
-                None => {
-                    self.strata.insert(stratum, vec![i]);
-                }
-            };
-
-            // Order doesn't matter during flight
-            self.cube.adjusted_data[(i, balancing_data.ncol())] = 1.0;
-            for j in 0..balancing_data.ncol() {
-                self.cube.adjusted_data[(i, j)] = balancing_data[(i, j)] / probabilities[i];
-            }
-        }
-
-        Ok(self)
-    }
-    #[inline]
-    fn sample(&mut self) -> Vec<usize> {
-        self.flight_per_stratum();
-        if self.strata.is_empty() {
-            return self.cube.get_sorted_sample().to_vec();
-        }
-        self.flight_on_full();
-        if self.cube.container.indices().is_empty() {
-            return self.cube.get_sorted_sample().to_vec();
-        }
-        self.landing_per_stratum();
-        self.cube.get_sorted_sample().to_vec()
-    }
-    #[inline]
-    fn flight_per_stratum(&mut self) {
-        let mut removable_stratums = Vec::<i64>::new();
-        for (stratum_key, stratum) in self.strata.iter_mut() {
-            self.cube.variant.reset_to(
-                &mut self.cube.container,
-                stratum,
-                self.cube.adjusted_data.ncol() + 1,
-            );
-
-            self.cube.run_flight();
-
-            if self.cube.container.indices().is_empty() {
-                removable_stratums.push(*stratum_key);
-                continue;
-            }
-
-            stratum.clear();
-            stratum.extend_from_slice(self.cube.container.indices().list());
-        }
-
-        for key in removable_stratums.iter() {
-            self.strata.remove(key);
-        }
-    }
-    #[inline]
-    fn flight_on_full(&mut self) {
-        let balancing_data = self.cube.container.options().balancing().unwrap();
-
-        self.cube.adjusted_data.resize((
-            balancing_data.nrow(),
-            balancing_data.ncol() + self.strata.len(),
-        ));
-        self.cube.candidate_data.resize((
-            self.cube.adjusted_data.ncol(),
-            self.cube.adjusted_data.ncol() + 1,
-        ));
-
-        let mut all_units = Vec::<usize>::new();
-
-        for (si, (_, stratum)) in self.strata.iter().enumerate() {
-            all_units.extend_from_slice(stratum);
-
-            for &id in stratum.iter() {
-                self.cube.adjusted_data[(id, si + balancing_data.ncol())] = 1.0;
-            }
-        }
-
-        self.cube.variant.reset_to(
-            &mut self.cube.container,
-            &mut all_units,
-            self.cube.adjusted_data.ncol() + 1,
-        );
-
-        self.cube.run_flight();
-
-        // Fix stratas
-        self.strata.clear();
-
-        for &id in self.cube.container.indices().list().iter() {
-            let stratum = self.strata_vec[id];
-            match self.strata.get_mut(&stratum) {
-                Some(uvec) => {
-                    uvec.push(id);
-                }
-                None => {
-                    self.strata.insert(stratum, vec![id]);
-                }
-            };
-        }
-    }
-    #[inline]
-    fn landing_per_stratum(&mut self) {
-        let balancing_data = self.cube.container.options().balancing().unwrap();
-        let probabilities = self.cube.container.options().probabilities();
-
-        self.cube
-            .adjusted_data
-            .resize((balancing_data.nrow(), balancing_data.ncol() + 1));
-        self.cube.candidate_data.resize((
-            self.cube.adjusted_data.ncol(),
-            self.cube.adjusted_data.ncol() + 1,
-        ));
-
-        for (_key, stratum) in self.strata.iter_mut() {
-            for &id in stratum.iter() {
-                self.cube.adjusted_data[(id, 0)] = 1.0;
-                for j in 0..balancing_data.ncol() {
-                    self.cube.adjusted_data[(id, j + 1)] =
-                        balancing_data[(id, j)] / probabilities[id];
-                }
-            }
-
-            self.cube.variant.reset_to(
-                &mut self.cube.container,
-                stratum,
-                self.cube.adjusted_data.ncol() + 1,
-            );
-
-            self.cube.run_landing();
-        }
-    }
+    cs.prepare().map(|s| s.sample(rng))
 }
 
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is
 /// mutated into rref.
-#[inline]
 fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
     let MatrixIndex(nrow, ncol) = mat.dims();
     assert!(nrow > 0);
@@ -824,7 +855,12 @@ mod tests {
         )
         .unwrap();
         mat1.reduced_row_echelon_form();
-        assert!(mat1.data() == [1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
+        assert!(
+            mat1.data()
+                == [
+                    1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0
+                ]
+        );
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
         assert_fvec(&mat1.prod_vec(&mat1_nullvec).unwrap(), &[0.0, 0.0, 0.0]);
 

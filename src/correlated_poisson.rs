@@ -18,9 +18,10 @@ use envisim_utils::pips::{
     ProbabilitiesUnequal,
 };
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::{
-    Enabled,
+use envisim_utils::sampling_options::Enabled;
+pub use envisim_utils::sampling_options::{
     SamplingOptions,
+    SamplingOptionsError,
 };
 use envisim_utils::utils::usize_to_f64;
 
@@ -143,7 +144,7 @@ impl<'a> SequentialCorrelatedPoisson<'a> {
 /// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// ## Coordination
@@ -160,7 +161,7 @@ impl<'a> SequentialCorrelatedPoisson<'a> {
 /// let s = cps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -315,7 +316,7 @@ impl<'a> SpatialCorrelatedPoisson<'a> {
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// ## Coordination
@@ -335,7 +336,7 @@ impl<'a> SpatialCorrelatedPoisson<'a> {
 /// let s = scps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -450,7 +451,7 @@ impl<'a> LocalCorrelatedPoisson<'a> {
 /// let s = lcps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References

@@ -22,7 +22,10 @@ use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sampling_options::{
     Enabled,
     ProbabilitySpec,
+};
+pub use envisim_utils::sampling_options::{
     SamplingOptions,
+    SamplingOptionsError,
 };
 use envisim_utils::utils::{
     sum,
@@ -30,7 +33,7 @@ use envisim_utils::utils::{
 };
 use rustc_hash::FxHashSet;
 
-pub use crate::SamplingError;
+use crate::SamplingError;
 use crate::sample_controller::{
     BasicSampleController,
     SampleController,
@@ -201,7 +204,7 @@ where
 /// let s = spm(&mut rng, p.try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -274,7 +277,7 @@ where
 /// let s = rpm(&mut rng, p.try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -383,7 +386,7 @@ where
 /// let s = lpm_1(&mut rng, opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -513,7 +516,7 @@ where
 /// let s = lpm_1s(&mut rng, opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -592,7 +595,7 @@ where
 /// let s = lpm_2(&mut rng, opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References

@@ -24,6 +24,7 @@ use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sampling_options::{
     Enabled,
     SamplingOptions,
+    SpreadingOptions,
 };
 
 pub struct Sample(Vec<usize>);
@@ -276,10 +277,10 @@ where
     pub fn tree_mut(&mut self) -> &mut Node<'a> { &mut self.tree }
     pub fn reset_tree<B>(
         &mut self,
-        options: &'a SamplingOptions<'a, P, Enabled, B>,
+        options: &'a SpreadingOptions<'a>,
         units: &mut [usize],
     ) -> Option<()> {
-        self.tree = options.spreading().build(units)?.into();
+        self.tree = options.build(units)?.into();
         Some(())
     }
 }

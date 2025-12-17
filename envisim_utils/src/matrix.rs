@@ -178,9 +178,10 @@ impl<'a> Matrix<'a> {
         let dims = dims.into();
         if dims.row() == 0 || dims.col() == 0 {
             return None;
+        } else if dims == self.dims() {
+            return Some(self);
         }
 
-        // let old_size = self.dims().size();
         let new_size = dims.size();
 
         self.data.to_mut().resize(new_size, 0.0);

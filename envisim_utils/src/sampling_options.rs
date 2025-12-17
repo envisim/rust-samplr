@@ -24,7 +24,10 @@ pub use crate::probabilities::{
     ProbabilitiesEqual,
     ProbabilitiesUnequal,
 };
-use crate::utils::usize_to_f64;
+use crate::utils::{
+    f64_to_usize,
+    usize_to_f64,
+};
 
 pub struct Enabled;
 pub struct Disabled;
@@ -66,11 +69,26 @@ where
             _ => None,
         }
     }
+    pub fn sample_size_usize(&self) -> usize {
+        match self.spec {
+            ProbabilitySpec::Equal { sample_size } => sample_size,
+            ProbabilitySpec::Unequal { ref values } => {
+                f64_to_usize(values.iter().sum::<f64>().round())
+            }
+        }
+    }
+    pub fn sample_size_f64(&self) -> f64 {
+        match self.spec {
+            ProbabilitySpec::Equal { sample_size } => usize_to_f64(sample_size),
+            ProbabilitySpec::Unequal { ref values } => values.iter().sum::<f64>().round(),
+        }
+    }
 }
 impl<'a> IncProbOptions<'a, ProbabilitiesEqual> {
     pub fn slice_equal(&self) -> Vec<usize> {
         self.try_slice_equal().expect("guaranteed by type system")
     }
+    pub fn sample_size(&self) -> usize { self.sample_size_usize() }
 }
 impl<'a, P> Default for IncProbOptions<'a, P>
 where
@@ -415,6 +433,9 @@ where
         };
         Ok(opts)
     }
+}
+impl<'a, S, B> SamplingOptions<'a, ProbabilitiesEqual, S, B> {
+    pub fn sample_size(&self) -> usize { self.probabilities.sample_size() }
 }
 impl<'a> SamplingOptions<'a, ProbabilitiesUnequal, Disabled, Disabled> {
     pub fn new(
