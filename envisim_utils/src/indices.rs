@@ -181,7 +181,6 @@ impl Indices {
                 return Some(id);
             }
         }
-
         None
     }
 

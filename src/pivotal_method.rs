@@ -30,7 +30,7 @@ pub use envisim_utils::sampling_options::{
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::FxHashSet;
 
-use crate::SamplingError;
+pub use crate::SamplingError;
 use crate::sample_controller::{
     BasicSampleController,
     SampleController,
@@ -197,8 +197,9 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = spm(&mut rng, p.try_into()?);
+/// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = spm(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -270,8 +271,9 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = rpm(&mut rng, p.try_into()?);
+/// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = rpm(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -282,14 +284,6 @@ where
 /// Unequal probability sampling without replacement through a splitting method.
 /// Biometrika, 85(1), 89-101.
 /// <https://doi.org/10.1093/biomet/85.1.89>
-// pub fn rpm<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
-// where
-//     R: RandomNumberGenerator,
-//     P: Probabilities,
-// {
-//     let controller: BasicSampleController<P> = options.into();
-//     RandomPivotalMethod { controller }.sample(rng)
-// }
 pub fn rpm<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
 where
     R: RandomNumberGenerator,
@@ -374,13 +368,14 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let opts = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
-/// let s = lpm_1(&mut rng, opts);
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_1(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -504,13 +499,14 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let opts = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
-/// let s = lpm_1s(&mut rng, opts);
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_1s(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -583,13 +579,14 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let opts = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
-/// let s = lpm_2(&mut rng, opts);
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_2(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -621,12 +618,13 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 ///
@@ -670,10 +668,6 @@ where
             }
         }
     };
-
-    // if sizes.len() == 1 {
-    //     return Ok(vec![lpm_2(rng, options)]);
-    // }
 
     let mut pm = {
         let controller: SpreadingSampleController<'_, ProbabilitiesUnequal> = options.into();

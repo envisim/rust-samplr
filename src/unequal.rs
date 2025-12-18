@@ -18,7 +18,7 @@ use envisim_utils::pips::{
     ProbabilitiesUnequal,
 };
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::{
+pub use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
 };
@@ -27,7 +27,7 @@ use envisim_utils::utils::{
     usize_to_f64,
 };
 
-use crate::SamplingError;
+pub use crate::error::SamplingError;
 
 // Assumes probabilites sum to 1.0
 fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
@@ -59,7 +59,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.1; 10];
-/// let options = SampleOptions::new(&p)?;
+/// let options = SamplingOptions::new(&p)?;
 /// let s = with_replacement(&mut rng, &options, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -134,7 +134,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let options = SampleOptions::new(&p)?;
+/// let options = SamplingOptions::new(&p)?;
 /// let s = sampford(&mut rng, &options)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -199,7 +199,8 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = pareto(&mut rng, &p.try_into()?)?;
+/// let options = SamplingOptions::new(&p)?;
+/// let s = pareto(&mut rng, &options)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -260,7 +261,8 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = brewer(&mut rng, &p.try_into()?)?;
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = brewer(&mut rng, &opts)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -340,7 +342,8 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = poisson(&mut rng, &p.try_into()?);
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = poisson(&mut rng, &opts);
 /// # Ok::<(), SamplingError>(())
 /// ```
 pub fn poisson<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
@@ -363,7 +366,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let options = SampleOptions::new(&p)?;
+/// let options = SamplingOptions::new(&p)?;
 /// let s = conditional_poisson(&mut rng, &options, 5);
 /// # Ok::<(), SamplingError>(())
 /// ```

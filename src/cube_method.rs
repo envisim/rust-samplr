@@ -84,7 +84,7 @@ where
     }
     fn set_candidate_data(&mut self) {
         let n_candidates = self.candidates.len();
-        assert!(n_candidates <= self.adjusted_data.ncol());
+        assert!(n_candidates <= self.adjusted_data.ncol() + 1);
         let dims = MatrixIndex(n_candidates - 1, n_candidates);
         self.candidate_data.resize(dims);
 
@@ -102,7 +102,7 @@ where
         } else {
             len
         };
-        assert!(len <= self.adjusted_data.ncol());
+        assert!(len <= self.adjusted_data.ncol() + 1);
 
         // Set candidates
         self.candidates.clear();
@@ -255,7 +255,8 @@ impl<'a> Cube<'a> {
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
@@ -263,7 +264,8 @@ impl<'a> Cube<'a> {
 ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
-/// let s = SampleOptions::new(&p)?.set_balancing(&bal_m)?.sample(&mut rng, cube)?;
+/// let opts = SamplingOptions::new(&p)?.set_balancing(&bal_m)?;
+/// let s= cube(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -398,7 +400,8 @@ impl<'a> LocalCube<'a> {
 /// # Examples
 /// ```
 /// use envisim_samplr::cube_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
@@ -408,10 +411,10 @@ impl<'a> LocalCube<'a> {
 /// ], 10).unwrap();
 /// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
 ///     .unwrap();
-/// let opts = SampleOptions::new(&p)?
+/// let opts = SamplingOptions::new(&p)?
 ///     .set_balancing(&bal_m)?
 ///     .set_spreading(&spr_m)?;
-/// let s = local_cube(&mut rng, local_cube);
+/// let s = local_cube(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -607,7 +610,7 @@ where
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SampleOptions::new(&p)?.set_balancing(&bal_m)?;
+/// let options = SamplingOptions::new(&p)?.set_balancing(&bal_m)?;
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
@@ -696,7 +699,7 @@ where
 /// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
 ///     .unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SampleOptions::new(&p)?.set_balancing(&bal_m)?.set_spreading(&spr_m)?;
+/// let options = SamplingOptions::new(&p)?.set_balancing(&bal_m)?.set_spreading(&spr_m)?;
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);

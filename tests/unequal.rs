@@ -35,7 +35,7 @@ fn test_pareto() {
 #[test]
 fn test_brewer() {
     let mut rng = rng();
-    let options = options_unequal();
+    let options = options_unequal_e();
     test_wor(
         || brewer(&mut rng, &options).unwrap(),
         &options,

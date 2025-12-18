@@ -14,11 +14,14 @@
 
 use envisim_utils::pips::Probabilities;
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::{
-    ProbabilitySpec,
+use envisim_utils::sampling_options::ProbabilitySpec;
+pub use envisim_utils::sampling_options::{
     SamplingOptions,
+    SamplingOptionsError,
 };
 use envisim_utils::utils::f64_to_usize;
+
+pub use crate::error::SamplingError;
 
 /// Draw a systematic sample, using the provided order
 ///
@@ -29,7 +32,8 @@ use envisim_utils::utils::f64_to_usize;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = systematic(&mut rng, p.try_into()?);
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = systematic(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -60,7 +64,8 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = systematic_random_order(&mut rng, p.try_into()?);
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = systematic_random_order(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())

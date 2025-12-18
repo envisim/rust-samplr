@@ -27,7 +27,8 @@ pub use envisim_utils::sampling_options::{
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = srs(&mut rng, (10, 5).try_into()?);
+/// let opts = SamplingOptions::new_equal(10, 5)?;
+/// let s = srs(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -68,7 +69,8 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = srs_with_replacement(&mut rng, 10, 5)?;
+/// let opts = SamplingOptions::new_equal(10, 5)?;
+/// let s = srs_with_replacement(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())

@@ -284,3 +284,24 @@ where
         Some(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use envisim_test_utils::*;
+
+    use super::*;
+
+    #[test]
+    fn equal_unequal() {
+        let oe = SamplingOptions::new_equal(10, 2).unwrap();
+        let ou = SamplingOptions::new(&PROB_10_E).unwrap();
+        assert_eq!(
+            oe.probabilities().slice().as_ref(),
+            ou.probabilities().slice().as_ref(),
+        );
+
+        let ce: BasicSampleController<ProbabilitiesUnequal> = (&oe).into();
+        let cu: BasicSampleController<ProbabilitiesUnequal> = (&ou).into();
+        assert_eq!(ce.probabilities().data(), cu.probabilities().data());
+    }
+}

@@ -25,6 +25,7 @@ pub use envisim_utils::sampling_options::{
 };
 use envisim_utils::utils::usize_to_f64;
 
+pub use crate::error::SamplingError;
 use crate::sample_controller::{
     BasicSampleController,
     SampleController,
@@ -48,8 +49,9 @@ where
     fn decide_unit<R: RandomNumberGenerator>(&mut self, rng: &mut R, id: usize) -> (f64, f64) {
         let probability = self.controller().probabilities().get(id);
         let mut quota = probability;
+        let rv = self.random_value(rng, id);
 
-        if self.random_value(rng, id) < probability {
+        if rv < probability {
             self.controller_mut().unit_set_one(id);
             quota -= 1.0;
         } else {
@@ -85,6 +87,9 @@ impl<'a> CorrelatedPoisson<BasicSampleController<ProbabilitiesUnequal>>
     fn select_unit<R: RandomNumberGenerator>(&mut self, _: &mut R) -> Option<usize> {
         if self.controller.indices().is_empty() {
             return None;
+        } else if self.unit == 0 && self.controller.indices().contains(0) {
+            // Special case for 0, as it is set 0 at construction
+            return Some(0);
         }
 
         let pop_size = self.controller.population_size();
@@ -141,7 +146,8 @@ impl<'a> SequentialCorrelatedPoisson<'a> {
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, cps)?;
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = cps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -157,7 +163,7 @@ impl<'a> SequentialCorrelatedPoisson<'a> {
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let rv = [0.2; 10];
-/// let opts = SampleOptions::new(&p)?.set_random_values(&rv)?;
+/// let opts = SamplingOptions::new(&p)?.set_coordination(&rv)?;
 /// let s = cps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
@@ -308,12 +314,14 @@ impl<'a> SpatialCorrelatedPoisson<'a> {
 /// # Examples
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, scps)?;
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = scps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
@@ -324,15 +332,16 @@ impl<'a> SpatialCorrelatedPoisson<'a> {
 /// between multiple sampling efforts.
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let rv = [0.2; 10];
-/// let opts = SampleOptions::new(&p)?
+/// let opts = SamplingOptions::new(&p)?
 ///     .set_spreading(&m)?
-///     .set_random_values(&rv)?;
+///     .set_coordination(&rv)?;
 /// let s = scps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
@@ -442,12 +451,13 @@ impl<'a> LocalCorrelatedPoisson<'a> {
 /// # Examples
 /// ```
 /// use envisim_samplr::correlated_poisson::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let opts = SampleOptions::new(&p)?.set_spreading(&m);
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
 /// let s = lcps(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
@@ -484,13 +494,13 @@ mod tests {
     const RV_0: [f64; 10] = [0.0; 10];
     const RV_1: [f64; 10] = [1.0; 10];
 
-    fn options() -> SamplingOptions<'static, ProbabilitiesUnequal, Disabled, Disabled> {
+    fn options_ue() -> SamplingOptions<'static, ProbabilitiesUnequal, Disabled, Disabled> {
         SamplingOptions::new(&PROB_10_E).unwrap()
     }
     fn options_coord(
         zero: bool,
     ) -> SamplingOptions<'static, ProbabilitiesUnequal, Disabled, Disabled> {
-        options()
+        options_ue()
             .set_coordination(if zero { &RV_0 } else { &RV_1 })
             .unwrap()
     }
@@ -525,17 +535,32 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(42);
 
         let options = options_coord(true);
-        let mut cps = SequentialCorrelatedPoisson::new(&options);
-        decide_and_update(&mut cps, &mut rng, 0);
-        assert_fvec(&cps.controller.probabilities().data()[1..=4], &vec![0.0; 4]);
+        let mut cpsv = SequentialCorrelatedPoisson::new(&options);
+        decide_and_update(&mut cpsv, &mut rng, 0);
+        assert_fvec(
+            &cpsv.controller.probabilities().data()[1..=4],
+            &vec![0.0; 4],
+        );
 
         let options = options_coord(false);
-        let mut cps = SequentialCorrelatedPoisson::new(&options);
-        decide_and_update(&mut cps, &mut rng, 0);
+        let mut cpsv = SequentialCorrelatedPoisson::new(&options);
+        decide_and_update(&mut cpsv, &mut rng, 0);
         assert_fvec(
-            &cps.controller.probabilities().data()[1..=4],
+            &cpsv.controller.probabilities().data()[1..=4],
             &vec![0.25; 4],
         );
+
+        // let options = options_ue();
+        println!("CPS1");
+        let mut rng = SmallRng::seed_from_u64(42);
+        let options = SamplingOptions::new(&PROB_10_E).unwrap();
+        let s = cps(&mut rng, &options);
+        assert_eq!(s.len(), 2);
+        println!("CPS2");
+        // let mut rng = SmallRng::seed_from_u64(42);
+        let options = SamplingOptions::new_equal(10, 2).unwrap();
+        let s = cps(&mut rng, &options);
+        assert_eq!(s.len(), 2);
     }
 
     #[test]

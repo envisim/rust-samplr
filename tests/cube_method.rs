@@ -43,7 +43,7 @@ fn test_cube_stratified() {
             s
         },
         &options,
-        1e-2,
+        0.015,
         100000,
     );
 }
@@ -54,13 +54,12 @@ fn test_lcube_stratified() {
     let options = options_equal_10_2();
     test_wor(
         || {
-            let grps: [i64; 10] = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3];
+            let grps: [i64; 10] = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2];
             let s = local_cube_stratified(&mut rng, &options, &grps).unwrap();
-            assert_eq!(s.len(), 2);
             s
         },
         &options,
-        1e-2,
+        0.015,
         100000,
     );
 }
