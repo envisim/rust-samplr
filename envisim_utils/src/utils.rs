@@ -48,23 +48,11 @@ pub fn f64_to_usize(f: f64) -> usize {
     f.round() as usize
 }
 
-/// Sums a vector of [`f64`]s.
-/// Returns [`f64::NAN`]` if any element is `NaN`.
-///
-/// # Examples
-/// ```
-/// use envisim_utils::utils::sum;
-/// assert_eq!(sum(&vec![0.0, 1.0, 2.0, 3.0]), 6.0);
-/// assert!(sum(&vec![0.0, 1.0, 2.0, f64::NAN]).is_nan());
-/// ```
-#[inline]
-pub fn sum(vec: &[f64]) -> f64 { vec.iter().fold(0.0, |acc, x| acc + x) }
-
 /// Calculates the mean of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].
 /// Returns [`f64::NAN`]` if any element is `NaN`.
 #[inline]
-pub fn mean(vec: &[f64]) -> f64 { sum(vec) / usize_to_f64(vec.len()) }
+pub fn mean(vec: &[f64]) -> f64 { vec.iter().sum::<f64>() / usize_to_f64(vec.len()) }
 
 /// Calculates the variance of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].

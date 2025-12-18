@@ -12,17 +12,27 @@
 
 //! Unequal probability sampling designs
 
+use envisim_utils::indices::Indices;
+use envisim_utils::pips::{
+    Probabilities,
+    ProbabilitiesUnequal,
+};
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{Indices, InputError};
+use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+};
+use envisim_utils::utils::{
+    f64_to_usize,
+    usize_to_f64,
+};
 
-pub use crate::{SampleOptions, SamplingError};
+use crate::SamplingError;
 
 // Assumes probabilites sum to 1.0
-#[inline]
 fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     let population_size = probabilities.len();
     let rv = rng.rf64();
@@ -55,18 +65,20 @@ where
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-#[inline]
-pub fn with_replacement<R>(
+pub fn with_replacement<R, S, B>(
     rng: &mut R,
-    options: &SampleOptions,
+    options: &SamplingOptions<'_, ProbabilitiesUnequal, S, B>,
     n: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    let probabilities = options.probabilities_unequal();
+    let probabilities = options.probabilities().slice();
+    let psum: f64 = probabilities.iter().sum();
 
-    InputError::check_integer_approx_equal(sum(probabilities.as_ref()), 1.0, options.eps())?;
+    if (psum - 1.0).abs() > options.eps() {
+        return Err(SamplingError::IncorrectDrawProbabilities);
+    }
 
     if n == 0 {
         return Ok(vec![]);
@@ -128,18 +140,21 @@ where
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-#[inline]
-pub fn sampford<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn sampford<R, S, B>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, ProbabilitiesUnequal, S, B>,
+) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities_unequal();
+    let probabilities = options.probabilities().slice();
     let eps = options.eps();
-
-    let psum = sum(probabilities.as_ref());
-    InputError::check_integer_approx(psum, eps)?;
-    let sample_size = psum.round() as usize;
+    let psum: f64 = probabilities.iter().sum();
+    let sample_size: usize = if (psum - psum.round()).abs() <= eps {
+        f64_to_usize(psum)
+    } else {
+        return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
+    };
 
     if sample_size == 0 {
         return Ok(vec![]);
@@ -184,7 +199,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, pareto)?;
+/// let s = pareto(&mut rng, &p.try_into()?)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -194,19 +209,21 @@ where
 /// Rosén, B. (2000).
 /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
 /// Stockholm: Statistiska Centralbyrån.
-#[inline]
-pub fn pareto<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn pareto<R, S, B>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, ProbabilitiesUnequal, S, B>,
+) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomNumberGenerator + ?Sized,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities_unequal();
+    let probabilities = options.probabilities().slice();
     let eps = options.eps();
-
-    let psum = sum(probabilities.as_ref());
-    InputError::check_integer_approx(psum, eps)?;
-
-    let sample_size = psum.round() as usize;
+    let psum: f64 = probabilities.iter().sum();
+    let sample_size: usize = if (psum - psum.round()).abs() <= eps {
+        f64_to_usize(psum)
+    } else {
+        return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
+    };
 
     let q_values: Vec<f64> = probabilities
         .iter()
@@ -243,24 +260,26 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, brewer)?;
+/// let s = brewer(&mut rng, &p.try_into()?)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-#[inline]
-pub fn brewer<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn brewer<R, S, B>(
+    rng: &mut R,
+    options: &SamplingOptions<'_, ProbabilitiesUnequal, S, B>,
+) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities_unequal();
+    let probabilities = options.probabilities().slice();
     let eps = options.eps();
-
-    let mut psum = sum(probabilities.as_ref());
-    InputError::check_integer_approx(psum, eps)?;
-
-    let mut sample_size = psum.round() as usize;
+    let mut psum: f64 = probabilities.iter().sum();
+    let mut sample_size: usize = if (psum - psum.round()).abs() <= eps {
+        f64_to_usize(psum)
+    } else {
+        return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
+    };
     let mut n_d = psum;
     let mut indices = Indices::with_fill(probabilities.len());
     let mut sample = Vec::<usize>::with_capacity(sample_size);
@@ -301,10 +320,9 @@ where
     Ok(sample)
 }
 
-#[inline]
 pub(crate) fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     probabilities
         .iter()
@@ -322,18 +340,16 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, poisson)?;
+/// let s = poisson(&mut rng, &p.try_into()?);
 /// # Ok::<(), SamplingError>(())
 /// ```
-pub fn poisson<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn poisson<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
 {
-    options.check_base()?;
-    Ok(poisson_internal(
-        rng,
-        options.probabilities_unequal().as_ref(),
-    ))
+    let probabilities = options.probabilities().slice();
+    poisson_internal(rng, probabilities.as_ref())
 }
 
 /// Draw a sample using a conditional poisson design.
@@ -351,21 +367,25 @@ where
 /// let s = conditional_poisson(&mut rng, &options, 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-pub fn conditional_poisson<R>(
+pub fn conditional_poisson<R, P, S, B>(
     rng: &mut R,
-    options: &SampleOptions,
+    options: &SamplingOptions<'_, P, S, B>,
     sample_size: usize,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities_unequal();
-    let population_size = probabilities.len();
-    InputError::check_sample_size(sample_size, population_size)?;
-
-    if sample_size == 0 {
+    let probabilities = options.probabilities().slice();
+    let population_size = options.population_size();
+    if sample_size > population_size {
+        return Err(SamplingError::Options(
+            SamplingOptionsError::InvalidSampleSize,
+        ));
+    } else if sample_size == 0 {
         return Ok(vec![]);
+    } else if sample_size == population_size {
+        return Ok((0..population_size).collect::<Vec<usize>>());
     }
 
     for _ in 0..options.max_iterations().get() {

@@ -27,13 +27,13 @@ pub use envisim_utils::sampling_options::{
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample(&mut rng, (10, 5).try_into()?);
+/// let s = srs(&mut rng, (10, 5).try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample<R, S, B>(
+pub fn srs<R, S, B>(
     rng: &mut R,
     options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
 ) -> Vec<usize>
@@ -68,13 +68,13 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample_with_replacement(&mut rng, 10, 5)?;
+/// let s = srs_with_replacement(&mut rng, 10, 5)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample_with_replacement<R, S, B>(
+pub fn srs_with_replacement<R, S, B>(
     rng: &mut R,
     options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
 ) -> Vec<usize>

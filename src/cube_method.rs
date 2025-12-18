@@ -43,9 +43,9 @@ use crate::sample_controller::{
     SampleController,
     SpreadingSampleController,
 };
-use crate::srs::sample as srs_sample;
+use crate::srs::srs;
 
-struct BaseCube<'a, C>
+pub struct BaseCube<'a, C>
 where
     C: SampleController,
 {
@@ -95,17 +95,6 @@ where
         }
     }
     fn clear_candidates(&mut self) { self.candidates.clear(); }
-    fn set_candidates_from_slice(&mut self, candidates: &[usize]) {
-        let len = candidates.len();
-        assert!(len <= self.adjusted_data.ncol());
-
-        // Set candidates
-        self.candidates.clear();
-        self.candidates.extend_from_slice(candidates);
-
-        // Set data
-        self.set_candidate_data();
-    }
     fn set_candidates_from_indices(&mut self, len: usize) {
         let number_of_remaining_units = self.controller.indices().len();
         let len = if len == 0 || len > number_of_remaining_units {
@@ -360,7 +349,7 @@ impl<'a> CubeMethod<'a> for LocalCube<'a> {
         let n_open_spots = n_units - self.base.candidates.len();
         let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots).unwrap();
 
-        let s = srs_sample(rng, &opts);
+        let s = srs(rng, &opts);
         for k in s {
             self.base.candidates.push(self.searcher.neighbours()[i + k]);
         }

@@ -24,6 +24,8 @@ pub enum SamplingError {
     // max iterations reached
     MaxIterations(NonZeroUsize),
     IncorrectStratification,
+    IncorrectDrawProbabilities,
+    IncorrectProbabilitiesIntegerSum,
 }
 
 impl std::error::Error for SamplingError {
@@ -46,6 +48,12 @@ impl std::fmt::Display for SamplingError {
             }
             IncorrectStratification => {
                 write!(f, "incorrect stratification")
+            }
+            IncorrectDrawProbabilities => {
+                write!(f, "draw probabilities must sum to 1.0")
+            }
+            IncorrectProbabilitiesIntegerSum => {
+                write!(f, "probabilities should sum to integer value")
             }
         }
     }

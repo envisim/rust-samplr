@@ -89,7 +89,7 @@ pub trait SampleController {
         idx: usize,
         prob: <<Self as SampleController>::Probs as Probabilities>::Prob,
     ) -> Option<DecideUnit> {
-        self.probabilities_mut().set(idx, prob);
+        self.probabilities_mut().set(idx, prob).unwrap();
         self.unit_decide(idx)
     }
     fn unit_set_one(&mut self, idx: usize) -> Option<DecideUnit> {
@@ -275,7 +275,7 @@ where
 {
     pub fn tree(&self) -> &Node<'a> { &self.tree }
     pub fn tree_mut(&mut self) -> &mut Node<'a> { &mut self.tree }
-    pub fn reset_tree<B>(
+    pub fn reset_tree(
         &mut self,
         options: &'a SpreadingOptions<'a>,
         units: &mut [usize],

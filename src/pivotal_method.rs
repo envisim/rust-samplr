@@ -27,10 +27,7 @@ pub use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
 };
-use envisim_utils::utils::{
-    sum,
-    usize_to_f64,
-};
+use envisim_utils::utils::usize_to_f64;
 use rustc_hash::FxHashSet;
 
 use crate::SamplingError;
@@ -663,7 +660,7 @@ where
             }
         }
         _ => {
-            let psum = sum(options.probabilities().slice().as_ref());
+            let psum = options.probabilities().slice().iter().sum::<f64>();
             if (psum.round() - psum).abs() > options.eps() {
                 return Err(SamplingError::IncorrectStratification);
             }
@@ -711,7 +708,7 @@ where
         // Reset probs and add to indices/tree
         for id in 0..pm.controller.population_size() {
             if main_sample.contains(&id) {
-                pm.controller.probabilities_mut().set(id, prob);
+                pm.controller.probabilities_mut().set(id, prob).unwrap();
                 pm.controller.indices_mut().insert(id).unwrap();
                 pm.controller.tree_mut().insert_unit(id).unwrap();
             } else {

@@ -12,10 +12,13 @@
 
 //! Systematic sampling designs
 
+use envisim_utils::pips::Probabilities;
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::Probabilities;
-
-pub use crate::{SampleOptions, SamplingError};
+use envisim_utils::sampling_options::{
+    ProbabilitySpec,
+    SamplingOptions,
+};
+use envisim_utils::utils::f64_to_usize;
 
 /// Draw a systematic sample, using the provided order
 ///
@@ -26,20 +29,26 @@ pub use crate::{SampleOptions, SamplingError};
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, sample)?;
+/// let s = systematic(&mut rng, p.try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-#[inline]
-pub fn sample<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn systematic<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities();
-    let order: Vec<usize> = (0usize..probabilities.len()).collect();
-    from_order(rng.rf64(), probabilities, &order)
+    let probabilities_opts = options.probabilities();
+    let population_size = options.population_size();
+    let order: Vec<usize> = (0..population_size).collect();
+    match probabilities_opts.spec() {
+        ProbabilitySpec::Equal { sample_size } => {
+            from_order_equal(rng, population_size, *sample_size, &order)
+        }
+        ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
+        _ => panic!("ProbabilitySpec not implemented"),
+    }
 }
 
 /// Draw a systematic sample, using a random order
@@ -51,55 +60,79 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, sample_random_order)?;
+/// let s = systematic_random_order(&mut rng, p.try_into()?);
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
 /// ```
-#[inline]
-pub fn sample_random_order<R>(
+pub fn systematic_random_order<R, P, S, B>(
     rng: &mut R,
-    options: &SampleOptions,
-) -> Result<Vec<usize>, SamplingError>
+    options: &SamplingOptions<'_, P, S, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
 {
-    options.check_base()?;
-    let probabilities = options.probabilities();
-    let order = shuffle(rng, probabilities.len());
-    from_order(rng.rf64(), probabilities, &order)
+    let probabilities_opts = options.probabilities();
+    let population_size = options.population_size();
+    let order = shuffle(rng, population_size);
+    match probabilities_opts.spec() {
+        ProbabilitySpec::Equal { sample_size } => {
+            from_order_equal(rng, population_size, *sample_size, &order)
+        }
+        ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
+        _ => panic!("ProbabilitySpec not implemented"),
+    }
 }
 
-#[inline]
-fn from_order(
-    rv: f64,
+fn from_order_equal<R: RandomNumberGenerator>(
+    rng: &mut R,
+    population_size: usize,
+    sample_size: usize,
+    order: &[usize],
+) -> Vec<usize> {
+    let mut sample = Vec::<usize>::with_capacity(sample_size + 1);
+    let mut r = rng.rusize_to(population_size);
+    let mut psum: usize = 0;
+
+    for &id in order.iter() {
+        let pnext = psum + sample_size;
+        if psum <= r && r < pnext {
+            sample.push(id);
+            r += population_size;
+        }
+        psum = pnext;
+    }
+
+    sample
+}
+
+fn from_order<R: RandomNumberGenerator>(
+    rng: &mut R,
     probabilities: &[f64],
     order: &[usize],
-) -> Result<Vec<usize>, SamplingError> {
-    Probabilities::check(probabilities)?;
-
-    let mut sample = Vec::<usize>::with_capacity(
-        probabilities.iter().fold(0.0, |acc, p| acc + p).ceil() as usize,
-    );
-    let mut r = rv;
+) -> Vec<usize> {
+    let mut sample =
+        Vec::<usize>::with_capacity(f64_to_usize(probabilities.iter().sum::<f64>().ceil()));
+    let mut r = rng.rf64();
     let mut psum: f64 = 0.0;
 
     for &id in order.iter() {
-        if psum <= r && r <= psum + probabilities[id] {
+        let pnext = psum + probabilities[id];
+        if psum <= r && r < pnext {
             sample.push(id);
             r += 1.0;
         }
 
-        psum += probabilities[id];
+        psum = pnext;
     }
 
-    Ok(sample)
+    sample
 }
 
-#[inline]
 fn shuffle<R>(rng: &mut R, len: usize) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     let mut order: Vec<usize> = (0..len).collect();
 

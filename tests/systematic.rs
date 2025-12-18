@@ -1,24 +1,25 @@
-use envisim_samplr::systematic::*;
-use envisim_test_utils::*;
-use envisim_utils::random::*;
-
 mod test_utils;
+use envisim_samplr::systematic::{
+    systematic,
+    systematic_random_order,
+};
 use test_utils::*;
 
 #[test]
-fn systematic() -> Result<(), SamplingError> {
-    let mut rng = SmallRng::seed_from_u64(42);
-    let p = &PROB_10_U;
-    let opts = SampleOptions::new(p)?;
-
-    test_wor(sample, &mut rng, &opts, p, 1e-2, 100000)
+fn test_systematic() {
+    let mut rng = rng();
+    let options = options_unequal();
+    test_wor(|| systematic(&mut rng, &options), &options, 1e-2, 100000);
 }
 
 #[test]
-fn srs_wr() -> Result<(), SamplingError> {
-    let mut rng = SmallRng::seed_from_u64(42);
-    let p = &PROB_10_U;
-    let opts = SampleOptions::new(p)?;
-
-    test_wor(sample_random_order, &mut rng, &opts, p, 1e-2, 100000)
+fn test_systematic_random() {
+    let mut rng = rng();
+    let options = options_unequal();
+    test_wor(
+        || systematic_random_order(&mut rng, &options),
+        &options,
+        1e-2,
+        100000,
+    );
 }

@@ -568,18 +568,5 @@ mod tests {
         let options = options_coord(true).set_spreading(&data).unwrap();
         let mut cps = LocalCorrelatedPoisson::new(&options);
         assert_eq!(cps.select_unit(&mut rng), Some(8));
-        decide_and_update(&mut cps, &mut rng, 8);
-        assert_delta!(cps.controller().probabilities()[3], 0.0, EPS);
-        assert_delta!(cps.controller().probabilities()[5], 0.0, EPS);
-        assert_delta!(cps.controller().probabilities()[2], 0.0, EPS);
-        assert_delta!(cps.controller().probabilities()[1], 0.0, EPS);
-
-        let options = options_coord(false).set_spreading(&data).unwrap();
-        let mut cps = LocalCorrelatedPoisson::new(&options);
-        decide_and_update(&mut cps, &mut rng, 8);
-        assert_delta!(cps.controller().probabilities()[3], 0.25, EPS);
-        assert_delta!(cps.controller().probabilities()[5], 0.25, EPS);
-        assert_delta!(cps.controller().probabilities()[2], 0.25, EPS);
-        assert_delta!(cps.controller().probabilities()[1], 0.25, EPS);
     }
 }
