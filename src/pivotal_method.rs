@@ -685,8 +685,7 @@ where
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
 
-    let mut main_sample: FxHashSet<usize> =
-        FxHashSet::from_iter(pm.controller.sample().get().iter().cloned());
+    let mut main_sample: FxHashSet<usize> = pm.controller.sample().get().iter().cloned().collect();
 
     for &size in sizes[0..sizes.len() - 1].iter() {
         assert!(pm.controller.indices().is_empty());

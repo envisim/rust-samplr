@@ -33,7 +33,7 @@ pub struct Enabled;
 pub struct Disabled;
 
 #[derive(Clone, Debug)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)]
 pub enum ProbabilitySpec<'a> {
     Equal { sample_size: usize },
     Unequal { values: Cow<'a, [f64]> },

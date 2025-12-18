@@ -40,8 +40,10 @@ impl Sample {
     pub fn sort_to_vec(&mut self) -> Vec<usize> { self.sort().to_vec() }
     pub fn get(&self) -> &[usize] { &self.0 }
     pub fn len(&self) -> usize { self.0.len() }
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
 }
 
+#[allow(clippy::exhaustive_enums)]
 pub enum DecideUnit {
     In,
     Out,

@@ -51,7 +51,6 @@ where
             from_order_equal(rng, population_size, *sample_size, &order)
         }
         ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
-        _ => panic!("ProbabilitySpec not implemented"),
     }
 }
 
@@ -86,7 +85,6 @@ where
             from_order_equal(rng, population_size, *sample_size, &order)
         }
         ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
-        _ => panic!("ProbabilitySpec not implemented"),
     }
 }
 

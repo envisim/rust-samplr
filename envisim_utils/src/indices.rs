@@ -12,8 +12,6 @@
 
 //! List of indices
 
-use std::usize;
-
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -176,12 +174,7 @@ impl Indices {
     /// ```
     #[inline]
     pub fn seq_after(&self, from: usize, max: usize) -> Option<usize> {
-        for id in (from + 1)..max {
-            if self.contains(id) {
-                return Some(id);
-            }
-        }
-        None
+        ((from + 1)..max).find(|&id| self.contains(id))
     }
 
     /// Checks if the list contains an index

@@ -215,7 +215,7 @@ pub fn pareto<R, S, B>(
     options: &SamplingOptions<'_, ProbabilitiesUnequal, S, B>,
 ) -> Result<Vec<usize>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
     let probabilities = options.probabilities().slice();
     let eps = options.eps();
