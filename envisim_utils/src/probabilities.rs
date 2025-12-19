@@ -183,6 +183,8 @@ impl Probabilities for ProbabilitiesEqual {
 }
 
 impl ProbabilitiesUnequal {
+    pub fn check(p: f64) -> bool { (0.0..=1.0).contains(&p) }
+    pub fn check_pos(p: f64) -> bool { Self::check(p) && p != 0.0 }
     pub fn new<P, S, B>(options: &SamplingOptions<P, S, B>) -> Self
     where
         P: Probabilities,
@@ -206,6 +208,8 @@ impl ProbabilitiesUnequal {
 }
 
 impl ProbabilitiesEqual {
+    pub fn check(p: usize, max: usize) -> bool { (0..=max).contains(&p) }
+    pub fn check_pos(p: usize, max: usize) -> bool { Self::check(p, max) && p != 0 }
     pub fn new<S, B>(options: &SamplingOptions<Self, S, B>) -> Self { options.into() }
 }
 

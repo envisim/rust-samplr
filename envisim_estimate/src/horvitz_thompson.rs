@@ -12,11 +12,22 @@
 
 //! Horvitz-Thompson estimators (single count estimators)
 
-use envisim_samplr::{SampleOptions, SamplingError};
-use envisim_utils::kd_tree::Searcher;
-use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{InputError, Matrix, Probabilities};
 use std::num::NonZeroUsize;
+
+use envisim_utils::kd_tree::{
+    Searcher,
+    TreeBuilder,
+};
+use envisim_utils::matrix::Matrix;
+use envisim_utils::probabilities::{
+    Probabilities,
+    ProbabilitiesUnequal,
+};
+use envisim_utils::sampling_options::{
+    Enabled,
+    SamplingOptions,
+};
+use envisim_utils::utils::usize_to_f64;
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -29,26 +40,35 @@ use std::num::NonZeroUsize;
 ///
 /// estimate(&y, &pi).unwrap(); // Should be about 5.0
 /// ```
-#[inline]
-pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
-    InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
+pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Option<f64> {
+    if y_values.len() != probabilities.len() {
+        return None;
+    }
 
-    Ok(y_values
-        .iter()
-        .zip(probabilities.iter())
-        .fold(0.0, |acc, (&y, &p)| acc + y / p))
+    let mut est = 0.0;
+    for (i, &y) in y_values.iter().enumerate() {
+        let p = probabilities[i];
+        if !ProbabilitiesUnequal::check(p) {
+            return None;
+        } else if p == 0.0 {
+            return Some(f64::NAN);
+        }
+        est += y / p;
+    }
+    Some(est)
 }
 
 /// Ratio estimator of total, using auxilliary variable `x_values`.
-#[inline]
 pub fn ratio(
     y_values: &[f64],
     x_values: &[f64],
     probabilities: &[f64],
     x_total: f64,
-) -> Result<f64, SamplingError> {
-    InputError::check_range_f64(x_total, 0.0, f64::INFINITY)?;
-    Ok(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
+) -> Option<f64> {
+    if !x_values.iter().all(|x| (0.0..).contains(x)) {
+        return None;
+    }
+    Some(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
 }
 
 /// Horvitz-Thompson estimator of variance of total estimate
@@ -56,33 +76,41 @@ pub fn variance(
     y_values: &[f64],
     probabilities: &[f64],
     probabilities_second_order: &Matrix,
-) -> Result<f64, SamplingError> {
+) -> Option<f64> {
     let sample_size = y_values.len();
-    InputError::check_lengths(y_values, probabilities)
-        .and(InputError::check_sizes(
-            sample_size,
-            probabilities_second_order.nrow(),
-        ))
-        .and(InputError::check_sizes(
-            sample_size,
-            probabilities_second_order.ncol(),
-        ))
-        .and(Probabilities::check(probabilities))
-        .and(Probabilities::check(probabilities_second_order.data()))?;
 
+    if sample_size != probabilities_second_order.nrow()
+        || sample_size != probabilities_second_order.ncol()
+    {
+        return None;
+    } else if sample_size == 0 {
+        return Some(0.0);
+    }
+
+    let yp = quotient(y_values, probabilities)?;
+
+    // Do first unit first
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
-        let y_pi = y_values[i] / probabilities[i];
-        variance += y_pi.powi(2) * (1.0 - probabilities[i]);
+        let p_i = probabilities[i];
+        if yp[i].is_nan() {
+            return Some(f64::NAN);
+        }
+        variance += yp[i].powi(2) * (1.0 - p_i);
 
-        for j in (i + 1)..sample_size {
-            variance += 2.0 * y_pi * y_values[j] / probabilities[j]
-                * (1.0 - probabilities[i] * probabilities[j] / probabilities_second_order[(i, j)]);
+        for j in 0..i {
+            let p_ij = probabilities_second_order[(i, j)];
+            if !ProbabilitiesUnequal::check(p_ij) {
+                return None;
+            } else if p_ij == 0.0 {
+                return Some(f64::NAN);
+            }
+            variance += 2.0 * yp[i] * yp[j] * (1.0 - p_i * probabilities[j] / p_ij);
         }
     }
 
-    Ok(variance)
+    Some(variance)
 }
 
 /// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample
@@ -90,60 +118,60 @@ pub fn syg_variance(
     y_values: &[f64],
     probabilities: &[f64],
     probabilities_second_order: &Matrix,
-) -> Result<f64, SamplingError> {
+) -> Option<f64> {
     let sample_size = y_values.len();
-    InputError::check_lengths(y_values, probabilities)
-        .and(InputError::check_sizes(
-            sample_size,
-            probabilities_second_order.nrow(),
-        ))
-        .and(InputError::check_sizes(
-            sample_size,
-            probabilities_second_order.ncol(),
-        ))
-        .and(Probabilities::check(probabilities))
-        .and(Probabilities::check(probabilities_second_order.data()))?;
 
+    if sample_size != probabilities_second_order.nrow()
+        || sample_size != probabilities_second_order.ncol()
+    {
+        return None;
+    } else if sample_size == 0 {
+        return Some(0.0);
+    }
+
+    let yp = quotient(y_values, probabilities)?;
     let mut variance: f64 = 0.0;
 
-    for i in 0..sample_size {
-        let y_pi = y_values[i] / probabilities[i];
+    for i in 1..sample_size {
+        let p_i = probabilities[i];
+        if yp[i].is_nan() {
+            return Some(f64::NAN);
+        }
 
-        for j in (i + 1)..sample_size {
-            variance -= (y_pi - y_values[j] / probabilities[j]).powi(2)
-                * (1.0 - probabilities[i] * probabilities[j] / probabilities_second_order[(i, j)]);
+        for j in 0..i {
+            let p_ij = probabilities_second_order[(i, j)];
+            if !ProbabilitiesUnequal::check(p_ij) {
+                return None;
+            } else if p_ij == 0.0 {
+                return Some(f64::NAN);
+            }
+            variance -= (yp[i] - yp[j]).powi(2) * (1.0 - p_i * probabilities[j] / p_ij);
         }
     }
 
-    Ok(variance)
+    Some(variance)
 }
 
 /// Deville estimator of variance of total estimate
-pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, SamplingError> {
-    InputError::check_lengths(y_values, probabilities).and(Probabilities::check(probabilities))?;
-
-    let y_pi: Vec<f64> = y_values
-        .iter()
-        .zip(probabilities.iter())
-        .map(|(&y, &p)| y / p)
-        .collect();
+pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Option<f64> {
+    let yp = quotient(y_values, probabilities)?;
 
     let q: Vec<f64> = probabilities.iter().map(|&p| 1.0 - p).collect();
 
-    let s1mp = sum(&q);
-    let del = y_pi
+    let s1mp = q.iter().sum::<f64>();
+    let del = yp
         .iter()
         .zip(q.iter())
         .fold(0.0, |acc, (&a, &b)| acc + a * b);
     let s1mp_del = s1mp / del;
     let sak2 = q.iter().fold(0.0, |acc, &a| acc + a.powi(2)) / s1mp.powi(2);
 
-    let dsum = y_pi
+    let dsum = yp
         .iter()
         .zip(q.iter())
         .fold(0.0, |acc, (&a, &b)| acc + (a - s1mp_del).powi(2) * b);
 
-    Ok(1.0 / (1.0 - sak2) * dsum)
+    Some(1.0 / (1.0 - sak2) * dsum)
 }
 
 /// Local mean estimator of variance of total estimate.
@@ -153,38 +181,34 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Result<f64, 
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn local_mean_variance(
+pub fn local_mean_variance<P, B>(
     y_values: &[f64],
-    options: &SampleOptions,
+    options: &SamplingOptions<'_, P, Enabled, B>,
     n_neighbours: NonZeroUsize,
-) -> Result<f64, SamplingError> {
+) -> Option<f64>
+where
+    P: Probabilities,
+{
     let sample_size = y_values.len();
 
     if sample_size == 0 {
-        return Ok(f64::NAN);
+        return Some(0.0);
     }
 
-    let probabilities = options.probabilities();
+    let probabilities = options.probabilities().slice();
     let tree = options
-        .check_spreading()?
         .spreading()
-        .unwrap()
-        .build_tree(&mut (0..sample_size).collect::<Vec<usize>>())?;
+        .build(&mut (0..sample_size).collect::<Vec<usize>>())?;
     let mut searcher = Searcher::new(&tree, n_neighbours);
-    let auxilliaries = tree.data();
 
-    InputError::check_lengths(y_values, probabilities)
-        .and(InputError::check_sizes(sample_size, auxilliaries.nrow()))
-        .and(Probabilities::check(probabilities))?;
-
-    let yp: Vec<f64> = y_values
-        .iter()
-        .zip(probabilities)
-        .map(|(&y, &p)| y / p)
-        .collect();
+    let yp = quotient(y_values, probabilities.as_ref())?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
+        if yp[i].is_nan() {
+            return Some(f64::NAN);
+        }
+
         searcher.find_neighbours_of_id(&tree, i).unwrap();
         let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len()) + 1.0;
         let local_mean: f64 = (yp[i] + searcher.neighbours().iter().map(|&id| yp[id]).sum::<f64>())
@@ -193,5 +217,23 @@ pub fn local_mean_variance(
             number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
     }
 
-    Ok(variance)
+    Some(variance)
+}
+
+fn quotient(ys: &[f64], ps: &[f64]) -> Option<Vec<f64>> {
+    if ys.len() != ps.len() {
+        return None;
+    }
+
+    let mut v = Vec::<f64>::with_capacity(ys.len());
+    for (&y, &p) in ys.iter().zip(ps.iter()) {
+        if !ProbabilitiesUnequal::check(p) {
+            return None;
+        } else if p == 0.0 {
+            v.push(f64::NAN);
+        } else {
+            v.push(y / p);
+        }
+    }
+    Some(v)
 }

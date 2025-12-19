@@ -12,35 +12,35 @@
 
 //! Nearest neighbour estimator
 
-use envisim_samplr::{AuxiliariesOptions, SamplingError};
-use envisim_utils::kd_tree::Searcher;
+use envisim_utils::kd_tree::{
+    Searcher,
+    TreeBuilder,
+};
+use envisim_utils::matrix::Matrix;
+use envisim_utils::sampling_options::SpreadingOptions;
 use envisim_utils::utils::usize_to_f64;
-use envisim_utils::{InputError, Matrix};
-use rustc_hash::{FxBuildHasher, FxHashMap};
+use rustc_hash::{
+    FxBuildHasher,
+    FxHashMap,
+};
 
 /// Nearest neighbour estimator of total.
 /// Is not an design-unbiased estimator of the total.
-pub fn nearest_neighbour(
-    y_values: &[f64],
-    sample: &[usize],
-    auxiliaries: &Matrix,
-) -> Result<f64, SamplingError> {
+pub fn nearest_neighbour(y_values: &[f64], sample: &[usize], auxiliaries: &Matrix) -> Option<f64> {
     let population_size = auxiliaries.nrow();
     let sample_size = sample.len();
 
-    InputError::check_lengths(y_values, sample).and(InputError::check_range_usize(
-        *sample.iter().max().unwrap_or(&0usize),
-        0,
-        population_size,
-    ))?;
-
-    if sample_size == 0 {
-        return Ok(f64::NAN);
+    if sample.len() != y_values.len() || !sample.iter().all(|id| (0..population_size).contains(id))
+    {
+        return None;
     }
 
-    let tree = AuxiliariesOptions::new(auxiliaries)?
-        .est_bucket_size()?
-        .build_tree(&mut sample.to_vec())?;
+    if sample_size == 0 {
+        return Some(0.0);
+    }
+
+    let spr_opts = SpreadingOptions::new(auxiliaries).unwrap();
+    let tree = spr_opts.build(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
 
     let mut number_of_neighbours =
@@ -61,8 +61,10 @@ pub fn nearest_neighbour(
         }
     }
 
-    Ok(y_values
-        .iter()
-        .zip(sample.iter())
-        .fold(0.0, |acc, (&y, id)| acc + y * number_of_neighbours[id]))
+    Some(
+        y_values
+            .iter()
+            .zip(sample.iter())
+            .fold(0.0, |acc, (&y, id)| acc + y * number_of_neighbours[id]),
+    )
 }

@@ -31,7 +31,6 @@ needless_collect = "warn"
 
 [dependencies]
 envisim_utils = {version="0.3.0", path="../envisim_utils", default-features=false}
-envisim_samplr = {version="0.4.0", path="../"}
 rustc-hash = "2.1.1"
 
 [dev-dependencies]
