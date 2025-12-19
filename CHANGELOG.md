@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - Bump `envisim_utils`.
-- Added spatial_balance_energy measure.
-- SRS popsize/samplesize order.
+- Refactored, now uses SamplingOptions from `envisim_utils`
 
 ## [0.4.0] - 2025-08-22
 ### Changed

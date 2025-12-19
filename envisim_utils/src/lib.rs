@@ -12,7 +12,6 @@
 
 //! Utility functions for envisim
 
-pub mod error;
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;
