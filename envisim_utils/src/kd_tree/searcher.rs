@@ -153,7 +153,7 @@ impl Searcher {
                 return;
             }
 
-            let distance = data.distance_to_row(id, &self.unit);
+            let distance = data.distance_to_row(id, &self.unit).unwrap();
 
             if distance < current_max {
                 self.reset();
@@ -175,7 +175,7 @@ impl Searcher {
                 return;
             }
 
-            let distance = data.distance_to_row(id, &self.unit);
+            let distance = data.distance_to_row(id, &self.unit).unwrap();
 
             // We should add a unit only in two circumstances:
             // - if the unit is closer than the current largest dist
@@ -369,7 +369,7 @@ impl<'a> TreeSearcherWeighted<'a> {
                 return;
             }
 
-            let distance = data.distance_to_row(id, &self.base().unit);
+            let distance = data.distance_to_row(id, &self.base().unit).unwrap();
 
             // We should add a unit only in two circumstances:
             // - if the unit is closer than the current largest dist

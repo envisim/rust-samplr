@@ -5,7 +5,7 @@ use envisim_utils::Matrix;
 
 #[test]
 fn test_voronoi() -> Result<(), SamplingError> {
-    let data = Matrix::new(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
     let sb = voronoi(&[0], &options)?;
@@ -16,7 +16,7 @@ fn test_voronoi() -> Result<(), SamplingError> {
 
 #[test]
 fn test_local() -> Result<(), SamplingError> {
-    let data = Matrix::new(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
     let sb = local(&[0], &options)?;

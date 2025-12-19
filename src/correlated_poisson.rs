@@ -14,9 +14,9 @@
 
 use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::{
-    kd_tree::SearcherWeighted, random::RandomNumberGenerator, utils::usize_to_f64,
-};
+use envisim_utils::kd_tree::SearcherWeighted;
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::utils::usize_to_f64;
 
 struct VariantSequential {
     unit: usize,
@@ -413,7 +413,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -429,9 +429,12 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let rv = [0.2; 10];
-/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.set_random_values(&rv)?.sample(&mut rng, scps)?;
+/// let s = SampleOptions::new(&p)?
+///     .set_spreading(&m)?
+///     .set_random_values(&rv)?
+///     .sample(&mut rng, scps)?;
 ///
 /// assert_eq!(s.len(), 5);
 /// # Ok::<(), SamplingError>(())
@@ -460,7 +463,7 @@ where
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lcps)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -529,7 +532,7 @@ mod tests {
     #[test]
     fn scps_variant() -> Result<(), SamplingError> {
         let mut rng = SmallRng::seed_from_u64(42);
-        let data = Matrix::from_ref(&DATA_10_2, 10);
+        let data = Matrix::new(&DATA_10_2, 10).unwrap();
         let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
         let mut cps = VariantSpatial::new(&mut rng, &options)?;
@@ -551,7 +554,7 @@ mod tests {
     #[test]
     fn lcps_variant() -> Result<(), SamplingError> {
         let mut rng = SmallRng::seed_from_u64(42);
-        let data = Matrix::from_ref(&DATA_10_2, 10);
+        let data = Matrix::new(&DATA_10_2, 10).unwrap();
         let options = SampleOptions::new(&PROB_10_E)?.set_spreading(&data)?;
 
         let mut cps = VariantLocal::new(&mut rng, &options)?;

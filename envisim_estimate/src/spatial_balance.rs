@@ -28,7 +28,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
@@ -91,7 +91,7 @@ pub fn voronoi(sample: &[usize], options: &SampleOptions) -> Result<f64, Samplin
 /// use envisim_utils::kd_tree::TreeBuilder;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
@@ -128,7 +128,7 @@ pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingE
         FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     // The gram matrix
-    let mut norm_matrix = Matrix::from_value(0.0, (cols, cols * 2));
+    let mut norm_matrix = Matrix::from_value(0.0, (cols, cols * 2)).unwrap();
 
     for i in 0..cols {
         norm_matrix[(i, i + cols)] = 1.0;
@@ -184,12 +184,16 @@ pub fn local(sample: &[usize], options: &SampleOptions) -> Result<f64, SamplingE
     let inv_matrix = Matrix::new(
         &norm_matrix.data()[norm_matrix.nrow().pow(2)..],
         norm_matrix.nrow(),
-    );
+    )
+    .unwrap();
 
     let result = voronoi_means.iter().fold(0.0, |acc, (_, vec)| {
-        acc + Matrix::from_ref(vec, 1)
+        acc + Matrix::new(vec, 1)
+            .unwrap()
             .mult(&inv_matrix)
-            .mult(&Matrix::from_ref(vec, cols))
+            .unwrap()
+            .mult(&Matrix::new(vec, cols).unwrap())
+            .unwrap()
             .data()[0]
     });
 

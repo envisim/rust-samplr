@@ -3,14 +3,13 @@ use envisim_utils::kd_tree::*;
 use envisim_utils::{Matrix, Probabilities};
 use std::num::NonZeroUsize;
 
+const MATRIX_DATA: [f64; 10] = [
+    0.0, 1.0, 2.0, 13.0, 14.0, //
+    0.0, 10.0, 20.0, 30.0, 40.0, //
+];
+
 fn matrix_new<'a>() -> Matrix<'a> {
-    Matrix::new(
-        &[
-            0.0, 1.0, 2.0, 13.0, 14.0, //
-            0.0, 10.0, 20.0, 30.0, 40.0, //
-        ],
-        5,
-    )
+    Matrix::new(&MATRIX_DATA, 5).unwrap()
 }
 
 #[test]

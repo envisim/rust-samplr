@@ -27,7 +27,7 @@ fn test_rpm() -> Result<(), SamplingError> {
 fn test_lpm1() -> Result<(), SamplingError> {
     let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_1, &mut rng, &opts, p, 1e-2, 12000)
@@ -37,7 +37,7 @@ fn test_lpm1() -> Result<(), SamplingError> {
 fn test_lpm1s() -> Result<(), SamplingError> {
     let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_1s, &mut rng, &opts, p, 1e-2, 10000)
@@ -47,7 +47,7 @@ fn test_lpm1s() -> Result<(), SamplingError> {
 fn test_lpm2() -> Result<(), SamplingError> {
     let mut rng = SmallRng::seed_from_u64(42);
     let p = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(p)?.set_spreading(&data)?;
 
     test_wor(lpm_2, &mut rng, &opts, p, 1e-2, 12000)
@@ -60,7 +60,7 @@ fn test_hlpm2() -> Result<(), SamplingError> {
 
     let mut rng = SmallRng::seed_from_u64(42);
     let probs = &PROB_10_U;
-    let data = Matrix::from_ref(&DATA_10_2, 10);
+    let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let opts = SampleOptions::new(probs)?.set_spreading(&data)?;
 
     {

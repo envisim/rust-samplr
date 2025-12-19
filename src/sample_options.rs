@@ -12,7 +12,8 @@
 
 use crate::SamplingError;
 use envisim_utils::kd_tree::{midpoint_slide, FindSplit, Node, TreeBuilder};
-use envisim_utils::{random::RandomNumberGenerator, InputError, Matrix, Probabilities};
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::{InputError, Matrix, Probabilities};
 use std::num::NonZeroUsize;
 
 pub struct AuxiliariesOptions<'a> {

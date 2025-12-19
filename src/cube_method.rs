@@ -15,7 +15,9 @@
 use crate::srs;
 use crate::utils::SampleContainer;
 pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::{kd_tree::Searcher, random::RandomNumberGenerator, InputError, Matrix};
+use envisim_utils::kd_tree::Searcher;
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::{InputError, Matrix, MatrixIndex};
 use rustc_hash::FxSeededState;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -63,13 +65,13 @@ where
     #[inline]
     fn new(container: SampleContainer<'a, R>, variant: T) -> Result<Self, SamplingError> {
         let balancing_data = container.options().check_balancing()?.balancing().unwrap();
-        let (b_nrow, b_ncol) = balancing_data.dim();
-        InputError::check_sizes(b_nrow, container.population_size())?;
-        let mut adjusted_data = Matrix::new(balancing_data.data(), b_nrow);
+        let b_dims = balancing_data.dims();
+        let mut adjusted_data = Matrix::new(balancing_data.data(), b_dims.row())
+            .ok_or_else(|| InputError::InvalidSize(b_dims.row(), container.population_size()))?;
 
-        for i in 0..b_nrow {
+        for i in 0..b_dims.row() {
             let p = container.probabilities()[i];
-            for j in 0..b_ncol {
+            for j in 0..b_dims.col() {
                 adjusted_data[(i, j)] /= p;
             }
         }
@@ -79,7 +81,7 @@ where
             variant,
             candidates: Vec::<usize>::with_capacity(20),
             adjusted_data,
-            candidate_data: Matrix::from_value(0.0, (b_ncol, b_ncol + 1)),
+            candidate_data: Matrix::from_value(0.0, (b_dims.col(), b_dims.col() + 1)).unwrap(),
         })
     }
     #[inline]
@@ -131,7 +133,10 @@ where
     #[inline]
     fn set_candidate_data(&mut self) -> &mut Self {
         let b_cols = self.candidates.len() - 1;
-        assert_eq!(self.candidate_data.dim(), (b_cols, self.candidates.len()));
+        assert_eq!(
+            self.candidate_data.dims(),
+            MatrixIndex(b_cols, self.candidates.len())
+        );
 
         for (i, &id) in self.candidates.iter().enumerate() {
             for j in 0..b_cols {
@@ -325,7 +330,7 @@ where
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10);
+/// ], 10).unwrap();
 /// let s = SampleOptions::new(&p)?.set_balancing(&bal_m)?.sample(&mut rng, cube)?;
 ///
 /// assert_eq!(s.len(), 5);
@@ -360,7 +365,7 @@ where
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10);
+/// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
 /// let options = SampleOptions::new(&p)?.set_balancing(&bal_m)?;
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
@@ -401,11 +406,13 @@ where
             adjusted_data: Matrix::from_value(
                 0.0,
                 (balancing_data.nrow(), balancing_data.ncol() + 1),
-            ),
+            )
+            .unwrap(),
             candidate_data: Matrix::from_value(
                 0.0,
                 (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
-            ),
+            )
+            .unwrap(),
         },
         strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
             probabilities.len() / 10,
@@ -432,8 +439,9 @@ where
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10);
-/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// ], 10).unwrap();
+/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
+///     .unwrap();
 /// let s = SampleOptions::new(&p)?
 ///     .set_balancing(&bal_m)?
 ///     .set_spreading(&spr_m)?
@@ -479,8 +487,9 @@ where
 /// let bal_m = Matrix::from_vec(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10);
-/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
+/// ], 10).unwrap();
+/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
+///     .unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
 /// let options = SampleOptions::new(&p)?.set_balancing(&bal_m)?.set_spreading(&spr_m)?;
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
@@ -530,11 +539,13 @@ where
             adjusted_data: Matrix::from_value(
                 0.0,
                 (balancing_data.nrow(), balancing_data.ncol() + 1),
-            ),
+            )
+            .unwrap(),
             candidate_data: Matrix::from_value(
                 0.0,
                 (balancing_data.ncol() + 1, balancing_data.ncol() + 2),
-            ),
+            )
+            .unwrap(),
         },
         strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
             probabilities.len() / 10,
@@ -745,7 +756,7 @@ where
 /// mutated into rref.
 #[inline]
 fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
-    let (nrow, ncol) = mat.dim();
+    let MatrixIndex(nrow, ncol) = mat.dims();
     assert!(nrow > 0);
     assert!(nrow == ncol - 1);
 
@@ -800,23 +811,29 @@ mod tests {
 
     #[test]
     fn null() {
-        let mut mat1 = Matrix::new(
-            &[
-                1.0, 2.0, 3.0, 1.0, 5.0, 10.0, 1.0, 5.0, 10.0, 1.0, 5.0, 10.0,
+        let mut mat1 = Matrix::from_vec(
+            vec![
+                1.0, 2.0, 3.0, 1.0, //
+                5.0, 10.0, 1.0, 5.0, //
+                10.0, 1.0, 5.0, 10.0, //
             ],
             3,
-        );
+        )
+        .unwrap();
         mat1.reduced_row_echelon_form();
         assert!(mat1.data() == [1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
-        assert_fvec(&mat1.prod_vec(&mat1_nullvec), &[0.0, 0.0, 0.0]);
+        assert_fvec(&mat1.prod_vec(&mat1_nullvec).unwrap(), &[0.0, 0.0, 0.0]);
 
-        let mut mat2 = Matrix::new(
-            &[
-                1.0, 2.0, 3.0, 1.0, 5.0, 10.0, 10.0, 5.0, 1.0, 1.0, 5.0, 11.0,
+        let mut mat2 = Matrix::from_vec(
+            vec![
+                1.0, 2.0, 3.0, 1.0, //
+                5.0, 10.0, 10.0, 5.0, //
+                1.0, 1.0, 5.0, 11.0, //
             ],
             3,
-        );
+        )
+        .unwrap();
         mat2.reduced_row_echelon_form();
         assert!(&mat2.data()[0..9] == vec![1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
         assert_fvec(
@@ -824,6 +841,6 @@ mod tests {
             &[-2.5, 1.833333333333333, 0.166666666666667],
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
-        assert_fvec(&mat2.prod_vec(&mat2_nullvec), &[0.0, 0.0, 0.0]);
+        assert_fvec(&mat2.prod_vec(&mat2_nullvec).unwrap(), &[0.0, 0.0, 0.0]);
     }
 }
