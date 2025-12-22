@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MatrixIndex as struct instead of tuple.
 - Most Matrix methods are allowed to fail by returning Option.
 - Matrix::dim renamed to Matrix::dims
+- Added Matrix::distance_between_rows
 - Remove reexports from modules
 - Added SamplingOptions (previously SampleOptions in `envisim_samplr`)
 - Removed struct Probabilities -- added trait Probabilities and sturcts ProbabilitiesEqual, ProbabilitiesUnequal
 - Added Indices::seq_after
-- Removed InputError
+- Removed InputError, added NodeSearcherError, PipsError.
+- removed utils::sum, added utils::f64_to_usize
 
 ## [0.3.0] - 2025-08-22
 ### Changed

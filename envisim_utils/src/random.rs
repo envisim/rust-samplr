@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-pub trait RandomNumberGenerator: Sized {
+pub trait RandomNumberGenerator {
     /// Generates a uniform number in [0.0, 1.0)
     fn rf64(&mut self) -> f64;
     /// Generates a uniform number in [0.0, b)
