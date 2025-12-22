@@ -28,12 +28,10 @@ pub mod correlated_poisson;
 pub mod cube_method;
 mod error;
 pub mod pivotal_method;
-mod sample_options;
+pub mod sample_controller;
 pub mod srs;
 pub mod systematic;
 pub mod unequal;
-mod utils;
 
+pub use envisim_utils::sampling_options::*;
 pub use error::SamplingError;
-pub use sample_options::{AuxiliariesOptions, SampleOptions, Sampler};
-pub use utils::SampleContainer;

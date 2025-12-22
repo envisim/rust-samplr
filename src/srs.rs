@@ -12,8 +12,12 @@
 
 //! Simple random sampling
 
-pub use crate::SamplingError;
-use envisim_utils::{random::RandomNumberGenerator, InputError};
+use envisim_utils::probabilities::ProbabilitiesEqual;
+use envisim_utils::random::RandomNumberGenerator;
+pub use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+};
 
 /// Draw a simple random sample without replacement
 ///
@@ -23,21 +27,28 @@ use envisim_utils::{random::RandomNumberGenerator, InputError};
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample(&mut rng, 5, 10)?;
+/// let opts = SamplingOptions::new_equal(10, 5)?;
+/// let s = srs(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample<R>(
+pub fn srs<R, S, B>(
     rng: &mut R,
-    sample_size: usize,
-    population_size: usize,
-) -> Result<Vec<usize>, SamplingError>
+    options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    InputError::check_sample_size(sample_size, population_size)?;
+    let population_size = options.population_size();
+    let sample_size = options.sample_size();
+
+    if sample_size == 0 {
+        return vec![];
+    } else if sample_size == population_size {
+        return (0usize..population_size).collect();
+    }
 
     let mut sample = Vec::<usize>::with_capacity(sample_size);
 
@@ -47,7 +58,7 @@ where
         }
     }
 
-    Ok(sample)
+    sample
 }
 
 /// Draw a simple random sample with replacement
@@ -58,26 +69,33 @@ where
 /// use envisim_utils::random::*;
 ///
 /// let mut rng = SmallRng::from_os_rng();
-/// let s = sample_with_replacement(&mut rng, 5, 10)?;
+/// let opts = SamplingOptions::new_equal(10, 5)?;
+/// let s = srs_with_replacement(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 #[inline]
-pub fn sample_with_replacement<R>(
+pub fn srs_with_replacement<R, S, B>(
     rng: &mut R,
-    sample_size: usize,
-    population_size: usize,
-) -> Result<Vec<usize>, SamplingError>
+    options: &SamplingOptions<'_, ProbabilitiesEqual, S, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
 {
-    InputError::check_sample_size(sample_size, population_size)?;
+    let population_size = options.population_size();
+    let sample_size = options.sample_size();
+
+    if sample_size == 0 {
+        return vec![];
+    } else if sample_size == population_size {
+        return (0usize..population_size).collect();
+    }
 
     let mut sample: Vec<usize> = (0..sample_size)
         .map(|_| rng.rusize_to(population_size))
         .collect();
 
     sample.sort_unstable();
-    Ok(sample)
+    sample
 }

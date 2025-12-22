@@ -1,14 +1,15 @@
 use envisim_test_utils::*;
-use envisim_utils::{Matrix, MatrixIndex};
+use envisim_utils::matrix::{
+    Matrix,
+    MatrixIndex,
+};
 
 const DATA_4_2: [f64; 8] = [
     0.0, 1.0, 2.0, 3.0, //
     10.0, 11.0, 12.0, 13.0, //
 ];
 
-fn matrix_new<'a>() -> Matrix<'a> {
-    Matrix::new(&DATA_4_2, 4).unwrap()
-}
+fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&DATA_4_2, 4).unwrap() }
 
 #[test]
 fn borrow_vs_owned() {

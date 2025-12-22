@@ -12,231 +12,311 @@
 
 //! Pivotal method designs
 
-use crate::utils::SampleContainer;
-pub use crate::{SampleOptions, SamplingError};
-use envisim_utils::utils::{sum, usize_to_f64};
-use envisim_utils::{kd_tree::Searcher, random::RandomNumberGenerator, InputError};
+use envisim_utils::indices::Pair;
+use envisim_utils::kd_tree::Searcher;
+use envisim_utils::pips::{
+    Probabilities,
+    ProbabilitiesUnequal,
+};
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::sampling_options::{
+    Enabled,
+    ProbabilitySpec,
+};
+pub use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+};
+use envisim_utils::utils::usize_to_f64;
 use rustc_hash::FxHashSet;
 
-type Pair = (usize, usize);
+pub use crate::SamplingError;
+use crate::sample_controller::{
+    BasicSampleController,
+    SampleController,
+    SpreadingSampleController,
+};
 
-struct VariantSequential {
-    pair: Pair,
-}
-struct VariantRandom {}
-struct VariantLocal1 {
-    searcher: Searcher,
-    candidates: Vec<usize>,
-}
-struct VariantLocal1S {
-    searcher: Searcher,
-    candidates: Vec<usize>,
-    history: Vec<usize>,
-}
-struct VariantLocal2 {
-    searcher: Searcher,
-}
-
-pub struct PivotalMethod<'a, R, T>
+pub trait PivotalMethod<C>
 where
-    R: RandomNumberGenerator + ?Sized,
-    T: PivotalMethodVariant<'a, R>,
+    C: SampleController,
 {
-    container: SampleContainer<'a, R>,
-    variant: T,
-}
-
-pub trait PivotalMethodVariant<'a, R>
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError>
-    where
-        Self: Sized;
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)>;
-}
-
-impl<'a, R, T> PivotalMethod<'a, R, T>
-where
-    R: RandomNumberGenerator + ?Sized,
-    T: PivotalMethodVariant<'a, R>,
-{
-    #[inline]
-    fn new(container: SampleContainer<'a, R>, variant: T) -> Result<Self, SamplingError> {
-        Ok(PivotalMethod { container, variant })
+    fn controller(&self) -> &C;
+    fn controller_mut(&mut self) -> &mut C;
+    fn sample<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Vec<usize> {
+        self.run(rng);
+        self.controller_mut().sample_mut().sort_to_vec()
     }
-    #[inline]
-    fn sample(&mut self) -> Result<Vec<usize>, SamplingError> {
-        Ok(self.run().get_sorted_sample().to_vec())
-    }
-    #[inline]
-    fn run(&mut self) -> &mut Self {
-        while let Some(units) = self.variant.select_units(&mut self.container) {
-            let rv = self.container.rng().rf64();
-            self.update_probabilities(units, rv);
-        }
+    fn run<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+        while self.update_probabilities(rng) {}
 
-        self.container
-            .update_last_unit()
+        self.controller_mut()
+            .unit_decide_last(rng)
             .expect("last unit to be decided");
-
-        self
     }
-    #[inline]
-    fn update_probabilities(&mut self, (id1, id2): Pair, rv: f64) {
-        let mut p1 = self.container.probabilities()[id1];
-        let mut p2 = self.container.probabilities()[id2];
+    fn select_pair<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Pair;
+    fn update_probabilities<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> bool {
+        let (id1, id2, cont) = match self.select_pair(rng) {
+            Pair::More(id1, id2) => (id1, id2, true),
+            Pair::Two(id1, id2) => (id1, id2, false),
+            _ => {
+                return false;
+            }
+        };
+
+        let one = self.controller().probabilities().one();
+
+        let p1 = self.controller().probabilities().data()[id1];
+        let p2 = self.controller().probabilities().data()[id2];
         let psum = p1 + p2;
 
-        if psum > 1.0 {
-            if 1.0 - p2 > rv * (2.0 - psum) {
-                p1 = 1.0;
-                p2 = psum - 1.0;
+        if psum == one {
+            if self.controller().draw(rng, one) < p1 {
+                self.controller_mut()
+                    .unit_set_one(id1)
+                    .expect("id1 to update");
+                self.controller_mut()
+                    .unit_set_zero(id2)
+                    .expect("id2 to update");
             } else {
-                p1 = psum - 1.0;
-                p2 = 1.0;
+                self.controller_mut()
+                    .unit_set_zero(id1)
+                    .expect("id1 to update");
+                self.controller_mut()
+                    .unit_set_one(id2)
+                    .expect("id2 to update");
             }
-        } else if p2 > rv * psum {
-            // psum <= 1.0
-            p1 = 0.0;
-            p2 = psum;
-        } else {
-            // psum <= 1.0
-            p1 = psum;
-            p2 = 0.0;
+
+            return cont;
         }
 
-        self.container
-            .set_probability_and_decide(id1, p1)
-            .expect("id1 to update");
-        self.container
-            .set_probability_and_decide(id2, p2)
-            .expect("id2 to update");
-    }
-    #[inline]
-    fn get_sample(&mut self) -> &[usize] {
-        self.container.sample().get()
-    }
-    #[inline]
-    fn get_sorted_sample(&mut self) -> &[usize] {
-        self.container.sample_mut().sort().get()
+        if one < psum {
+            if self.controller().draw(rng, one + one - psum) < one - p2 {
+                self.controller_mut()
+                    .unit_set_one(id1)
+                    .expect("id1 to update");
+                self.controller_mut()
+                    .unit_set_and_decide(id2, psum - one)
+                    .expect("id2 to update");
+            } else {
+                self.controller_mut()
+                    .unit_set_and_decide(id1, psum - one)
+                    .expect("id1 to update");
+                self.controller_mut()
+                    .unit_set_one(id2)
+                    .expect("id2 to update");
+            }
+            return cont;
+        }
+
+        // psum < one
+        if self.controller().probabilities().draw(rng, psum) < p1 {
+            self.controller_mut()
+                .unit_set_and_decide(id1, psum)
+                .expect("id1 to update");
+            self.controller_mut()
+                .unit_set_zero(id2)
+                .expect("id2 to update");
+        } else {
+            self.controller_mut()
+                .unit_set_zero(id1)
+                .expect("id1 to update");
+            self.controller_mut()
+                .unit_set_and_decide(id2, psum)
+                .expect("id2 to update");
+        }
+
+        cont
     }
 }
 
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantSequential
+pub struct SequentialPivotalMethod<P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        PivotalMethod::new(
-            SampleContainer::new(rng, options)?,
-            VariantSequential { pair: (0, 1) },
-        )
-    }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        if container.indices().len() <= 1 {
-            return None;
+    controller: BasicSampleController<P>,
+    pair: (usize, usize),
+}
+impl<P> PivotalMethod<BasicSampleController<P>> for SequentialPivotalMethod<P>
+where
+    P: Probabilities,
+{
+    fn controller(&self) -> &BasicSampleController<P> { &self.controller }
+    fn controller_mut(&mut self) -> &mut BasicSampleController<P> { &mut self.controller }
+    fn select_pair<R: RandomNumberGenerator>(&mut self, _: &mut R) -> Pair {
+        let pair: Pair = self.controller.indices().into();
+        if !pair.is_full() {
+            return pair;
         }
 
-        if !container.indices().contains(self.pair.0) {
+        let pop_size = self.controller.population_size();
+
+        // Check if the pair.0 was the unit to disappear
+        if !self.controller.indices().contains(self.pair.0) {
+            // Check if pair.1 also disappeared
             self.pair.0 = self.pair.1;
 
-            while !container.indices().contains(self.pair.0) {
-                self.pair.0 += 1;
-
-                if self.pair.0 >= container.population_size() {
-                    panic!("spm looped past last unit");
-                }
-            }
-
-            self.pair.1 = self.pair.0 + 1;
-        }
-
-        while !container.indices().contains(self.pair.1) {
-            self.pair.1 += 1;
-
-            if self.pair.1 >= container.population_size() {
-                panic!("spm looped past last unit");
+            if !self.controller.indices().contains(self.pair.0) {
+                self.pair.0 = self
+                    .controller
+                    .indices()
+                    .seq_after(self.pair.0, pop_size)
+                    .expect("two units to remain");
             }
         }
 
-        Some(self.pair)
+        // Now pair.0 is the first remaining unit...set pair.1 to the next remaining unit
+        self.pair.1 = self
+            .controller
+            .indices()
+            .seq_after(self.pair.0, pop_size)
+            .expect("two units to remain");
+        Pair::new(self.pair)
     }
 }
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantRandom
+impl<P> SequentialPivotalMethod<P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        PivotalMethod::new(SampleContainer::new(rng, options)?, VariantRandom {})
+    pub fn new<S, B>(options: &SamplingOptions<'_, P, S, B>) -> Self
+    where
+        for<'a> BasicSampleController<P>: From<&'a SamplingOptions<'a, P, S, B>>,
+    {
+        SequentialPivotalMethod {
+            controller: options.into(),
+            pair: (0, 1),
+        }
     }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        let len = container.indices().len();
-        if len <= 1 {
-            return None;
-        } else if len == 2 {
-            return Some((container.indices().list()[0], container.indices().list()[1]));
+}
+/// Draw a sample using the sequential pivotal method.
+/// A variant of the pivotal method where unit competes in order.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::random::*;
+///
+/// let mut rng = SmallRng::from_os_rng();
+/// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = spm(&mut rng, &opts);
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingOptionsError>(())
+/// ```
+///
+/// # References
+/// Deville, J. C., & Tille, Y. (1998).
+/// Unequal probability sampling without replacement through a splitting method.
+/// Biometrika, 85(1), 89-101.
+/// <https://doi.org/10.1093/biomet/85.1.89>
+pub fn spm<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> BasicSampleController<P>: From<&'a SamplingOptions<'a, P, S, B>>,
+{
+    SequentialPivotalMethod::new(options).sample(rng)
+}
+
+pub struct RandomPivotalMethod<P>
+where
+    P: Probabilities,
+{
+    controller: BasicSampleController<P>,
+}
+impl<P> PivotalMethod<BasicSampleController<P>> for RandomPivotalMethod<P>
+where
+    P: Probabilities,
+{
+    fn controller(&self) -> &BasicSampleController<P> { &self.controller }
+    fn controller_mut(&mut self) -> &mut BasicSampleController<P> { &mut self.controller }
+    fn select_pair<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Pair {
+        let pair: Pair = self.controller.indices().into();
+        if !pair.is_more() {
+            return pair;
         }
 
-        let id1 = *container.indices_draw().unwrap();
-        let k = container.rng().rusize_to(len - 1);
-        let mut id2 = *container.indices().get(k).unwrap();
+        let len = self.controller.indices().len();
+        let id1 = self.controller.indices().draw(rng).unwrap();
+        let k = rng.rusize_to(len - 1);
+        let mut id2 = self.controller.indices().get(k).unwrap();
 
         if id1 == id2 {
-            id2 = *container.indices().last().unwrap();
+            id2 = self.controller.indices().last().unwrap();
         }
 
-        Some((id1, id2))
+        Pair::More(id1, id2)
     }
 }
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1
+impl<P> RandomPivotalMethod<P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        let container = SampleContainer::new_with_tree(rng, options)?;
-        let searcher = Searcher::new_1(container.tree().unwrap());
-
-        PivotalMethod::new(
-            container,
-            VariantLocal1 {
-                searcher,
-                candidates: Vec::<usize>::with_capacity(20),
-            },
-        )
+    pub fn new<S, B>(options: &SamplingOptions<'_, P, S, B>) -> Self
+    where
+        for<'a> BasicSampleController<P>: From<&'a SamplingOptions<'a, P, S, B>>,
+    {
+        RandomPivotalMethod {
+            controller: options.into(),
+        }
     }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        let len = container.indices().len();
-        if len <= 1 {
-            return None;
-        } else if len == 2 {
-            return Some((container.indices().list()[0], container.indices().list()[1]));
+}
+/// Draw a sample using the random pivotal method.
+/// A variant of the pivotal method where unit competes in a random order.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::random::*;
+///
+/// let mut rng = SmallRng::from_os_rng();
+/// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let opts = SamplingOptions::new(&p)?;
+/// let s = rpm(&mut rng, &opts);
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingOptionsError>(())
+/// ```
+///
+/// # References
+/// Deville, J. C., & Tille, Y. (1998).
+/// Unequal probability sampling without replacement through a splitting method.
+/// Biometrika, 85(1), 89-101.
+/// <https://doi.org/10.1093/biomet/85.1.89>
+pub fn rpm<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    for<'a> BasicSampleController<P>: From<&'a SamplingOptions<'a, P, S, B>>,
+{
+    RandomPivotalMethod::new(options).sample(rng)
+}
+
+pub struct LocalPivotalMethod1<'a, P>
+where
+    P: Probabilities,
+{
+    controller: SpreadingSampleController<'a, P>,
+    candidates: Vec<usize>,
+    searcher: Searcher,
+}
+impl<'a, P> PivotalMethod<SpreadingSampleController<'a, P>> for LocalPivotalMethod1<'a, P>
+where
+    P: Probabilities,
+{
+    fn controller(&self) -> &SpreadingSampleController<'a, P> { &self.controller }
+    fn controller_mut(&mut self) -> &mut SpreadingSampleController<'a, P> { &mut self.controller }
+    fn select_pair<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Pair {
+        let pair: Pair = self.controller.indices().into();
+        if !pair.is_more() {
+            return pair;
         }
 
         loop {
-            let id1 = *container.indices_draw().unwrap();
+            let id1 = self.controller.indices().draw(rng).unwrap();
             self.searcher
-                .find_neighbours_of_id(container.tree().unwrap(), id1)
+                .find_neighbours_of_id(self.controller.tree(), id1)
                 .unwrap();
             self.candidates.clear();
 
@@ -248,7 +328,7 @@ where
 
             while i < self.candidates.len() {
                 self.searcher
-                    .find_neighbours_of_id(container.tree().unwrap(), self.candidates[i])
+                    .find_neighbours_of_id(self.controller.tree(), self.candidates[i])
                     .unwrap();
 
                 if self.searcher.neighbours().contains(&id1) {
@@ -259,46 +339,88 @@ where
             }
 
             if !self.candidates.is_empty() {
-                let id2 = *container.rng().relement(&self.candidates).unwrap();
-                return Some((id1, id2));
+                let id2 = *rng.relement(&self.candidates).unwrap();
+                return Pair::More(id1, id2);
             }
         }
     }
 }
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal1S
+impl<'a, P> LocalPivotalMethod1<'a, P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        let container = SampleContainer::new_with_tree(rng, options)?;
-        let searcher = Searcher::new_1(container.tree().unwrap());
-        let remaining_units = container.indices().len();
-
-        PivotalMethod::new(
-            container,
-            VariantLocal1S {
-                searcher,
-                candidates: Vec::<usize>::with_capacity(20),
-                history: Vec::<usize>::with_capacity(remaining_units),
-            },
-        )
+    pub fn new<B>(options: &'a SamplingOptions<'a, P, Enabled, B>) -> Self
+    where
+        SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
+    {
+        let controller: SpreadingSampleController<'_, P> = options.into();
+        let searcher = Searcher::new_1(controller.tree());
+        LocalPivotalMethod1 {
+            controller,
+            candidates: Vec::<usize>::with_capacity(20),
+            searcher,
+        }
     }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        let len = container.indices().len();
-        if len <= 1 {
-            return None;
-        } else if len == 2 {
-            return Some((container.indices().list()[0], container.indices().list()[1]));
+}
+/// Draw a sample using the local pivotal method 1.
+/// The sample is spatially balanced on the provided auxilliary variables in `data`.
+///
+/// # Examples
+/// ```
+/// use envisim_samplr::pivotal_method::*;
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
+///
+/// let mut rng = SmallRng::from_os_rng();
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_1(&mut rng, &opts);
+///
+/// assert_eq!(s.len(), 5);
+/// # Ok::<(), SamplingOptionsError>(())
+/// ```
+///
+/// # References
+/// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
+/// Spatially balanced sampling through the pivotal method.
+/// Biometrics, 68(2), 514-520.
+/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+pub fn lpm_1<'a, R, P, B>(
+    rng: &mut R,
+    options: &'a SamplingOptions<'a, P, Enabled, B>,
+) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
+{
+    LocalPivotalMethod1::new(options).sample(rng)
+}
+
+pub struct LocalPivotalMethod1S<'a, P>
+where
+    P: Probabilities,
+{
+    controller: SpreadingSampleController<'a, P>,
+    candidates: Vec<usize>,
+    history: Vec<usize>,
+    searcher: Searcher,
+}
+impl<'a, P> PivotalMethod<SpreadingSampleController<'a, P>> for LocalPivotalMethod1S<'a, P>
+where
+    P: Probabilities,
+{
+    fn controller(&self) -> &SpreadingSampleController<'a, P> { &self.controller }
+    fn controller_mut(&mut self) -> &mut SpreadingSampleController<'a, P> { &mut self.controller }
+    fn select_pair<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Pair {
+        let pair: Pair = self.controller.indices().into();
+        if !pair.is_more() {
+            return pair;
         }
 
         while let Some(&id) = self.history.last() {
-            if container.indices().contains(id) {
+            if self.controller.indices().contains(id) {
                 break;
             }
 
@@ -306,13 +428,14 @@ where
         }
 
         if self.history.is_empty() {
-            self.history.push(*container.indices_draw().unwrap());
+            self.history
+                .push(self.controller.indices().draw(rng).unwrap());
         }
 
         loop {
             let id1 = *self.history.last().unwrap();
             self.searcher
-                .find_neighbours_of_id(container.tree().unwrap(), id1)
+                .find_neighbours_of_id(self.controller.tree(), id1)
                 .unwrap();
             self.candidates.clear();
 
@@ -325,7 +448,7 @@ where
 
             while i < len {
                 self.searcher
-                    .find_neighbours_of_id(container.tree().unwrap(), self.candidates[i])
+                    .find_neighbours_of_id(self.controller.tree(), self.candidates[i])
                     .unwrap();
 
                 if self.searcher.neighbours().contains(&id1) {
@@ -338,130 +461,55 @@ where
             }
 
             if len > 0 {
-                let id2 = *container.rng().relement(&self.candidates[0..len]).unwrap();
-                return Some((id1, id2));
+                let id2 = *rng.relement(&self.candidates[0..len]).unwrap();
+                return Pair::More(id1, id2);
             }
 
-            if self.history.len() == container.population_size() {
+            if self.history.len() == self.controller.population_size() {
                 self.history.clear();
                 self.history.push(id1);
             }
 
-            self.history
-                .push(*container.rng().relement(&self.candidates).unwrap());
+            self.history.push(*rng.relement(&self.candidates).unwrap());
         }
     }
 }
-
-impl<'a, R> PivotalMethodVariant<'a, R> for VariantLocal2
+impl<'a, P> LocalPivotalMethod1S<'a, P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    #[inline]
-    fn new(
-        rng: &'a mut R,
-        options: &'a SampleOptions<'a>,
-    ) -> Result<PivotalMethod<'a, R, Self>, SamplingError> {
-        let container = SampleContainer::new_with_tree(rng, options)?;
-        let searcher = Searcher::new_1(container.tree().unwrap());
-
-        PivotalMethod::new(container, VariantLocal2 { searcher })
-    }
-    #[inline]
-    fn select_units(&mut self, container: &mut SampleContainer<'a, R>) -> Option<(usize, usize)> {
-        let len = container.indices().len();
-        if len <= 1 {
-            return None;
-        } else if len == 2 {
-            return Some((container.indices().list()[0], container.indices().list()[1]));
+    pub fn new<B>(options: &'a SamplingOptions<'a, P, Enabled, B>) -> Self
+    where
+        SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
+    {
+        let controller: SpreadingSampleController<'_, P> = options.into();
+        let searcher = Searcher::new_1(controller.tree());
+        let remaining_units = controller.indices().len();
+        LocalPivotalMethod1S {
+            controller,
+            candidates: Vec::<usize>::with_capacity(20),
+            history: Vec::<usize>::with_capacity(remaining_units),
+            searcher,
         }
-
-        let id1 = *container.indices_draw().unwrap();
-        self.searcher
-            .find_neighbours_of_id(container.tree().unwrap(), id1)
-            .unwrap();
-        let id2 = *container
-            .rng()
-            .relement(self.searcher.neighbours())
-            .unwrap();
-
-        Some((id1, id2))
     }
 }
-
-/// Draw a sample using the sequential pivotal method.
-/// A variant of the pivotal method where unit competes in order.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::random::*;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, spm)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tille, Y. (1998).
-/// Unequal probability sampling without replacement through a splitting method.
-/// Biometrika, 85(1), 89-101.
-/// <https://doi.org/10.1093/biomet/85.1.89>
-#[inline]
-pub fn spm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    VariantSequential::new(rng, options)?.sample()
-}
-
-/// Draw a sample using the random pivotal method.
-/// A variant of the pivotal method where unit competes in a random order.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::random::*;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let s = SampleOptions::new(&p)?.sample(&mut rng, rpm)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tille, Y. (1998).
-/// Unequal probability sampling without replacement through a splitting method.
-/// Biometrika, 85(1), 89-101.
-/// <https://doi.org/10.1093/biomet/85.1.89>
-#[inline]
-pub fn rpm<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
-where
-    R: RandomNumberGenerator + ?Sized,
-{
-    VariantRandom::new(rng, options)?.sample()
-}
-
 /// Draw a sample using the local pivotal method 1.
 /// The sample is spatially balanced on the provided auxilliary variables in `data`.
 ///
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_1s(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -469,56 +517,79 @@ where
 /// Spatially balanced sampling through the pivotal method.
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-#[inline]
-pub fn lpm_1<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn lpm_1s<'a, R, P, B>(
+    rng: &mut R,
+    options: &'a SamplingOptions<'a, P, Enabled, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
 {
-    VariantLocal1::new(rng, options)?.sample()
+    LocalPivotalMethod1S::new(options).sample(rng)
 }
 
-/// Draw a sample using the local pivotal method 1S.
-/// The sample is spatially balanced on the provided auxilliary variables in `data`.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1s)?;
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Prentius, W. (2024). Manuscript.
-#[inline]
-pub fn lpm_1s<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub struct LocalPivotalMethod2<'a, P>
 where
-    R: RandomNumberGenerator + ?Sized,
+    P: Probabilities,
 {
-    VariantLocal1S::new(rng, options)?.sample()
+    controller: SpreadingSampleController<'a, P>,
+    searcher: Searcher,
 }
+impl<'a, P> PivotalMethod<SpreadingSampleController<'a, P>> for LocalPivotalMethod2<'a, P>
+where
+    P: Probabilities,
+{
+    fn controller(&self) -> &SpreadingSampleController<'a, P> { &self.controller }
+    fn controller_mut(&mut self) -> &mut SpreadingSampleController<'a, P> { &mut self.controller }
+    fn select_pair<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Pair {
+        let pair: Pair = self.controller.indices().into();
+        if !pair.is_more() {
+            return pair;
+        }
 
+        let id1 = self.controller.indices().draw(rng).unwrap();
+        self.searcher
+            .find_neighbours_of_id(self.controller.tree(), id1)
+            .unwrap();
+        let id2 = *rng.relement(self.searcher.neighbours()).unwrap();
+
+        Pair::More(id1, id2)
+    }
+}
+impl<'a, P> LocalPivotalMethod2<'a, P>
+where
+    P: Probabilities,
+{
+    pub fn new<B>(options: &'a SamplingOptions<'a, P, Enabled, B>) -> Self
+    where
+        SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
+    {
+        let controller: SpreadingSampleController<'_, P> = options.into();
+        let searcher = Searcher::new_1(controller.tree());
+        LocalPivotalMethod2 {
+            controller,
+            searcher,
+        }
+    }
+}
 /// Draw a sample using the local pivotal method 2.
 /// The sample is spatially balanced on the provided auxilliary variables in `data`.
 ///
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let s = SampleOptions::new(&p)?.set_spreading(&m)?.sample(&mut rng, lpm_1)?;
+/// let opts = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let s = lpm_2(&mut rng, &opts);
 ///
 /// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
 /// # References
@@ -526,12 +597,16 @@ where
 /// Spatially balanced sampling through the pivotal method.
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-#[inline]
-pub fn lpm_2<R>(rng: &mut R, options: &SampleOptions) -> Result<Vec<usize>, SamplingError>
+pub fn lpm_2<'a, R, P, B>(
+    rng: &mut R,
+    options: &'a SamplingOptions<'a, P, Enabled, B>,
+) -> Vec<usize>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    SpreadingSampleController<'a, P>: From<&'a SamplingOptions<'a, P, Enabled, B>>,
 {
-    VariantLocal2::new(rng, options)?.sample()
+    LocalPivotalMethod2::new(options).sample(rng)
 }
 
 /// Draw a sample using the hierarchical local pivotal method 2.
@@ -543,12 +618,13 @@ where
 /// # Examples
 /// ```
 /// use envisim_samplr::pivotal_method::*;
-/// use envisim_utils::{Matrix, random::*};
+/// use envisim_utils::random::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let mut rng = SmallRng::from_os_rng();
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 ///
@@ -562,91 +638,90 @@ where
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
 #[inline]
-pub fn hierarchical_lpm_2<R>(
+pub fn hierarchical_lpm_2<'a, R, P, B>(
     rng: &mut R,
-    options: &SampleOptions,
+    options: &'a SamplingOptions<'a, P, Enabled, B>,
     sizes: &[usize],
 ) -> Result<Vec<Vec<usize>>, SamplingError>
 where
-    R: RandomNumberGenerator + ?Sized,
+    R: RandomNumberGenerator,
+    P: Probabilities,
+    SpreadingSampleController<'a, ProbabilitiesUnequal>:
+        From<&'a SamplingOptions<'a, P, Enabled, B>>,
 {
-    InputError::check_integer_approx_equal(
-        sum(options.probabilities()),
-        usize_to_f64(sizes.iter().sum()),
-        options.eps(),
-    )?;
-    InputError::check_empty(sizes)?;
+    // Check validity of probabilities and sizes
+    let sizes_sum = sizes.iter().sum();
+    match options.probabilities().spec() {
+        ProbabilitySpec::Equal { sample_size } => {
+            if *sample_size != sizes_sum {
+                return Err(SamplingError::IncorrectStratification);
+            }
+        }
+        _ => {
+            let psum = options.probabilities().slice().iter().sum::<f64>();
+            if (psum.round() - psum).abs() > options.eps() {
+                return Err(SamplingError::IncorrectStratification);
+            }
+            let sizes_sum = usize_to_f64(sizes_sum);
+            if psum.round() != sizes_sum {
+                return Err(SamplingError::IncorrectStratification);
+            }
+        }
+    };
+
+    let mut pm = {
+        let controller: SpreadingSampleController<'_, ProbabilitiesUnequal> = options.into();
+        let searcher = Searcher::new_1(controller.tree());
+        LocalPivotalMethod2 {
+            controller,
+            searcher,
+        }
+    };
+    pm.run(rng);
 
     if sizes.len() == 1 {
-        return Ok(vec![lpm_2(rng, options)?]);
+        return Ok(vec![pm.controller.sample_mut().sort_to_vec()]);
     }
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
-    let mut pm = VariantLocal2::new(rng, options)?;
 
-    let mut main_sample: FxHashSet<usize> = pm.run().get_sample().iter().cloned().collect();
+    let mut main_sample: FxHashSet<usize> = pm.controller.sample().get().iter().cloned().collect();
 
-    for (i, &size) in sizes[0..sizes.len() - 1].iter().enumerate() {
-        assert!(pm.container.indices().is_empty());
+    for &size in sizes[0..sizes.len() - 1].iter() {
+        assert!(pm.controller.indices().is_empty());
 
         if size == 0 {
             return_sample.push(vec![]);
         }
 
-        pm.container.sample_mut().clear();
+        pm.controller.sample_mut().clear();
 
         let prob = usize_to_f64(size) / usize_to_f64(main_sample.len());
 
         // Reset probs and add to indices/tree
-        for id in 0..pm.container.population_size() {
+        for id in 0..pm.controller.population_size() {
             if main_sample.contains(&id) {
-                pm.container.probabilities_mut()[id] = prob;
-                pm.container.indices_mut().insert(id).unwrap();
-                pm.container.tree_mut().unwrap().insert_unit(id).unwrap();
+                pm.controller.probabilities_mut().set(id, prob).unwrap();
+                pm.controller.indices_mut().insert(id).unwrap();
+                pm.controller.tree_mut().insert_unit(id).unwrap();
             } else {
-                pm.container.probabilities_mut()[id] = 0.0;
+                pm.controller.probabilities_mut().set_zero(id);
             }
         }
 
-        pm.run();
-        return_sample.push(Vec::<usize>::with_capacity(pm.get_sample().len()));
+        pm.run(rng);
 
-        for &id in pm.get_sorted_sample().iter() {
-            return_sample[i].push(id);
-            main_sample.remove(&id);
-        }
+        let s = pm.controller.sample_mut().sort_to_vec();
+        s.iter().for_each(|id| {
+            main_sample.remove(id);
+        });
+
+        return_sample.push(s);
     }
 
-    return_sample.push(main_sample.into_iter().collect());
-
-    for s in return_sample.iter_mut() {
-        s.sort_unstable();
-    }
+    let mut s: Vec<usize> = main_sample.into_iter().collect();
+    s.sort_unstable();
+    return_sample.push(s);
 
     Ok(return_sample)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use envisim_test_utils::*;
-    use envisim_utils::random::*;
-
-    #[test]
-    fn update_probabilities() -> Result<(), SamplingError> {
-        let mut rng = SmallRng::seed_from_u64(42);
-        let options = SampleOptions::new(&PROB_10_E)?;
-        let mut pm = VariantSequential::new(&mut rng, &options)?;
-        pm.update_probabilities((0, 1), 0.0);
-        assert_delta!(pm.container.probabilities()[0], 0.0);
-        assert_delta!(pm.container.probabilities()[1], 0.4);
-        assert!(!pm.container.indices().contains(0));
-        assert!(pm.container.indices().contains(1));
-        pm.update_probabilities((2, 1), 0.0);
-        pm.update_probabilities((3, 1), 0.0);
-        pm.update_probabilities((4, 1), 0.0);
-        assert!(!pm.container.indices().contains(1));
-        assert!(pm.container.sample().get().contains(&1));
-        Ok(())
-    }
 }

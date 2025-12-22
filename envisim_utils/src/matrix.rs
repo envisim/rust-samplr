@@ -15,8 +15,14 @@
 //! - [`RefMatrix`], which provides matrix operations on a provided, immutable vector.
 
 use std::borrow::Cow;
-use std::iter::{Skip, StepBy};
-use std::ops::{Index, IndexMut};
+use std::iter::{
+    Skip,
+    StepBy,
+};
+use std::ops::{
+    Index,
+    IndexMut,
+};
 use std::slice::Iter;
 
 /// Matrix dimensions `(row, col)`
@@ -34,21 +40,13 @@ impl MatrixIndex {
         Some(MatrixIndex(rows, cols))
     }
     #[inline]
-    pub fn row(&self) -> usize {
-        self.0
-    }
+    pub fn row(&self) -> usize { self.0 }
     #[inline]
-    pub fn col(&self) -> usize {
-        self.1
-    }
+    pub fn col(&self) -> usize { self.1 }
     #[inline]
-    pub fn size(&self) -> usize {
-        self.row() * self.col()
-    }
+    pub fn size(&self) -> usize { self.row() * self.col() }
     #[inline]
-    pub fn transpose(&self) -> Self {
-        MatrixIndex(self.1, self.0)
-    }
+    pub fn transpose(&self) -> Self { MatrixIndex(self.1, self.0) }
     #[inline]
     pub fn to_index(&self, size: impl Into<MatrixIndex>) -> Option<usize> {
         let size = size.into();
@@ -56,9 +54,7 @@ impl MatrixIndex {
             .then_some(self.row() + self.col() * size.row())
     }
     #[inline]
-    pub fn new(idx: impl Into<MatrixIndex>) -> Self {
-        idx.into()
-    }
+    pub fn new(idx: impl Into<MatrixIndex>) -> Self { idx.into() }
     #[inline]
     pub fn into_index(idx: impl Into<MatrixIndex>, size: impl Into<MatrixIndex>) -> Option<usize> {
         let idx = idx.into();
@@ -69,9 +65,7 @@ impl MatrixIndex {
 }
 
 impl From<(usize, usize)> for MatrixIndex {
-    fn from(idx: (usize, usize)) -> Self {
-        MatrixIndex(idx.0, idx.1)
-    }
+    fn from(idx: (usize, usize)) -> Self { MatrixIndex(idx.0, idx.1) }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,6 +80,19 @@ impl<'a> Matrix<'a> {
     pub fn to_mut(&mut self) -> &mut Self {
         self.data.to_mut();
         self
+    }
+    /// Returns a reference to the matrix
+    #[inline]
+    pub fn clone_shallow(&self) -> Matrix<'_> {
+        let data = match self.data {
+            Cow::Borrowed(b) => Cow::Borrowed(b),
+            Cow::Owned(ref b) => Cow::Borrowed(b.as_slice()),
+        };
+
+        Matrix {
+            data,
+            dims: self.dims,
+        }
     }
     /// Constructs a new matrix, by borrowing the data.
     #[inline]
@@ -124,30 +131,20 @@ impl<'a> Matrix<'a> {
     }
     /// Returns the underlying data (stored in column major).
     #[inline]
-    pub fn data(&self) -> &[f64] {
-        self.data.as_ref()
-    }
+    pub fn data(&self) -> &[f64] { self.data.as_ref() }
     /// Returns the underlying data (stored in column major).
     /// If the data is a borrowed, it is first cloned.
     #[inline]
-    pub fn data_mut(&mut self) -> &mut [f64] {
-        self.data.to_mut()
-    }
+    pub fn data_mut(&mut self) -> &mut [f64] { self.data.to_mut() }
     /// Returns the number of rows in the matrix
     #[inline]
-    pub fn nrow(&self) -> usize {
-        self.dims.row()
-    }
+    pub fn nrow(&self) -> usize { self.dims.row() }
     /// Returns the number of columns in the matrix
     #[inline]
-    pub fn ncol(&self) -> usize {
-        self.dims.col()
-    }
+    pub fn ncol(&self) -> usize { self.dims.col() }
     /// Returns the dimensions of the matrix
     #[inline]
-    pub fn dims(&self) -> MatrixIndex {
-        self.dims
-    }
+    pub fn dims(&self) -> MatrixIndex { self.dims }
     /// Returns an iterator on the row
     #[inline]
     pub fn row_iter(&'a self, row: usize) -> MatrixIterator<'a> {
@@ -181,9 +178,10 @@ impl<'a> Matrix<'a> {
         let dims = dims.into();
         if dims.row() == 0 || dims.col() == 0 {
             return None;
+        } else if dims == self.dims() {
+            return Some(self);
         }
 
-        // let old_size = self.dims().size();
         let new_size = dims.size();
 
         self.data.to_mut().resize(new_size, 0.0);
@@ -279,6 +277,21 @@ impl<'a> Matrix<'a> {
         let v = self
             .row_iter(row)
             .zip(unit.iter())
+            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
+        Some(v)
+    }
+    /// Returns the squared eculidean distance between the `row` and the slice `unit`
+    #[inline]
+    pub fn distance_between_rows(&self, row_a: usize, row_b: usize) -> Option<f64> {
+        if row_a >= self.nrow() || row_b >= self.nrow() {
+            return None;
+        } else if row_a == row_b {
+            return Some(0.0);
+        }
+
+        let v = self
+            .row_iter(row_a)
+            .zip(self.row_iter(row_b))
             .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
         Some(v)
     }

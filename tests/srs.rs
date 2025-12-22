@@ -1,25 +1,23 @@
 use envisim_samplr::srs::*;
-use envisim_test_utils::*;
-use envisim_utils::random::*;
 
 mod test_utils;
 use test_utils::*;
 
 #[test]
-fn srs_wor() -> Result<(), SamplingError> {
-    let mut rng = SmallRng::seed_from_u64(42);
-
-    test_wor2(|| sample(&mut rng, 2, 10), &PROB_10_E, 1e-2, 100000)
+fn srs_wor() {
+    let mut rng = rng();
+    let options = options_equal_10_2();
+    test_wor(|| srs(&mut rng, &options), &options, 1e-2, 100000);
 }
 
 #[test]
-fn srs_wr() -> Result<(), SamplingError> {
-    let mut rng = SmallRng::seed_from_u64(42);
-
-    test_wor2(
-        || sample_with_replacement(&mut rng, 2, 10),
-        &PROB_10_E,
+fn srs_wr() {
+    let mut rng = rng();
+    let options = options_equal_10_2();
+    test_wor(
+        || srs_with_replacement(&mut rng, &options),
+        &options,
         1e-2,
         100000,
-    )
+    );
 }

@@ -12,26 +12,33 @@
 
 //! Functions for calculating probabilities proportional to size
 
+pub use crate::probabilities::{
+    Probabilities,
+    ProbabilitiesUnequal,
+};
 use crate::utils::usize_to_f64;
-use crate::{InputError, Probabilities};
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
 /// Returns an error if any value is non-positive.
-pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
+pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitiesUnequal, PipsError> {
     if arr.is_empty() {
-        return Probabilities::new(0, 0.0);
+        return Err(PipsError::NoAuxiliaries);
     }
 
     let mut sum: f64 = 0.0;
 
-    for &x in arr {
-        InputError::check_range_f64(x, 0.0, f64::INFINITY)
-            .and(InputError::check_valid_f64(x, 0.0))?;
-        sum += x;
+    for x in arr {
+        if !x.is_normal() || (..0.0).contains(x) {
+            return Err(PipsError::InvalidAuxiliary);
+        }
+        sum += *x;
     }
 
-    Probabilities::with_values(&arr.iter().map(|&x| x / sum).collect::<Vec<f64>>())
+    Ok(ProbabilitiesUnequal::with_values_unchecked(
+        arr.iter().map(|&x| x / sum).collect(),
+        1e-12,
+    ))
 }
 
 /// Inclusion probabilities proportional to size (approximate).
@@ -39,22 +46,22 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<Probabilities, InputError> {
 /// Returns an error if any value is non-positive.
 ///
 /// The caluclations are done by iteratively rescaling the inclusion probabilities.
-pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<Probabilities, InputError> {
+pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitiesUnequal, PipsError> {
     if arr.is_empty() {
-        return Probabilities::new(0, 0.0);
+        return Err(PipsError::NoAuxiliaries);
     }
 
     if arr.len() < sample_size {
-        return Probabilities::new(arr.len(), 1.0);
+        return Ok(ProbabilitiesUnequal::with_value(arr.len(), 1.0, 1e-12).unwrap());
     }
 
-    arr.iter().try_for_each(|&x| {
-        InputError::check_range_f64(x, 0.0, f64::INFINITY).and(InputError::check_valid_f64(x, 0.0))
-    })?;
+    if arr.iter().any(|x| !x.is_normal() || (..0.0).contains(x)) {
+        return Err(PipsError::InvalidAuxiliary);
+    }
 
     let mut n = usize_to_f64(sample_size);
 
-    let mut pips = Probabilities::new(arr.len(), 0.0)?;
+    let mut pips = ProbabilitiesUnequal::with_value(arr.len(), 0.0, 1e-12).unwrap();
     let mut failed: bool = true;
 
     while failed && n > 0.0 {
@@ -85,4 +92,21 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<Probabilities,
     }
 
     Ok(pips)
+}
+
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum PipsError {
+    InvalidAuxiliary,
+    NoAuxiliaries,
+}
+impl std::error::Error for PipsError {}
+impl std::fmt::Display for PipsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use PipsError::*;
+        match *self {
+            InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
+            NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
+        }
+    }
 }
