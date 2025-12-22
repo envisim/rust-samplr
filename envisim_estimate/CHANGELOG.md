@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove `envisim_samplr` dependency
 - Added `energy_distance` as a measure of spatial balance.
 - Functions using SampleOptions now uses SamplingOptions
+- Functions not dependent on SamplingOptions return Option, if fallible.
 
 ## [0.3.1] - 2025-08-22
 ### Changed

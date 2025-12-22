@@ -87,3 +87,28 @@ pub fn variance(
 
     Some(variance)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const Y_VALS: [f64; 6] = [22.0, 30.0, 7.0, 25.0, 8.0, 12.0];
+    const MU_VALS: [f64; 6] = [1.0, 0.5, 0.5, 0.2, 0.2, 0.6];
+
+    #[test]
+    fn test_hh() {
+        let indices: Vec<usize> = vec![1, 3, 5];
+        let y: Vec<f64> = indices.iter().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices.iter().map(|&id| MU_VALS[id]).collect();
+        let inclusions: Vec<f64> = vec![1.0, 1.0, 1.0];
+        assert_eq!(estimate(&y, &mu, &inclusions), Some(205.0));
+
+        let indices: Vec<usize> = vec![0, 0, 2, 5];
+        let mut indices_unique = indices.clone();
+        indices_unique.dedup();
+        let y: Vec<f64> = indices_unique.iter().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices_unique.iter().map(|&id| MU_VALS[id]).collect();
+        let inclusions: Vec<f64> = vec![2.0, 1.0, 1.0];
+        assert_eq!(estimate(&y, &mu, &inclusions), Some(78.0));
+    }
+}

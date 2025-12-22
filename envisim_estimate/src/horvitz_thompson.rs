@@ -237,3 +237,18 @@ fn quotient(ys: &[f64], ps: &[f64]) -> Option<Vec<f64>> {
     }
     Some(v)
 }
+
+#[cfg(test)]
+mod test {
+    use envisim_test_utils::*;
+
+    use super::*;
+
+    const Y_VALS: [f64; 5] = [17.0, 130.0, 55.0, 80.0, 63.0];
+    const PI_VALS: [f64; 5] = [0.0065, 0.0624, 0.0208, 0.0430, 0.0282];
+
+    #[test]
+    fn test_ht() {
+        assert_delta!(estimate(&Y_VALS, &PI_VALS).unwrap(), 11437.46, 0.01);
+    }
+}
