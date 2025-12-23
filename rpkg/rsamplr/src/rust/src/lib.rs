@@ -1,19 +1,56 @@
-use savvy::{savvy, savvy_err, IntegerSexp, OwnedIntegerSexp, RealSexp, Sexp};
-
-use envisim_estimate::balance::balance_deviation;
+use envisim_estimate::balance::balance_deviation_spreading;
 use envisim_estimate::horvitz_thompson::local_mean_variance;
 use envisim_estimate::spatial_balance::{
-    energy_distance as sb_energy, local as sb_local, voronoi as sb_voronoi,
+    energy_distance as sb_energy,
+    local as sb_local,
+    voronoi as sb_voronoi,
 };
-use envisim_samplr::correlated_poisson::{cps, lcps, scps};
-use envisim_samplr::cube_method::{cube, cube_stratified, local_cube, local_cube_stratified};
-use envisim_samplr::pivotal_method::{hierarchical_lpm_2, lpm_1, lpm_1s, lpm_2, rpm, spm};
+use envisim_samplr::correlated_poisson::{
+    cps,
+    lcps,
+    scps,
+};
+use envisim_samplr::cube_method::{
+    cube,
+    cube_stratified,
+    local_cube,
+    local_cube_stratified,
+};
+use envisim_samplr::pivotal_method::{
+    hierarchical_lpm_2,
+    lpm_1,
+    lpm_1s,
+    lpm_2,
+    rpm,
+    spm,
+};
 use envisim_samplr::systematic::{
-    sample as systematic, sample_random_order as systematic_random_order,
+    systematic,
+    systematic_random_order,
 };
-use envisim_samplr::unequal::{brewer, conditional_poisson, pareto, poisson, sampford};
-use envisim_samplr::{AuxiliariesOptions, SampleOptions};
-use envisim_utils::pips::pips_from_slice;
+use envisim_samplr::unequal::{
+    brewer,
+    conditional_poisson,
+    pareto,
+    poisson,
+    sampford,
+};
+use envisim_utils::pips::{
+    Probabilities,
+    pips_from_slice,
+};
+use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SpreadingOptions,
+};
+use savvy::{
+    IntegerSexp,
+    OwnedIntegerSexp,
+    RealSexp,
+    Sexp,
+    savvy,
+    savvy_err,
+};
 
 mod matrix;
 mod random;
@@ -31,21 +68,21 @@ fn rust_unequal(
     r_max_iter: i32,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
 
     let s = match r_method {
         "spm" => spm(&mut rng, &options),
         "cps" => cps(&mut rng, &options),
-        "poisson" => options.sample(&mut rng, poisson),
+        "poisson" => poisson(&mut rng, &options),
         "systematic" => systematic(&mut rng, &options),
         "systematic_random_order" => systematic_random_order(&mut rng, &options),
-        "brewer" => brewer(&mut rng, &options),
-        "pareto" => pareto(&mut rng, &options),
-        "sampford" => sampford(&mut rng, &options),
+        "brewer" => brewer(&mut rng, &options)?,
+        "pareto" => pareto(&mut rng, &options)?,
+        "sampford" => sampford(&mut rng, &options)?,
         "rpm" | &_ => rpm(&mut rng, &options),
-    }?;
+    };
 
     return_sample(s)
 }
@@ -58,7 +95,7 @@ fn rust_unequal_conditional_poisson(
     r_max_iter: i32,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_max_iterations(i32_to_nonzerousize(r_max_iter)?)?;
     let sample_size = i32_to_usize(r_sample_size)?;
@@ -79,11 +116,11 @@ fn rust_spatially_balanced(
     let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux =
-        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let bucket_size = i32_to_nonzerousize(r_bucket_size)?;
+    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
-        .set_spreading_options(aux)?;
+        .set_spreading(aux)?;
 
     let s = match r_method {
         "lpm_1" => lpm_1(&mut rng, &options),
@@ -91,7 +128,7 @@ fn rust_spatially_balanced(
         "scps" => scps(&mut rng, &options),
         "lcps" => lcps(&mut rng, &options),
         "lpm_2" | &_ => lpm_2(&mut rng, &options),
-    }?;
+    };
 
     return_sample(s)
 }
@@ -106,13 +143,13 @@ fn rust_balanced(
     let mut rng = RRng::new();
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
-        .set_balancing(&bal_data)?;
+        .set_balancing(bal_data)?;
 
     let s = match r_method {
         "cube" | &_ => cube(&mut rng, &options),
-    }?;
+    };
 
     return_sample(s)
 }
@@ -130,16 +167,16 @@ fn rust_doubly_balanced(
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
 
-    let aux =
-        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let bucket_size = i32_to_nonzerousize(r_bucket_size)?;
+    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
-        .set_balancing(&bal_data)?
-        .set_spreading_options(aux)?;
+        .set_balancing(bal_data)?
+        .set_spreading(aux)?;
 
     let s = match r_method {
         "local_cube" | &_ => local_cube(&mut rng, &options),
-    }?;
+    };
 
     return_sample(s)
 }
@@ -157,11 +194,11 @@ fn rust_spatially_balanced_hierarchical(
     let mut rng = RRng::new();
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux =
-        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let bucket_size = i32_to_nonzerousize(r_bucket_size)?;
+    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
-        .set_spreading_options(aux)?;
+        .set_spreading(aux)?;
 
     let sizes: Vec<usize> = r_sizes
         .iter()
@@ -169,8 +206,8 @@ fn rust_spatially_balanced_hierarchical(
         .collect::<savvy::Result<_>>()?;
 
     let s = match r_method {
-        "lpm_2" | &_ => hierarchical_lpm_2(&mut rng, &options, &sizes),
-    }?;
+        "lpm_2" | &_ => hierarchical_lpm_2(&mut rng, &options, &sizes)?,
+    };
 
     let n = sizes.iter().sum();
     let mut return_matrix = OwnedIntegerSexp::new(n * 2)?;
@@ -200,13 +237,13 @@ fn rust_balanced_stratified(
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_balancing(&bal_data)?;
 
     let s = match r_method {
-        "cube" | &_ => cube_stratified(&mut rng, &options, &strata),
-    }?;
+        "cube" | &_ => cube_stratified(&mut rng, &options, &strata)?,
+    };
 
     return_sample(s)
 }
@@ -226,16 +263,16 @@ fn rust_doubly_balanced_stratified(
     let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
-    let aux =
-        AuxiliariesOptions::new(&data)?.set_bucket_size(i32_to_nonzerousize(r_bucket_size)?)?;
-    let options = SampleOptions::new(r_prob.as_slice())?
+    let bucket_size = i32_to_nonzerousize(r_bucket_size)?;
+    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
+    let options = SamplingOptions::new(r_prob.as_slice())?
         .set_eps(r_eps)?
         .set_balancing(&bal_data)?
-        .set_spreading_options(aux)?;
+        .set_spreading(aux)?;
 
     let s = match r_method {
-        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata),
-    }?;
+        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata)?,
+    };
 
     return_sample(s)
 }
@@ -254,10 +291,12 @@ fn rust_local_mean_variance(
     let neighbours = i32_to_nonzerousize(r_neighbours)?;
     let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
 
-    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
-    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
+    let aux = SpreadingOptions::new(data);
+    let options = SamplingOptions::new(r_prob.as_slice())?.set_spreading(aux)?;
 
-    local_mean_variance(r_values.as_slice(), &options, neighbours)?.try_into()
+    local_mean_variance(r_values.as_slice(), &options, neighbours)
+        .ok_or_else(|| savvy_err!("could not calculate local mean variance"))?
+        .try_into()
 }
 
 #[savvy]
@@ -273,17 +312,18 @@ fn rust_spatial_balance_measure(
         .map(|&x| i32_to_usize(x - 1))
         .collect::<savvy::Result<_>>()?;
 
-    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
-    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
+    let aux = SpreadingOptions::new(data);
+    let options = SamplingOptions::new(r_prob.as_slice())?.set_spreading(aux)?;
 
     let v = match r_method {
         "local" => sb_local(&sample, &options, true),
         "local2" => sb_local(&sample, &options, false),
         "energy-distance" => sb_energy(&sample, &options),
         "voronoi" | &_ => sb_voronoi(&sample, &options),
-    }?;
+    };
 
-    v.try_into()
+    v.ok_or_else(|| savvy_err!("could not calculate balance measure...invalid sample?"))?
+        .try_into()
 }
 
 #[savvy]
@@ -298,14 +338,12 @@ fn rust_balance_deviation(
         .map(|&x| i32_to_usize(x - 1))
         .collect::<savvy::Result<_>>()?;
 
-    let aux = AuxiliariesOptions::new(&data)?.est_bucket_size()?;
-    let options = SampleOptions::new(r_prob.as_slice())?.set_spreading_options(aux)?;
+    let aux = SpreadingOptions::new(data);
+    let options = SamplingOptions::new(r_prob.as_slice())?.set_spreading(aux)?;
 
-    let v = balance_deviation(&sample, &options)?
-        .0
-        .ok_or(savvy_err!("no result returned...was matrix empty?"))?;
-
-    v.try_into()
+    balance_deviation_spreading(&sample, &options)
+        .ok_or_else(|| savvy_err!("no result returned...invalid sample?"))?
+        .try_into()
 }
 
 #[savvy]

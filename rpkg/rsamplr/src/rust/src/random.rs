@@ -29,13 +29,9 @@ impl Drop for RRng {
 
 impl RandomNumberGenerator for RRng {
     #[inline]
-    fn rf64(&mut self) -> f64 {
-        unsafe { unif_rand() }
-    }
+    fn rf64(&mut self) -> f64 { unsafe { unif_rand() } }
     #[inline]
-    fn ru32(&mut self) -> u32 {
-        self.ri32() as u32
-    }
+    fn ru32(&mut self) -> u32 { self.ri32() as u32 }
     #[inline]
     fn ru32_to(&mut self, b: u32) -> u32 {
         loop {
@@ -72,9 +68,7 @@ impl RandomNumberGenerator for RRng {
         }
     }
     #[inline]
-    fn ri64(&mut self) -> i64 {
-        self.ru64() as i64
-    }
+    fn ri64(&mut self) -> i64 { self.ru64() as i64 }
     #[inline]
     fn ri64_in(&mut self, a: i64, b: i64) -> Option<i64> {
         if b < a {
