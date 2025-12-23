@@ -146,8 +146,17 @@ pub struct SpreadingOptions<'a> {
 }
 
 impl<'a> SpreadingOptions<'a> {
-    pub fn new(data: &'a Matrix<'a>) -> Result<SpreadingOptions<'a>, SamplingOptionsError> {
-        data.try_into()
+    pub fn new(data: Matrix<'a>) -> SpreadingOptions<'a> {
+        if data.nrow() == 0 {
+            panic!("matrix 'data' has no data (nrows = 0)");
+        }
+
+        Self {
+            data,
+            bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
+            split_method: midpoint_slide,
+        }
+        .est_bucket_size()
     }
 
     pub fn data(&self) -> &Matrix<'a> { &self.data }
@@ -162,44 +171,28 @@ impl<'a> SpreadingOptions<'a> {
         self.bucket_size = bs;
         Ok(self)
     }
-    pub fn est_bucket_size(self) -> Result<SpreadingOptions<'a>, SamplingOptionsError> {
+    pub fn est_bucket_size(mut self) -> SpreadingOptions<'a> {
         let len = self.data.nrow();
         let bucket_size = match len {
             0usize..=100 => 10usize,
             101usize..=400 => len / 10usize,
             _ => 40usize,
         };
-        self.set_bucket_size(bucket_size)
+        self.bucket_size = unsafe { NonZeroUsize::new_unchecked(bucket_size) };
+        self
     }
     pub fn split_method(&self) -> FindSplit { self.split_method }
-    pub fn set_split_method(
-        mut self,
-        split_method: FindSplit,
-    ) -> Result<Self, SamplingOptionsError> {
+    pub fn set_split_method(mut self, split_method: FindSplit) -> Self {
         self.split_method = split_method;
-        Ok(self)
+        self
     }
 }
 
-impl<'a> TryFrom<&'a Matrix<'a>> for SpreadingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: &'a Matrix<'a>) -> Result<SpreadingOptions<'a>, Self::Error> {
-        data.clone_shallow().try_into()
-    }
+impl<'a> From<&'a Matrix<'a>> for SpreadingOptions<'a> {
+    fn from(data: &'a Matrix<'a>) -> SpreadingOptions<'a> { Self::new(data.clone_shallow()) }
 }
-impl<'a> TryFrom<Matrix<'a>> for SpreadingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: Matrix<'a>) -> Result<SpreadingOptions<'a>, Self::Error> {
-        if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        }
-        SpreadingOptions {
-            data,
-            bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
-            split_method: midpoint_slide,
-        }
-        .est_bucket_size()
-    }
+impl<'a> From<Matrix<'a>> for SpreadingOptions<'a> {
+    fn from(data: Matrix<'a>) -> SpreadingOptions<'a> { Self::new(data) }
 }
 
 #[derive(Clone, Debug)]
@@ -209,28 +202,20 @@ pub struct BalancingOptions<'a> {
 
 impl<'a> BalancingOptions<'a> {
     #[inline]
-    pub fn new(data: &'a Matrix<'a>) -> Result<Self, SamplingOptionsError> {
+    pub fn new(data: Matrix<'a>) -> Self {
         if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
+            panic!("matrix 'data' has no data (nrows = 0)");
         }
-        Ok(Self {
-            data: data.clone_shallow(),
-        })
+
+        Self { data }
     }
     pub fn data(&self) -> &Matrix<'a> { &self.data }
 }
-impl<'a> TryFrom<&'a Matrix<'a>> for BalancingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: &'a Matrix<'a>) -> Result<Self, Self::Error> { Self::new(data) }
+impl<'a> From<&'a Matrix<'a>> for BalancingOptions<'a> {
+    fn from(data: &'a Matrix<'a>) -> Self { Self::new(data.clone_shallow()) }
 }
-impl<'a> TryFrom<Matrix<'a>> for BalancingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: Matrix<'a>) -> Result<Self, Self::Error> {
-        if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        }
-        Ok(Self { data })
-    }
+impl<'a> From<Matrix<'a>> for BalancingOptions<'a> {
+    fn from(data: Matrix<'a>) -> Self { Self::new(data) }
 }
 
 #[derive(Clone, Debug)]
@@ -395,9 +380,9 @@ where
     }
     pub fn set_spreading(
         self,
-        spreading: impl TryInto<SpreadingOptions<'a>, Error = SamplingOptionsError>,
+        spreading: impl Into<SpreadingOptions<'a>>,
     ) -> Result<SamplingOptions<'a, P, Enabled, B>, SamplingOptionsError> {
-        let spreading = spreading.try_into()?;
+        let spreading = spreading.into();
         if spreading.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
@@ -415,9 +400,9 @@ where
     }
     pub fn set_balancing(
         self,
-        balancing: impl TryInto<BalancingOptions<'a>, Error = SamplingOptionsError>,
+        balancing: impl Into<BalancingOptions<'a>>,
     ) -> Result<SamplingOptions<'a, P, S, Enabled>, SamplingOptionsError> {
-        let balancing = balancing.try_into()?;
+        let balancing = balancing.into();
         if balancing.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
         }

@@ -19,7 +19,7 @@ fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&MATRIX_DATA, 5).unwrap() }
 #[test]
 fn searcher() -> Result<(), SamplingOptionsError> {
     let m = matrix_new();
-    let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+    let opts = SpreadingOptions::new(m).set_bucket_size(2)?;
     let t = opts.build(&mut [0, 1, 2, 3]).unwrap();
 
     let mut s = Searcher::new_1(&t);
@@ -39,7 +39,7 @@ fn searcher() -> Result<(), SamplingOptionsError> {
 #[test]
 fn searcher_weighted() -> Result<(), SamplingOptionsError> {
     let m = matrix_new();
-    let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+    let opts = SpreadingOptions::new(m).set_bucket_size(2)?;
     let t = opts.build(&mut [0, 1, 2, 3, 4]).unwrap();
     let p = ProbabilitiesUnequal::with_value(5, 0.25, 1e-12).unwrap();
 

@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn new_midpoint_slide() -> Result<(), SamplingOptionsError> {
         let m = matrix_new();
-        let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+        let opts = SpreadingOptions::new(m).set_bucket_size(2)?;
         let t = opts.build(&mut [0, 1, 2, 3]).unwrap();
         println!("{:?}", t);
 
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn insert_unit() -> Result<(), SamplingOptionsError> {
         let m = matrix_new();
-        let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+        let opts = SpreadingOptions::new(m).set_bucket_size(2)?;
         let mut t = opts.build(&mut [0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.insert_unit(4).unwrap(), true);

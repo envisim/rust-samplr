@@ -39,7 +39,7 @@ pub fn nearest_neighbour(y_values: &[f64], sample: &[usize], auxiliaries: &Matri
         return Some(0.0);
     }
 
-    let spr_opts = SpreadingOptions::new(auxiliaries).unwrap();
+    let spr_opts: SpreadingOptions = auxiliaries.into();
     let tree = spr_opts.build(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
 
