@@ -743,7 +743,7 @@ where
 
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
 fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
-    let MatrixIndex(nrow, ncol) = mat.dims();
+    let (nrow, ncol) = mat.dim();
     assert!(nrow > 0);
     assert!(nrow == ncol - 1);
 
