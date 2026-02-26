@@ -741,9 +741,7 @@ where
     }
 }
 
-/// Finds a vector in null space of a (n-1)*n matrix. The matrix is
-/// mutated into rref.
-#[inline]
+/// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
 fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
     let (nrow, ncol) = mat.dim();
     assert!(nrow > 0);
@@ -766,28 +764,43 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
         return v;
     }
 
-    // If we have some linearly dependent rows, we must take a slower
-    // route
-    for (k, e) in v.iter_mut().enumerate().skip(1) {
-        *e = if k % 2 == 0 { -1.0 } else { 1.0 };
+    let mut pivot_cols = Vec::with_capacity(nrow);
+    let mut is_pivot = vec![false; ncol];
+
+    for row in 0..nrow {
+        for col in 0..ncol {
+            if mat[(row, col)] != 0.0 {
+                // Found first non-zero entry in row
+
+                if mat[(row, col)] == 1.0 {
+                    pivot_cols.push(col);
+                    is_pivot[col] = true;
+                }
+                break;
+            }
+        }
     }
 
-    for i in 0..nrow {
-        let mut lead: usize = 0;
+    // Build null space vector
+    // Free variables (non-pivot columns) alternating set to +/- 1
+    // Basic vars (pivot cols) computet to satisfy Ax = 0
 
-        while lead < ncol && mat[(i, lead)] != 1.0 {
-            lead += 1;
+    // Set free variables
+    let mut free_idx = 0;
+    for col in 0..ncol {
+        if !is_pivot[col] {
+            v[col] = if free_idx % 2 == 0 { 1.0 } else { -1.0 };
+            free_idx += 1;
         }
+    }
 
-        if lead == ncol {
-            continue;
+    // Compute basic variables working backwards through rows
+    for (row, &pivot_col) in pivot_cols.iter().enumerate().rev() {
+        let mut sum = 0.0;
+        for col in (pivot_col + 1)..ncol {
+            sum += mat[(row, col)] * v[col];
         }
-
-        v[lead] = 0.0;
-
-        for k in (lead + 1)..ncol {
-            v[lead] -= v[k] * mat[(i, k)];
-        }
+        v[pivot_col] = -sum;
     }
 
     v
