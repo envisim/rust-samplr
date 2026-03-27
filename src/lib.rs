@@ -26,12 +26,30 @@
 
 pub mod correlated_poisson;
 pub mod cube_method;
+pub mod dbd;
+pub mod equal;
 mod error;
 pub mod pivotal_method;
-pub mod sample_controller;
-pub mod srs;
 pub mod systematic;
 pub mod unequal;
+mod utils;
 
+pub use correlated_poisson::CorrelatedPoissonSampling;
+pub use cube_method::CubeSampling;
+pub use dbd::{
+    CircularConfiguration,
+    DbdConfiguration,
+    DistributionalDesignOptions,
+    DistributionalDesigns,
+    TacticalConfiguration,
+    TacticalConfigurationParameters,
+};
 pub use envisim_utils::sampling_options::*;
-pub use error::SamplingError;
+pub use equal::EqualProbabilitySampling;
+pub use error::{
+    SamplingError,
+    SamplingResult,
+};
+pub use pivotal_method::PivotalSampling;
+pub use systematic::SystematicSampling;
+pub use unequal::UnequalProbabilitySampling;

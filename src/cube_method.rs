@@ -22,13 +22,18 @@ use envisim_utils::matrix::{
     MatrixIndex,
 };
 use envisim_utils::probabilities::{
-    Probabilities,
-    ProbabilitiesUnequal,
+    FloatProbabilities,
+    ProbabilityStore,
 };
 use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::sample_controller::{
+    BasicSampleController,
+    SampleController,
+    SpreadingSampleController,
+};
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    Enabled,
+    ProbabilitySpec,
     SpreadingOptions,
 };
 pub use envisim_utils::sampling_options::{
@@ -37,17 +42,12 @@ pub use envisim_utils::sampling_options::{
 };
 use rustc_hash::FxSeededState;
 
+use crate::EqualProbabilitySampling;
 pub use crate::SamplingError;
-use crate::sample_controller::{
-    BasicSampleController,
-    SampleController,
-    SpreadingSampleController,
-};
-use crate::srs::srs;
 
 pub struct BaseCube<'a, C>
 where
-    C: SampleController,
+    C: SampleController<Store = FloatProbabilities>,
 {
     controller: C,
     candidates: Vec<usize>,
@@ -56,14 +56,13 @@ where
 }
 impl<'a, C> BaseCube<'a, C>
 where
-    C: SampleController<Probs = ProbabilitiesUnequal>,
+    C: SampleController<Store = FloatProbabilities>,
 {
-    fn new<P, S>(options: &'a SamplingOptions<'a, P, S, Enabled>, controller: C) -> Self
-    where
-        P: Probabilities,
-    {
-        // let balancing_data = container.options().check_balancing()?.balancing().unwrap();
-        let balancing_data = options.balancing().data();
+    fn new<PS: ProbabilitySpec>(
+        options: &'a SamplingOptions<'a, PS>,
+        controller: C,
+    ) -> Result<Self, SamplingOptionsError> {
+        let balancing_data = options.get_balancing()?.data();
         let b_dims = balancing_data.dims();
         let mut adjusted_data = Matrix::new(balancing_data.data(), b_dims.row())
             .expect("balancing data should be non-empty");
@@ -75,12 +74,12 @@ where
             }
         }
 
-        Self {
+        Ok(Self {
             controller,
             candidates: Vec::<usize>::with_capacity(20),
             adjusted_data,
             candidate_data: Matrix::from_value(0.0, (b_dims.col(), b_dims.col() + 1)).unwrap(),
-        }
+        })
     }
     fn set_candidate_data(&mut self) {
         let n_candidates = self.candidates.len();
@@ -146,32 +145,32 @@ where
         }
     }
 }
-impl<'a, P, S> From<&'a SamplingOptions<'a, P, S, Enabled>>
-    for BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>>
-where
-    P: Probabilities,
-    BasicSampleController<ProbabilitiesUnequal>: From<&'a SamplingOptions<'a, P, S, Enabled>>,
-{
-    fn from(options: &'a SamplingOptions<'a, P, S, Enabled>) -> Self {
-        let controller = options.into();
-        BaseCube::new(options, controller)
-    }
-}
-impl<'a, P> From<&'a SamplingOptions<'a, P, Enabled, Enabled>>
-    for BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>>
-where
-    P: Probabilities,
-    SpreadingSampleController<'a, ProbabilitiesUnequal>:
-        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
-{
-    fn from(options: &'a SamplingOptions<'a, P, Enabled, Enabled>) -> Self {
-        let controller = options.into();
-        BaseCube::new(options, controller)
-    }
-}
+// impl<'a, P, S> From<&'a SamplingOptions<'a, P, S, Enabled>>
+//     for BaseCube<'a, BasicSampleController<FloatProbabilities>>
+// where
+//     P: Probabilities,
+//     BasicSampleController<FloatProbabilities>: From<&'a SamplingOptions<'a, P, S, Enabled>>,
+// {
+//     fn from(options: &'a SamplingOptions<'a, P, S, Enabled>) -> Self {
+//         let controller = options.into();
+//         BaseCube::new(options, controller)
+//     }
+// }
+// impl<'a, P> From<&'a SamplingOptions<'a, P, Enabled, Enabled>>
+//     for BaseCube<'a, SpreadingSampleController<'a, FloatProbabilities>>
+// where
+//     P: Probabilities,
+//     SpreadingSampleController<'a, FloatProbabilities>:
+//         From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
+// {
+//     fn from(options: &'a SamplingOptions<'a, P, Enabled, Enabled>) -> Self {
+//         let controller = options.into();
+//         BaseCube::new(options, controller)
+//     }
+// }
 
 pub trait CubeMethod<'a> {
-    type Controller: SampleController<Probs = ProbabilitiesUnequal>;
+    type Controller: SampleController<Store = FloatProbabilities>;
     fn base(&self) -> &BaseCube<'a, Self::Controller>;
     fn base_mut(&mut self) -> &mut BaseCube<'a, Self::Controller>;
     // fn controller(&self) -> &C { &self.base().controller }
@@ -218,13 +217,13 @@ pub trait CubeMethod<'a> {
     fn reset_to_ids(&mut self, ids: &mut [usize], n_neighbours: usize);
 }
 
-struct Cube<'a> {
-    base: BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>>,
+pub struct Cube<'a> {
+    base: BaseCube<'a, BasicSampleController<FloatProbabilities>>,
 }
 impl<'a> CubeMethod<'a> for Cube<'a> {
-    type Controller = BasicSampleController<ProbabilitiesUnequal>;
-    fn base(&self) -> &BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>> { &self.base }
-    fn base_mut(&mut self) -> &mut BaseCube<'a, BasicSampleController<ProbabilitiesUnequal>> {
+    type Controller = BasicSampleController<FloatProbabilities>;
+    fn base(&self) -> &BaseCube<'a, BasicSampleController<FloatProbabilities>> { &self.base }
+    fn base_mut(&mut self) -> &mut BaseCube<'a, BasicSampleController<FloatProbabilities>> {
         &mut self.base
     }
     fn select_units<R: RandomNumberGenerator>(&mut self, _: &mut R, n_units: usize) {
@@ -237,68 +236,18 @@ impl<'a> CubeMethod<'a> for Cube<'a> {
         }
     }
 }
-impl<'a> Cube<'a> {
-    pub fn new<P, S>(options: &'a SamplingOptions<'a, P, S, Enabled>) -> Self
-    where
-        P: Probabilities,
-        BasicSampleController<ProbabilitiesUnequal>: From<&'a SamplingOptions<'a, P, S, Enabled>>,
-    {
-        Self {
-            base: options.into(),
-        }
-    }
-}
-/// Draw a sample using the cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing`.
-/// For fixed sized samples, the first auxilliary variable should be the probability vector.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::cube_method::*;
-/// use envisim_utils::random::*;
-/// use envisim_utils::matrix::Matrix;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_m = Matrix::from_vec(vec![
-///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
-///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10).unwrap();
-/// let opts = SamplingOptions::new(&p)?.set_balancing(&bal_m)?;
-/// let s= cube(&mut rng, &opts);
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tillé, Y. (2004).
-/// Efficient balanced sampling: the cube method.
-/// Biometrika, 91(4), 893-912.
-/// <https://doi.org/10.1093/biomet/91.4.893>
-pub fn cube<R, P, S>(rng: &mut R, options: &SamplingOptions<'_, P, S, Enabled>) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-    P: Probabilities,
-    for<'a> BasicSampleController<ProbabilitiesUnequal>:
-        From<&'a SamplingOptions<'a, P, S, Enabled>>,
-{
-    Cube::new(options).sample(rng)
-}
 
-struct LocalCube<'a> {
-    base: BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>>,
+pub struct LocalCube<'a> {
+    base: BaseCube<'a, SpreadingSampleController<'a, FloatProbabilities>>,
     spreading_options: &'a SpreadingOptions<'a>,
     searcher: Searcher,
 }
 impl<'a> CubeMethod<'a> for LocalCube<'a> {
-    type Controller = SpreadingSampleController<'a, ProbabilitiesUnequal>;
-    fn base(&self) -> &BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>> {
+    type Controller = SpreadingSampleController<'a, FloatProbabilities>;
+    fn base(&self) -> &BaseCube<'a, SpreadingSampleController<'a, FloatProbabilities>> {
         &self.base
     }
-    fn base_mut(
-        &mut self,
-    ) -> &mut BaseCube<'a, SpreadingSampleController<'a, ProbabilitiesUnequal>> {
+    fn base_mut(&mut self) -> &mut BaseCube<'a, SpreadingSampleController<'a, FloatProbabilities>> {
         &mut self.base
     }
     fn select_units<R: RandomNumberGenerator>(&mut self, rng: &mut R, n_units: usize) {
@@ -351,7 +300,7 @@ impl<'a> CubeMethod<'a> for LocalCube<'a> {
         let n_open_spots = n_units - self.base.candidates.len();
         let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots).unwrap();
 
-        let s = srs(rng, &opts);
+        let s = opts.srs(rng);
         for k in s {
             self.base.candidates.push(self.searcher.neighbours()[i + k]);
         }
@@ -371,76 +320,6 @@ impl<'a> CubeMethod<'a> for LocalCube<'a> {
             self.base.controller.indices_mut().insert(*id).unwrap();
         }
     }
-}
-impl<'a> LocalCube<'a> {
-    pub fn new<P>(options: &'a SamplingOptions<'a, P, Enabled, Enabled>) -> Self
-    where
-        P: Probabilities,
-        SpreadingSampleController<'a, ProbabilitiesUnequal>:
-            From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
-    {
-        let base: BaseCube<SpreadingSampleController<ProbabilitiesUnequal>> = options.into();
-        let cols = options.balancing().data().ncol();
-        let searcher = Searcher::new(
-            base.controller.tree(),
-            NonZeroUsize::new(cols).expect("balancing to have columns"),
-        );
-        Self {
-            base,
-            spreading_options: options.spreading(),
-            searcher,
-        }
-    }
-}
-/// Draw a sample using the local cube method.
-/// The sample is balanced on the provided auxilliary variables in `balancing`.
-/// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
-/// For fixed sized samples, the first auxilliary variable should be the probability vector.
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::cube_method::*;
-/// use envisim_utils::random::*;
-/// use envisim_utils::matrix::Matrix;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let bal_m = Matrix::from_vec(vec![
-///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
-///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-/// ], 10).unwrap();
-/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-///     .unwrap();
-/// let opts = SamplingOptions::new(&p)?
-///     .set_balancing(&bal_m)?
-///     .set_spreading(&spr_m)?;
-/// let s = local_cube(&mut rng, &opts);
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingOptionsError>(())
-/// ```
-///
-/// # References
-/// Deville, J. C., & Tillé, Y. (2004).
-/// Efficient balanced sampling: the cube method.
-/// Biometrika, 91(4), 893-912.
-/// <https://doi.org/10.1093/biomet/91.4.893>
-///
-/// Grafström, A., & Tillé, Y. (2013).
-/// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
-/// Environmetrics, 24(2), 120-131.
-/// <https://doi.org/10.1002/env.2194>
-pub fn local_cube<R, P>(
-    rng: &mut R,
-    options: &SamplingOptions<'_, P, Enabled, Enabled>,
-) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-    P: Probabilities,
-    for<'a> SpreadingSampleController<'a, ProbabilitiesUnequal>:
-        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
-{
-    LocalCube::new(options).sample(rng)
 }
 
 pub struct CubeStratified<'a, T>
@@ -599,7 +478,7 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::*;
+/// use envisim_samplr::{*, cube_method::*};
 /// use envisim_utils::random::*;
 /// use envisim_utils::matrix::Matrix;
 ///
@@ -610,7 +489,7 @@ where
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new(&p)?.set_balancing(&bal_m)?;
+/// let options = SamplingOptions::new(&p)?.set_balancing(bal_m)?;
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
@@ -626,26 +505,24 @@ where
 /// Efficient balanced sampling: the cube method.
 /// Biometrika, 91(4), 893-912.
 /// <https://doi.org/10.1093/biomet/91.4.893>
-pub fn cube_stratified<R, P, S>(
+pub fn cube_stratified<R, PS>(
     rng: &mut R,
-    options: &SamplingOptions<'_, P, S, Enabled>,
+    options: &SamplingOptions<'_, PS>,
     strata: &[i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomNumberGenerator,
-    P: Probabilities,
-    for<'a> BasicSampleController<ProbabilitiesUnequal>:
-        From<&'a SamplingOptions<'a, P, S, Enabled>>,
+    PS: ProbabilitySpec,
 {
-    let balancing_data = options.balancing();
-    let org_probabilities = options.probabilities().slice();
+    let balancing_data = options.get_balancing()?;
+    let org_probabilities = options.probabilities().as_f64_slice();
 
-    let controller: BasicSampleController<ProbabilitiesUnequal> = options.into();
+    let controller = options.to_controller_float();
     let seed = rng.rusize();
 
     let mut cs = CubeStratified {
         cube: Cube {
-            base: BaseCube::<BasicSampleController<ProbabilitiesUnequal>> {
+            base: BaseCube::<BasicSampleController<FloatProbabilities>> {
                 controller,
                 candidates: Vec::<usize>::with_capacity(20),
                 adjusted_data: Matrix::from_value(
@@ -686,7 +563,7 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::cube_method::*;
+/// use envisim_samplr::{*, cube_method::*};
 /// use envisim_utils::random::*;
 /// use envisim_utils::matrix::Matrix;
 ///
@@ -699,7 +576,7 @@ where
 /// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
 ///     .unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new(&p)?.set_balancing(&bal_m)?.set_spreading(&spr_m)?;
+/// let options = SamplingOptions::new(&p)?.set_balancing(bal_m)?.set_spreading(spr_m)?;
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
 ///
 /// assert_eq!(s.len(), 2);
@@ -720,21 +597,19 @@ where
 /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
 /// Environmetrics, 24(2), 120-131.
 /// <https://doi.org/10.1002/env.2194>
-pub fn local_cube_stratified<R, P>(
+pub fn local_cube_stratified<R, PS>(
     rng: &mut R,
-    options: &SamplingOptions<'_, P, Enabled, Enabled>,
+    options: &SamplingOptions<'_, PS>,
     strata: &[i64],
 ) -> Result<Vec<usize>, SamplingError>
 where
     R: RandomNumberGenerator,
-    P: Probabilities,
-    for<'a> SpreadingSampleController<'a, ProbabilitiesUnequal>:
-        From<&'a SamplingOptions<'a, P, Enabled, Enabled>>,
+    PS: ProbabilitySpec,
 {
-    let balancing_data = options.balancing();
-    let org_probabilities = options.probabilities().slice();
+    let balancing_data = options.get_balancing()?;
+    let org_probabilities = options.probabilities().as_f64_slice();
 
-    let controller: SpreadingSampleController<ProbabilitiesUnequal> = options.into();
+    let controller = options.to_spreading_controller_float()?;
     let searcher = Searcher::new(
         controller.tree(),
         NonZeroUsize::new(balancing_data.data().ncol() + 1).unwrap(),
@@ -743,7 +618,7 @@ where
 
     let mut cs = CubeStratified {
         cube: LocalCube {
-            base: BaseCube::<SpreadingSampleController<ProbabilitiesUnequal>> {
+            base: BaseCube::<SpreadingSampleController<FloatProbabilities>> {
                 controller,
                 candidates: Vec::<usize>::with_capacity(20),
                 adjusted_data: Matrix::from_value(
@@ -763,7 +638,7 @@ where
                 )
                 .unwrap(),
             },
-            spreading_options: options.spreading(),
+            spreading_options: options.get_spreading()?,
             searcher,
         },
         strata: HashMap::<i64, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
@@ -841,6 +716,118 @@ fn find_vector_in_null_space(mat: &mut Matrix) -> Vec<f64> {
     }
 
     v
+}
+
+pub trait CubeSampling<'a> {
+    fn to_cube(&'a self) -> Result<Cube<'a>, SamplingOptionsError>;
+    fn cube<R: RandomNumberGenerator>(
+        &'a self,
+        rng: &mut R,
+    ) -> Result<Vec<usize>, SamplingOptionsError>;
+    fn to_local_cube(&'a self) -> Result<LocalCube<'a>, SamplingOptionsError>;
+    fn local_cube<R: RandomNumberGenerator>(
+        &'a self,
+        rng: &mut R,
+    ) -> Result<Vec<usize>, SamplingOptionsError>;
+}
+impl<'a, PS: ProbabilitySpec> CubeSampling<'a> for SamplingOptions<'a, PS> {
+    fn to_cube(&'a self) -> Result<Cube<'a>, SamplingOptionsError> {
+        let controller = self.to_controller_float();
+        let base = BaseCube::new(self, controller)?;
+        Ok(Cube { base })
+    }
+    /// Draw a sample using the cube method.
+    /// The sample is balanced on the provided auxilliary variables in `balancing`.
+    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_samplr::*;
+    /// use envisim_utils::random::*;
+    /// use envisim_utils::matrix::Matrix;
+    ///
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let bal_m = Matrix::from_vec(vec![
+    ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+    ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+    /// ], 10).unwrap();
+    /// let opts = SamplingOptions::new(&p)?.set_balancing(bal_m)?;
+    /// let s = opts.cube(&mut rng)?;
+    ///
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # References
+    /// Deville, J. C., & Tillé, Y. (2004).
+    /// Efficient balanced sampling: the cube method.
+    /// Biometrika, 91(4), 893-912.
+    /// <https://doi.org/10.1093/biomet/91.4.893>
+    fn cube<R: RandomNumberGenerator>(
+        &'a self,
+        rng: &mut R,
+    ) -> Result<Vec<usize>, SamplingOptionsError> {
+        Ok(self.to_cube()?.sample(rng))
+    }
+    fn to_local_cube(&'a self) -> Result<LocalCube<'a>, SamplingOptionsError> {
+        let controller = self.to_spreading_controller_float()?;
+        let base = BaseCube::new(self, controller)?;
+        let cols = self.get_balancing()?.data().ncol();
+        let searcher = Searcher::new(
+            base.controller.tree(),
+            NonZeroUsize::new(cols).expect("balancing to have columns"),
+        );
+        Ok(LocalCube {
+            base,
+            spreading_options: self.get_spreading()?,
+            searcher,
+        })
+    }
+    /// Draw a sample using the local cube method.
+    /// The sample is balanced on the provided auxilliary variables in `balancing`.
+    /// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
+    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_samplr::*;
+    /// use envisim_utils::random::*;
+    /// use envisim_utils::matrix::Matrix;
+    ///
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let bal_m = Matrix::from_vec(vec![
+    ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+    ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+    /// ], 10).unwrap();
+    /// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
+    ///     .unwrap();
+    /// let opts = SamplingOptions::new(&p)?
+    ///     .set_balancing(bal_m)?
+    ///     .set_spreading(spr_m)?;
+    /// let s = opts.local_cube(&mut rng)?;
+    ///
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingOptionsError>(())
+    /// ```
+    ///
+    /// # References
+    /// Deville, J. C., & Tillé, Y. (2004).
+    /// Efficient balanced sampling: the cube method.
+    /// Biometrika, 91(4), 893-912.
+    /// <https://doi.org/10.1093/biomet/91.4.893>
+    ///
+    /// Grafström, A., & Tillé, Y. (2013).
+    /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
+    /// Environmetrics, 24(2), 120-131.
+    /// <https://doi.org/10.1002/env.2194>
+    fn local_cube<R: RandomNumberGenerator>(
+        &'a self,
+        rng: &mut R,
+    ) -> Result<Vec<usize>, SamplingOptionsError> {
+        Ok(self.to_local_cube()?.sample(rng))
+    }
 }
 
 #[cfg(test)]

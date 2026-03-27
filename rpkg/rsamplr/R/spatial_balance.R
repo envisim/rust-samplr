@@ -8,7 +8,7 @@
 #' @param sample A vector of sample indices.
 #' @param probabilities A vector of inclusion probabilities.
 #' @param spread_mat A matrix of spreading covariates.
-#' @param balance_probabilities If `true` (default), includes the vector of inclusion probabilites
+#' @param balance_probabilities If `true` (default), includes the vector of inclusion probabilities
 #' as a balancing variable.
 #'
 #' @returns the measure, or in case of `balance_deviation`, the vector of deviations.
@@ -91,6 +91,14 @@ NULL
     method
   )
 }
+.spatial_balance_measure_wrapper_equal = function(method, sample, sample_size, spread_mat) {
+  rust_spatial_balance_measure_equal(
+    as.integer(sample),
+    as.integer(sample_size),
+    as.matrix(spread_mat),
+    method
+  )
+}
 
 #' @describeIn spatial_balance_measure Local spatial balance
 #' @export
@@ -102,16 +110,63 @@ spatial_balance_local = function(sample, probabilities, spread_mat, balance_prob
   }
 }
 
+#' @describeIn spatial_balance_measure Local spatial balance
+#' @export
+spatial_balance_local_equal = function(
+  sample,
+  spread_mat,
+  sample_size = length(sample),
+  balance_probabilities = TRUE
+) {
+  if (balance_probabilities == FALSE) {
+    .spatial_balance_measure_wrapper_equal("local2", sample, sample_size, spread_mat)
+  } else {
+    .spatial_balance_measure_wrapper_equal("local", sample, sample_size, spread_mat)
+  }
+}
+
 #' @describeIn spatial_balance_measure Voronoi spatial balance
 #' @export
 spatial_balance_voronoi = function(sample, probabilities, spread_mat) {
   .spatial_balance_measure_wrapper("voronoi", sample, probabilities, spread_mat)
 }
 
+#' @describeIn spatial_balance_measure Voronoi spatial balance
+#' @export
+spatial_balance_voronoi_equal = function(sample, spread_mat, sample_size = length(sample)) {
+  .spatial_balance_measure_wrapper_equal("voronoi", sample, sample_size, spread_mat)
+}
+
 #' @describeIn spatial_balance_measure Energy spatial balance
 #' @export
 spatial_balance_energy = function(sample, probabilities, spread_mat) {
   .spatial_balance_measure_wrapper("energy-distance", sample, probabilities, spread_mat)
+}
+
+#' @describeIn spatial_balance_measure Energy spatial balance
+#' @export
+spatial_balance_energy_equal = function(sample, spread_mat, sample_size = length(sample)) {
+  .spatial_balance_measure_wrapper_equal("energy-distance", sample, sample_size, spread_mat)
+}
+
+#' @describeIn spatial_balance_measure Energy spatial balance
+#' @export
+spatial_balance_all = function(sample, probabilities, spread_mat) {
+  rust_spatial_balance_measure_all(
+    as.integer(sample),
+    as.double(probabilities),
+    as.matrix(spread_mat)
+  )
+}
+
+#' @describeIn spatial_balance_measure Energy spatial balance
+#' @export
+spatial_balance_all_equal = function(sample, spread_mat, sample_size = length(sample)) {
+  rust_spatial_balance_measure_all_equal(
+    as.integer(sample),
+    as.integer(sample_size),
+    as.matrix(spread_mat)
+  )
 }
 
 #' @describeIn spatial_balance_measure Balance deviation
@@ -123,3 +178,4 @@ balance_deviation = function(sample, probabilities, spread_mat) {
     as.matrix(spread_mat)
   )
 }
+

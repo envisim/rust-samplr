@@ -24,7 +24,10 @@ pub enum SamplingError {
     IncorrectStratification,
     IncorrectDrawProbabilities,
     IncorrectProbabilitiesIntegerSum,
+    IncorrectAnnealingTemperature,
+    IncorrectAnnealingRate,
 }
+pub type SamplingResult<T> = Result<T, SamplingError>;
 
 impl std::error::Error for SamplingError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -51,6 +54,15 @@ impl std::fmt::Display for SamplingError {
             }
             IncorrectProbabilitiesIntegerSum => {
                 write!(f, "probabilities should sum to integer value")
+            }
+            IncorrectAnnealingTemperature => {
+                write!(f, "annealing temperature must be positive")
+            }
+            IncorrectAnnealingRate => {
+                write!(
+                    f,
+                    "annealing temperature cooling rate must be in (0.0, 1.0)"
+                )
             }
         }
     }

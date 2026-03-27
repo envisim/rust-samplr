@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -15,7 +15,10 @@ use std::num::NonZeroUsize;
 
 use super::Node;
 use crate::matrix::Matrix;
-use crate::probabilities::ProbabilitiesUnequal;
+use crate::probabilities::{
+    FloatProbabilities,
+    ProbabilityStore,
+};
 
 pub(super) trait TreeSearcher {
     fn unit(&self) -> &[f64];
@@ -214,7 +217,7 @@ impl SearcherWeighted {
     pub fn find_neighbours(
         &mut self,
         node: &Node,
-        probabilities: &ProbabilitiesUnequal,
+        probabilities: &FloatProbabilities,
         unit: &[f64],
         prob: f64,
     ) -> Result<(), NodeSearcherError> {
@@ -232,7 +235,7 @@ impl SearcherWeighted {
     pub fn find_neighbours_of_id(
         &mut self,
         node: &Node,
-        probabilities: &ProbabilitiesUnequal,
+        probabilities: &FloatProbabilities,
         idx: usize,
     ) -> Result<(), NodeSearcherError> {
         self.searcher
@@ -241,7 +244,7 @@ impl SearcherWeighted {
             searcher: self,
             probabilities,
             total_weight: 0.0,
-            unit_prob: probabilities[idx],
+            unit_prob: probabilities.get(idx),
         };
         node.find_neighbours(&mut tree_searcher);
         Ok(())
@@ -250,7 +253,7 @@ impl SearcherWeighted {
     pub fn find_neighbours_of_iter<'a, I>(
         &mut self,
         node: &Node,
-        probabilities: &ProbabilitiesUnequal,
+        probabilities: &FloatProbabilities,
         iter: I,
         prob: f64,
     ) -> Result<(), NodeSearcherError>
@@ -300,7 +303,7 @@ impl SearcherWeighted {
 
 pub(super) struct TreeSearcherWeighted<'a> {
     searcher: &'a mut SearcherWeighted,
-    probabilities: &'a ProbabilitiesUnequal,
+    probabilities: &'a FloatProbabilities,
     total_weight: f64,
     unit_prob: f64,
 }

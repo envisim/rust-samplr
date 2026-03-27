@@ -16,15 +16,18 @@
     bucket_size = as.integer(bucket_size)
   );
 
-  if (!(length(args$eps) == 1 && 0.0 <= args$eps && args$eps <= 1e-3)) {
+  if (!(length(args$eps) == 1 && 0.0 <= args$eps)) {
+    warning("eps is negative ... using default");
     args$eps = 1e-12;
   }
 
   if (!(length(args$bucket_size) == 1 && 0 < args$bucket_size)) {
+    warning("bucket_size is non-positive ... using default");
     args$bucket_size = 50L;
   }
 
   if (!(length(args$max_iter) == 1 && 0 < args$max_iter)) {
+    warnings("max_iter is non-positive ... using default");
     args$max_iter = 1000L;
   }
 

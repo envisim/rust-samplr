@@ -1,5 +1,6 @@
 use envisim_test_utils::*;
 use envisim_utils::pips::*;
+use envisim_utils::probabilities::*;
 
 #[test]
 fn pps() {

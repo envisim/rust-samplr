@@ -8,7 +8,7 @@ fn test_voronoi() {
     let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let options = SamplingOptions::new(&PROB_10_E)
         .unwrap()
-        .set_spreading(&data)
+        .set_spreading(data)
         .unwrap();
 
     let sb = voronoi(&[0], &options).unwrap();
@@ -20,7 +20,7 @@ fn test_local() {
     let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let options = SamplingOptions::new(&PROB_10_E)
         .unwrap()
-        .set_spreading(&data)
+        .set_spreading(data)
         .unwrap();
 
     let sb = local(&[0], &options, true).unwrap();

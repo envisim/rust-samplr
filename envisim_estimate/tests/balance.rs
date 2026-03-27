@@ -8,7 +8,7 @@ fn test_balance() {
     let data = Matrix::new(&DATA_10_2, 10).unwrap();
     let options = SamplingOptions::new(&PROB_10_E)
         .unwrap()
-        .set_spreading(&data)
+        .set_spreading(data.clone_shallow())
         .unwrap();
 
     let sb = balance_deviation_spreading(&[0], &options).unwrap();
@@ -19,7 +19,7 @@ fn test_balance() {
 
     assert_fvec(&sb, &dev);
 
-    let options = options.set_balancing(&data).unwrap();
+    let options = options.set_balancing(data.clone_shallow()).unwrap();
     let sb = balance_deviation_balancing(&[0], &options).unwrap();
 
     assert_fvec(&sb, &dev);

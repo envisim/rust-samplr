@@ -1,10 +1,6 @@
 mod test_utils;
-use envisim_samplr::cube_method::{
-    cube,
-    cube_stratified,
-    local_cube,
-    local_cube_stratified,
-};
+use envisim_samplr::cube_method::*;
+use envisim_utils::matrix::Matrix;
 use test_utils::*;
 
 // const BAL_DATA_10_1: [f64; 10] = [
@@ -18,15 +14,28 @@ use test_utils::*;
 #[test]
 fn test_cube() {
     let mut rng = rng();
+    let (p_vec, b_vec) = matrix_big_balanced();
+    let bal = Matrix::new(&b_vec, 1000).unwrap();
+    let options = SamplingOptions::new(&p_vec)
+        .unwrap()
+        .set_balancing(bal)
+        .unwrap();
+    test_wor_fixed_n(|| options.cube(&mut rng).unwrap(), &options, 100);
+
     let options = options_unequal();
-    test_wor(|| cube(&mut rng, &options), &options, 1e-2, 100000);
+    test_wor(|| options.cube(&mut rng).unwrap(), &options, 1e-2, 100000);
 }
 
 #[test]
 fn test_lcube() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| local_cube(&mut rng, &options), &options, 1e-2, 100000);
+    test_wor(
+        || options.local_cube(&mut rng).unwrap(),
+        &options,
+        1e-2,
+        100000,
+    );
 }
 
 #[test]

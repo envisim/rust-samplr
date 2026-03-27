@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -11,7 +11,6 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::borrow::Cow;
-use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use crate::kd_tree::{
@@ -19,370 +18,237 @@ use crate::kd_tree::{
     midpoint_slide,
 };
 use crate::matrix::Matrix;
-use crate::probabilities::Probabilities;
-pub use crate::probabilities::{
-    ProbabilitiesEqual,
-    ProbabilitiesUnequal,
+use crate::probabilities::{
+    ExactProbabilities,
+    FloatProbabilities,
+    ProbabilityStore,
+};
+use crate::sample_controller::{
+    BasicSampleController,
+    SpreadingSampleController,
 };
 use crate::utils::{
     f64_to_usize,
     usize_to_f64,
 };
 
-pub struct Enabled;
-pub struct Disabled;
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum SamplingOptionsError {
+    InvalidEpsilon,
+    InvalidPopulationSize,
+    InvalidSample,
+    InvalidSampleSize,
+    InvalidProbability,
+    InvalidRandomValues,
+    InvalidSpreading,
+    InvalidBucketSize,
+    InvalidBalancing,
+    MissingSpreading,
+    MissingBalancing,
+}
+pub type SamplingOptionsResult<T> = Result<T, SamplingOptionsError>;
 
-#[derive(Clone, Debug)]
-#[allow(clippy::exhaustive_enums)]
-pub enum ProbabilitySpec<'a> {
-    Equal { sample_size: usize },
-    Unequal { values: Cow<'a, [f64]> },
+impl std::error::Error for SamplingOptionsError {}
+
+impl std::fmt::Display for SamplingOptionsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SamplingOptionsError::*;
+        match self {
+            InvalidEpsilon => write!(f, "eps must be in [0.0, 1.0)"),
+            InvalidPopulationSize => write!(f, "population is empty"),
+            InvalidSample => write!(f, "sample contains invalid units"),
+            InvalidSampleSize => write!(f, "sample size must be smaller than population size"),
+            InvalidProbability => write!(f, "probabilities must be in [0.0, 1.0]"),
+            InvalidRandomValues => write!(f, "random values length must be >= population size"),
+            InvalidSpreading => write!(f, "spreading matrix must have population_size rows"),
+            InvalidBucketSize => write!(f, "bucket size must be at least 1"),
+            InvalidBalancing => write!(f, "balancing matrix must have population_size rows"),
+            MissingSpreading => write!(f, "no spreading options provided"),
+            MissingBalancing => write!(f, "no spreading options provided"),
+        }
+    }
 }
 
-#[derive(Clone, Debug)]
-pub struct IncProbOptions<'a, P = ProbabilitiesUnequal>
-where
-    P: Probabilities,
-{
-    spec: ProbabilitySpec<'a>,
+// Probability specification
+pub trait ProbabilitySpec {
+    type Native: ProbabilityStore;
+    fn population_size(&self) -> usize;
+    fn population_size_f64(&self) -> f64 { usize_to_f64(self.population_size()) }
+    fn sample_size(&self) -> usize;
+    fn sample_size_f64(&self) -> f64 { usize_to_f64(self.sample_size()) }
+    /// Returns probabilities as f64 slice
+    fn as_f64_slice(&self) -> Cow<'_, [f64]>;
+    /// Returns probabilities as f64 slice
+    fn as_equal(&self) -> Option<ProbabilitySpecEqual> { None }
+
+    fn to_native(&self, eps: f64) -> Self::Native;
+    fn to_float(&self, eps: f64) -> FloatProbabilities;
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ProbabilitySpecEqual {
     population_size: usize,
-    _phantom: PhantomData<P>,
+    sample_size: usize,
 }
-impl<'a, P> IncProbOptions<'a, P>
-where
-    P: Probabilities,
-{
-    pub fn spec(&self) -> &ProbabilitySpec<'a> { &self.spec }
-    pub fn population_size(&self) -> usize { self.population_size }
-    pub fn slice(&'a self) -> Cow<'a, [f64]> {
-        match self.spec {
-            ProbabilitySpec::Equal { sample_size } => {
-                let ip = usize_to_f64(sample_size) / usize_to_f64(self.population_size);
-                Cow::Owned(vec![ip; self.population_size])
-            }
-            ProbabilitySpec::Unequal { ref values } => Cow::Borrowed(values),
-        }
-    }
-    pub fn try_slice_equal(&self) -> Option<Vec<usize>> {
-        match self.spec {
-            ProbabilitySpec::Equal { sample_size } => Some(vec![sample_size; self.population_size]),
-            _ => None,
-        }
-    }
-    pub fn sample_size_usize(&self) -> usize {
-        match self.spec {
-            ProbabilitySpec::Equal { sample_size } => sample_size,
-            ProbabilitySpec::Unequal { ref values } => {
-                f64_to_usize(values.iter().sum::<f64>().round())
-            }
-        }
-    }
-    pub fn sample_size_f64(&self) -> f64 {
-        match self.spec {
-            ProbabilitySpec::Equal { sample_size } => usize_to_f64(sample_size),
-            ProbabilitySpec::Unequal { ref values } => values.iter().sum::<f64>().round(),
-        }
-    }
-}
-impl<'a> IncProbOptions<'a, ProbabilitiesEqual> {
-    pub fn slice_equal(&self) -> Vec<usize> {
-        self.try_slice_equal().expect("guaranteed by type system")
-    }
-    pub fn sample_size(&self) -> usize { self.sample_size_usize() }
-}
-impl<'a, P> Default for IncProbOptions<'a, P>
-where
-    P: Probabilities,
-{
-    fn default() -> IncProbOptions<'a, P> {
-        IncProbOptions::<'a, P> {
-            spec: ProbabilitySpec::Equal { sample_size: 0 },
-            population_size: 0,
-            _phantom: PhantomData,
-        }
-    }
-}
-impl<'a> From<&'a [f64]> for IncProbOptions<'a, ProbabilitiesUnequal> {
-    fn from(arr: &'a [f64]) -> IncProbOptions<'a, ProbabilitiesUnequal> {
-        let population_size = arr.len();
-        IncProbOptions::<ProbabilitiesUnequal> {
-            spec: ProbabilitySpec::Unequal {
-                values: Cow::Borrowed(arr),
-            },
+impl From<(usize, usize)> for ProbabilitySpecEqual {
+    fn from((population_size, sample_size): (usize, usize)) -> Self {
+        ProbabilitySpecEqual {
             population_size,
-            _phantom: PhantomData,
+            sample_size,
         }
     }
 }
-impl<'a> From<Vec<f64>> for IncProbOptions<'a, ProbabilitiesUnequal> {
-    fn from(arr: Vec<f64>) -> IncProbOptions<'a, ProbabilitiesUnequal> {
-        let population_size = arr.len();
-        IncProbOptions::<ProbabilitiesUnequal> {
-            spec: ProbabilitySpec::Unequal {
-                values: Cow::Owned(arr),
-            },
-            population_size,
-            _phantom: PhantomData,
-        }
-    }
+impl ProbabilitySpecEqual {
+    pub fn as_f64(&self) -> f64 { self.sample_size_f64() / self.population_size_f64() }
 }
-impl<'a> From<(usize, usize)> for IncProbOptions<'a, ProbabilitiesEqual> {
-    fn from(pair: (usize, usize)) -> IncProbOptions<'a, ProbabilitiesEqual> {
-        IncProbOptions::<ProbabilitiesEqual> {
-            spec: ProbabilitySpec::Equal {
-                sample_size: pair.1,
-            },
-            population_size: pair.0,
-            _phantom: PhantomData,
-        }
+impl ProbabilitySpec for ProbabilitySpecEqual {
+    type Native = ExactProbabilities;
+    fn population_size(&self) -> usize { self.population_size }
+    fn sample_size(&self) -> usize { self.sample_size }
+    fn as_f64_slice(&self) -> Cow<'_, [f64]> {
+        let p = self.sample_size_f64() / self.population_size_f64();
+        Cow::Owned(vec![p; self.population_size])
+    }
+    fn as_equal(&self) -> Option<ProbabilitySpecEqual> { Some(*self) }
+    fn to_native(&self, _eps: f64) -> Self::Native { ExactProbabilities::new_equal(*self) }
+    fn to_float(&self, eps: f64) -> FloatProbabilities {
+        FloatProbabilities::new(self.as_f64_slice().into_owned(), eps)
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ProbabilitySpecUnequal<'a> {
+    data: Cow<'a, [f64]>,
+}
+impl<'a> ProbabilitySpec for ProbabilitySpecUnequal<'a> {
+    type Native = FloatProbabilities;
+    fn population_size(&self) -> usize { self.data.len() }
+    fn sample_size_f64(&self) -> f64 { self.data.iter().sum::<f64>() }
+    fn sample_size(&self) -> usize { f64_to_usize(self.sample_size_f64().round()) }
+    fn as_f64_slice(&self) -> Cow<'_, [f64]> { Cow::Borrowed(&self.data) }
+    fn to_native(&self, eps: f64) -> Self::Native {
+        FloatProbabilities::new(self.data.clone().into_owned(), eps)
+    }
+    fn to_float(&self, eps: f64) -> FloatProbabilities { Self::to_native(self, eps) }
+}
+
+// Sub-options
 #[derive(Clone, Debug)]
 pub struct SpreadingOptions<'a> {
     data: Matrix<'a>,
     bucket_size: NonZeroUsize,
     split_method: FindSplit,
 }
-
 impl<'a> SpreadingOptions<'a> {
-    pub fn new(data: &'a Matrix<'a>) -> Result<SpreadingOptions<'a>, SamplingOptionsError> {
-        data.try_into()
+    pub fn new(data: Matrix<'a>) -> SamplingOptionsResult<Self> {
+        if data.nrow() == 0 {
+            return Err(SamplingOptionsError::InvalidSpreading);
+        }
+
+        let mut opts = Self {
+            data,
+            bucket_size: NonZeroUsize::new(40).unwrap(),
+            split_method: midpoint_slide,
+        };
+        opts.estimate_bucket_size();
+        Ok(opts)
     }
 
     pub fn data(&self) -> &Matrix<'a> { &self.data }
     pub fn bucket_size(&self) -> NonZeroUsize { self.bucket_size }
-    pub fn set_bucket_size(
-        mut self,
-        bucket_size: impl TryInto<NonZeroUsize>,
-    ) -> Result<Self, SamplingOptionsError> {
-        let Ok(bs) = bucket_size.try_into() else {
-            return Err(SamplingOptionsError::InvalidBucketSize);
-        };
-        self.bucket_size = bs;
-        Ok(self)
-    }
-    pub fn est_bucket_size(self) -> Result<SpreadingOptions<'a>, SamplingOptionsError> {
-        let len = self.data.nrow();
-        let bucket_size = match len {
-            0usize..=100 => 10usize,
-            101usize..=400 => len / 10usize,
-            _ => 40usize,
-        };
-        self.set_bucket_size(bucket_size)
-    }
     pub fn split_method(&self) -> FindSplit { self.split_method }
-    pub fn set_split_method(
-        mut self,
-        split_method: FindSplit,
-    ) -> Result<Self, SamplingOptionsError> {
-        self.split_method = split_method;
+    pub fn set_bucket_size(mut self, size: usize) -> SamplingOptionsResult<Self> {
+        self.bucket_size =
+            NonZeroUsize::new(size).ok_or(SamplingOptionsError::InvalidBucketSize)?;
         Ok(self)
     }
-}
-
-impl<'a> TryFrom<&'a Matrix<'a>> for SpreadingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: &'a Matrix<'a>) -> Result<SpreadingOptions<'a>, Self::Error> {
-        data.clone_shallow().try_into()
+    pub fn set_split_method(mut self, method: FindSplit) -> Self {
+        self.split_method = method;
+        self
+    }
+    fn estimate_bucket_size(&mut self) {
+        let len = self.data.nrow();
+        let size = match len {
+            0..=100 => 10,
+            101..=400 => len / 10,
+            _ => 40,
+        };
+        self.bucket_size = NonZeroUsize::new(size).unwrap();
     }
 }
-impl<'a> TryFrom<Matrix<'a>> for SpreadingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: Matrix<'a>) -> Result<SpreadingOptions<'a>, Self::Error> {
-        if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        }
-        SpreadingOptions {
-            data,
-            bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
-            split_method: midpoint_slide,
-        }
-        .est_bucket_size()
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct BalancingOptions<'a> {
     data: Matrix<'a>,
 }
-
 impl<'a> BalancingOptions<'a> {
-    #[inline]
-    pub fn new(data: &'a Matrix<'a>) -> Result<Self, SamplingOptionsError> {
+    pub fn new(data: Matrix<'a>) -> SamplingOptionsResult<Self> {
         if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        }
-        Ok(Self {
-            data: data.clone_shallow(),
-        })
-    }
-    pub fn data(&self) -> &Matrix<'a> { &self.data }
-}
-impl<'a> TryFrom<&'a Matrix<'a>> for BalancingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: &'a Matrix<'a>) -> Result<Self, Self::Error> { Self::new(data) }
-}
-impl<'a> TryFrom<Matrix<'a>> for BalancingOptions<'a> {
-    type Error = SamplingOptionsError;
-    fn try_from(data: Matrix<'a>) -> Result<Self, Self::Error> {
-        if data.nrow() == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
+            return Err(SamplingOptionsError::InvalidBalancing);
         }
         Ok(Self { data })
     }
+
+    pub fn data(&self) -> &Matrix<'a> { &self.data }
 }
 
 #[derive(Clone, Debug)]
 pub struct CoordinationOptions<'a> {
     data: Cow<'a, [f64]>,
 }
+
 impl<'a> CoordinationOptions<'a> {
     pub fn new(data: &'a [f64]) -> Self {
         Self {
             data: Cow::Borrowed(data),
         }
     }
+
     pub fn data(&self) -> &[f64] { &self.data }
 }
-impl<'a> From<&'a [f64]> for CoordinationOptions<'a> {
-    fn from(data: &'a [f64]) -> Self { Self::new(data) }
-}
-impl<'a> From<Vec<f64>> for CoordinationOptions<'a> {
-    fn from(data: Vec<f64>) -> Self {
-        Self {
-            data: Cow::Owned(data),
-        }
-    }
-}
 
-pub struct SpreadingDisabled;
-pub struct SpreadingEnabled;
-pub struct BalancingDisabled;
-pub struct BalancingEnabled;
-
+// Main SamplingOptions
 #[derive(Clone, Debug)]
-pub struct SamplingOptions<'a, P = ProbabilitiesUnequal, S = Disabled, B = Disabled>
-where
-    P: Probabilities,
-{
-    probabilities: IncProbOptions<'a, P>,
-
-    // Base
+pub struct SamplingOptions<'a, PS: ProbabilitySpec> {
+    probabilities: PS,
     eps: f64,
     max_iterations: NonZeroUsize,
-
-    // Coordinated
     coordination: Option<CoordinationOptions<'a>>,
 
-    // Spatially balanced sampling
     spreading: Option<SpreadingOptions<'a>>,
-
-    // Balanced sampling
     balancing: Option<BalancingOptions<'a>>,
-
-    // Phantom
-    _phantom: PhantomData<(S, B)>,
 }
-impl<'a, P> Default for SamplingOptions<'a, P, Disabled, Disabled>
-where
-    P: Probabilities,
-{
-    fn default() -> SamplingOptions<'a, P, Disabled, Disabled> {
-        SamplingOptions::<'a, P, Disabled, Disabled> {
-            probabilities: Default::default(),
-            eps: 1e-12,
-            max_iterations: unsafe { NonZeroUsize::new_unchecked(1000) },
-            coordination: None,
-            spreading: None,
-            balancing: None,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<'a, P, S, B> SamplingOptions<'a, P, S, B>
-where
-    P: Probabilities,
-{
-    pub fn probabilities(&self) -> &IncProbOptions<'a, P> { &self.probabilities }
-    pub fn population_size(&self) -> usize { self.probabilities.population_size() }
-    pub fn set_probabilities_unequal(
-        self,
-        probabilities: &'a [f64],
-    ) -> Result<SamplingOptions<'a, ProbabilitiesUnequal, S, B>, SamplingOptionsError> {
-        let population_size = probabilities.len();
-        if population_size == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        } else if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
-            return Err(SamplingOptionsError::InvalidProbability);
-        }
-        if let Some(ref rv) = self.coordination {
-            if rv.data.len() < population_size {
-                return Err(SamplingOptionsError::InvalidPopulationSize);
-            }
-        }
-        if let Some(ref spr) = self.spreading {
-            if spr.data.nrow() != population_size {
-                return Err(SamplingOptionsError::InvalidPopulationSize);
-            }
-        }
-        if let Some(ref bal) = self.balancing {
-            if bal.data.nrow() != population_size {
-                return Err(SamplingOptionsError::InvalidPopulationSize);
-            }
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesUnequal> = probabilities.into();
-        let opts = SamplingOptions::<'a, ProbabilitiesUnequal, S, B> {
-            probabilities: p_opts,
-            eps: self.eps,
-            max_iterations: self.max_iterations,
-            coordination: self.coordination,
-            spreading: self.spreading,
-            balancing: self.balancing,
-            _phantom: PhantomData,
-        };
-        Ok(opts)
-    }
-    pub fn set_probabilities_equal(
-        self,
-        sample_size: usize,
-    ) -> Result<SamplingOptions<'a, ProbabilitiesEqual, S, B>, SamplingOptionsError> {
-        let population_size = self.population_size();
-        if population_size < sample_size {
-            return Err(SamplingOptionsError::InvalidSampleSize);
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesEqual> = (population_size, sample_size).into();
-        let opts = SamplingOptions::<'a, ProbabilitiesEqual, S, B> {
-            probabilities: p_opts,
-            eps: self.eps,
-            max_iterations: self.max_iterations,
-            coordination: self.coordination,
-            spreading: self.spreading,
-            balancing: self.balancing,
-            _phantom: PhantomData,
-        };
-        Ok(opts)
-    }
+impl<'a, PS: ProbabilitySpec> SamplingOptions<'a, PS> {
+    // ACCESSORS
+    pub fn probabilities(&'a self) -> &PS { &self.probabilities }
+    pub fn population_size(&'a self) -> usize { self.probabilities().population_size() }
+    pub fn sample_size(&'a self) -> usize { self.probabilities().sample_size() }
     pub fn eps(&self) -> f64 { self.eps }
-    pub fn set_eps(mut self, eps: f64) -> Result<Self, SamplingOptionsError> {
+    pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
+    pub fn coordination(&self) -> Option<&CoordinationOptions<'a>> { self.coordination.as_ref() }
+    pub fn spreading(&'a self) -> Option<&SpreadingOptions<'a>> { self.spreading.as_ref() }
+    pub fn get_spreading(&'a self) -> SamplingOptionsResult<&SpreadingOptions<'a>> {
+        self.spreading()
+            .ok_or(SamplingOptionsError::MissingSpreading)
+    }
+    pub fn balancing(&'a self) -> Option<&BalancingOptions<'a>> { self.balancing.as_ref() }
+    pub fn get_balancing(&'a self) -> SamplingOptionsResult<&BalancingOptions<'a>> {
+        self.balancing()
+            .ok_or(SamplingOptionsError::MissingBalancing)
+    }
+
+    // SETTERS
+    pub fn set_eps(mut self, eps: f64) -> SamplingOptionsResult<Self> {
         if !(0.0..1.0).contains(&eps) {
             return Err(SamplingOptionsError::InvalidEpsilon);
         }
         self.eps = eps;
         Ok(self)
     }
-    pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
-    pub fn set_max_iterations(
-        mut self,
-        max_iterations: NonZeroUsize,
-    ) -> Result<Self, SamplingOptionsError> {
-        self.max_iterations = max_iterations;
+    pub fn set_max_iterations(mut self, max: NonZeroUsize) -> SamplingOptionsResult<Self> {
+        self.max_iterations = max;
         Ok(self)
     }
-    pub fn coordination(&self) -> Option<&CoordinationOptions<'a>> { self.coordination.as_ref() }
     pub fn set_coordination(
         mut self,
         random_values: &'a [f64],
@@ -390,155 +256,160 @@ where
         if random_values.len() < self.population_size() {
             return Err(SamplingOptionsError::InvalidRandomValues);
         }
-        self.coordination = Some(random_values.into());
+        self.coordination = Some(CoordinationOptions::new(random_values));
         Ok(self)
     }
-    pub fn set_spreading(
-        self,
-        spreading: impl TryInto<SpreadingOptions<'a>, Error = SamplingOptionsError>,
-    ) -> Result<SamplingOptions<'a, P, Enabled, B>, SamplingOptionsError> {
-        let spreading = spreading.try_into()?;
+
+    pub fn set_spreading(mut self, data: Matrix<'a>) -> SamplingOptionsResult<Self> {
+        if data.nrow() != self.population_size() {
+            return Err(SamplingOptionsError::InvalidSpreading);
+        }
+
+        self.spreading = Some(SpreadingOptions::new(data)?);
+        Ok(self)
+    }
+    pub fn set_spreading_opts(
+        mut self,
+        spreading: SpreadingOptions<'a>,
+    ) -> SamplingOptionsResult<Self> {
         if spreading.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
 
-        let opts = SamplingOptions::<'a, P, Enabled, B> {
-            probabilities: self.probabilities,
-            eps: self.eps,
-            max_iterations: self.max_iterations,
-            coordination: self.coordination,
-            spreading: Some(spreading),
-            balancing: self.balancing,
-            _phantom: PhantomData,
-        };
-        Ok(opts)
+        self.spreading = Some(spreading);
+        Ok(self)
     }
-    pub fn set_balancing(
-        self,
-        balancing: impl TryInto<BalancingOptions<'a>, Error = SamplingOptionsError>,
-    ) -> Result<SamplingOptions<'a, P, S, Enabled>, SamplingOptionsError> {
-        let balancing = balancing.try_into()?;
+    pub fn set_balancing(mut self, data: Matrix<'a>) -> SamplingOptionsResult<Self> {
+        if data.nrow() != self.population_size() {
+            return Err(SamplingOptionsError::InvalidBalancing);
+        }
+
+        self.balancing = Some(BalancingOptions::new(data)?);
+        Ok(self)
+    }
+    pub fn set_balancing_opts(
+        mut self,
+        balancing: BalancingOptions<'a>,
+    ) -> SamplingOptionsResult<Self> {
         if balancing.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
         }
 
-        let opts = SamplingOptions::<'a, P, S, Enabled> {
-            probabilities: self.probabilities,
-            eps: self.eps,
-            max_iterations: self.max_iterations,
-            coordination: self.coordination,
-            spreading: self.spreading,
-            balancing: Some(balancing),
-            _phantom: PhantomData,
-        };
-        Ok(opts)
+        self.balancing = Some(balancing);
+        Ok(self)
+    }
+
+    // BUILDERS
+    pub fn to_probabilities(&self) -> PS::Native { self.probabilities.to_native(self.eps) }
+    pub fn to_probabilities_float(&self) -> FloatProbabilities {
+        self.probabilities.to_float(self.eps)
+    }
+    pub fn to_controller(&self) -> BasicSampleController<PS::Native> {
+        let probs = self.to_probabilities();
+        BasicSampleController::new(probs)
+    }
+    pub fn to_controller_float(&self) -> BasicSampleController<FloatProbabilities> {
+        let probs = self.to_probabilities_float();
+        BasicSampleController::new(probs)
+    }
+    pub fn to_spreading_controller(
+        &'a self,
+    ) -> SamplingOptionsResult<SpreadingSampleController<'a, PS::Native>> {
+        let controller = self.to_controller();
+        let spreading = self.get_spreading()?;
+        SpreadingSampleController::new(controller, spreading)
+    }
+    pub fn to_spreading_controller_float(
+        &'a self,
+    ) -> SamplingOptionsResult<SpreadingSampleController<'a, FloatProbabilities>> {
+        let controller = self.to_controller_float();
+        let spreading = self.get_spreading()?;
+        SpreadingSampleController::new(controller, spreading)
     }
 }
-impl<'a, S, B> SamplingOptions<'a, ProbabilitiesEqual, S, B> {
-    pub fn sample_size(&self) -> usize { self.probabilities.sample_size() }
-}
-impl<'a> SamplingOptions<'a, ProbabilitiesUnequal, Disabled, Disabled> {
-    pub fn new(
-        probabilities: &'a [f64],
-    ) -> Result<SamplingOptions<'a, ProbabilitiesUnequal, Disabled, Disabled>, SamplingOptionsError>
-    {
-        let population_size = probabilities.len();
-        if population_size == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        } else if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
-            return Err(SamplingOptionsError::InvalidProbability);
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesUnequal> = probabilities.into();
-        let opts = SamplingOptions::<'a, ProbabilitiesUnequal> {
-            probabilities: p_opts,
-            ..Default::default()
-        };
-        Ok(opts)
-    }
-}
-impl<'a> SamplingOptions<'a, ProbabilitiesEqual, Disabled, Disabled> {
-    pub fn new_equal(
-        population_size: usize,
-        sample_size: usize,
-    ) -> Result<SamplingOptions<'a, ProbabilitiesEqual>, SamplingOptionsError> {
-        if population_size == 0 {
-            return Err(SamplingOptionsError::InvalidPopulationSize);
-        } else if population_size < sample_size {
-            return Err(SamplingOptionsError::InvalidSampleSize);
-        }
-
-        let p_opts: IncProbOptions<'a, ProbabilitiesEqual> = (population_size, sample_size).into();
-        let opts = SamplingOptions::<'a, ProbabilitiesEqual> {
-            probabilities: p_opts,
-            ..Default::default()
-        };
-        Ok(opts)
-    }
-}
-
-impl<'a> TryFrom<&'a [f64]> for SamplingOptions<'a, ProbabilitiesUnequal> {
+impl<'a> TryFrom<&'a [f64]> for SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
     type Error = SamplingOptionsError;
-    fn try_from(
-        probabilities: &'a [f64],
-    ) -> Result<SamplingOptions<'a, ProbabilitiesUnequal>, Self::Error> {
-        Self::new(probabilities)
+    fn try_from(probabilities: &'a [f64]) -> Result<Self, Self::Error> { Self::new(probabilities) }
+}
+impl<'a> TryFrom<Vec<f64>> for SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
+    type Error = SamplingOptionsError;
+    fn try_from(probabilities: Vec<f64>) -> Result<Self, Self::Error> {
+        Self::new_owned(probabilities)
     }
 }
-impl<'a> TryFrom<(usize, usize)> for SamplingOptions<'a, ProbabilitiesEqual> {
+impl<'a> TryFrom<ProbabilitySpecEqual> for SamplingOptions<'a, ProbabilitySpecEqual> {
     type Error = SamplingOptionsError;
-    fn try_from(
-        (population_size, sample_size): (usize, usize),
-    ) -> Result<SamplingOptions<'a, ProbabilitiesEqual>, Self::Error> {
+    fn try_from(spec: ProbabilitySpecEqual) -> Result<Self, Self::Error> {
+        Self::new_equal_spec(spec)
+    }
+}
+impl<'a> TryFrom<(usize, usize)> for SamplingOptions<'a, ProbabilitySpecEqual> {
+    type Error = SamplingOptionsError;
+    fn try_from((population_size, sample_size): (usize, usize)) -> Result<Self, Self::Error> {
         Self::new_equal(population_size, sample_size)
     }
 }
-
-impl<'a, P, B> SamplingOptions<'a, P, Enabled, B>
-where
-    P: Probabilities,
-{
-    pub fn spreading(&self) -> &SpreadingOptions<'a> {
-        self.spreading.as_ref().expect("Spreading Enabled")
-    }
-}
-impl<'a, P, S> SamplingOptions<'a, P, S, Enabled>
-where
-    P: Probabilities,
-{
-    pub fn balancing(&'a self) -> &'a BalancingOptions<'a> {
-        self.balancing.as_ref().expect("Balancing Enabled")
-    }
-}
-
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum SamplingOptionsError {
-    InvalidEpsilon,
-    InvalidPopulationSize,
-    InvalidSampleSize,
-    InvalidProbability,
-    InvalidRandomValues,
-    InvalidSpreading,
-    InvalidBucketSize,
-    InvalidBalancing,
-}
-impl std::error::Error for SamplingOptionsError {}
-impl std::fmt::Display for SamplingOptionsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use SamplingOptionsError::*;
-        match *self {
-            InvalidEpsilon => write!(f, "eps must be in [0.0, 1.0)"),
-            InvalidPopulationSize => write!(f, "population is empty"),
-            InvalidSampleSize => write!(f, "sample size must be smaller than population size"),
-            InvalidProbability => write!(f, "probabilities must be in [0.0, 1.0]"),
-            InvalidRandomValues => write!(
-                f,
-                "size of random values must be at least as large as population size"
-            ),
-            InvalidSpreading => write!(f, "spreading matrix must be of population size"),
-            InvalidBucketSize => write!(f, "bucket size must be at least 1"),
-            InvalidBalancing => write!(f, "balancing matrix must be of population size"),
+impl<'a> SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
+    pub fn new(probabilities: &'a [f64]) -> SamplingOptionsResult<Self> {
+        if probabilities.is_empty() {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
         }
+        if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
+            return Err(SamplingOptionsError::InvalidProbability);
+        }
+
+        const EPS: f64 = 1e-9;
+        Ok(Self {
+            probabilities: ProbabilitySpecUnequal {
+                data: Cow::Borrowed(probabilities),
+            },
+            eps: EPS,
+            max_iterations: NonZeroUsize::new(1000).unwrap(),
+            coordination: None,
+            spreading: None,
+            balancing: None,
+        })
+    }
+    pub fn new_owned(probabilities: Vec<f64>) -> Result<Self, SamplingOptionsError> {
+        if probabilities.is_empty() {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        }
+        if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
+            return Err(SamplingOptionsError::InvalidProbability);
+        }
+
+        const EPS: f64 = 1e-9;
+        Ok(Self {
+            probabilities: ProbabilitySpecUnequal {
+                data: Cow::Owned(probabilities),
+            },
+            eps: EPS,
+            max_iterations: NonZeroUsize::new(1000).unwrap(),
+            coordination: None,
+            spreading: None,
+            balancing: None,
+        })
+    }
+}
+impl<'a> SamplingOptions<'a, ProbabilitySpecEqual> {
+    pub fn new_equal_spec(spec: ProbabilitySpecEqual) -> SamplingOptionsResult<Self> {
+        if spec.population_size == 0 {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        }
+        if spec.sample_size > spec.population_size {
+            return Err(SamplingOptionsError::InvalidSampleSize);
+        }
+
+        Ok(Self {
+            probabilities: spec,
+            eps: 1e-9,
+            max_iterations: NonZeroUsize::new(1000).unwrap(),
+            coordination: None,
+            spreading: None,
+            balancing: None,
+        })
+    }
+    pub fn new_equal(population_size: usize, sample_size: usize) -> SamplingOptionsResult<Self> {
+        Self::new_equal_spec((population_size, sample_size).into())
     }
 }

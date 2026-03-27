@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -15,28 +15,32 @@ use std::num::NonZeroUsize;
 use super::FindSplit;
 use super::searcher::TreeSearcher;
 use crate::matrix::Matrix;
-use crate::sampling_options::SpreadingOptions;
+use crate::sampling_options::{
+    SamplingOptionsError,
+    SamplingOptionsResult,
+    SpreadingOptions,
+};
 
 pub trait TreeBuilder<'a> {
     fn data(&self) -> &Matrix<'a>;
     fn bucket_size(&self) -> NonZeroUsize;
     fn split_method(&self) -> FindSplit;
     /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
-    fn build(&'a self, units: &mut [usize]) -> Option<Node<'a>>;
+    fn build(&'a self, units: &mut [usize]) -> SamplingOptionsResult<Node<'a>>;
 }
 
 impl<'a> TreeBuilder<'a> for SpreadingOptions<'a> {
     fn data(&self) -> &Matrix<'a> { self.data() }
     fn bucket_size(&self) -> NonZeroUsize { self.bucket_size() }
     fn split_method(&self) -> FindSplit { self.split_method() }
-    fn build(&'a self, units: &mut [usize]) -> Option<Node<'a>> {
+    fn build(&'a self, units: &mut [usize]) -> SamplingOptionsResult<Node<'a>> {
         let population_size = self.data().nrow();
         if units.iter().any(|&id| id >= population_size) {
-            return None;
+            return Err(SamplingOptionsError::InvalidSample);
         }
 
         let borders = Node::borders(self.data(), units);
-        Some(Node::create(self, units, borders))
+        Ok(Node::create(self, units, borders))
     }
 }
 
@@ -259,7 +263,6 @@ impl std::fmt::Debug for NodeLeaf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sampling_options::SamplingOptionsError;
 
     static MATRIX_DATA: [f64; 10] = [
         0.0, 1.0, 2.0, 13.0, 14.0, //
@@ -268,9 +271,9 @@ mod tests {
     fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&MATRIX_DATA, 5).unwrap() }
 
     #[test]
-    fn new_midpoint_slide() -> Result<(), SamplingOptionsError> {
+    fn new_midpoint_slide() -> SamplingOptionsResult<()> {
         let m = matrix_new();
-        let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+        let opts = SpreadingOptions::new(m)?.set_bucket_size(2)?;
         let t = opts.build(&mut [0, 1, 2, 3]).unwrap();
         println!("{:?}", t);
 
@@ -298,9 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn insert_unit() -> Result<(), SamplingOptionsError> {
+    fn insert_unit() -> SamplingOptionsResult<()> {
         let m = matrix_new();
-        let opts = SpreadingOptions::new(&m)?.set_bucket_size(2)?;
+        let opts = SpreadingOptions::new(m)?.set_bucket_size(2)?;
         let mut t = opts.build(&mut [0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.insert_unit(4).unwrap(), true);

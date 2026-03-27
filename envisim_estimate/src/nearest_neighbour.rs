@@ -17,7 +17,10 @@ use envisim_utils::kd_tree::{
     TreeBuilder,
 };
 use envisim_utils::matrix::Matrix;
-use envisim_utils::sampling_options::SpreadingOptions;
+use envisim_utils::sampling_options::{
+    SamplingOptionsError,
+    SpreadingOptions,
+};
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{
     FxBuildHasher,
@@ -26,20 +29,24 @@ use rustc_hash::{
 
 /// Nearest neighbour estimator of total.
 /// Is not an design-unbiased estimator of the total.
-pub fn nearest_neighbour(y_values: &[f64], sample: &[usize], auxiliaries: &Matrix) -> Option<f64> {
+pub fn nearest_neighbour(
+    y_values: &[f64],
+    sample: &[usize],
+    auxiliaries: &Matrix,
+) -> Result<f64, SamplingOptionsError> {
     let population_size = auxiliaries.nrow();
     let sample_size = sample.len();
 
     if sample.len() != y_values.len() || !sample.iter().all(|id| (0..population_size).contains(id))
     {
-        return None;
+        return Err(SamplingOptionsError::InvalidSample);
     }
 
     if sample_size == 0 {
-        return Some(0.0);
+        return Ok(0.0);
     }
 
-    let spr_opts = SpreadingOptions::new(auxiliaries).unwrap();
+    let spr_opts = SpreadingOptions::new(auxiliaries.clone_shallow())?;
     let tree = spr_opts.build(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
 
@@ -61,10 +68,8 @@ pub fn nearest_neighbour(y_values: &[f64], sample: &[usize], auxiliaries: &Matri
         }
     }
 
-    Some(
-        y_values
-            .iter()
-            .zip(sample.iter())
-            .fold(0.0, |acc, (&y, id)| acc + y * number_of_neighbours[id]),
-    )
+    Ok(y_values
+        .iter()
+        .zip(sample.iter())
+        .fold(0.0, |acc, (&y, id)| acc + y * number_of_neighbours[id]))
 }

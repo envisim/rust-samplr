@@ -102,13 +102,14 @@
 #'
 NULL
 
-.unequal_wrapper = function(method, probabilities, ...) {
+.unequal_wrapper = function(method, probabilities, sample_size = 1L, ...) {
   args = .sampling_defaults(...);
   rust_unequal(
     as.double(probabilities),
     args$eps,
     method,
-    args$max_iter
+    args$max_iter,
+    as.integer(sample_size),
   )
 }
 
@@ -139,13 +140,7 @@ poisson = function(probabilities, ...) {
 #' @describeIn unequal_probability_sampling Conditional Poisson sampling
 #' @export
 conditional_poisson = function(probabilities, sample_size, ...) {
-  args = .sampling_defaults(...);
-  rust_unequal_conditional_poisson(
-    as.double(probabilities),
-    as.integer(sample_size),
-    args$eps,
-    args$max_iter
-  )
+  .unequal_wrapper("poisson", probabilities, sample_size, ...)
 }
 
 #' @describeIn unequal_probability_sampling Systematic sampling

@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,97 +12,31 @@
 
 //! Systematic sampling designs
 
-use envisim_utils::pips::Probabilities;
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::ProbabilitySpec;
-pub use envisim_utils::sampling_options::{
+use envisim_utils::sampling_options::{
+    ProbabilitySpec,
+    ProbabilitySpecEqual,
     SamplingOptions,
-    SamplingOptionsError,
 };
 use envisim_utils::utils::f64_to_usize;
 
 pub use crate::error::SamplingError;
-
-/// Draw a systematic sample, using the provided order
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::systematic::*;
-/// use envisim_utils::random::*;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let opts = SamplingOptions::new(&p)?;
-/// let s = systematic(&mut rng, &opts);
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-pub fn systematic<R, P, S, B>(rng: &mut R, options: &SamplingOptions<'_, P, S, B>) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-    P: Probabilities,
-{
-    let probabilities_opts = options.probabilities();
-    let population_size = options.population_size();
-    let order: Vec<usize> = (0..population_size).collect();
-    match probabilities_opts.spec() {
-        ProbabilitySpec::Equal { sample_size } => {
-            from_order_equal(rng, population_size, *sample_size, &order)
-        }
-        ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
-    }
-}
-
-/// Draw a systematic sample, using a random order
-///
-/// # Examples
-/// ```
-/// use envisim_samplr::systematic::*;
-/// use envisim_utils::random::*;
-///
-/// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let opts = SamplingOptions::new(&p)?;
-/// let s = systematic_random_order(&mut rng, &opts);
-///
-/// assert_eq!(s.len(), 5);
-/// # Ok::<(), SamplingError>(())
-/// ```
-pub fn systematic_random_order<R, P, S, B>(
-    rng: &mut R,
-    options: &SamplingOptions<'_, P, S, B>,
-) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-    P: Probabilities,
-{
-    let probabilities_opts = options.probabilities();
-    let population_size = options.population_size();
-    let order = shuffle(rng, population_size);
-    match probabilities_opts.spec() {
-        ProbabilitySpec::Equal { sample_size } => {
-            from_order_equal(rng, population_size, *sample_size, &order)
-        }
-        ProbabilitySpec::Unequal { values } => from_order(rng, values.as_ref(), &order),
-    }
-}
+use crate::utils::shuffled_indices;
 
 fn from_order_equal<R: RandomNumberGenerator>(
     rng: &mut R,
-    population_size: usize,
-    sample_size: usize,
+    spec: ProbabilitySpecEqual,
     order: &[usize],
 ) -> Vec<usize> {
-    let mut sample = Vec::<usize>::with_capacity(sample_size + 1);
-    let mut r = rng.rusize_to(population_size);
+    let mut sample = Vec::<usize>::with_capacity(spec.sample_size() + 1);
+    let mut r = rng.rusize_to(spec.population_size());
     let mut psum: usize = 0;
 
     for &id in order.iter() {
-        let pnext = psum + sample_size;
+        let pnext = psum + spec.sample_size();
         if psum <= r && r < pnext {
             sample.push(id);
-            r += population_size;
+            r += spec.population_size();
         }
         psum = pnext;
     }
@@ -133,15 +67,59 @@ fn from_order<R: RandomNumberGenerator>(
     sample
 }
 
-fn shuffle<R>(rng: &mut R, len: usize) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-{
-    let mut order: Vec<usize> = (0..len).collect();
+pub trait SystematicSampling {
+    fn systematic<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
+    fn systematic_random_order<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
+}
+impl<'a, PS: ProbabilitySpec> SystematicSampling for SamplingOptions<'a, PS> {
+    /// Draw a systematic sample, using the provided order
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_samplr::*;
+    /// use envisim_utils::random::*;
+    ///
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let opts = SamplingOptions::new(&p)?;
+    /// let s = opts.systematic(&mut rng);
+    ///
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    fn systematic<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size();
+        let order: Vec<usize> = (0..population_size).collect();
 
-    for i in (1..len).rev() {
-        order.swap(i, rng.rusize_to(i + 1));
+        if let Some(spec) = self.probabilities().as_equal() {
+            from_order_equal(rng, spec, &order)
+        } else {
+            from_order(rng, self.probabilities().as_f64_slice().as_ref(), &order)
+        }
     }
+    /// Draw a systematic sample, using a random order
+    ///
+    /// # Examples
+    /// ```
+    /// use envisim_samplr::*;
+    /// use envisim_utils::random::*;
+    ///
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let opts = SamplingOptions::new(&p)?;
+    /// let s = opts.systematic_random_order(&mut rng);
+    ///
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    fn systematic_random_order<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size();
+        let order = shuffled_indices(rng, population_size);
 
-    order
+        if let Some(spec) = self.probabilities().as_equal() {
+            from_order_equal(rng, spec, &order)
+        } else {
+            from_order(rng, self.probabilities().as_f64_slice().as_ref(), &order)
+        }
+    }
 }

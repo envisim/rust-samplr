@@ -1,11 +1,4 @@
-use envisim_samplr::pivotal_method::{
-    hierarchical_lpm_2,
-    lpm_1,
-    lpm_1s,
-    lpm_2,
-    rpm,
-    spm,
-};
+use envisim_samplr::pivotal_method::*;
 mod test_utils;
 use test_utils::*;
 
@@ -13,35 +6,35 @@ use test_utils::*;
 fn test_spm() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| spm(&mut rng, &options), &options, 1e-2, 12000);
+    test_wor(|| options.spm(&mut rng), &options, 1e-2, 12000);
 }
 
 #[test]
 fn test_rpm() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| rpm(&mut rng, &options), &options, 1e-2, 12000);
+    test_wor(|| options.rpm(&mut rng), &options, 1e-2, 12000);
 }
 
 #[test]
 fn test_lpm1() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| lpm_1(&mut rng, &options), &options, 0.015, 12000);
+    test_wor(|| options.lpm_1(&mut rng).unwrap(), &options, 0.015, 12000);
 }
 
 #[test]
 fn test_lpm1s() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| lpm_1s(&mut rng, &options), &options, 0.015, 12000);
+    test_wor(|| options.lpm_1s(&mut rng).unwrap(), &options, 0.015, 12000);
 }
 
 #[test]
 fn test_lpm2() {
     let mut rng = rng();
     let options = options_unequal();
-    test_wor(|| lpm_2(&mut rng, &options), &options, 0.015, 12000);
+    test_wor(|| options.lpm_2(&mut rng).unwrap(), &options, 0.015, 12000);
 }
 
 #[test]

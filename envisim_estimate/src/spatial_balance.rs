@@ -17,11 +17,10 @@ use envisim_utils::kd_tree::{
     TreeBuilder,
 };
 use envisim_utils::matrix::Matrix;
-use envisim_utils::probabilities::Probabilities;
 use envisim_utils::sampling_options::{
-    Enabled,
     ProbabilitySpec,
     SamplingOptions,
+    SamplingOptionsError,
 };
 use envisim_utils::utils::usize_to_f64;
 use rustc_hash::{
@@ -39,7 +38,7 @@ use rustc_hash::{
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = voronoi(&s, &options).unwrap();
@@ -51,44 +50,60 @@ use rustc_hash::{
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn voronoi<P, B>(sample: &[usize], options: &SamplingOptions<P, Enabled, B>) -> Option<f64>
-where
-    P: Probabilities,
-{
-    let tree = options.spreading().build(&mut sample.to_vec()).unwrap();
-    let mut searcher = Searcher::new_1(&tree);
-    let data = tree.data();
-    let probabilities = options.probabilities().slice();
-
+pub fn voronoi<PS: ProbabilitySpec>(
+    sample: &[usize],
+    options: &SamplingOptions<PS>,
+) -> Result<f64, SamplingOptionsError> {
     let sample_size = sample.len();
-
     if sample_size == 0 {
-        return Some(f64::NAN);
+        return Ok(f64::NAN);
     }
 
+    let tree = options
+        .get_spreading()?
+        .build(&mut sample.to_vec())
+        .unwrap();
+    let mut searcher = Searcher::new_1(&tree);
+    let data = tree.data();
+
     let mut voronoi_pi =
-        FxHashMap::<usize, f64>::with_capacity_and_hasher(sample_size, FxBuildHasher);
+        FxHashMap::<usize, f64>::with_capacity_and_hasher(sample.len(), FxBuildHasher);
     for &id in sample.iter() {
         if voronoi_pi.insert(id, 0.0).is_some() {
-            return None;
+            return Err(SamplingOptionsError::InvalidSample);
         }
     }
 
-    for (i, &p) in probabilities.iter().enumerate() {
-        searcher
-            .find_neighbours_of_iter(&tree, data.row_iter(i))
-            .unwrap();
-        let partial_prob = p / usize_to_f64(searcher.neighbours().len());
-        searcher.neighbours().iter().for_each(|&s| {
-            *voronoi_pi.get_mut(&s).unwrap() += partial_prob;
-        });
+    if let Some(spec) = options.probabilities().as_equal() {
+        let population_size = spec.population_size();
+        let p = spec.as_f64();
+        for i in 0..population_size {
+            searcher
+                .find_neighbours_of_iter(&tree, data.row_iter(i))
+                .unwrap();
+            let partial_prob = p / usize_to_f64(searcher.neighbours().len());
+            searcher.neighbours().iter().for_each(|&s| {
+                *voronoi_pi.get_mut(&s).unwrap() += partial_prob;
+            });
+        }
+    } else {
+        let values = options.probabilities().as_f64_slice();
+        for (i, &p) in values.iter().enumerate() {
+            searcher
+                .find_neighbours_of_iter(&tree, data.row_iter(i))
+                .unwrap();
+            let partial_prob = p / usize_to_f64(searcher.neighbours().len());
+            searcher.neighbours().iter().for_each(|&s| {
+                *voronoi_pi.get_mut(&s).unwrap() += partial_prob;
+            });
+        }
     }
 
     let result = voronoi_pi
         .iter()
         .fold(0.0, |acc, (_, &pi)| acc + (pi - 1.0).powi(2));
 
-    Some(result / usize_to_f64(sample_size))
+    Ok(result / usize_to_f64(sample.len()))
 }
 
 /// Local measure of spatial balance.
@@ -101,7 +116,7 @@ where
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// let sb = local(&s, &options, true).unwrap();
@@ -113,30 +128,25 @@ where
 /// How to find the best sampling design: A new measure of spatial balance.
 /// Environmetrics, e2878.
 /// <https://doi.org/10.1002/env.2878>
-pub fn local<P, B>(
+pub fn local<PS: ProbabilitySpec>(
     sample: &[usize],
-    options: &SamplingOptions<P, Enabled, B>,
+    options: &SamplingOptions<PS>,
     balance_probabilities: bool,
-) -> Option<f64>
-where
-    P: Probabilities,
-{
-    let tree = options.spreading().build(&mut sample.to_vec()).unwrap();
+) -> Result<f64, SamplingOptionsError> {
+    if sample.len() == 0 {
+        return Ok(f64::NAN);
+    }
+
+    let tree = options.get_spreading()?.build(&mut sample.to_vec())?;
     let mut searcher = Searcher::new_1(&tree);
     let data = tree.data();
-    let probabilities = options.probabilities().slice();
 
     let population_size = options.population_size();
-    let sample_size = sample.len();
-
-    if sample_size == 0 {
-        return Some(f64::NAN);
-    }
 
     // One extra column for inclusion probabilities
     let cols = data.ncol() + if balance_probabilities { 1 } else { 0 };
     let mut voronoi_means =
-        FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
+        FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample.len(), FxBuildHasher);
 
     // The gram matrix
     let mut norm_matrix = Matrix::from_value(0.0, (cols, cols * 2)).unwrap();
@@ -145,17 +155,35 @@ where
         norm_matrix[(i, i + cols)] = 1.0;
     }
 
-    for &id in sample.iter() {
-        // Weird p_factor so we can skip tree search later
-        let p_factor = (1.0 - probabilities[id]) / probabilities[id];
-        let mut mean = vec![p_factor; cols];
+    if let Some(spec) = options.probabilities().as_equal() {
+        let p = spec.as_f64();
+        let p_factor = (1.0 - p) / p;
+        for &id in sample.iter() {
+            // Weird p_factor so we can skip tree search later
+            let mut mean = vec![p_factor; cols];
 
-        for (i, v) in data.row_iter(id).enumerate() {
-            mean[i] *= v;
+            for (i, v) in data.row_iter(id).enumerate() {
+                mean[i] *= v;
+            }
+
+            if voronoi_means.insert(id, mean).is_some() {
+                return Err(SamplingOptionsError::InvalidSample);
+            }
         }
+    } else {
+        let values = options.probabilities().as_f64_slice();
+        for &id in sample.iter() {
+            // Weird p_factor so we can skip tree search later
+            let p_factor = (1.0 - values[id]) / values[id];
+            let mut mean = vec![p_factor; cols];
 
-        if voronoi_means.insert(id, mean).is_some() {
-            return None;
+            for (i, v) in data.row_iter(id).enumerate() {
+                mean[i] *= v;
+            }
+
+            if voronoi_means.insert(id, mean).is_some() {
+                return Err(SamplingOptionsError::InvalidSample);
+            }
         }
     }
 
@@ -217,7 +245,7 @@ where
             .data()[0]
     });
 
-    Some((result / usize_to_f64(population_size)).sqrt())
+    Ok((result / usize_to_f64(population_size)).sqrt())
 }
 
 /// Energy distance between sample distribution and population.
@@ -230,52 +258,37 @@ where
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// let sb = energy_distance(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
-pub fn energy_distance<P, B>(
+pub fn energy_distance<PS: ProbabilitySpec>(
     sample: &[usize],
-    options: &SamplingOptions<P, Enabled, B>,
-) -> Option<f64>
-where
-    P: Probabilities,
-{
-    let org_matrix = options.spreading().data();
+    options: &SamplingOptions<PS>,
+) -> Result<f64, SamplingOptionsError> {
+    let matrix = options.get_spreading()?.data();
 
-    let mut matrix = org_matrix.clone();
-    matrix.to_mut();
-
-    let distance: f64 = match options.probabilities().spec() {
-        ProbabilitySpec::Unequal { ref values } => {
-            for unit in 0usize..matrix.nrow() {
-                let prob = values[unit];
-
-                for j in 0usize..matrix.ncol() {
-                    matrix[(unit, j)] /= prob;
-                }
-            }
-
-            let phi = energy_distance_phi(&matrix);
-            energy_distance_internal(sample, &matrix, &phi)
-        }
-        _ => {
-            let u_size = usize_to_f64(matrix.nrow());
-            let s_size = usize_to_f64(sample.len());
-            let phi = energy_distance_phi(&matrix);
-            energy_distance_internal(sample, &matrix, &phi) * u_size / s_size
-        }
+    let (phi, u_spread) = if options.probabilities().as_equal().is_some() {
+        energy_distance_phi_equal(matrix)
+    } else {
+        let values = options.probabilities().as_f64_slice();
+        let s_size = usize_to_f64(sample.len());
+        energy_distance_phi_unequal(&matrix, &values, s_size)
     };
 
-    Some(distance)
+    let edi = energy_distance_internal(sample, matrix, &phi);
+    let distance = edi - u_spread;
+
+    Ok(distance)
 }
 
-pub(crate) fn energy_distance_phi(matrix: &Matrix) -> Vec<f64> {
+pub(crate) fn energy_distance_phi_equal(matrix: &Matrix) -> (Vec<f64>, f64) {
     let u_size = usize_to_f64(matrix.nrow());
     let mut phi = vec![0.0; matrix.nrow()];
+    let mut u_spread = 0.0;
 
     for id1 in 0..matrix.nrow() {
         for id2 in (id1 + 1)..matrix.nrow() {
@@ -284,14 +297,31 @@ pub(crate) fn energy_distance_phi(matrix: &Matrix) -> Vec<f64> {
             phi[id2] += dist;
         }
         phi[id1] /= u_size;
+        u_spread += phi[id1];
     }
-    phi
+    (phi, u_spread / u_size)
+}
+pub(crate) fn energy_distance_phi_unequal(
+    matrix: &Matrix,
+    probabilities: &[f64],
+    s_size: f64,
+) -> (Vec<f64>, f64) {
+    let mut phi = vec![0.0; matrix.nrow()];
+    let mut u_spread = 0.0;
+
+    for id1 in 0..matrix.nrow() {
+        for id2 in (id1 + 1)..matrix.nrow() {
+            let dist = matrix.distance_between_rows(id1, id2).unwrap().sqrt();
+            phi[id1] += dist * probabilities[id2] / s_size;
+            phi[id2] += dist * probabilities[id1] / s_size;
+        }
+        u_spread += phi[id1] * probabilities[id1];
+    }
+    (phi, u_spread / s_size)
 }
 
 pub(crate) fn energy_distance_internal(sample: &[usize], matrix: &Matrix<'_>, phi: &[f64]) -> f64 {
-    let u_size = usize_to_f64(matrix.nrow());
     let s_size = usize_to_f64(sample.len());
-    let u_spread: f64 = phi.iter().sum::<f64>() / u_size;
     let mut s_spread: f64 = 0.0;
     let mut inter_spread: f64 = 0.0;
 
@@ -307,7 +337,7 @@ pub(crate) fn energy_distance_internal(sample: &[usize], matrix: &Matrix<'_>, ph
 
     inter_spread /= s_size;
     s_spread /= s_size.powi(2);
-    inter_spread * 2.0 - u_spread - s_spread
+    inter_spread * 2.0 - s_spread
 }
 
 #[cfg(test)]
@@ -320,7 +350,7 @@ mod test {
     fn ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = Matrix::new(&m_data, 3).unwrap();
-        let phi = energy_distance_phi(&data);
+        let phi = energy_distance_phi_equal(&data);
         let res: Vec<f64> = vec![
             (2.0f64.sqrt() + 8.0f64.sqrt()) / 3.0f64,
             (2.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
@@ -333,7 +363,7 @@ mod test {
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = Matrix::new(&m_data, 3).unwrap();
-        let phi = energy_distance_phi(&data);
+        let phi = energy_distance_phi_equal(&data);
         let dist = energy_distance_internal(&[1, 2], &data, &phi);
         let res: f64 = 2.0 * (phi[0] + phi[1]) / 2.0
             - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0

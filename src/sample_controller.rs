@@ -121,7 +121,7 @@ pub trait SampleController {
             return Some(DecideUnit::Undecided);
         };
 
-        if self.probabilities().data()[id] < self.draw(rng, self.probabilities().one()) {
+        if self.draw(rng, self.probabilities().one()) < self.probabilities().data()[id] {
             self.unit_set_one(id)
         } else {
             self.unit_set_zero(id)

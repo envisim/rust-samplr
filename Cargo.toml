@@ -2,7 +2,7 @@
 name = "envisim_samplr"
 version = "0.4.0"
 edition = "2021"
-authors = ["Wilmer Prentius <wilmer.prentius@slu.se>", "Anton Grafström"]
+authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
 homepage = "https://envisim.se"
 repository = "https://github.com/envisim/rust-samplr"
 description = "Sampling methods for balanced and spatially balanced sampling"

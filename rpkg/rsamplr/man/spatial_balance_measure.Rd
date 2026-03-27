@@ -3,8 +3,13 @@
 \name{Spatial balance measure}
 \alias{Spatial balance measure}
 \alias{spatial_balance_local}
+\alias{spatial_balance_local_equal}
 \alias{spatial_balance_voronoi}
+\alias{spatial_balance_voronoi_equal}
 \alias{spatial_balance_energy}
+\alias{spatial_balance_energy_equal}
+\alias{spatial_balance_all}
+\alias{spatial_balance_all_equal}
 \alias{balance_deviation}
 \title{Spatial balance measure}
 \usage{
@@ -15,9 +20,24 @@ spatial_balance_local(
   balance_probabilities = TRUE
 )
 
+spatial_balance_local_equal(
+  sample,
+  spread_mat,
+  sample_size = length(sample),
+  balance_probabilities = TRUE
+)
+
 spatial_balance_voronoi(sample, probabilities, spread_mat)
 
+spatial_balance_voronoi_equal(sample, spread_mat, sample_size = length(sample))
+
 spatial_balance_energy(sample, probabilities, spread_mat)
+
+spatial_balance_energy_equal(sample, spread_mat, sample_size = length(sample))
+
+spatial_balance_all(sample, probabilities, spread_mat)
+
+spatial_balance_all_equal(sample, spread_mat, sample_size = length(sample))
 
 balance_deviation(sample, probabilities, spread_mat)
 }
@@ -28,7 +48,7 @@ balance_deviation(sample, probabilities, spread_mat)
 
 \item{spread_mat}{A matrix of spreading covariates.}
 
-\item{balance_probabilities}{If \code{true} (default), includes the vector of inclusion probabilites
+\item{balance_probabilities}{If \code{true} (default), includes the vector of inclusion probabilities
 as a balancing variable.}
 }
 \value{
@@ -41,9 +61,19 @@ Calculates the spatial balance of a sample.
 \itemize{
 \item \code{spatial_balance_local()}: Local spatial balance
 
+\item \code{spatial_balance_local_equal()}: Local spatial balance
+
 \item \code{spatial_balance_voronoi()}: Voronoi spatial balance
 
+\item \code{spatial_balance_voronoi_equal()}: Voronoi spatial balance
+
 \item \code{spatial_balance_energy()}: Energy spatial balance
+
+\item \code{spatial_balance_energy_equal()}: Energy spatial balance
+
+\item \code{spatial_balance_all()}: Energy spatial balance
+
+\item \code{spatial_balance_all_equal()}: Energy spatial balance
 
 \item \code{balance_deviation()}: Balance deviation
 
@@ -57,14 +87,17 @@ xs = matrix(runif(N * 2), ncol = 2);
 
 s = lpm_2(prob, xs);
 spatial_balance_voronoi(s, prob, xs);
-spatial_balance_local(s, prob, xs);
+spatial_balance_local(s, prob, xs, TRUE);
+spatial_balance_local(s, prob, xs, FALSE);
+spatial_balance_energy(s, prob, xs);
 balance_deviation(s, prob, xs);
 
 \donttest{
 # Compare SRS
 r = 1000L;
 sb_v = matrix(0.0, r, 2L);
-sb_l = matrix(0.0, r, 2L);
+sb_l = matrix(0.0, r, 4L);
+sb_e = matrix(0.0, r, 2L);
 bal = matrix(0.0, r, 2L * ncol(xs));
 
 for (i in seq_len(r)) {
@@ -75,8 +108,14 @@ for (i in seq_len(r)) {
     spatial_balance_voronoi(s2, prob, xs)
   );
   sb_l[i, ] = c(
-    spatial_balance_local(s1, prob, xs),
-    spatial_balance_local(s2, prob, xs)
+    spatial_balance_local(s1, prob, xs, TRUE),
+    spatial_balance_local(s2, prob, xs, TRUE),
+    spatial_balance_local(s1, prob, xs, FALSE),
+    spatial_balance_local(s2, prob, xs, FALSE)
+  );
+  sb_e[i, ] = c(
+    spatial_balance_energy(s1, prob, xs),
+    spatial_balance_energy(s2, prob, xs)
   );
   bal[i, ] = c(
     balance_deviation(s1, prob, xs),
@@ -88,6 +127,8 @@ for (i in seq_len(r)) {
 print(colMeans(sb_v));
 # Spatial balance measure (local), LPM vs SRS
 print(colMeans(sb_l));
+# Spatial balance measure (energy), LPM vs SRS
+print(colMeans(sb_e));
 # Abs. balance deviation, LPM vs SRS
 print(colMeans(abs(bal)));
 }

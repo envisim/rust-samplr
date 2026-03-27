@@ -1,6 +1,10 @@
 use std::num::NonZeroUsize;
 
-use savvy::{savvy_err, OwnedIntegerSexp, Sexp};
+use savvy::{
+    OwnedIntegerSexp,
+    Sexp,
+    savvy_err,
+};
 
 pub fn i32_to_usize(v: i32) -> savvy::Result<usize> {
     v.try_into()

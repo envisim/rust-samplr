@@ -53,6 +53,16 @@ NULL
 }
 
 
+`rust_distributionally_balanced_design` <- function(`r_sample_size`, `r_data`, `r_temp`, `r_cooling`, `r_iter`, `r_spatial_init`, `r_method`) {
+  .Call(savvy_rust_distributionally_balanced_design__impl, `r_sample_size`, `r_data`, `r_temp`, `r_cooling`, `r_iter`, `r_spatial_init`, `r_method`)
+}
+
+
+`rust_distributionally_balanced_design_iter` <- function(`r_sample_size`, `r_data`, `r_temp`, `r_cooling`, `r_spatial_init`, `r_iter_to`, `r_iter_by`, `r_method`) {
+  .Call(savvy_rust_distributionally_balanced_design_iter__impl, `r_sample_size`, `r_data`, `r_temp`, `r_cooling`, `r_spatial_init`, `r_iter_to`, `r_iter_by`, `r_method`)
+}
+
+
 `rust_doubly_balanced` <- function(`r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_method`) {
   .Call(savvy_rust_doubly_balanced__impl, `r_prob`, `r_data`, `r_bal_data`, `r_eps`, `r_bucket_size`, `r_method`)
 }
@@ -78,6 +88,21 @@ NULL
 }
 
 
+`rust_spatial_balance_measure_all` <- function(`r_sample`, `r_prob`, `r_data`) {
+  .Call(savvy_rust_spatial_balance_measure_all__impl, `r_sample`, `r_prob`, `r_data`)
+}
+
+
+`rust_spatial_balance_measure_all_equal` <- function(`r_sample`, `r_sample_size`, `r_data`) {
+  .Call(savvy_rust_spatial_balance_measure_all_equal__impl, `r_sample`, `r_sample_size`, `r_data`)
+}
+
+
+`rust_spatial_balance_measure_equal` <- function(`r_sample`, `r_sample_size`, `r_data`, `r_method`) {
+  .Call(savvy_rust_spatial_balance_measure_equal__impl, `r_sample`, `r_sample_size`, `r_data`, `r_method`)
+}
+
+
 `rust_spatially_balanced` <- function(`r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_method`) {
   .Call(savvy_rust_spatially_balanced__impl, `r_prob`, `r_data`, `r_eps`, `r_bucket_size`, `r_method`)
 }
@@ -88,13 +113,8 @@ NULL
 }
 
 
-`rust_unequal` <- function(`r_prob`, `r_eps`, `r_method`, `r_max_iter`) {
-  .Call(savvy_rust_unequal__impl, `r_prob`, `r_eps`, `r_method`, `r_max_iter`)
-}
-
-
-`rust_unequal_conditional_poisson` <- function(`r_prob`, `r_sample_size`, `r_eps`, `r_max_iter`) {
-  .Call(savvy_rust_unequal_conditional_poisson__impl, `r_prob`, `r_sample_size`, `r_eps`, `r_max_iter`)
+`rust_unequal` <- function(`r_prob`, `r_eps`, `r_method`, `r_max_iter`, `r_sample_size`) {
+  .Call(savvy_rust_unequal__impl, `r_prob`, `r_eps`, `r_method`, `r_max_iter`, `r_sample_size`)
 }
 
 
