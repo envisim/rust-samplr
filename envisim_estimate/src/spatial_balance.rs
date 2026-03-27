@@ -133,7 +133,7 @@ pub fn local<PS: ProbabilitySpec>(
     options: &SamplingOptions<PS>,
     balance_probabilities: bool,
 ) -> Result<f64, SamplingOptionsError> {
-    if sample.len() == 0 {
+    if sample.is_empty() {
         return Ok(f64::NAN);
     }
 
@@ -276,7 +276,7 @@ pub fn energy_distance<PS: ProbabilitySpec>(
     } else {
         let values = options.probabilities().as_f64_slice();
         let s_size = usize_to_f64(sample.len());
-        energy_distance_phi_unequal(&matrix, &values, s_size)
+        energy_distance_phi_unequal(matrix, &values, s_size)
     };
 
     let edi = energy_distance_internal(sample, matrix, &phi);
@@ -285,6 +285,7 @@ pub fn energy_distance<PS: ProbabilitySpec>(
     Ok(distance)
 }
 
+/// Returns (phi-vec, phi-sumish)
 pub(crate) fn energy_distance_phi_equal(matrix: &Matrix) -> (Vec<f64>, f64) {
     let u_size = usize_to_f64(matrix.nrow());
     let mut phi = vec![0.0; matrix.nrow()];
@@ -301,6 +302,7 @@ pub(crate) fn energy_distance_phi_equal(matrix: &Matrix) -> (Vec<f64>, f64) {
     }
     (phi, u_spread / u_size)
 }
+/// Returns (phi-vec, phi-sumish)
 pub(crate) fn energy_distance_phi_unequal(
     matrix: &Matrix,
     probabilities: &[f64],
@@ -320,6 +322,7 @@ pub(crate) fn energy_distance_phi_unequal(
     (phi, u_spread / s_size)
 }
 
+/// Returns 2 E||X-Z|| - E||X-X'||
 pub(crate) fn energy_distance_internal(sample: &[usize], matrix: &Matrix<'_>, phi: &[f64]) -> f64 {
     let s_size = usize_to_f64(sample.len());
     let mut s_spread: f64 = 0.0;
@@ -357,17 +360,15 @@ mod test {
             (8.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
         ];
 
-        assert_fvec(&phi, &res);
+        assert_fvec(&phi.0, &res);
     }
     #[test]
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = Matrix::new(&m_data, 3).unwrap();
         let phi = energy_distance_phi_equal(&data);
-        let dist = energy_distance_internal(&[1, 2], &data, &phi);
-        let res: f64 = 2.0 * (phi[0] + phi[1]) / 2.0
-            - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0
-            - phi.iter().sum::<f64>() / 3.0; //
+        let dist = energy_distance_internal(&[1, 2], &data, &phi.0);
+        let res: f64 = 2.0 * (phi.0[1] + phi.0[2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
 
         assert_delta!(dist, res);
     }
