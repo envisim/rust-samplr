@@ -12,23 +12,29 @@
 
 //! Hansen-Hurwitz estimators (multiple count estimators)
 
-use envisim_samplr::SamplingError;
-use envisim_utils::{InputError, Matrix};
+use envisim_utils::matrix::Matrix;
 
-#[inline]
-fn inclusions_check(inclusions: &[f64]) -> Result<(), InputError> {
-    inclusions.iter().try_for_each(|&inc| {
-        InputError::check_nan(inc)
-            .and(InputError::check_range_f64(inc, 0.0, f64::INFINITY))
-            .and(InputError::check_integer(inc))
-    })
-}
+fn quotient(ys: &[f64], ms: &[f64], incs: &[f64]) -> Option<Vec<f64>> {
+    let sample_size = ys.len();
+    if sample_size != ms.len() || sample_size != incs.len() {
+        return None;
+    }
 
-#[inline]
-fn expected_inclusions_check(expected: &[f64]) -> Result<(), InputError> {
-    expected
-        .iter()
-        .try_for_each(|&mu| InputError::check_nan(mu).and(InputError::check_positive(mu)))
+    let mut v = Vec::<f64>::with_capacity(ys.len());
+    for i in 0..sample_size {
+        let y = ys[i];
+        let m = ms[i];
+        let inc = incs[i];
+
+        if m < 0.0 || inc < 0.0 {
+            return None;
+        } else if m == 0.0 {
+            v.push(f64::NAN);
+        } else {
+            v.push(y / m * inc);
+        }
+    }
+    Some(v)
 }
 
 /// Hansen-Hurwitz estimator of a total
@@ -43,23 +49,8 @@ fn expected_inclusions_check(expected: &[f64]) -> Result<(), InputError> {
 ///
 /// estimate(&y, &mu, &inc).unwrap(); // Should be about 7.0
 /// ```
-#[inline]
-pub fn estimate(
-    y_values: &[f64],
-    expected: &[f64],
-    inclusions: &[f64],
-) -> Result<f64, SamplingError> {
-    InputError::check_lengths(y_values, expected)
-        .and(InputError::check_lengths(y_values, inclusions))
-        .and(expected_inclusions_check(expected))
-        .and(inclusions_check(inclusions))
-        .map_err(SamplingError::from)?;
-
-    Ok(y_values
-        .iter()
-        .zip(expected.iter())
-        .zip(inclusions.iter())
-        .fold(0.0, |acc, ((&y, &mu), &inc)| acc + y / mu * inc))
+pub fn estimate(y_values: &[f64], expected: &[f64], inclusions: &[f64]) -> Option<f64> {
+    quotient(y_values, expected, inclusions).map(|q| q.iter().sum::<f64>())
 }
 
 /// Hansen-Hurwitz estimator of variance of total estimate
@@ -68,35 +59,56 @@ pub fn variance(
     expected: &[f64],
     inclusions: &[f64],
     expected_second_order: &Matrix,
-) -> Result<f64, SamplingError> {
+) -> Option<f64> {
     let sample_size = y_values.len();
-    InputError::check_lengths(y_values, expected)
-        .and(InputError::check_lengths(y_values, inclusions))
-        .and(InputError::check_sizes(
-            sample_size,
-            expected_second_order.nrow(),
-        ))
-        .and(InputError::check_sizes(
-            sample_size,
-            expected_second_order.ncol(),
-        ))
-        .and(expected_inclusions_check(expected))
-        .and(inclusions_check(inclusions))
-        .and(expected_inclusions_check(expected_second_order.data()))
-        .map_err(SamplingError::from)?;
 
+    if sample_size != expected_second_order.nrow() || sample_size != expected_second_order.ncol() {
+        return None;
+    } else if sample_size == 0 {
+        return Some(0.0);
+    }
+
+    let ypi = quotient(y_values, expected, inclusions)?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
-        let y_mu_inc = y_values[i] / expected[i] * inclusions[i];
-        variance += y_mu_inc.powi(2) * (1.0 - expected[i].powi(2) / expected_second_order[(i, i)]);
+        if ypi[i].is_nan() {
+            return Some(f64::NAN);
+        }
+        variance += ypi[i].powi(2) * (1.0 - expected[i].powi(2) / expected_second_order[(i, i)]);
 
-        for j in (i + 1)..sample_size {
-            variance += 2.0 * y_mu_inc * y_values[j] / expected[j]
-                * inclusions[j]
+        for j in 0..i {
+            variance += 2.0
+                * ypi[i]
+                * ypi[j]
                 * (1.0 - expected[i] * expected[j] / expected_second_order[(i, j)]);
         }
     }
 
-    Ok(variance)
+    Some(variance)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const Y_VALS: [f64; 6] = [22.0, 30.0, 7.0, 25.0, 8.0, 12.0];
+    const MU_VALS: [f64; 6] = [1.0, 0.5, 0.5, 0.2, 0.2, 0.6];
+
+    #[test]
+    fn test_hh() {
+        let indices: Vec<usize> = vec![1, 3, 5];
+        let y: Vec<f64> = indices.iter().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices.iter().map(|&id| MU_VALS[id]).collect();
+        let inclusions: Vec<f64> = vec![1.0, 1.0, 1.0];
+        assert_eq!(estimate(&y, &mu, &inclusions), Some(205.0));
+
+        let indices: Vec<usize> = vec![0, 0, 2, 5];
+        let mut indices_unique = indices.clone();
+        indices_unique.dedup();
+        let y: Vec<f64> = indices_unique.iter().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices_unique.iter().map(|&id| MU_VALS[id]).collect();
+        let inclusions: Vec<f64> = vec![2.0, 1.0, 1.0];
+        assert_eq!(estimate(&y, &mu, &inclusions), Some(78.0));
+    }
 }

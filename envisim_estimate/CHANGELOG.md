@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-03-27
+- Bump `envisim_utils`.
+- Remove `envisim_samplr` dependency
+- Added `energy_distance` as a measure of spatial balance.
+- Functions using SampleOptions now uses SamplingOptions
+- Functions not dependent on SamplingOptions return Option, if fallible.
+
 ## [0.3.1] - 2025-08-22
 ### Changed
 - Update `rustc-hash` dependency to 2.1.1.

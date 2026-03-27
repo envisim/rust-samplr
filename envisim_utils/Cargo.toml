@@ -1,8 +1,8 @@
 [package]
 name = "envisim_utils"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
-authors = ["Wilmer Prentius <wilmer.prentius@slu.se>", "Anton Grafström"]
+authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
 homepage = "https://envisim.se"
 repository = "https://github.com/envisim/rust-samplr"
 description = "Utility methods for design-based sampling methods and estimation"

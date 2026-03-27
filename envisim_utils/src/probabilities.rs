@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -10,146 +10,137 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::error::InputError;
-use std::ops::{Index, IndexMut};
-use std::slice::{Iter, IterMut};
+use std::ops::{
+    Add,
+    AddAssign,
+    Div,
+    DivAssign,
+    Mul,
+    MulAssign,
+    Sub,
+    SubAssign,
+};
 
-/// Container for handling inclusion probabilities.
-pub struct Probabilities {
-    /// An epsilon, used for comparison of floats
-    pub eps: f64,
-    probabilities: Vec<f64>,
+use crate::random::RandomNumberGenerator;
+use crate::sampling_options::{
+    ProbabilitySpec,
+    ProbabilitySpecEqual,
+};
+use crate::utils::usize_to_f64;
+
+pub struct FloatProbabilities {
+    data: Vec<f64>,
+    eps: f64,
 }
-
-impl Probabilities {
-    /// Constructs a new probability container, filled with `value`
-    /// Returns error if `value` is [`f64::NAN`] or outside the range `(0.0..=1.0)`.
-    #[inline]
-    pub fn new(length: usize, value: f64) -> Result<Self, InputError> {
-        InputError::check_nan(value).and(InputError::check_range_f64(value, 0.0, 1.0))?;
-        Ok(Self {
-            eps: 0.0,
-            probabilities: vec![value; length],
-        })
-    }
-
-    /// Constructs a new probability container, filled with values from `values`.
-    /// Returns error if any value is [`f64::NAN`] or outside the range `(0.0..=1.0)`.
-    #[inline]
-    pub fn with_values(values: &[f64]) -> Result<Self, InputError> {
-        Self::check(values)?;
-
-        Ok(Self {
-            eps: 0.0,
-            probabilities: values.to_vec(),
-        })
-    }
-
-    /// # Safety
-    /// Does not check if the probabilities are valid probabilities
-    #[inline]
-    pub unsafe fn with_values_uncheked(values: &[f64], eps: f64) -> Self {
+impl FloatProbabilities {
+    pub fn new(probabilities: Vec<f64>, eps: f64) -> Self {
         Self {
+            data: probabilities,
             eps,
-            probabilities: values.to_vec(),
         }
     }
-
-    /// Returns error if any value is [`f64::NAN`] or outside the range `(0.0..=1.0)`.
-    #[inline]
-    pub fn check(probabilities: &[f64]) -> Result<(), InputError> {
-        probabilities.iter().try_for_each(|&p| {
-            InputError::check_nan(p).and(InputError::check_range_f64(p, 0.0, 1.0))
-        })
+    pub fn new_equal(spec: ProbabilitySpecEqual, eps: f64) -> Self {
+        let p = usize_to_f64(spec.sample_size()) / usize_to_f64(spec.population_size());
+        Self::new(vec![p; spec.population_size()], eps)
+    }
+    pub fn new_equal_f64(prob: f64, population_size: usize, eps: f64) -> Self {
+        Self::new(vec![prob; population_size], eps)
+    }
+    pub fn from_iter(probabilities: impl IntoIterator<Item = f64>, eps: f64) -> Self {
+        Self::new(probabilities.into_iter().collect(), eps)
     }
 
-    /// Returns error if the epsilon is outside the range (0.0..1.0)
-    #[inline]
-    pub fn check_eps(eps: f64) -> Result<f64, InputError> {
-        InputError::check_range_f64(eps, 0.0, 1.0)
-            .and(InputError::check_valid_f64(eps, 1.0))
-            .map(|_| eps)
-    }
-
-    /// Returns a reference to the underlying list of probabilities.
-    #[inline]
-    pub fn data(&self) -> &[f64] {
-        &self.probabilities
-    }
-
-    /// Returns length of the container.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.probabilities.len()
-    }
-    /// Returns `true` if the container is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.probabilities.is_empty()
-    }
-
-    /// Returns `true` if the probability is less than `epsilon`
-    #[inline]
-    pub fn is_zero(&self, idx: usize) -> bool {
-        self[idx] <= self.eps
-    }
-
-    /// Returns `true` if the probability is larger than `1.0 - epsilon`
-    #[inline]
-    pub fn is_one(&self, idx: usize) -> bool {
-        1.0 - self.eps <= self[idx]
-    }
-
-    /// Calulates the weight that can be assigned to the unit `idx1` from `idx0`
-    #[inline]
-    pub fn weight(&self, idx0: usize, idx1: usize) -> f64 {
-        self.weight_to(self[idx0], idx1)
-    }
-
-    /// Calulates the weight that can be assigned to the unit `idx1` from `prob`
-    #[inline]
+    pub fn is_prob(p: f64) -> bool { (0.0..=1.0).contains(&p) }
+    pub fn eps(&self) -> f64 { self.eps }
+    pub fn weight(&self, idx0: usize, idx1: usize) -> f64 { self.weight_to(self.data[idx0], idx1) }
     pub fn weight_to(&self, prob: f64, idx1: usize) -> f64 {
-        if prob + self[idx1] <= 1.0 {
-            self[idx1] / (1.0 - prob)
+        if prob + self.data[idx1] <= self.max() {
+            self.data[idx1] / (self.max() - prob)
         } else {
-            (1.0 - self[idx1]) / prob
+            (self.max() - self.data[idx1]) / prob
         }
     }
+}
 
-    /// Returns an iterator over the probabilities
-    #[inline]
-    pub fn iter(&self) -> Iter<f64> {
-        self.probabilities.iter()
+pub struct ExactProbabilities {
+    data: Vec<usize>,
+}
+impl ExactProbabilities {
+    pub fn new(probabilities: Vec<usize>) -> Self {
+        Self {
+            data: probabilities,
+        }
     }
-
-    /// Returns a mutable iterator over the probabilities
-    #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<f64> {
-        self.probabilities.iter_mut()
+    pub fn new_equal(spec: ProbabilitySpecEqual) -> Self {
+        Self::new(vec![spec.sample_size(); spec.population_size()])
+    }
+    pub fn is_prob(&self, p: usize) -> bool { (0..=self.max()).contains(&p) }
+}
+impl FromIterator<usize> for ExactProbabilities {
+    fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
+        Self::new(iter.into_iter().collect())
     }
 }
 
-impl Index<usize> for Probabilities {
-    type Output = f64;
+pub trait ProbabilityStore {
+    type PR: Copy
+        + Default
+        + PartialOrd
+        + Add<Output = Self::PR>
+        + AddAssign
+        + Sub<Output = Self::PR>
+        + SubAssign
+        + Mul<Output = Self::PR>
+        + MulAssign
+        + Div<Output = Self::PR>
+        + DivAssign;
 
-    #[inline]
-    fn index(&self, idx: usize) -> &f64 {
-        &self.probabilities[idx]
+    fn data(&self) -> &[Self::PR];
+    fn data_mut(&mut self) -> &mut [Self::PR];
+    fn len(&self) -> usize { self.data().len() }
+    fn is_empty(&self) -> bool { self.data().is_empty() }
+    fn max(&self) -> Self::PR;
+
+    fn get(&self, idx: usize) -> Self::PR { self.data()[idx] }
+    fn set(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] = value; }
+    fn set_zero(&mut self, idx: usize);
+    fn set_max(&mut self, idx: usize);
+    fn add(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] += value; }
+
+    fn is_zero(&self, idx: usize) -> bool;
+    fn is_max(&self, idx: usize) -> bool;
+    fn eq(&self, a: Self::PR, b: Self::PR) -> bool;
+    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR;
+}
+impl ProbabilityStore for FloatProbabilities {
+    type PR = f64;
+    fn data(&self) -> &[Self::PR] { &self.data }
+    fn data_mut(&mut self) -> &mut [Self::PR] { &mut self.data }
+    fn max(&self) -> Self::PR { 1.0 }
+
+    fn set_zero(&mut self, idx: usize) { self.data[idx] = 0.0; }
+    fn set_max(&mut self, idx: usize) { self.data[idx] = 1.0; }
+
+    fn is_zero(&self, idx: usize) -> bool { self.data[idx] <= self.eps }
+    fn is_max(&self, idx: usize) -> bool { self.data[idx] >= 1.0 - self.eps }
+    fn eq(&self, a: Self::PR, b: Self::PR) -> bool { (a - b).abs() <= self.eps }
+    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
+        rng.rf64_to(max).expect("max to be non-negative")
     }
 }
+impl ProbabilityStore for ExactProbabilities {
+    type PR = usize;
+    fn data(&self) -> &[Self::PR] { &self.data }
+    fn data_mut(&mut self) -> &mut [Self::PR] { &mut self.data }
+    fn max(&self) -> Self::PR { self.data.len() }
 
-impl IndexMut<usize> for Probabilities {
-    #[inline]
-    fn index_mut(&mut self, idx: usize) -> &mut f64 {
-        &mut self.probabilities[idx]
-    }
-}
+    fn set_zero(&mut self, idx: usize) { self.data[idx] = 0; }
+    fn set_max(&mut self, idx: usize) { self.data[idx] = self.max(); }
 
-impl std::fmt::Debug for Probabilities {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Probabilities")
-            .field("eps", &self.eps)
-            .field("prob", &self.probabilities)
-            .finish()
+    fn is_zero(&self, idx: usize) -> bool { self.data[idx] == 0 }
+    fn is_max(&self, idx: usize) -> bool { self.data[idx] == self.max() }
+    fn eq(&self, a: Self::PR, b: Self::PR) -> bool { a == b }
+    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
+        rng.rusize_to(max)
     }
 }

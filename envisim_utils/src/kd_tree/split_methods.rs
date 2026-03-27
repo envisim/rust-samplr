@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Matrix;
+use crate::matrix::Matrix;
 
 // (unit, variable, value)
 #[derive(Clone, Debug)]
@@ -133,14 +133,14 @@ mod tests {
     #[test]
     fn midpoint_slide() {
         let v = vec![0.0, 1.0, 2.0, 13.0];
-        let m = Matrix::new(&v, 4);
+        let m = Matrix::new(&v, 4).unwrap();
         let split = super::midpoint_slide(&vec![(0.0, 13.0)], &m, &mut vec![0, 1, 2, 3]).unwrap();
         assert_eq!(split.unit, 3);
         assert_eq!(split.dimension, 0);
         assert_eq!(split.value, 6.5);
 
         let v = vec![0.0, 1.0, 2.0, 13.0, 0.0, 10.0, 20.0, 30.0];
-        let m = Matrix::new(&v, 4);
+        let m = Matrix::new(&v, 4).unwrap();
         let split =
             super::midpoint_slide(&vec![(0.0, 13.0), (0.0, 30.0)], &m, &mut vec![0, 1, 2, 3])
                 .unwrap();
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(split.value, 15.0);
 
         let v = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-        let m = Matrix::new(&v, 3);
+        let m = Matrix::new(&v, 3).unwrap();
         let split = super::midpoint_slide(&vec![(0.0, 0.0), (1.0, 1.0)], &m, &mut vec![0, 1, 2]);
         assert!(split.is_none());
     }

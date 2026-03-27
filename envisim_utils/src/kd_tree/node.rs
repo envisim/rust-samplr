@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -10,57 +10,37 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::searcher::TreeSearcher;
-use super::split_methods::{midpoint_slide, FindSplit};
-use crate::Matrix;
 use std::num::NonZeroUsize;
 
-pub struct TreeBuilder<'a> {
-    data: &'a Matrix<'a>,
-    bucket_size: NonZeroUsize,
-    split_method: FindSplit,
-}
+use super::FindSplit;
+use super::searcher::TreeSearcher;
+use crate::matrix::Matrix;
+use crate::sampling_options::{
+    SamplingOptionsError,
+    SamplingOptionsResult,
+    SpreadingOptions,
+};
 
-impl<'a> TreeBuilder<'a> {
-    #[inline]
-    pub fn new(data: &'a Matrix) -> TreeBuilder<'a> {
-        Self {
-            data,
-            bucket_size: unsafe { NonZeroUsize::new_unchecked(40) },
-            split_method: midpoint_slide,
-        }
-    }
-    #[inline]
-    pub fn bucket_size(&mut self, bucket_size: NonZeroUsize) -> Result<&mut Self, NodeError> {
-        self.bucket_size = bucket_size;
-        Ok(self)
-    }
-    #[inline]
-    pub fn try_bucket_size(&mut self, bucket_size: usize) -> Result<&mut Self, NodeError> {
-        self.bucket_size = NonZeroUsize::new(bucket_size).ok_or(NodeError::InvalidBucketSize)?;
-        Ok(self)
-    }
-    #[inline]
-    pub fn split_method(&mut self, split_method: FindSplit) -> Result<&mut Self, NodeError> {
-        self.split_method = split_method;
-        Ok(self)
-    }
+pub trait TreeBuilder<'a> {
+    fn data(&self) -> &Matrix<'a>;
+    fn bucket_size(&self) -> NonZeroUsize;
+    fn split_method(&self) -> FindSplit;
     /// Creates a new k-d tree of the indices in untis, given a data matrix and a splitting method.
-    #[inline]
-    pub fn build(&self, units: &mut [usize]) -> Result<Node<'a>, NodeError> {
-        units
-            .iter()
-            .try_for_each(|&id| NodeError::check_ghost_index(id, self.data.nrow()))?;
-
-        let borders = Node::borders(self.data, units);
-        Ok(Node::create(self, units, borders))
-    }
+    fn build(&'a self, units: &mut [usize]) -> SamplingOptionsResult<Node<'a>>;
 }
 
-impl<'a> From<&'a Matrix<'a>> for TreeBuilder<'a> {
-    #[inline]
-    fn from(mat: &'a Matrix) -> Self {
-        TreeBuilder::new(mat)
+impl<'a> TreeBuilder<'a> for SpreadingOptions<'a> {
+    fn data(&self) -> &Matrix<'a> { self.data() }
+    fn bucket_size(&self) -> NonZeroUsize { self.bucket_size() }
+    fn split_method(&self) -> FindSplit { self.split_method() }
+    fn build(&'a self, units: &mut [usize]) -> SamplingOptionsResult<Node<'a>> {
+        let population_size = self.data().nrow();
+        if units.iter().any(|&id| id >= population_size) {
+            return Err(SamplingOptionsError::InvalidSample);
+        }
+
+        let borders = Node::borders(self.data(), units);
+        Ok(Node::create(self, units, borders))
     }
 }
 
@@ -83,7 +63,6 @@ enum NodeKind<'a> {
 
 impl<'a> NodeKind<'a> {
     #[cfg(test)]
-    #[inline]
     fn unwrap_branch(&self) -> &Box<NodeBranch<'a>> {
         match self {
             NodeKind::Branch(ref branch) => branch,
@@ -91,7 +70,6 @@ impl<'a> NodeKind<'a> {
         }
     }
     #[cfg(test)]
-    #[inline]
     fn unwrap_leaf(&self) -> &Box<NodeLeaf> {
         match self {
             NodeKind::Leaf(ref leaf) => leaf,
@@ -109,7 +87,7 @@ pub struct Node<'a> {
 }
 
 impl<'a> Node<'a> {
-    fn borders(data: &'a Matrix, units: &[usize]) -> Vec<(f64, f64)> {
+    fn borders(data: &Matrix, units: &[usize]) -> Vec<(f64, f64)> {
         let mut b = Vec::<(f64, f64)>::with_capacity(data.ncol());
 
         for k in 0usize..data.ncol() {
@@ -126,19 +104,14 @@ impl<'a> Node<'a> {
         b
     }
 
-    fn create<'b>(
-        options: &'b TreeBuilder<'a>,
+    fn create(
+        options: &'a impl TreeBuilder<'a>,
         units: &mut [usize],
         borders: Vec<(f64, f64)>,
-    ) -> Node<'a>
-    where
-        'a: 'b,
-    {
-        let TreeBuilder {
-            data,
-            bucket_size,
-            split_method,
-        } = options;
+    ) -> Node<'a> {
+        let data = options.data();
+        let bucket_size = options.bucket_size();
+        let split_method = options.split_method();
         if units.len() <= bucket_size.get() {
             return Node::new_leaf(data, units);
         }
@@ -155,7 +128,7 @@ impl<'a> Node<'a> {
         l_borders[split.dimension].1 = split.value;
         r_borders[split.dimension].0 = split.value;
 
-        Self {
+        Node {
             kind: NodeKind::Branch(Box::new(NodeBranch {
                 dimension: split.dimension,
                 value: split.value,
@@ -167,8 +140,7 @@ impl<'a> Node<'a> {
         }
     }
 
-    #[inline]
-    fn new_leaf(data: &'a Matrix, units: &mut [usize]) -> Self {
+    fn new_leaf(data: &'a Matrix<'a>, units: &mut [usize]) -> Node<'a> {
         Node {
             kind: NodeKind::Leaf(Box::new(NodeLeaf {
                 units: units.to_vec(),
@@ -178,27 +150,26 @@ impl<'a> Node<'a> {
     }
 
     /// Returns a reference to the data matrix
-    #[inline]
-    pub fn data(&'a self) -> &'a Matrix<'a> {
-        self.data
-    }
+    pub fn data(&'a self) -> &'a Matrix<'a> { self.data }
 
     /// Tries to insert a unit into the tree.
     /// Returns error if the index does not exist in the data matrix.
     /// Returns `Ok(false)` if the index already existed in the tree.
-    #[inline]
-    pub fn insert_unit(&mut self, id: usize) -> Result<bool, NodeError> {
-        NodeError::check_ghost_index(id, self.data.nrow())?;
-        Ok(self.traverse_and_alter_unit(id, true))
+    pub fn insert_unit(&mut self, id: usize) -> Option<bool> {
+        if id >= self.data.nrow() {
+            return None;
+        }
+        Some(self.traverse_and_alter_unit(id, true))
     }
 
     /// Tries to remove a unit from the tree.
     /// Returns error if the index does not exist in the data matrix.
     /// Returns `Ok(false)` if the index did not exist in the tree.
-    #[inline]
-    pub fn remove_unit(&mut self, id: usize) -> Result<bool, NodeError> {
-        NodeError::check_ghost_index(id, self.data.nrow())?;
-        Ok(self.traverse_and_alter_unit(id, false))
+    pub fn remove_unit(&mut self, id: usize) -> Option<bool> {
+        if id >= self.data.nrow() {
+            return None;
+        }
+        Some(self.traverse_and_alter_unit(id, false))
     }
 
     fn traverse_and_alter_unit(&mut self, id: usize, insert: bool) -> bool {
@@ -289,60 +260,21 @@ impl std::fmt::Debug for NodeLeaf {
     }
 }
 
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum NodeError {
-    // Accessing non-existing index
-    GhostIndex(usize),
-    InvalidBucketSize,
-}
-
-impl NodeError {
-    fn check_ghost_index(id: usize, max: usize) -> Result<(), Self> {
-        if id < max {
-            return Ok(());
-        }
-
-        Err(NodeError::GhostIndex(id))
-    }
-}
-
-impl std::error::Error for NodeError {}
-
-impl std::fmt::Display for NodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            NodeError::GhostIndex(id) => {
-                write!(f, "cannot access non-existing index {id}")
-            }
-            NodeError::InvalidBucketSize => {
-                write!(f, "invalid bucket size")
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn matrix_new<'a>() -> Matrix<'a> {
-        Matrix::new(
-            &[
-                0.0, 1.0, 2.0, 13.0, 14.0, //
-                0.0, 10.0, 20.0, 30.0, 40.0, //
-            ],
-            5,
-        )
-    }
+    static MATRIX_DATA: [f64; 10] = [
+        0.0, 1.0, 2.0, 13.0, 14.0, //
+        0.0, 10.0, 20.0, 30.0, 40.0, //
+    ];
+    fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&MATRIX_DATA, 5).unwrap() }
 
     #[test]
-    fn new_midpoint_slide() -> Result<(), NodeError> {
+    fn new_midpoint_slide() -> SamplingOptionsResult<()> {
         let m = matrix_new();
-        let t = TreeBuilder::new(&m)
-            .try_bucket_size(2)?
-            .build(&mut [0, 1, 2, 3])?;
-
+        let opts = SpreadingOptions::new(m)?.set_bucket_size(2)?;
+        let t = opts.build(&mut [0, 1, 2, 3]).unwrap();
         println!("{:?}", t);
 
         let branch = t.kind.unwrap_branch();
@@ -369,36 +301,37 @@ mod tests {
     }
 
     #[test]
-    fn insert_unit() -> Result<(), NodeError> {
+    fn insert_unit() -> SamplingOptionsResult<()> {
         let m = matrix_new();
-        let mut t = TreeBuilder::new(&m)
-            .try_bucket_size(2)?
-            .build(&mut [0, 1, 2, 3])?;
+        let opts = SpreadingOptions::new(m)?.set_bucket_size(2)?;
+        let mut t = opts.build(&mut [0, 1, 2, 3]).unwrap();
 
         assert_eq!(t.insert_unit(4).unwrap(), true);
-        assert!(t
-            .kind
-            .unwrap_branch()
-            .right_child
-            .kind
-            .unwrap_leaf()
-            .units
-            .contains(&4));
+        assert!(
+            t.kind
+                .unwrap_branch()
+                .right_child
+                .kind
+                .unwrap_leaf()
+                .units
+                .contains(&4)
+        );
         assert_eq!(t.insert_unit(4).unwrap(), false);
 
         assert_eq!(t.remove_unit(1).unwrap(), true);
-        assert!(!t
-            .kind
-            .unwrap_branch()
-            .left_child
-            .kind
-            .unwrap_leaf()
-            .units
-            .contains(&1));
+        assert!(
+            !t.kind
+                .unwrap_branch()
+                .left_child
+                .kind
+                .unwrap_leaf()
+                .units
+                .contains(&1)
+        );
         assert_eq!(t.remove_unit(1).unwrap(), false);
 
-        assert!(t.insert_unit(10).is_err());
-        assert!(t.remove_unit(10).is_err());
+        assert!(t.insert_unit(10).is_none());
+        assert!(t.remove_unit(10).is_none());
 
         Ok(())
     }

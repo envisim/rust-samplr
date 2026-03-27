@@ -12,86 +12,96 @@
 
 //! Balance deviation
 
-use envisim_samplr::{SampleOptions, SamplingError};
-use envisim_utils::InputError;
+use envisim_utils::matrix::Matrix;
+use envisim_utils::sampling_options::{
+    ProbabilitySpec,
+    SamplingOptions,
+};
 
-/// A tuple with the balance deviation from the (spreading, balancing) matrices
-pub type BalanceDeviationResult = (Option<Vec<f64>>, Option<Vec<f64>>);
+fn balance_deviation(sample: &[usize], probabilities: &[f64], data: &Matrix) -> Vec<f64> {
+    let population_size = probabilities.len();
+    let mut deviation = vec![0.0; data.ncol()];
 
-/// Calculates the deviation from the provided auxiliaries.
-///
-/// Returns a tuple, where the first is the deviation from the spreading auxiliaries, and the second
-/// is the deviation from the balancing auxiliaries.
+    for i in 0..population_size {
+        for j in 0..data.ncol() {
+            deviation[j] += data[(i, j)];
+        }
+    }
+
+    for &i in sample.iter() {
+        let p = probabilities[i];
+        for j in 0..data.ncol() {
+            deviation[j] -= data[(i, j)] / p;
+        }
+    }
+
+    deviation
+}
+
+/// Calculates the deviation from the spreading matrix.
 ///
 /// # Examples
 /// ```
 /// use envisim_estimate::balance::*;
-/// use envisim_samplr::SampleOptions;
-/// use envisim_utils::Matrix;
-/// use envisim_utils::kd_tree::TreeBuilder;
+/// use envisim_utils::sampling_options::*;
+/// use envisim_utils::matrix::Matrix;
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10);
-/// let options = SampleOptions::new(&p)?.set_spreading(&m)?;
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
-/// // let sb = balance_deviation(&s, &options)?;
-/// # Ok::<(), envisim_samplr::SamplingError>(())
+/// // let sb = balance_deviation_spreading(&s, &options).unwrap();
+/// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation(
+pub fn balance_deviation_spreading<PS: ProbabilitySpec>(
     sample: &[usize],
-    options: &SampleOptions,
-) -> Result<BalanceDeviationResult, SamplingError> {
-    options.check_base()?;
-
+    options: &SamplingOptions<'_, PS>,
+) -> Option<Vec<f64>> {
     let population_size = options.population_size();
 
-    InputError::check_range_usize(*sample.iter().max().unwrap_or(&0usize), 0, population_size)?;
-
-    let mut bal_spreading: Option<Vec<f64>> = None;
-    let mut bal_balancing: Option<Vec<f64>> = None;
-
-    if let Some(spreading) = options.spreading() {
-        options.check_spreading()?;
-        let data = spreading.data();
-        let mut deviation = vec![0.0; data.ncol()];
-
-        for i in 0..options.population_size() {
-            for j in 0..data.ncol() {
-                deviation[j] += data[(i, j)];
-            }
-        }
-
-        for &i in sample.iter() {
-            let p = options.probabilities()[i];
-            for j in 0..data.ncol() {
-                deviation[j] -= data[(i, j)] / p;
-            }
-        }
-
-        bal_spreading = Some(deviation);
+    if !sample.iter().all(|s| (0..population_size).contains(s)) {
+        return None;
     }
 
-    if let Some(balancing) = options.balancing() {
-        options.check_balancing()?;
-        let data = balancing;
-        let mut deviation = vec![0.0; balancing.ncol()];
+    let spreading = options.get_spreading().ok()?;
+    Some(balance_deviation(
+        sample,
+        &options.probabilities().as_f64_slice(),
+        spreading.data(),
+    ))
+}
 
-        for i in 0..options.population_size() {
-            for j in 0..data.ncol() {
-                deviation[j] += data[(i, j)];
-            }
-        }
+/// Calculates the deviation from the balancing matrix.
+///
+/// # Examples
+/// ```
+/// use envisim_estimate::balance::*;
+/// use envisim_utils::sampling_options::*;
+/// use envisim_utils::matrix::Matrix;
+///
+/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+/// let options = SamplingOptions::new(&p)?.set_balancing(m)?;
+/// let s = [0, 3, 5, 8, 9];
+///
+/// // let sb = balance_deviation_balancing(&s, &options).unwrap();
+/// # Ok::<(), SamplingOptionsError>(())
+/// ```
+pub fn balance_deviation_balancing<PS: ProbabilitySpec>(
+    sample: &[usize],
+    options: &SamplingOptions<'_, PS>,
+) -> Option<Vec<f64>> {
+    let population_size = options.population_size();
 
-        for &i in sample.iter() {
-            let p = options.probabilities()[i];
-            for j in 0..data.ncol() {
-                deviation[j] -= data[(i, j)] / p;
-            }
-        }
-
-        bal_balancing = Some(deviation);
+    if !sample.iter().all(|s| (0..population_size).contains(s)) {
+        return None;
     }
 
-    Ok((bal_spreading, bal_balancing))
+    let balancing = options.get_spreading().ok()?;
+    Some(balance_deviation(
+        sample,
+        &options.probabilities().as_f64_slice(),
+        balancing.data(),
+    ))
 }
