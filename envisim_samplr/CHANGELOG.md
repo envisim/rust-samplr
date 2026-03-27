@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SamplingError, removed Input, Indices, Node; added Options, IncorrectStratification, IncorrectDrawProbabilities, IncorrectProbabilitiesIntegerSum
 - Removed SampleContainer, added SampleController
 - Fix a bug in cube null space
+- Added Distributionally balanced designs
 
 ## [0.4.0] - 2025-08-22
 ### Changed
