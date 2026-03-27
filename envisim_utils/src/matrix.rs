@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -289,10 +289,11 @@ impl<'a> Matrix<'a> {
             return Some(0.0);
         }
 
-        let v = self
+        let v: f64 = self
             .row_iter(row_a)
             .zip(self.row_iter(row_b))
-            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
+            .map(|(a, b)| (a - b).powi(2))
+            .sum::<f64>();
         Some(v)
     }
     /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand

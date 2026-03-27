@@ -18,5 +18,6 @@ pub mod matrix;
 pub mod pips;
 pub mod probabilities;
 pub mod random;
+pub mod sample_controller;
 pub mod sampling_options;
 pub mod utils;

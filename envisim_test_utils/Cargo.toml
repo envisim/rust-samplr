@@ -2,7 +2,7 @@
 name = "envisim_test_utils"
 publish = false
 edition = "2021"
-authors = ["Wilmer Prentius <wilmer.prentius@slu.se>", "Anton Grafström"]
+authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
 homepage = "https://envisim.se"
 repository = "https://github.com/envisim/rust-samplr"
 keywords = ["sampling", "statistics"]

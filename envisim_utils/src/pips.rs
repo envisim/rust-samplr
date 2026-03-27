@@ -1,6 +1,6 @@
-// Copyright (C) 2024 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
-// This program is free software: you can redistribute it and/or modify it under the terms of the
+// This progra6 is free software: yo can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
 //
 // This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
@@ -12,16 +12,16 @@
 
 //! Functions for calculating probabilities proportional to size
 
-pub use crate::probabilities::{
-    Probabilities,
-    ProbabilitiesUnequal,
+use crate::probabilities::{
+    FloatProbabilities,
+    ProbabilityStore,
 };
 use crate::utils::usize_to_f64;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
 /// Returns an error if any value is non-positive.
-pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitiesUnequal, PipsError> {
+pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
     }
@@ -35,8 +35,8 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitiesUnequal, PipsError> {
         sum += *x;
     }
 
-    Ok(ProbabilitiesUnequal::with_values_unchecked(
-        arr.iter().map(|&x| x / sum).collect(),
+    Ok(FloatProbabilities::from_iter(
+        arr.iter().map(|&x| x / sum),
         1e-12,
     ))
 }
@@ -46,13 +46,13 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitiesUnequal, PipsError> {
 /// Returns an error if any value is non-positive.
 ///
 /// The caluclations are done by iteratively rescaling the inclusion probabilities.
-pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitiesUnequal, PipsError> {
+pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
     }
 
     if arr.len() < sample_size {
-        return Ok(ProbabilitiesUnequal::with_value(arr.len(), 1.0, 1e-12).unwrap());
+        return Ok(FloatProbabilities::new_equal_f64(1.0, arr.len(), 1e-12));
     }
 
     if arr.iter().any(|x| !x.is_normal() || (..0.0).contains(x)) {
@@ -61,7 +61,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitiesU
 
     let mut n = usize_to_f64(sample_size);
 
-    let mut pips = ProbabilitiesUnequal::with_value(arr.len(), 0.0, 1e-12).unwrap();
+    let mut pips = FloatProbabilities::new_equal_f64(0.0, arr.len(), 1e-12);
     let mut failed: bool = true;
 
     while failed && n > 0.0 {
@@ -69,17 +69,17 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitiesU
         let sum: f64 = arr
             .iter()
             .enumerate()
-            .filter(|(i, _)| pips[*i] < 1.0)
+            .filter(|(i, _)| pips.get(*i) < 1.0)
             .fold(0.0, |acc, (_, &x)| acc + x);
         let curr_n = n;
 
         arr.iter().enumerate().for_each(|(i, &x)| {
-            if pips[i] >= 1.0 {
+            if pips.get(i) >= 1.0 {
                 return;
             }
 
             let p = (x * curr_n) / sum;
-            pips[i] = p.min(1.0);
+            pips.set(i, p.min(1.0));
 
             if p >= 1.0 {
                 n -= 1.0;

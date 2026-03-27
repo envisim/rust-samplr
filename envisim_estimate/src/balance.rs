@@ -13,14 +13,10 @@
 //! Balance deviation
 
 use envisim_utils::matrix::Matrix;
-use envisim_utils::probabilities::Probabilities;
 use envisim_utils::sampling_options::{
-    Enabled,
+    ProbabilitySpec,
     SamplingOptions,
 };
-
-/// A tuple with the balance deviation from the (spreading, balancing) matrices
-pub type BalanceDeviationResult = (Option<Vec<f64>>, Option<Vec<f64>>);
 
 fn balance_deviation(sample: &[usize], probabilities: &[f64], data: &Matrix) -> Vec<f64> {
     let population_size = probabilities.len();
@@ -52,29 +48,27 @@ fn balance_deviation(sample: &[usize], probabilities: &[f64], data: &Matrix) -> 
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = balance_deviation_spreading(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_spreading<P, B>(
+pub fn balance_deviation_spreading<PS: ProbabilitySpec>(
     sample: &[usize],
-    options: &SamplingOptions<'_, P, Enabled, B>,
-) -> Option<Vec<f64>>
-where
-    P: Probabilities,
-{
+    options: &SamplingOptions<'_, PS>,
+) -> Option<Vec<f64>> {
     let population_size = options.population_size();
 
     if !sample.iter().all(|s| (0..population_size).contains(s)) {
         return None;
     }
 
+    let spreading = options.get_spreading().ok()?;
     Some(balance_deviation(
         sample,
-        &options.probabilities().slice(),
-        options.spreading().data(),
+        &options.probabilities().as_f64_slice(),
+        spreading.data(),
     ))
 }
 
@@ -88,28 +82,26 @@ where
 ///
 /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_balancing(&m)?;
+/// let options = SamplingOptions::new(&p)?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
 ///
 /// // let sb = balance_deviation_balancing(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_balancing<P, S>(
+pub fn balance_deviation_balancing<PS: ProbabilitySpec>(
     sample: &[usize],
-    options: &SamplingOptions<'_, P, S, Enabled>,
-) -> Option<Vec<f64>>
-where
-    P: Probabilities,
-{
+    options: &SamplingOptions<'_, PS>,
+) -> Option<Vec<f64>> {
     let population_size = options.population_size();
 
     if !sample.iter().all(|s| (0..population_size).contains(s)) {
         return None;
     }
 
+    let balancing = options.get_spreading().ok()?;
     Some(balance_deviation(
         sample,
-        &options.probabilities().slice(),
-        options.balancing().data(),
+        &options.probabilities().as_f64_slice(),
+        balancing.data(),
     ))
 }
