@@ -1,5 +1,6 @@
 TARGET = @TARGET@
 PROFILE = @PROFILE@
+MACOSX_DT = @MACOSX_DT@
 
 LIBNAME = librsamplr.a
 TARGET_DIR = $(CURDIR)/rust/target
@@ -37,6 +38,9 @@ $(STATLIB): remove-prev
 		export CARGO_HOME="$(CARGOTMP)"; \
 		export CARGO_BUILD_JOBS=2; \
 	fi && \
+  if [ -n "$(MACOSX_DT)" ]; then \
+    export MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DT)"; \
+  fi && \
 	export PATH="$(PATH):$(HOME)/.cargo/bin" && \
 		if [ "$(TARGET)" != "wasm32-unknown-emscripten" ]; then \
 			cargo build $(CARGO_BUILD_ARGS); \

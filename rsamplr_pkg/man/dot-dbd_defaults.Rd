@@ -2,8 +2,7 @@
 % Please edit documentation in R/distributional_designs.R
 \name{.dbd_defaults}
 \alias{.dbd_defaults}
-\title{Distributionally balanced designs defaults
-Calls \code{\link[=.sampling_defaults]{.sampling_defaults()}}}
+\title{Distributionally balanced designs defaults}
 \usage{
 .dbd_defaults(
   annealing_temp = 0.1,
@@ -18,8 +17,17 @@ Calls \code{\link[=.sampling_defaults]{.sampling_defaults()}}}
 \item{annealing_cooling}{The annealing_cooling rate tu use in simulated annealing}
 
 \item{spatial_init}{If \code{TRUE} a spatial initialization strategy is used}
+
+\item{...}{
+  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
+  \describe{
+    \item{\code{eps}}{A small value used when comparing floats.}
+    \item{\code{max_iter}}{The maximum number of iterations used in iterative algorithms.}
+  }}
+}
+\value{
+A validated list of arguments used internally in dbd functions.
 }
 \description{
 Distributionally balanced designs defaults
-Calls \code{\link[=.sampling_defaults]{.sampling_defaults()}}
 }

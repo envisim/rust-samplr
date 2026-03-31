@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 pub use envisim_utils::random::RandomNumberGenerator;
 
 extern "C" {
@@ -45,7 +47,8 @@ impl RandomNumberGenerator for RRng {
     #[inline]
     fn ri32(&mut self) -> i32 {
         let f = self.rf64() * 2.0 - 1.0;
-        (f * (i32::MAX as f64)).floor() as i32
+
+        (f * f64::from(i32::MAX)).floor() as i32
     }
     #[inline]
     fn ri32_in(&mut self, a: i32, b: i32) -> Option<i32> {
@@ -53,8 +56,8 @@ impl RandomNumberGenerator for RRng {
     }
     #[inline]
     fn ru64(&mut self) -> u64 {
-        let high = self.ru32() as u64;
-        let low = self.ru32() as u64;
+        let high = u64::from(self.ru32());
+        let low = u64::from(self.ru32());
         (high << 32) | low
     }
     #[inline]
@@ -68,25 +71,31 @@ impl RandomNumberGenerator for RRng {
         }
     }
     #[inline]
-    fn ri64(&mut self) -> i64 { self.ru64() as i64 }
+    fn ri64(&mut self) -> i64 {
+        #[allow(clippy::cast_possible_wrap)]
+        let v = self.ru64() as i64;
+        v
+    }
     #[inline]
     fn ri64_in(&mut self, a: i64, b: i64) -> Option<i64> {
-        if b < a {
-            return None;
-        } else if a == b {
-            return Some(a);
-        }
+        match a.cmp(&b) {
+            Ordering::Greater => return None,
+            Ordering::Equal => return Some(a),
+            _ => (),
+        };
 
         let d = (b as u64).wrapping_sub(a as u64);
         // d can be 0...u32::MAX...i64::MAX / infty
 
-        if d <= (u32::MAX as u64) {
-            return Some(self.ru32_to(d as u32) as i64 + a);
+        if d <= u64::from(u32::MAX) {
+            #[allow(clippy::needless_return)]
+            return Some(i64::from(self.ru32_to(d as u32)) + a);
         } else {
             loop {
                 let u = self.ru64() & 0x7FFF_FFFF_FFFF_FFFF;
                 let m = u64::MAX - (u64::MAX) % d;
                 if u < m {
+                    #[allow(clippy::cast_possible_wrap)]
                     return Some((u % d) as i64 + a);
                 }
             }

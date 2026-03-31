@@ -15,20 +15,12 @@ dbd_tc_iter(sample_size, spread_mat, ...)
 
 \item{spread_mat}{A matrix of spreading covariates.}
 
-\item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}, \code{\link[=.dbd_defaults]{.dbd_defaults}}
-  \describe{
-    \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower
-k-d-tree, but is faster to create and takes up less memory.}
-    \item{\code{annealing_temp}}{The initial temperature to use in simulated annealing}
-    \item{\code{annealing_cooling}}{The annealing_cooling rate tu use in simulated annealing}
-    \item{\code{spatial_init}}{If \code{TRUE} a spatial initialization strategy is used}
-  }}
-
-\item{max_iter}{The number of iterations to run}
-
-\item{iter_by}{The reporting interval}
+\item{...}{Additional arguments, see \code{\link[=.dbd_defaults]{.dbd_defaults()}}.
+Note:
+\itemize{
+\item \code{max_iter} determines the number of iterations to run;
+\item \code{iter_by} determines the reporting interval.
+}}
 }
 \value{
 A matrix with the average energies and the standard deviations of the energies as
@@ -43,3 +35,31 @@ Evaluates the energy distance along a simulated annealing scheme.
 Tactical Configuration
 
 }}
+\examples{
+set.seed(12345);
+N = 1000L;
+n = 100L;
+prob = rep(n / N, N);
+xs = matrix(runif(N * 2), ncol = 2);
+
+# Report mean and sd energy at every 1e4L iteration
+dbd_circular_iter(
+  n,
+  xs,
+  annealing_temp = 0.1,
+  annealing_cooling = 0.999,
+  max_iter = 1e5L,
+  iter_by = 1e4L
+);
+
+# Report mean and sd energy at every 1e4L iteration
+dbd_tc_iter(
+  n,
+  xs,
+  annealing_temp = 0.1,
+  annealing_cooling = 0.999,
+  max_iter = 1e5L,
+  iter_by = 1e4L
+);
+
+}

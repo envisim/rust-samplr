@@ -16,20 +16,21 @@ dbd_tc(sample_size, spread_mat, ...)
 \item{spread_mat}{A matrix of spreading covariates.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}, \code{\link[=.dbd_defaults]{.dbd_defaults}}
+  Arguments passed on to \code{\link[=.dbd_defaults]{.dbd_defaults}}
   \describe{
-    \item{\code{eps}}{A small value used when comparing floats.}
-    \item{\code{max_iter}}{The maximum number of iterations used in iterative algorithms.}
     \item{\code{annealing_temp}}{The initial temperature to use in simulated annealing}
     \item{\code{annealing_cooling}}{The annealing_cooling rate tu use in simulated annealing}
     \item{\code{spatial_init}}{If \code{TRUE} a spatial initialization strategy is used}
   }}
 }
 \value{
-A \code{dbd} object containing all possible samples in the design
+A \code{dbd} object containing all possible samples.
 }
 \description{
 Construct distributionally balanced sampling designs.
+}
+\details{
+Use the \code{\link[=draw.dbd]{draw.dbd()}} method to draw or select a single sample from the design.
 }
 \section{Functions}{
 \itemize{
@@ -51,7 +52,7 @@ design = dbd_circular(
   xs,
   annealing_temp = 0.1,
   annealing_cooling = 0.999,
-  max_iter = 1e6L
+  max_iter = 1e5L
 );
 s = draw(design); # Draw sample from design
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
@@ -62,7 +63,7 @@ design = dbd_tc(
   xs,
   annealing_temp = 0.1,
   annealing_cooling = 0.999,
-  max_iter = 1e6L
+  max_iter = 1e5L
 );
 s = draw(design); # Draw sample from design
 plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));

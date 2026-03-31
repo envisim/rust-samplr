@@ -7,10 +7,12 @@
 #'
 #' @param sample_size The size of the desired sample.
 #' @param spread_mat A matrix of spreading covariates.
-#' @inheritDotParams .sampling_defaults -bucket_size
 #' @inheritDotParams .dbd_defaults
 #'
-#' @returns A `dbd` object containing all possible samples in the design
+#' @returns A `dbd` object containing all possible samples.
+#'
+#' @details
+#' Use the [draw.dbd()] method to draw or select a single sample from the design.
 #'
 #' @references
 #' Grafström, A., & Prentius, W. (2026).
@@ -34,7 +36,7 @@
 #'   xs,
 #'   annealing_temp = 0.1,
 #'   annealing_cooling = 0.999,
-#'   max_iter = 1e6L
+#'   max_iter = 1e5L
 #' );
 #' s = draw(design); # Draw sample from design
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
@@ -45,7 +47,7 @@
 #'   xs,
 #'   annealing_temp = 0.1,
 #'   annealing_cooling = 0.999,
-#'   max_iter = 1e6L
+#'   max_iter = 1e5L
 #' );
 #' s = draw(design); # Draw sample from design
 #' plot(xs[, 1], xs[, 2], pch = ifelse(sample_to_indicator(s, N), 19, 1));
@@ -53,19 +55,20 @@
 NULL
 
 #' Distributionally balanced designs defaults
-#' Calls [.sampling_defaults()]
 #'
 #' @param annealing_temp The initial temperature to use in simulated annealing
 #' @param annealing_cooling The annealing_cooling rate tu use in simulated annealing
 #' @param spatial_init If `TRUE` a spatial initialization strategy is used
+#' @inheritDotParams .sampling_defaults -bucket_size
 #'
+#' @returns A validated list of arguments used internally in dbd functions.
 .dbd_defaults = function(
   annealing_temp = 0.1,
   annealing_cooling = 0.999,
   spatial_init = FALSE,
   ...
 ) {
-  args = modifyList(
+  args = c(
     .sampling_defaults(...),
     list(
       annealing_temp    = as.double(annealing_temp),
@@ -120,9 +123,9 @@ NULL
     method
   );
 
-  if (method == "dbd") {
+  if (method == "dbd_circular") {
     attr(s, "number_of_samples") = length(s);
-  } else if (method == "dbdtc") {
+  } else if (method == "dbd_tc") {
     s = matrix(s, sample_size);
     attr(s, "number_of_samples") = ncol(s);
   } else {
@@ -203,13 +206,41 @@ dbd_tc = function(
 #'
 #' @param sample_size The size of the desired sample.
 #' @param spread_mat A matrix of spreading covariates.
-#' @inheritDotParams .sampling_defaults
-#' @inheritDotParams .dbd_defaults
-#' @param max_iter The number of iterations to run
-#' @param iter_by The reporting interval
+#' @param ... Additional arguments, see [.dbd_defaults()].
+#'   Note:
+#'   - `max_iter` determines the number of iterations to run;
+#'   - `iter_by` determines the reporting interval.
 #'
 #' @returns A matrix with the average energies and the standard deviations of the energies as
 #' columns, per the reporting intervals.
+#'
+#' @examples
+#' set.seed(12345);
+#' N = 1000L;
+#' n = 100L;
+#' prob = rep(n / N, N);
+#' xs = matrix(runif(N * 2), ncol = 2);
+#'
+#' # Report mean and sd energy at every 1e4L iteration
+#' dbd_circular_iter(
+#'   n,
+#'   xs,
+#'   annealing_temp = 0.1,
+#'   annealing_cooling = 0.999,
+#'   max_iter = 1e5L,
+#'   iter_by = 1e4L
+#' );
+#'
+#' # Report mean and sd energy at every 1e4L iteration
+#' dbd_tc_iter(
+#'   n,
+#'   xs,
+#'   annealing_temp = 0.1,
+#'   annealing_cooling = 0.999,
+#'   max_iter = 1e5L,
+#'   iter_by = 1e4L
+#' );
+#'
 #' @export
 dbd_circular_iter = function(
   sample_size,

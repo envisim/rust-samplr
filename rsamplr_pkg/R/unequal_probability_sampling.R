@@ -109,7 +109,7 @@ NULL
     args$eps,
     method,
     args$max_iter,
-    as.integer(sample_size),
+    as.integer(sample_size)
   )
 }
 

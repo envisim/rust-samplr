@@ -1,7 +1,9 @@
 #' Draw from a sampling design
 #'
 #' @param design A design object.
+#' @param ... Additional arguments passed to methods.
 #'
+#' @describeIn draw.dbd draw generic
 #' @export
 draw = function(design, ...) {
   UseMethod("draw");
@@ -10,7 +12,8 @@ draw = function(design, ...) {
 #' Draw a sample from a distributionally balanced design
 #'
 #' @param design A `dbd` design object.
-#' @param id The sample to return. If `0L`, returns a random sample (default).
+#' @param ... Additional arguments passed to methods. `draw.dbd` accepts `sample_id` (integer). If
+#' `sample_id` is `0L`, returns a random sample (default).
 #'
 #' @returns a vector of sample indices.
 #'
@@ -34,30 +37,31 @@ draw = function(design, ...) {
 #'
 #'
 #' @export
-draw.dbd = function(design, id = 0L) {
+draw.dbd = function(design, ...) {
+  args = list(...);
   method = attr(design, "method");
   no_samples = attr(design, "number_of_samples");
 
-  id = as.integer(id);
-  if (!(0L < id && id <= no_samples)) {
-    id = sample(no_samples, 1L);
+  sample_id = as.integer(args$sample_id);
+  if (length(sample_id) == 0 || !(0L < sample_id && sample_id <= no_samples)) {
+    sample_id = sample(no_samples, 1L);
   }
 
   if (method == "dbd_circular") {
     pop_size = length(design);
     sample_size = attr(design, "sample_size");
 
-    if (id <= pop_size - sample_size + 1) {
-      s = design[id:(id + sample_size - 1)];
+    if (sample_id <= pop_size - sample_size + 1) {
+      s = design[sample_id:(sample_id + sample_size - 1)];
       sort(s);
       return(s);
     } else {
-      s = design[c(1:(sample_size - pop_size + id - 1), id:pop_size)];
+      s = design[c(1:(sample_size - pop_size + sample_id - 1), sample_id:pop_size)];
       sort(s);
       return(s);
     }
   } else if (method == "dbd_tc") {
-    return(design[, id]);
+    return(design[, sample_id]);
   } else {
     # Should be unreachable
     stop("method not supported");

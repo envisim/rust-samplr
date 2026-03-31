@@ -10,6 +10,7 @@
 #' @param spread_mat A matrix of spreading covariates.
 #' @param balance_probabilities If `true` (default), includes the vector of inclusion probabilities
 #' as a balancing variable.
+#' @param sample_size The sample size
 #'
 #' @returns the measure, or in case of `balance_deviation`, the vector of deviations.
 #'
