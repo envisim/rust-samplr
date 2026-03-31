@@ -4,7 +4,7 @@ The following Rust crates are used or included in this package:
 -------------------------------------------------------------
 
 Name:        cc
-Version:     1.2.33
+Version:     1.2.58
 Repository:  https://github.com/rust-lang/cc-rs
 Authors:     Alex Crichton
 License:     Apache-2.0 OR MIT
@@ -12,14 +12,6 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        envisim_estimate
-Version:     0.3.1
-Repository:  https://github.com/envisim/rust-samplr
-Authors:     Wilmer Prentius
-License:     AGPL-3.0
-
--------------------------------------------------------------
-
-Name:        envisim_samplr
 Version:     0.4.0
 Repository:  https://github.com/envisim/rust-samplr
 Authors:     Wilmer Prentius
@@ -27,16 +19,32 @@ License:     AGPL-3.0
 
 -------------------------------------------------------------
 
-Name:        envisim_utils
-Version:     0.3.0
+Name:        envisim_samplr
+Version:     0.5.0
 Repository:  https://github.com/envisim/rust-samplr
 Authors:     Wilmer Prentius
 License:     AGPL-3.0
 
 -------------------------------------------------------------
 
+Name:        envisim_utils
+Version:     0.4.0
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius
+License:     AGPL-3.0
+
+-------------------------------------------------------------
+
+Name:        find-msvc-tools
+Version:     0.1.9
+Repository:  https://github.com/rust-lang/cc-rs
+Authors:     find-msvc-tools authors
+License:     Apache-2.0 OR MIT
+
+-------------------------------------------------------------
+
 Name:        proc-macro2
-Version:     1.0.101
+Version:     1.0.106
 Repository:  https://github.com/dtolnay/proc-macro2
 Authors:     David Tolnay, Alex Crichton
 License:     Apache-2.0 OR MIT
@@ -44,7 +52,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        quote
-Version:     1.0.40
+Version:     1.0.45
 Repository:  https://github.com/dtolnay/quote
 Authors:     David Tolnay
 License:     Apache-2.0 OR MIT
@@ -52,23 +60,15 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        rustc-hash
-Version:     2.1.1
+Version:     2.1.2
 Repository:  https://github.com/rust-lang/rustc-hash
 Authors:     The Rust Project Developers
 License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
 
-Name:        rustversion
-Version:     1.0.22
-Repository:  https://github.com/dtolnay/rustversion
-Authors:     David Tolnay
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
 Name:        savvy
-Version:     0.8.13
+Version:     0.9.2
 Repository:  https://github.com/yutannihilation/savvy/
 Authors:     Hiroaki Yutani
 License:     MIT
@@ -76,7 +76,7 @@ License:     MIT
 -------------------------------------------------------------
 
 Name:        savvy-bindgen
-Version:     0.8.13
+Version:     0.9.2
 Repository:  https://github.com/yutannihilation/savvy/
 Authors:     Hiroaki Yutani
 License:     MIT
@@ -84,7 +84,7 @@ License:     MIT
 -------------------------------------------------------------
 
 Name:        savvy-ffi
-Version:     0.8.13
+Version:     0.9.2
 Repository:  https://github.com/yutannihilation/savvy/
 Authors:     Hiroaki Yutani
 License:     MIT
@@ -92,7 +92,7 @@ License:     MIT
 -------------------------------------------------------------
 
 Name:        savvy-macro
-Version:     0.8.13
+Version:     0.9.2
 Repository:  https://github.com/yutannihilation/savvy/
 Authors:     Hiroaki Yutani
 License:     MIT
@@ -108,7 +108,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        syn
-Version:     2.0.106
+Version:     2.0.117
 Repository:  https://github.com/dtolnay/syn
 Authors:     David Tolnay
 License:     Apache-2.0 OR MIT
@@ -116,7 +116,7 @@ License:     Apache-2.0 OR MIT
 -------------------------------------------------------------
 
 Name:        unicode-ident
-Version:     1.0.18
+Version:     1.0.24
 Repository:  https://github.com/dtolnay/unicode-ident
 Authors:     David Tolnay
 License:     (Apache-2.0 OR MIT) AND Unicode-3.0

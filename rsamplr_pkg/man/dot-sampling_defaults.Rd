@@ -14,7 +14,9 @@
 \item{bucket_size}{The maximum size of the k-d-tree nodes. A higher value gives a slower
 k-d-tree, but is faster to create and takes up less memory.}
 }
+\value{
+A validated list of arguments used internally in sampling functions.
+}
 \description{
 Sampling defaults
 }
-\keyword{internal}

@@ -156,10 +156,35 @@ generate_makevars() {
     sed \
       -e "s|@TARGET@|${TARGET}|" \
       -e "s|@PROFILE@|${PROFILE}|" \
+      -e "s|@MACOSX_DT@|${MACOSX_DT}|" \
       "$makefile.in" >"$makefile"
   done
 
   exit 0
+}
+
+check_macos() {
+  # See https://github.com/oxfordcontrol/clarabel-r commit a3d5ec6
+  # rust's cc crate takes the newest target, if not MACOSX_DEPLOYMENT_TARGET is set
+  MACOSX_DT=""
+  if [ "$(uname)" = "Darwin" ]; then
+    if [ -n "$MACOSX_DEPLOYMENT_TARGET" ]; then
+      MACOSX_DT="$MACOSX_DEPLOYMENT_TARGET"
+    else
+      # test compile a c file and get version using otool
+      R_CC=`"${R_HOME}/bin/R" CMD config CC`
+      R_CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
+      echo "int x;" > conftest_dt.c
+      $R_CC $R_CFLAGS -c conftest_dt.c -o conftest_dt.o 2>/dev/null
+      MACOSX_DT=`otool -l conftest_dt.o 2>/dev/null | awk '/LC_BUILD_VERSION/{found=1} found && /minos/{print $2; exit}'`
+      rm -f conftest_dt.c conftest_dt.o
+    fi
+    cat <<EOF
+----------------- [SET MACOS DEPLOYMENT TARGET] -----------------
+The MacOS Deployment target is '${MACOSX_DT}'
+--------------------------------------------------------------------
+EOF
+  fi
 }
 
 # catch DEBUG envvar, which is passed from pkgbuild::compile_dll()
@@ -175,6 +200,7 @@ check_rustup
 check_cargo
 check_msrv
 check_emscripten
+check_macos
 
 TARGET="${TARGET:-$(rustc -vV | grep host | cut -d' ' -f2)}"
 

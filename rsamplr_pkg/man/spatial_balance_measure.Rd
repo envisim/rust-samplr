@@ -50,6 +50,8 @@ balance_deviation(sample, probabilities, spread_mat)
 
 \item{balance_probabilities}{If \code{true} (default), includes the vector of inclusion probabilities
 as a balancing variable.}
+
+\item{sample_size}{The sample size}
 }
 \value{
 the measure, or in case of \code{balance_deviation}, the vector of deviations.

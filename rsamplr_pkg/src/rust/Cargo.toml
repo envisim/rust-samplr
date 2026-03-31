@@ -4,13 +4,13 @@ version = "0.2.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
-rust-version = "1.75.0"
+rust-version = "1.84.1"
 
 [lib]
 crate-type = ["staticlib", "lib"]
 
 [dependencies]
-savvy = "*"
+savvy = "0.9.2"
 envisim_estimate = {version="0.4.0"}
 envisim_samplr = {version="0.5.0"}
 envisim_utils = {version="0.4.0", default-features=false}

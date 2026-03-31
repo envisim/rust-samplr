@@ -3,8 +3,9 @@
 #' @param eps A small value used when comparing floats.
 #' @param max_iter The maximum number of iterations used in iterative algorithms.
 #' @param bucket_size The maximum size of the k-d-tree nodes. A higher value gives a slower
-#' k-d-tree, but is faster to create and takes up less memory.
-#' @keywords internal
+#'   k-d-tree, but is faster to create and takes up less memory.
+#'
+#' @returns A validated list of arguments used internally in sampling functions.
 .sampling_defaults = function(
   eps = 1e-10,
   max_iter = 1000L,
