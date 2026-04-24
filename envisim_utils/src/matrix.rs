@@ -10,68 +10,112 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Two different matrix containers are provided:
-//! - [`Matrix`], which is a mutable matrix owning it's own storage.
-//! - [`RefMatrix`], which provides matrix operations on a provided, immutable vector.
+//! A matrix container
 
 use std::borrow::Cow;
-use std::iter::{
-    Skip,
-    StepBy,
-};
+use std::num::NonZeroUsize;
 use std::ops::{
     Index,
     IndexMut,
 };
-use std::slice::Iter;
 
-/// Matrix dimensions `(row, col)`
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MatrixIndex(pub usize, pub usize);
+use crate::kd_tree::{
+    PointAccess,
+    Tree,
+};
 
-impl MatrixIndex {
+/// The shape (dimensions) of a matrix: rows × columns.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MatrixDims {
+    pub rows: NonZeroUsize,
+    pub cols: NonZeroUsize,
+}
+impl MatrixDims {
     #[inline]
-    pub fn try_from_slice(v: &[f64], rows: usize) -> Option<Self> {
-        if rows == 0 || v.len() % rows > 0 {
+    pub fn new(rows: NonZeroUsize, cols: NonZeroUsize) -> Self { Self { rows, cols } }
+    #[inline]
+    pub fn try_new(rows: usize, cols: usize) -> Option<Self> {
+        let rows = NonZeroUsize::new(rows)?;
+        let cols = NonZeroUsize::new(cols)?;
+        Self::new(rows, cols).into()
+    }
+    /// Infer shape from a slice length and row count. Returns `None` if rows doesn't divide `len`
+    /// evenly.
+    #[inline]
+    pub fn from_row_count(len: usize, rows: NonZeroUsize) -> Option<Self> {
+        if len % rows != 0 {
             return None;
         }
-        let cols = v.len() / rows;
-
-        Some(MatrixIndex(rows, cols))
+        let len = NonZeroUsize::new(len)?;
+        let cols = NonZeroUsize::new(len.get() / rows)?;
+        Self::new(rows, cols).into()
+    }
+    /// Total number of elements
+    #[inline]
+    pub fn len(&self) -> NonZeroUsize { self.rows.saturating_mul(self.cols) }
+    #[inline]
+    pub fn transpose(&self) -> Self {
+        Self {
+            rows: self.cols,
+            cols: self.rows,
+        }
     }
     #[inline]
-    pub fn row(&self) -> usize { self.0 }
+    pub fn contains_row(&self, row: usize) -> bool { row < self.rows.get() }
     #[inline]
-    pub fn col(&self) -> usize { self.1 }
+    pub fn contains_col(&self, col: usize) -> bool { col < self.cols.get() }
+    /// Returns `true` if `coord` falls inside the shape
     #[inline]
-    pub fn size(&self) -> usize { self.row() * self.col() }
-    #[inline]
-    pub fn transpose(&self) -> Self { MatrixIndex(self.1, self.0) }
-    #[inline]
-    pub fn to_index(&self, size: impl Into<MatrixIndex>) -> Option<usize> {
-        let size = size.into();
-        (self.row() < size.row() && self.col() < size.col())
-            .then_some(self.row() + self.col() * size.row())
-    }
-    #[inline]
-    pub fn new(idx: impl Into<MatrixIndex>) -> Self { idx.into() }
-    #[inline]
-    pub fn into_index(idx: impl Into<MatrixIndex>, size: impl Into<MatrixIndex>) -> Option<usize> {
-        let idx = idx.into();
-        let size = size.into();
-        (idx.row() < size.row() && idx.col() < size.col())
-            .then_some(idx.row() + idx.col() * size.row())
+    pub fn contains(&self, coord: MatrixCoord) -> bool {
+        self.contains_row(coord.row) && self.contains_col(coord.col)
     }
 }
+impl From<(NonZeroUsize, NonZeroUsize)> for MatrixDims {
+    fn from((rows, cols): (NonZeroUsize, NonZeroUsize)) -> Self { Self::new(rows, cols) }
+}
+impl From<MatrixDims> for (NonZeroUsize, NonZeroUsize) {
+    fn from(value: MatrixDims) -> Self { (value.rows, value.cols) }
+}
+impl From<MatrixDims> for (usize, usize) {
+    fn from(value: MatrixDims) -> Self { (value.rows.get(), value.cols.get()) }
+}
 
-impl From<(usize, usize)> for MatrixIndex {
-    fn from(idx: (usize, usize)) -> Self { MatrixIndex(idx.0, idx.1) }
+/// A position within a matrix: (row, col), zero-indexed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MatrixCoord {
+    pub row: usize,
+    pub col: usize,
+}
+impl MatrixCoord {
+    #[inline]
+    pub fn new(row: usize, col: usize) -> Self { Self { row, col } }
+    /// Convert to a linear index in column-major order. Returns `None` if the coordinate is out of
+    /// bounds.
+    #[inline]
+    pub fn to_linear(&self, shape: MatrixDims) -> Option<usize> {
+        shape
+            .contains(*self)
+            .then(|| self.row + self.col * shape.rows.get())
+    }
+
+    /// Convert from a linear index in column-major order. Returns `None` if `index >= shape.len()`.
+    #[inline]
+    pub fn from_linear(index: usize, shape: MatrixDims) -> Option<Self> {
+        // Rem<NonZeroUsize> is in rust since 1.51
+        (index < shape.len().get()).then(|| Self::new(index % shape.rows, index / shape.rows))
+    }
+}
+impl From<(usize, usize)> for MatrixCoord {
+    fn from((row, col): (usize, usize)) -> Self { Self::new(row, col) }
+}
+impl From<MatrixCoord> for (usize, usize) {
+    fn from(value: MatrixCoord) -> Self { (value.row, value.col) }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matrix<'a> {
     data: Cow<'a, [f64]>,
-    dims: MatrixIndex,
+    dims: MatrixDims,
 }
 
 impl<'a> Matrix<'a> {
@@ -96,8 +140,8 @@ impl<'a> Matrix<'a> {
     }
     /// Constructs a new matrix, by borrowing the data.
     #[inline]
-    pub fn new(data: &'a [f64], rows: usize) -> Option<Self> {
-        let dims = MatrixIndex::try_from_slice(data, rows)?;
+    pub fn new(data: &'a [f64], rows: NonZeroUsize) -> Option<Self> {
+        let dims = MatrixDims::from_row_count(data.len(), rows)?;
         let m = Self {
             data: Cow::Borrowed(data),
             dims,
@@ -106,8 +150,8 @@ impl<'a> Matrix<'a> {
     }
     /// Constructs a new matrix, by moving the `data`.
     #[inline]
-    pub fn from_vec(data: Vec<f64>, rows: usize) -> Option<Self> {
-        let dims = MatrixIndex::try_from_slice(&data, rows)?;
+    pub fn from_vec(data: Vec<f64>, rows: NonZeroUsize) -> Option<Self> {
+        let dims = MatrixDims::from_row_count(data.len(), rows)?;
         let m = Self {
             data: Cow::Owned(data),
             dims,
@@ -116,18 +160,12 @@ impl<'a> Matrix<'a> {
     }
     /// Constructs a new matrix of size `dims` filled with `data`
     #[inline]
-    pub fn from_value(data: f64, dims: impl Into<MatrixIndex>) -> Option<Self> {
-        let dims = dims.into();
-        let size = dims.size();
-        if size == 0 {
-            return None;
-        }
-
-        let m = Self {
+    pub fn from_value(data: f64, dims: MatrixDims) -> Self {
+        let size = dims.len().get();
+        Self {
             data: Cow::Owned(vec![data; size]),
             dims,
-        };
-        Some(m)
+        }
     }
     /// Returns the underlying data (stored in column major).
     #[inline]
@@ -138,66 +176,52 @@ impl<'a> Matrix<'a> {
     pub fn data_mut(&mut self) -> &mut [f64] { self.data.to_mut() }
     /// Returns the number of rows in the matrix
     #[inline]
-    pub fn nrow(&self) -> usize { self.dims.row() }
+    pub fn nrow(&self) -> NonZeroUsize { self.dims.rows }
     /// Returns the number of columns in the matrix
     #[inline]
-    pub fn ncol(&self) -> usize { self.dims.col() }
+    pub fn ncol(&self) -> NonZeroUsize { self.dims.cols }
     /// Returns the dimensions of the matrix
     #[inline]
-    pub fn dims(&self) -> MatrixIndex { self.dims }
+    pub fn dims(&self) -> MatrixDims { self.dims }
     /// Returns an iterator on the row
     #[inline]
-    pub fn row_iter(&'a self, row: usize) -> MatrixIterator<'a> {
-        assert!(row < self.nrow());
-        MatrixIterator {
-            iter: self.data().iter().skip(row).step_by(self.nrow()),
-            dims: self.dims(),
-            step: self.nrow(),
-            count: 0,
-        }
+    pub fn row_iter(&'a self, row: usize) -> Option<RowIterator<'a>> {
+        self.dims
+            .contains_row(row)
+            .then(|| RowIterator::new(self, row))
     }
     /// Returns an iterator on the column
     #[allow(clippy::iter_skip_zero)]
     #[inline]
-    pub fn col_iter(&'a self, col: usize) -> MatrixIterator<'a> {
-        assert!(col < self.ncol());
-        MatrixIterator {
-            iter: self.data()[(self.nrow() * col)..(self.nrow() * (col + 1))]
-                .iter()
-                .skip(0)
-                .step_by(1),
-            dims: self.dims(),
-            step: 1,
-            count: 0,
-        }
+    pub fn col_iter(&'a self, col: usize) -> Option<ColIterator<'a>> {
+        self.dims
+            .contains_col(col)
+            .then(|| ColIterator::new(self, col))
     }
     /// Resizes the matrix, without guaranteeing the preservation of any data.
     /// If matrix is extend, data is cloned
     #[inline]
-    pub fn resize(&mut self, dims: impl Into<MatrixIndex>) -> Option<&mut Self> {
-        let dims = dims.into();
-        if dims.row() == 0 || dims.col() == 0 {
-            return None;
-        } else if dims == self.dims() {
-            return Some(self);
+    pub fn resize(&mut self, dims: MatrixDims) {
+        if dims == self.dims() {
+            return;
         }
 
-        let new_size = dims.size();
-
+        let new_size = dims.len().get();
         self.data.to_mut().resize(new_size, 0.0);
         self.dims = dims;
-        Some(self)
     }
     /// Calculates the reduced row echelon form of the matrix, in place.
     pub fn reduced_row_echelon_form(&mut self) {
         let dims = self.dims();
-        let index = |row, col| row + col * dims.row();
+        let index = |row, col| row + col * dims.rows.get();
         let data = self.data.to_mut();
 
         let mut lead: usize = 0;
 
-        for row in 0..dims.row() {
-            if dims.col() <= lead {
+        // We can skip som tolerance on equality checks, as we can guarantee that (some) are exactly
+        // 0.0 or 1.0
+        for row in 0..dims.rows.get() {
+            if dims.cols.get() <= lead {
                 return;
             }
 
@@ -206,12 +230,12 @@ impl<'a> Matrix<'a> {
             while data[index(i, lead)] == 0.0 {
                 i += 1;
 
-                if i == dims.row() {
+                if i == dims.rows.get() {
                     i = row;
                     lead += 1;
                 }
 
-                if lead == dims.col() {
+                if lead == dims.cols.get() {
                     return;
                 }
             }
@@ -220,28 +244,28 @@ impl<'a> Matrix<'a> {
             if i != row {
                 let mut index_i = i;
                 let mut index_row = row;
-                for _ in 0..dims.col() {
+                for _ in 0..dims.cols.get() {
                     data.swap(index_i, index_row);
-                    index_i += dims.row();
-                    index_row += dims.row();
+                    index_i += dims.rows.get();
+                    index_row += dims.rows.get();
                 }
             }
 
             // Divide ROW by lead, assuming all is 0 before lead
             let mut index_row = index(row, lead);
-            let lead_value = unsafe { *data.get_unchecked(index_row) };
+            let lead_value = data[index_row];
             if lead_value != 1.0 {
                 data[index_row] = 1.0;
-                index_row += dims.row();
+                index_row += dims.rows.get();
 
-                for _ in (lead + 1)..dims.col() {
+                for _ in (lead + 1)..dims.cols.get() {
                     data[index_row] /= lead_value;
-                    index_row += dims.row();
+                    index_row += dims.rows.get();
                 }
             }
 
             // Remove ROW from all other rows
-            for j in 0..dims.row() {
+            for j in 0..dims.rows.get() {
                 if j == row {
                     continue;
                 }
@@ -254,58 +278,65 @@ impl<'a> Matrix<'a> {
                 }
 
                 data[index_j] = 0.0;
-                index_j += dims.row();
+                index_j += dims.rows.get();
                 let mut index_row = index(row, lead + 1);
 
-                for _ in (lead + 1)..dims.col() {
+                for _ in (lead + 1)..dims.cols.get() {
                     data[index_j] -= data[index_row] * lead_multiplicator;
-                    index_j += dims.row();
-                    index_row += dims.row();
+                    index_j += dims.rows.get();
+                    index_row += dims.rows.get();
                 }
             }
 
             lead += 1;
         }
     }
-    /// Returns the squared eculidean distance between the `row` and the slice `unit`
+    /// Returns the squared euclidean distance between the `row` and the slice `unit`
     #[inline]
     pub fn distance_to_row(&self, row: usize, unit: &[f64]) -> Option<f64> {
-        if unit.len() != self.ncol() || row >= self.nrow() {
+        if !self.dims.contains_row(row) || unit.len() != self.ncol().get() {
             return None;
         }
 
-        let v = self
-            .row_iter(row)
-            .zip(unit.iter())
-            .fold(0.0, |acc, (a, b)| acc + (a - b).powi(2));
-        Some(v)
+        let mut idx = row;
+        let mut sum = 0.0;
+        for &p in unit.iter() {
+            let diff = p - self.data[idx];
+            sum += diff * diff;
+            idx += self.dims.rows.get();
+        }
+        Some(sum)
     }
-    /// Returns the squared eculidean distance between the `row` and the slice `unit`
+    /// Returns the squared euclidean distance between the `row` and the slice `unit`
     #[inline]
     pub fn distance_between_rows(&self, row_a: usize, row_b: usize) -> Option<f64> {
-        if row_a >= self.nrow() || row_b >= self.nrow() {
+        if !self.dims.contains_row(row_a) || !self.dims.contains_row(row_b) {
             return None;
         } else if row_a == row_b {
             return Some(0.0);
         }
 
-        let v: f64 = self
-            .row_iter(row_a)
-            .zip(self.row_iter(row_b))
-            .map(|(a, b)| (a - b).powi(2))
-            .sum::<f64>();
-        Some(v)
+        let mut idx = row_a.min(row_b);
+        // One unit will always be offset by idx_diff cmp. idx
+        let idx_diff = row_a.abs_diff(row_b);
+        let mut sum = 0.0;
+        for _ in 0..self.dims.cols.get() {
+            let diff = self.data[idx] - self.data[idx + idx_diff];
+            sum += diff * diff;
+            idx += self.dims.rows.get();
+        }
+        Some(sum)
     }
-    /// Performes the calculation of self * multiplicand, where self is a matrix A, and multiplicand
+    /// Performs the calculation of self * multiplicand, where self is a matrix A, and multiplicand
     /// is a vector.
     #[inline]
     pub fn prod_vec(&self, multiplicand: &[f64]) -> Option<Vec<f64>> {
-        if multiplicand.len() != self.ncol() {
+        if multiplicand.len() != self.ncol().get() {
             return None;
         }
 
         let data = self.data();
-        let mut prod = vec![0.0; self.nrow()];
+        let mut prod = vec![0.0; self.nrow().get()];
         let mut index: usize = 0;
 
         for &mul in multiplicand.iter() {
@@ -319,88 +350,114 @@ impl<'a> Matrix<'a> {
     }
     /// Performes the calculation of matrices self * mat
     #[inline]
-    pub fn mult<'b>(&'a self, mat: &Matrix) -> Option<Matrix<'b>> {
+    pub fn mult(&'a self, mat: &Matrix) -> Option<Matrix<'static>> {
         if self.ncol() != mat.nrow() {
             return None;
         }
 
-        let mut prod = Vec::<f64>::with_capacity(self.nrow() * mat.ncol());
+        let mut prod = Vec::<f64>::with_capacity(self.nrow().get() * mat.ncol().get());
 
         let mut index = 0usize;
-        for _ in 0..mat.ncol() {
-            prod.extend_from_slice(&self.prod_vec(&mat.data()[index..(index + mat.nrow())])?);
-            index += mat.nrow();
+        for _ in 0..mat.ncol().get() {
+            prod.extend_from_slice(&self.prod_vec(&mat.data()[index..(index + mat.nrow().get())])?);
+            index += mat.nrow().get();
         }
 
         Matrix::from_vec(prod, self.nrow())
     }
 }
 
-impl<'a> Index<MatrixIndex> for Matrix<'a> {
+impl<'a> Index<MatrixCoord> for Matrix<'a> {
     type Output = f64;
 
     #[inline]
-    fn index(&self, idx: MatrixIndex) -> &f64 {
-        let index = idx.to_index(self.dims()).unwrap();
+    fn index(&self, idx: MatrixCoord) -> &Self::Output {
+        let index = idx.to_linear(self.dims).unwrap();
         &self.data()[index]
     }
 }
-impl<'a> IndexMut<MatrixIndex> for Matrix<'a> {
+impl<'a> IndexMut<MatrixCoord> for Matrix<'a> {
     #[inline]
-    fn index_mut(&mut self, idx: MatrixIndex) -> &mut f64 {
-        let index = idx.to_index(self.dims()).unwrap();
+    fn index_mut(&mut self, idx: MatrixCoord) -> &mut Self::Output {
+        let index = idx.to_linear(self.dims).unwrap();
         &mut self.data_mut()[index]
     }
 }
 
-impl<'a> Index<(usize, usize)> for Matrix<'a> {
-    type Output = f64;
-
-    #[inline]
-    fn index(&self, idx: (usize, usize)) -> &f64 {
-        let index = MatrixIndex::into_index(idx, self.dims()).unwrap();
-        &self.data()[index]
-    }
+pub struct RowIterator<'a> {
+    data: &'a Matrix<'a>,
+    pos: usize,
 }
-impl<'a> IndexMut<(usize, usize)> for Matrix<'a> {
+impl<'a> RowIterator<'a> {
     #[inline]
-    fn index_mut(&mut self, idx: (usize, usize)) -> &mut f64 {
-        let index = MatrixIndex::into_index(idx, self.dims()).unwrap();
-        &mut self.data_mut()[index]
-    }
-}
-
-pub struct MatrixIterator<'a> {
-    iter: StepBy<Skip<Iter<'a, f64>>>,
-    dims: MatrixIndex,
-    step: usize,
-    count: usize,
-}
-impl<'a> MatrixIterator<'a> {
-    #[inline]
-    pub fn dims(&self) -> MatrixIndex {
-        if self.step == 1 {
-            MatrixIndex(self.dims.row(), 1)
-        } else {
-            MatrixIndex(1, self.dims.col())
+    pub fn new(matrix: &'a Matrix, row: usize) -> Self {
+        Self {
+            data: matrix,
+            pos: row,
         }
     }
 }
-impl<'a> Iterator for MatrixIterator<'a> {
+impl<'a> Iterator for RowIterator<'a> {
     type Item = &'a f64;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.count += 1;
-        self.iter.next()
+        let val = self.data.data.get(self.pos)?;
+        self.pos += self.data.nrow().get();
+        Some(val)
     }
 }
-impl<'a> ExactSizeIterator for MatrixIterator<'a> {
+impl<'a> ExactSizeIterator for RowIterator<'a> {
     #[inline]
     fn len(&self) -> usize {
-        if self.step == 1 {
-            self.dims.row() - self.count
-        } else {
-            self.dims.col() - self.count
+        let diff = self.data.data.len() - self.pos;
+        let d = diff / self.data.nrow();
+        let r = diff % self.data.nrow();
+        if r > 0 { d + 1 } else { d }
+    }
+}
+pub struct ColIterator<'a> {
+    data: &'a [f64],
+    pos: usize,
+}
+impl<'a> ColIterator<'a> {
+    #[inline]
+    pub fn new(matrix: &'a Matrix, col: usize) -> Self {
+        let start = col * matrix.nrow().get();
+        Self {
+            data: &matrix.data[start..(start + matrix.nrow().get())],
+            pos: 0,
         }
     }
 }
+impl<'a> Iterator for ColIterator<'a> {
+    type Item = &'a f64;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let val = self.data.get(self.pos)?;
+        self.pos += 1;
+        Some(val)
+    }
+}
+impl<'a> ExactSizeIterator for ColIterator<'a> {
+    #[inline]
+    fn len(&self) -> usize { self.data.len() - self.pos }
+}
+
+impl<'a> PointAccess for Matrix<'a> {
+    #[inline]
+    fn dim(&self) -> NonZeroUsize { self.dims.cols }
+    #[inline]
+    fn exists(&self, id: usize) -> bool { id < self.dims.rows.get() }
+    #[inline]
+    fn coord(&self, id: usize, dim: usize) -> f64 {
+        let idx = id + dim * self.dims.rows.get();
+        self.data[idx]
+    }
+    #[inline]
+    fn try_coord(&self, id: usize, dim: usize) -> Option<f64> {
+        let idx = id + dim * self.dims.rows.get();
+        self.data.get(idx).copied()
+    }
+}
+
+pub type MatrixTree<'a> = Tree<'a, Matrix<'a>>;

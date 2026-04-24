@@ -1,7 +1,9 @@
+use std::num::NonZeroUsize;
+
 use envisim_test_utils::*;
 use envisim_utils::matrix::{
     Matrix,
-    MatrixIndex,
+    MatrixDims,
 };
 
 const DATA_4_2: [f64; 8] = [
@@ -9,7 +11,7 @@ const DATA_4_2: [f64; 8] = [
     10.0, 11.0, 12.0, 13.0, //
 ];
 
-fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&DATA_4_2, 4).unwrap() }
+fn matrix_new<'a>() -> Matrix<'a> { Matrix::new(&DATA_4_2, NonZeroUsize::new(4).unwrap()).unwrap() }
 
 #[test]
 fn borrow_vs_owned() {
@@ -24,24 +26,24 @@ fn borrow_vs_owned() {
 #[test]
 fn operate_matrix() {
     let mm = matrix_new();
-    assert_eq!(mm.nrow(), 4);
-    assert_eq!(mm.ncol(), 2);
-    assert_eq!(mm.dims(), MatrixIndex::new((4, 2)));
+    assert_eq!(mm.nrow().get(), 4);
+    assert_eq!(mm.ncol().get(), 2);
+    assert_eq!(mm.dims(), MatrixDims::try_new(4, 2).unwrap());
 
     assert_eq!(
-        mm.row_iter(0).cloned().collect::<Vec<f64>>(),
+        mm.row_iter(0).unwrap().cloned().collect::<Vec<f64>>(),
         vec![0.0, 10.0]
     );
     assert_eq!(
-        mm.row_iter(1).cloned().collect::<Vec<f64>>(),
+        mm.row_iter(1).unwrap().cloned().collect::<Vec<f64>>(),
         vec![1.0, 11.0]
     );
     assert_eq!(
-        mm.col_iter(0).cloned().collect::<Vec<f64>>(),
+        mm.col_iter(0).unwrap().cloned().collect::<Vec<f64>>(),
         vec![0.0, 1.0, 2.0, 3.0]
     );
     assert_eq!(
-        mm.col_iter(1).cloned().collect::<Vec<f64>>(),
+        mm.col_iter(1).unwrap().cloned().collect::<Vec<f64>>(),
         vec![10.0, 11.0, 12.0, 13.0]
     );
 }
@@ -75,8 +77,9 @@ fn prod_vec() {
 #[test]
 fn mult() {
     let mm = matrix_new();
-    let one_mat = Matrix::from_value(1.0, (2, 4)).unwrap();
-    let two_mat = Matrix::from_value(2.0, (2, 4)).unwrap();
+    let dims = MatrixDims::try_new(2, 4).unwrap();
+    let one_mat = Matrix::from_value(1.0, dims);
+    let two_mat = Matrix::from_value(2.0, dims);
     assert_eq!(
         one_mat.mult(&mm).unwrap().data(),
         vec![6.0, 6.0, 46.0, 46.0]
@@ -90,8 +93,8 @@ fn mult() {
 #[test]
 fn resize() {
     let mut mm = matrix_new();
-    mm.resize((2, 2));
-    assert_eq!(mm.dims(), MatrixIndex::new((2, 2)));
+    mm.resize(MatrixDims::try_new(2, 2).unwrap());
+    assert_eq!(mm.dims(), MatrixDims::try_new(2, 2).unwrap());
 }
 
 #[test]
@@ -103,7 +106,7 @@ fn rref() {
             0.39, 0.42, 0.87, //
             0.64, 0.70, 0.32, //
         ],
-        3,
+        NonZeroUsize::new(3).unwrap(),
     )
     .unwrap();
 

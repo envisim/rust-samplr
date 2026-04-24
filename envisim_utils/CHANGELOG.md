@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Refactored `kd_tree`. Use `Tree` instead of `Node`. `Tree` is generic for the trait `PointAccess`. Refactored the trait `TreeBuilder`.
+- Refactored `kd_tree::searcher`. `NearestNeighbourSearcher`, `KNearestNeighbourSearcher` and `WeightedSearcher` replaces `Searcher`, `Searcher` and `SearcherWeighted` respectively.
+- Added `kd_tree::searcher::Neighbours` and `WeightedNeighbours` as a type.
+- Refactored `kd_tree::split_methods`. `midpoint_slide` is generic for the trait `PointAccess`.
+- Replaced `MatrixIndex` with `MatrixDims` and `MatrixCoord`, to handle the two use-cases indexing and dimensions separately. Many `Matrix`-methods now need NonZeroUsize in order to fulfill contract of matrix not being 0x0.
+- Replaced `MatrixIterator` with dedicated iterators `RowIterator` and `ColIterator`.
 
 ## [0.4.0 - 2026-03-27]
 - Matrix use std::borrow instead of reinventing the wheel.

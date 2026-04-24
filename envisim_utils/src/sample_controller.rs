@@ -11,10 +11,7 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::indices::Indices;
-use crate::kd_tree::{
-    Node,
-    TreeBuilder,
-};
+use crate::matrix::MatrixTree;
 use crate::probabilities::ProbabilityStore;
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
@@ -162,7 +159,7 @@ impl<ST: ProbabilityStore> SampleController for BasicSampleController<ST> {
 // SpreadingSampleController
 pub struct SpreadingSampleController<'a, ST: ProbabilityStore> {
     controller: BasicSampleController<ST>,
-    tree: Box<Node<'a>>,
+    tree: MatrixTree<'a>,
 }
 
 impl<'a, ST: ProbabilityStore> SpreadingSampleController<'a, ST> {
@@ -171,20 +168,17 @@ impl<'a, ST: ProbabilityStore> SpreadingSampleController<'a, ST> {
         spreading: &'a SpreadingOptions<'a>,
     ) -> SamplingOptionsResult<Self> {
         let mut units = controller.indices().to_vec();
-        let tree = spreading.build(&mut units)?;
-        Ok(Self {
-            controller,
-            tree: tree.into(),
-        })
+        let tree = MatrixTree::new(spreading, &mut units);
+        Ok(Self { controller, tree })
     }
-    pub fn tree(&self) -> &Node<'a> { &self.tree }
-    pub fn tree_mut(&mut self) -> &mut Node<'a> { &mut self.tree }
+    pub fn tree(&self) -> &MatrixTree<'a> { &self.tree }
+    pub fn tree_mut(&mut self) -> &mut MatrixTree<'a> { &mut self.tree }
     pub fn reset_tree(
         &mut self,
         spreading: &'a SpreadingOptions<'a>,
         units: &mut [usize],
     ) -> SamplingOptionsResult<()> {
-        self.tree = spreading.build(units)?.into();
+        self.tree = MatrixTree::new(spreading, units);
         Ok(())
     }
 }
