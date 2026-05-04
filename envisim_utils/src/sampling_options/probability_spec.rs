@@ -1,0 +1,124 @@
+// Copyright (C) 2026 Wilmer Prentius.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+use std::borrow::Cow;
+use std::num::NonZeroUsize;
+
+use super::{
+    SamplingOptionsError,
+    SamplingOptionsResult,
+};
+use crate::probabilities::{
+    ExactProbabilities,
+    FloatProbabilities,
+    ProbabilityStore,
+};
+use crate::utils::{
+    f64_to_usize,
+    usize_to_f64,
+};
+
+// Probability specification
+pub trait ProbabilitySpec {
+    type Native: ProbabilityStore;
+    fn population_size(&self) -> NonZeroUsize;
+    #[inline]
+    fn population_size_f64(&self) -> f64 { usize_to_f64(self.population_size().get()) }
+    fn sample_size(&self) -> usize;
+    #[inline]
+    fn sample_size_f64(&self) -> f64 { usize_to_f64(self.sample_size()) }
+    /// Returns probabilities as f64 slice
+    fn as_f64_slice(&self) -> Cow<'_, [f64]>;
+    /// Returns probabilities as f64 slice
+    #[inline]
+    fn as_equal(&self) -> Option<ProbabilitySpecEqual> { None }
+
+    fn to_native(&self, eps: f64) -> Self::Native;
+    fn to_float(&self, eps: f64) -> FloatProbabilities;
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ProbabilitySpecEqual {
+    population_size: NonZeroUsize,
+    sample_size: usize,
+}
+impl ProbabilitySpecEqual {
+    #[inline]
+    pub fn new(population_size: NonZeroUsize, sample_size: usize) -> SamplingOptionsResult<Self> {
+        if population_size.get() < sample_size {
+            return Err(SamplingOptionsError::InvalidSampleSize);
+        }
+        Ok(Self {
+            population_size,
+            sample_size,
+        })
+    }
+    #[inline]
+    pub fn as_f64(&self) -> f64 { self.sample_size_f64() / self.population_size_f64() }
+}
+impl ProbabilitySpecEqual {}
+impl ProbabilitySpec for ProbabilitySpecEqual {
+    type Native = ExactProbabilities;
+    #[inline]
+    fn population_size(&self) -> NonZeroUsize { self.population_size }
+    #[inline]
+    fn sample_size(&self) -> usize { self.sample_size }
+    #[inline]
+    fn as_f64_slice(&self) -> Cow<'_, [f64]> {
+        let p = self.sample_size_f64() / self.population_size_f64();
+        Cow::Owned(vec![p; self.population_size.get()])
+    }
+    #[inline]
+    fn as_equal(&self) -> Option<ProbabilitySpecEqual> { Some(*self) }
+    #[inline]
+    fn to_native(&self, _eps: f64) -> Self::Native { ExactProbabilities::new_equal(*self) }
+    #[inline]
+    fn to_float(&self, eps: f64) -> FloatProbabilities {
+        FloatProbabilities::new(self.as_f64_slice().into_owned(), eps)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProbabilitySpecUnequal<'a> {
+    data: &'a [f64],
+}
+impl ProbabilitySpec for ProbabilitySpecUnequal<'_> {
+    type Native = FloatProbabilities;
+    #[inline]
+    fn population_size(&self) -> NonZeroUsize { NonZeroUsize::new(self.data.len()).unwrap() }
+    #[inline]
+    fn sample_size_f64(&self) -> f64 { self.data.iter().sum::<f64>() }
+    #[inline]
+    fn sample_size(&self) -> usize { f64_to_usize(self.sample_size_f64().round()) }
+    #[inline]
+    fn as_f64_slice(&self) -> Cow<'_, [f64]> { Cow::Borrowed(self.data) }
+    #[inline]
+    fn to_native(&self, eps: f64) -> Self::Native {
+        FloatProbabilities::new(self.data.to_vec(), eps)
+    }
+    #[inline]
+    fn to_float(&self, eps: f64) -> FloatProbabilities { Self::to_native(self, eps) }
+}
+impl<'a> ProbabilitySpecUnequal<'a> {
+    #[inline]
+    pub fn new(probabilities: &'a [f64]) -> SamplingOptionsResult<Self> {
+        if probabilities.is_empty() {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        }
+        if !probabilities.iter().all(|&p| (0.0..=1.0).contains(&p)) {
+            return Err(SamplingOptionsError::InvalidProbability);
+        }
+        Ok(Self {
+            data: probabilities,
+        })
+    }
+}

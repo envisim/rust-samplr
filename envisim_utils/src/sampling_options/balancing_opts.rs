@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -10,16 +10,16 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions for envisim
+use super::SamplingOptionsResult;
+use crate::matrix::MatrixRef;
 
-pub mod indices;
-pub mod kd_tree;
-pub mod matrix;
-pub mod number_traits;
-pub mod pips;
-pub mod probabilities;
-pub mod random;
-pub mod sample_controller;
-pub mod sampling_options;
-pub mod spatial;
-pub mod utils;
+#[derive(Clone, Debug)]
+pub struct BalancingOptions<'a, N> {
+    data: MatrixRef<'a, N>,
+}
+impl<'a, N> BalancingOptions<'a, N> {
+    #[inline]
+    pub fn new(data: MatrixRef<'a, N>) -> SamplingOptionsResult<Self> { Ok(Self { data }) }
+    #[inline]
+    pub fn data(&self) -> &MatrixRef<'a, N> { &self.data }
+}

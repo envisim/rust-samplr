@@ -10,17 +10,6 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::ops::{
-    Add,
-    AddAssign,
-    Div,
-    DivAssign,
-    Mul,
-    MulAssign,
-    Sub,
-    SubAssign,
-};
-
 use crate::kd_tree::searcher::WeightCollection;
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
@@ -43,8 +32,8 @@ impl FloatProbabilities {
     }
     #[inline]
     pub fn new_equal(spec: ProbabilitySpecEqual, eps: f64) -> Self {
-        let p = usize_to_f64(spec.sample_size()) / usize_to_f64(spec.population_size());
-        Self::new(vec![p; spec.population_size()], eps)
+        let p = usize_to_f64(spec.sample_size()) / usize_to_f64(spec.population_size().get());
+        Self::new(vec![p; spec.population_size().get()], eps)
     }
     #[inline]
     pub fn new_equal_f64(prob: f64, population_size: usize, eps: f64) -> Self {
@@ -83,7 +72,7 @@ impl ExactProbabilities {
     }
     #[inline]
     pub fn new_equal(spec: ProbabilitySpecEqual) -> Self {
-        Self::new(vec![spec.sample_size(); spec.population_size()])
+        Self::new(vec![spec.sample_size(); spec.population_size().get()])
     }
     #[inline]
     pub fn is_prob(&self, p: usize) -> bool { (0..=self.max()).contains(&p) }
@@ -96,17 +85,8 @@ impl FromIterator<usize> for ExactProbabilities {
 }
 
 pub trait ProbabilityStore {
-    type PR: Copy
-        + Default
-        + PartialOrd
-        + Add<Output = Self::PR>
-        + AddAssign
-        + Sub<Output = Self::PR>
-        + SubAssign
-        + Mul<Output = Self::PR>
-        + MulAssign
-        + Div<Output = Self::PR>
-        + DivAssign;
+    type PR: num_traits::NumAssign + Copy + PartialOrd;
+    // + Default
 
     fn data(&self) -> &[Self::PR];
     fn data_mut(&mut self) -> &mut [Self::PR];

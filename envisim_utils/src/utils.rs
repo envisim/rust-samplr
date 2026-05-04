@@ -41,9 +41,9 @@ pub fn usize_to_f64(v: usize) -> f64 {
 pub fn f64_to_usize(f: f64) -> usize {
     const U32_MAX: f64 = 4_294_967_295.0f64;
     if f < 0.0 {
-        panic!("f ({f}) is negative and cannot be converted to f64");
+        panic!("f ({f}) is negative and cannot be converted to usize");
     } else if f > U32_MAX {
-        panic!("f ({f}) too large to be converted to f64")
+        panic!("f ({f}) too large to be converted to usize")
     }
     f.round() as usize
 }

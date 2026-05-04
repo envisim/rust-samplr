@@ -29,7 +29,8 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
     let mut sum: f64 = 0.0;
 
     for x in arr {
-        if !x.is_normal() || (..0.0).contains(x) {
+        // x is finite and positive
+        if !x.is_finite() || (..=0.0).contains(x) {
             return Err(PipsError::InvalidAuxiliary);
         }
         sum += *x;

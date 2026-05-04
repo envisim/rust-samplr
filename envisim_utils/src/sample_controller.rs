@@ -11,7 +11,11 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::indices::Indices;
-use crate::matrix::MatrixTree;
+use crate::kd_tree::{
+    PointSet,
+    Tree,
+};
+use crate::number_traits::Number;
 use crate::probabilities::ProbabilityStore;
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
@@ -22,17 +26,26 @@ use crate::sampling_options::{
 /// Sample container
 pub struct Sample(Vec<usize>);
 impl Sample {
+    #[inline]
     pub fn new(capacity: usize) -> Self { Sample(Vec::<usize>::with_capacity(capacity)) }
+    #[inline]
     pub fn clear(&mut self) { self.0.clear(); }
+    #[inline]
     pub fn add(&mut self, idx: usize) { self.0.push(idx); }
+    #[inline]
     pub fn sort(&mut self) -> &mut Self {
         self.0.sort_unstable();
         self
     }
+    #[inline]
     pub fn to_vec(&self) -> Vec<usize> { self.0.to_vec() }
+    #[inline]
     pub fn sort_to_vec(&mut self) -> Vec<usize> { self.sort().to_vec() }
+    #[inline]
     pub fn get(&self) -> &[usize] { &self.0 }
+    #[inline]
     pub fn len(&self) -> usize { self.0.len() }
+    #[inline]
     pub fn is_empty(&self) -> bool { self.0.is_empty() }
 }
 
@@ -49,15 +62,23 @@ pub trait SampleController {
     type Store: ProbabilityStore;
     fn controller(&self) -> &BasicSampleController<Self::Store>;
     fn controller_mut(&mut self) -> &mut BasicSampleController<Self::Store>;
+    #[inline]
     fn probabilities(&self) -> &Self::Store { &self.controller().probabilities }
+    #[inline]
     fn probabilities_mut(&mut self) -> &mut Self::Store { &mut self.controller_mut().probabilities }
+    #[inline]
     fn indices(&self) -> &Indices { &self.controller().indices }
+    #[inline]
     fn indices_mut(&mut self) -> &mut Indices { &mut self.controller_mut().indices }
+    #[inline]
     fn sample(&self) -> &Sample { &self.controller().sample }
+    #[inline]
     fn sample_mut(&mut self) -> &mut Sample { &mut self.controller_mut().sample }
 
+    #[inline]
     fn population_size(&self) -> usize { self.probabilities().len() }
 
+    #[inline]
     fn draw<R: RandomNumberGenerator>(
         &self,
         rng: &mut R,
@@ -66,7 +87,9 @@ pub trait SampleController {
         self.probabilities().draw(rng, max)
     }
 
+    #[inline]
     fn unit_remove(&mut self, idx: usize) -> Option<usize> { self.indices_mut().remove(idx) }
+    #[inline]
     fn unit_decide(&mut self, idx: usize) -> Option<DecideUnit> {
         if self.probabilities().is_max(idx) {
             self.sample_mut().add(idx);
@@ -78,6 +101,7 @@ pub trait SampleController {
         }
         Some(DecideUnit::Undecided)
     }
+    #[inline]
     fn unit_set_and_decide(
         &mut self,
         idx: usize,
@@ -86,17 +110,20 @@ pub trait SampleController {
         self.probabilities_mut().set(idx, prob);
         self.unit_decide(idx)
     }
+    #[inline]
     fn unit_set_max(&mut self, idx: usize) -> Option<DecideUnit> {
         self.probabilities_mut().set_max(idx);
         self.sample_mut().add(idx);
         self.unit_remove(idx)?;
         Some(DecideUnit::In)
     }
+    #[inline]
     fn unit_set_zero(&mut self, idx: usize) -> Option<DecideUnit> {
         self.probabilities_mut().set_zero(idx);
         self.unit_remove(idx)?;
         Some(DecideUnit::Out)
     }
+    #[inline]
     fn unit_add_and_decide(
         &mut self,
         idx: usize,
@@ -105,6 +132,7 @@ pub trait SampleController {
         self.probabilities_mut().add(idx, prob);
         self.unit_decide(idx)
     }
+    #[inline]
     fn unit_decide_last<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<DecideUnit> {
         let Some(id) = self.indices().last() else {
             return Some(DecideUnit::Undecided);
@@ -121,13 +149,17 @@ pub trait SampleController {
 }
 
 // BasicSampleController
-pub struct BasicSampleController<ST: ProbabilityStore> {
+pub struct BasicSampleController<ST> {
     probabilities: ST,
     indices: Indices,
     sample: Sample,
 }
-impl<ST: ProbabilityStore> BasicSampleController<ST> {
-    pub fn new(probabilities: ST) -> Self {
+impl<ST> BasicSampleController<ST> {
+    #[inline]
+    pub fn new(probabilities: ST) -> Self
+    where
+        ST: ProbabilityStore,
+    {
         let population_size = probabilities.len();
         let mut controller = Self {
             probabilities,
@@ -137,57 +169,92 @@ impl<ST: ProbabilityStore> BasicSampleController<ST> {
         controller.init();
         controller
     }
-    fn init(&mut self) {
+    #[inline]
+    fn init(&mut self)
+    where
+        ST: ProbabilityStore,
+    {
         for i in 0..self.population_size() {
             self.unit_decide(i);
         }
     }
 }
 
-impl<ST: ProbabilityStore> SampleController for BasicSampleController<ST> {
+impl<ST> SampleController for BasicSampleController<ST>
+where
+    ST: ProbabilityStore,
+{
     type Store = ST;
+    #[inline]
     fn controller(&self) -> &BasicSampleController<ST> { self }
+    #[inline]
     fn controller_mut(&mut self) -> &mut BasicSampleController<ST> { self }
+    #[inline]
     fn probabilities(&self) -> &ST { &self.probabilities }
+    #[inline]
     fn probabilities_mut(&mut self) -> &mut ST { &mut self.probabilities }
+    #[inline]
     fn indices(&self) -> &Indices { &self.indices }
+    #[inline]
     fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
+    #[inline]
     fn sample(&self) -> &Sample { &self.sample }
+    #[inline]
     fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
 }
 
 // SpreadingSampleController
-pub struct SpreadingSampleController<'a, ST: ProbabilityStore> {
+pub struct SpreadingSampleController<'b, ST, N, P> {
     controller: BasicSampleController<ST>,
-    tree: MatrixTree<'a>,
+    tree: Tree<'b, N, P>,
 }
 
-impl<'a, ST: ProbabilityStore> SpreadingSampleController<'a, ST> {
+impl<'b, ST, N, P> SpreadingSampleController<'b, ST, N, P> {
+    #[inline]
     pub fn new(
         controller: BasicSampleController<ST>,
-        spreading: &'a SpreadingOptions<'a>,
-    ) -> SamplingOptionsResult<Self> {
+        spreading: &'b SpreadingOptions<P>,
+    ) -> SamplingOptionsResult<Self>
+    where
+        ST: ProbabilityStore,
+        N: Number,
+        P: PointSet<N>,
+    {
         let mut units = controller.indices().to_vec();
-        let tree = MatrixTree::new(spreading, &mut units);
+        let tree = Tree::new(spreading, &mut units);
         Ok(Self { controller, tree })
     }
-    pub fn tree(&self) -> &MatrixTree<'a> { &self.tree }
-    pub fn tree_mut(&mut self) -> &mut MatrixTree<'a> { &mut self.tree }
+    #[inline]
+    pub fn tree(&self) -> &Tree<'b, N, P> { &self.tree }
+    #[inline]
+    pub fn tree_mut(&mut self) -> &mut Tree<'b, N, P> { &mut self.tree }
+    #[inline]
     pub fn reset_tree(
         &mut self,
-        spreading: &'a SpreadingOptions<'a>,
+        spreading: &'b SpreadingOptions<P>,
         units: &mut [usize],
-    ) -> SamplingOptionsResult<()> {
-        self.tree = MatrixTree::new(spreading, units);
+    ) -> SamplingOptionsResult<()>
+    where
+        N: Number,
+        P: PointSet<N>,
+    {
+        self.tree = Tree::new(spreading, units);
         Ok(())
     }
 }
 
-impl<'a, ST: ProbabilityStore> SampleController for SpreadingSampleController<'a, ST> {
+impl<ST, N, P> SampleController for SpreadingSampleController<'_, ST, N, P>
+where
+    ST: ProbabilityStore,
+    N: Number,
+    P: PointSet<N>,
+{
     type Store = ST;
+    #[inline]
     fn controller(&self) -> &BasicSampleController<ST> { &self.controller }
+    #[inline]
     fn controller_mut(&mut self) -> &mut BasicSampleController<ST> { &mut self.controller }
-
+    #[inline]
     fn unit_remove(&mut self, idx: usize) -> Option<usize> {
         self.tree.remove_unit(idx)?;
         self.controller.unit_remove(idx)
@@ -207,7 +274,7 @@ mod tests {
     #[test]
     fn basic_controller_from_options() {
         let probs = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-        let opts: SamplingOptions<ProbabilitySpecUnequal> = probs.try_into().unwrap();
+        let opts: SamplingOptions<ProbabilitySpecUnequal> = probs.as_slice().try_into().unwrap();
         let controller = opts.to_controller();
         assert_eq!(controller.population_size(), 10);
     }

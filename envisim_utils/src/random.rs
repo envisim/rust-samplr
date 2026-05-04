@@ -176,7 +176,7 @@ mod small_rng {
 
     pub struct SmallRngRef<'a>(&'a mut SRNG);
 
-    impl<'a> RandomNumberGenerator for SmallRngRef<'a> {
+    impl RandomNumberGenerator for SmallRngRef<'_> {
         #[inline]
         fn rf64(&mut self) -> f64 { self.0.random::<f64>() }
         #[inline]

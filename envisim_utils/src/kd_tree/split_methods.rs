@@ -10,239 +10,373 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::PointAccess;
+use crate::number_traits::Number;
+use crate::spatial::PointSet;
+
+#[derive(Clone, Debug, Copy)]
+pub struct Split<N> {
+    dimension: usize,
+    value: N,
+    /// If `true`, equal values goes to the left
+    leq: bool,
+}
+impl<N> Split<N> {
+    #[inline]
+    pub fn dimension(&self) -> usize { self.dimension }
+    #[inline]
+    pub fn value(&self) -> N
+    where
+        N: Copy,
+    {
+        self.value
+    }
+    #[inline]
+    pub fn leq(&self) -> bool { self.leq }
+    #[inline]
+    pub fn is_left(&self, value: N) -> bool
+    where
+        N: Number,
+    {
+        value < self.value || (self.leq && value == self.value)
+    }
+    #[inline]
+    pub fn unit_is_left(&self, unit: &[N]) -> bool
+    where
+        N: Number,
+    {
+        self.is_left(unit[self.dimension])
+    }
+    #[inline]
+    pub fn abs_distance(&self, value: N) -> (bool, N)
+    where
+        N: Number,
+    {
+        if self.is_left(value) {
+            (true, self.value - value)
+        } else {
+            (false, value - self.value)
+        }
+    }
+    #[inline]
+    pub fn unit_abs_distance(&self, unit: &[N]) -> (bool, N)
+    where
+        N: Number,
+    {
+        self.abs_distance(unit[self.dimension])
+    }
+}
+pub struct SplitUnit<N> {
+    split: Split<N>,
+    /// First unit to the right of the split. Must be in (0, len)
+    unit: usize,
+}
+impl<N> SplitUnit<N> {
+    #[inline]
+    pub fn new(split: Split<N>, unit: usize) -> Self { Self { split, unit } }
+    #[inline]
+    pub fn split(&self) -> &Split<N> { &self.split }
+    #[inline]
+    pub fn dimension(&self) -> usize { self.split.dimension }
+    #[inline]
+    pub fn value(&self) -> N
+    where
+        N: Copy,
+    {
+        self.split.value
+    }
+    #[inline]
+    pub fn leq(&self) -> bool { self.split.leq }
+    #[inline]
+    pub fn unit(&self) -> usize { self.unit }
+    #[inline]
+    fn set_unit<T>(&mut self, data: &T, units: &mut [usize])
+    where
+        N: Number,
+        T: PointSet<N>,
+    {
+        let mut left: usize = 0;
+        let mut right: usize = units.len();
+        while left < right {
+            let v = data.coord(units[left], self.dimension());
+            if self.split.is_left(v) {
+                left += 1;
+            } else {
+                right -= 1;
+                units.swap(left, right);
+            }
+        }
+        self.unit = left;
+    }
+}
+impl<N> From<SplitUnit<N>> for Split<N> {
+    fn from(su: SplitUnit<N>) -> Self { su.split }
+}
 
 #[derive(Clone, Copy, Debug)]
-pub struct Border {
-    pub min: f64,
-    pub max: f64,
+pub struct Border<N> {
+    min: N,
+    max: N,
 }
-impl Border {
+impl<N> Border<N> {
     #[inline]
-    pub fn range(&self) -> f64 { self.max - self.min }
+    fn min(&self) -> N
+    where
+        N: Copy,
+    {
+        self.min
+    }
     #[inline]
-    pub fn centre(&self) -> f64 { (self.min + self.max) * 0.5 }
+    fn max(&self) -> N
+    where
+        N: Copy,
+    {
+        self.max
+    }
+    #[inline]
+    fn set_min(&mut self, v: N)
+    where
+        N: Number,
+    {
+        if v < self.min {
+            self.min = v;
+        }
+    }
+    #[inline]
+    fn set_max(&mut self, v: N)
+    where
+        N: Number,
+    {
+        if self.max < v {
+            self.max = v;
+        }
+    }
+    #[inline]
+    fn range(&self) -> N
+    where
+        N: Number,
+    {
+        self.max - self.min
+    }
+    #[inline]
+    fn centre(&self) -> N
+    where
+        N: Number,
+    {
+        self.min.mid(self.max)
+    }
     /// Returns the centre if it is possible to place in (min, max), including some checks for
     /// seeing if max-min is large enough.
     #[inline]
-    pub fn valid_centre(&self) -> Option<f64> {
-        let centre = self.centre();
+    fn valid_centre(&self) -> Option<N>
+    where
+        N: Number,
+    {
         let range = self.range();
-        if !centre.is_finite() || !range.is_finite() || range <= f64::EPSILON {
+        if range <= N::epsilonish() || !range.is_finite() {
+            return None;
+        }
+        let centre = self.centre();
+        if !centre.is_finite() {
             return None;
         }
         // Also reject when min/max are too close to distinguish
-        let scale = self.min.abs().max(self.max.abs());
+        let scale = if self.min.abs() < self.max.abs() {
+            self.max.abs()
+        } else {
+            self.min.abs()
+        };
         // Consider larger epsilon?
-        (scale * f64::EPSILON < range).then_some(centre)
+        (scale * N::epsilonish() < range).then_some(centre)
     }
     #[inline]
-    fn set_min(&mut self, v: f64) { self.min = self.min.min(v); }
-    #[inline]
-    fn set_max(&mut self, v: f64) { self.max = self.max.max(v); }
     fn from_data<T>(data: &T, units: &[usize], dim: usize) -> Self
     where
-        T: PointAccess,
+        N: Number,
+        T: PointSet<N>,
     {
         if units.is_empty() {
             return Self::default();
         }
         let mut b = Self {
-            min: f64::INFINITY,
-            max: f64::NEG_INFINITY,
+            min: data.coord(0, dim),
+            max: data.coord(0, dim),
         };
-        for &id in units.iter() {
+        for &id in units.iter().skip(1) {
             b.set_min(data.coord(id, dim));
             b.set_max(data.coord(id, dim));
         }
         b
     }
-    pub fn from_data_to_vec<T>(data: &T, units: &[usize]) -> Box<[Self]>
+}
+impl<N> Default for Border<N>
+where
+    N: Number,
+{
+    fn default() -> Self {
+        Self {
+            min: N::zero(),
+            max: N::zero(),
+        }
+    }
+}
+
+pub trait FindSplit<N, T>
+where
+    Self: Sized,
+    T: PointSet<N>,
+{
+    fn split(self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<N>, Self, Self)>
     where
-        T: PointAccess,
+        N: Number;
+}
+
+impl<N, T> FindSplit<N, T> for MidpointSlide<N>
+where
+    Self: Sized,
+    T: PointSet<N>,
+{
+    #[inline]
+    fn split(mut self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<N>, Self, Self)>
+    where
+        N: Number,
     {
-        (0..data.dim().get())
-            .map(|d| Self::from_data(data, units, d))
-            .collect()
+        let split = self.find_split(data, units)?;
+        let mut left = self.clone();
+        let mut right = self;
+        left.borders[split.dimension()].max = split.value();
+        right.borders[split.dimension()].min = split.value();
+        Some((split, left, right))
     }
 }
-impl Default for Border {
-    fn default() -> Self { Self { min: 0.0, max: 0.0 } }
-}
 
-#[derive(Clone, Debug, Copy)]
-pub struct Split {
-    dimension: usize,
-    value: f64,
-    /// If `true`, equal values goes to the left
-    leq: bool,
+#[derive(Clone, Debug)]
+pub struct MidpointSlide<N> {
+    borders: Box<[Border<N>]>,
 }
-impl Split {
+impl<N> MidpointSlide<N> {
     #[inline]
-    pub fn dimension(&self) -> usize { self.dimension }
-    #[inline]
-    pub fn value(&self) -> f64 { self.value }
-    #[inline]
-    pub fn leq(&self) -> bool { self.leq }
-    #[inline]
-    pub fn value_distance(&self, value: f64) -> f64 { value - self.value }
-    #[inline]
-    pub fn unit_distance(&self, unit: &[f64]) -> f64 { self.value_distance(unit[self.dimension]) }
-    #[inline]
-    pub fn value_is_left(&self, value: f64) -> bool {
-        let d = self.value_distance(value);
-        d < 0.0 || (self.leq && d == 0.0)
+    pub fn new<T>(data: &T, units: &[usize]) -> Self
+    where
+        N: Number,
+        T: PointSet<N>,
+    {
+        Self {
+            borders: (0..data.dim().get())
+                .map(|d| Border::from_data(data, units, d))
+                .collect(),
+        }
     }
     #[inline]
-    pub fn unit_is_left(&self, unit: &[f64]) -> bool { self.value_is_left(unit[self.dimension]) }
-}
-pub struct SplitUnit {
-    split: Split,
-    /// First unit to the right of the split. Must be in (0, len)
-    unit: usize,
-}
-impl SplitUnit {
+    pub fn get(&self, dim: usize) -> Option<&Border<N>> { self.borders.get(dim) }
+    /// Sort dims by range
     #[inline]
-    fn new(split: Split, unit: usize) -> Self { Self { split, unit } }
-    #[inline]
-    pub fn split(&self) -> &Split { &self.split }
-    #[inline]
-    pub fn dimension(&self) -> usize { self.split.dimension }
-    #[inline]
-    pub fn value(&self) -> f64 { self.split.value }
-    #[inline]
-    pub fn leq(&self) -> bool { self.split.leq }
-    #[inline]
-    pub fn unit(&self) -> usize { self.unit }
-}
-impl From<SplitUnit> for Split {
-    fn from(su: SplitUnit) -> Self { su.split }
-}
-
-/// Type alias for split-finding function. `T` must implement [`PointAccess`].
-/// `FindSplit` must return a valid SplitUnit, i.e 0 < SplitUnit.unit < len. Failure to do so is UB.
-pub type FindSplit<T> = fn(&T, &[Border], &mut [usize]) -> Option<SplitUnit>;
-
-/// The midpoint slide splitting method.
-/// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have
-/// values > `value`.
-/// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
-/// contains equal elements.
-///
-/// Returns `None` if no such split exists
-///
-/// # References
-/// Maneewongvatana, S., & Mount, D. M. (1999).
-/// It’s okay to be skinny, if your friends are fat.
-/// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
-pub fn midpoint_slide<T>(data: &T, borders: &[Border], units: &mut [usize]) -> Option<SplitUnit>
-where
-    T: PointAccess,
-{
-    assert_eq!(data.dim().get(), borders.len());
-
-    if units.is_empty() {
-        return None;
-    }
-
-    // Sort dims by range
-    let border_indices: Box<[usize]> = {
-        let mut indices: Box<[usize]> = (0..borders.len()).collect();
-        indices.sort_unstable_by(|&a, &b| borders[b].range().total_cmp(&borders[a].range()));
+    fn order(&self) -> Box<[usize]>
+    where
+        N: Number,
+    {
+        let mut indices: Box<[usize]> = (0..self.borders.len()).collect();
         indices
-    };
+            .sort_unstable_by(|&a, &b| self.borders[b].range().compare(&self.borders[a].range()));
+        indices
+    }
+    /// Redraw borders for a dimension. Returns `true` if borders are not degenerate
+    #[inline]
+    fn redraw<T>(&mut self, dim: usize, data: &T, units: &[usize]) -> bool
+    where
+        N: Number,
+        T: PointSet<N>,
+    {
+        self.borders[dim] = Border::from_data(data, units, dim);
+        self.borders[dim].min() != self.borders[dim].max()
+    }
+    /// The midpoint slide splitting method.
+    /// Returns a split, where units `[0..unit)` have values < `value`, and units [unit,..) have
+    /// values > `value`.
+    /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
+    /// contains equal elements.
+    ///
+    /// Returns `None` if no such split exists
+    ///
+    /// # References
+    /// Maneewongvatana, S., & Mount, D. M. (1999).
+    /// It’s okay to be skinny, if your friends are fat.
+    /// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
+    fn find_split<T>(&mut self, data: &T, units: &mut [usize]) -> Option<SplitUnit<N>>
+    where
+        N: Number,
+        T: PointSet<N>,
+    {
+        assert_eq!(data.dim().get(), self.borders.len());
 
-    let mut split = Split {
-        dimension: 0,
-        value: 0.0,
-        leq: true,
-    };
-
-    for &dim_idx in border_indices.iter() {
-        // If the current border is degenerate, we assume any subsequent borders to be degenerate as
-        // well -- as indices is sorted by border range -- and do an early return.
-        let centre = borders[dim_idx].valid_centre()?;
-
-        split.dimension = dim_idx;
-        split.value = centre;
-        split.leq = true;
-
-        // Returns the maximum value of the left units, and the minimum value of the right units,
-        // partitions the units according to the split value, and sets split.unit to the
-        // partitioning units
-        let (mut split_unit, left_max, right_min): (usize, f64, f64) =
-            midpoint_slide_sort(data, &split, units);
-
-        // We have to degenerate cases:
-        // When split_unit = 0, then all units are to the right.
-        // When split_unit = len, then all units are to the left.
-        // Neither of these degenerate cases should happen, as this implies that centre was off, and
-        // the range is 0.0, but we take care of it anyway
-        if split_unit == 0 {
-            // Try setting the split to the min-value of the rights, and see if it's possible to
-            // split the data there instead.
-            split.value = right_min;
-            (split_unit, _, _) = midpoint_slide_sort(data, &split, units);
-            // If we failed, all units were moved to the left instead
-            if split_unit == units.len() {
-                continue;
-            }
-        } else if split_unit == units.len() {
-            // Try setting the split to the max-value of the lefts, and see if it's possible to
-            // split the data there instead.
-            split.value = left_max;
-            split.leq = false;
-            (split_unit, _, _) = midpoint_slide_sort(data, &split, units);
-            // If we failed, all units were moved to the right instead
-            if split_unit == 0 {
-                continue;
-            }
+        if units.is_empty() {
+            return None;
         }
 
-        // When we get here, it should be impossible for split_unit to be 0 or len
-        return SplitUnit::new(split, split_unit).into();
-    }
+        let mut split = SplitUnit {
+            split: Split {
+                dimension: 0,
+                value: N::zero(),
+                leq: true,
+            },
+            unit: 0,
+        };
 
-    None
-}
-/// Sorts the `units` in two ranges, such that all units with a value `< split.value` goes first.
-/// Returns the tuple `(left_max, right_min)`, where
-/// - `left_max` is the largest value in the `0..split_unit` set
-/// - `right_min` is the smallest value in the `split_unit..` set
-#[inline]
-fn midpoint_slide_sort<T>(data: &T, split: &Split, units: &mut [usize]) -> (usize, f64, f64)
-where
-    T: PointAccess,
-{
-    let mut left: usize = 0;
-    let mut right: usize = units.len();
-    let mut left_max: f64 = f64::NEG_INFINITY;
-    let mut right_min: f64 = f64::INFINITY;
+        // Sort dims by range
+        for &dim in self.order().iter() {
+            split.split.dimension = dim;
 
-    // Sort units so that we have
-    // x < value is in range [0, l)
-    // x > value is in range [r, n)
-    // At end of loop: l == r
-    while left < right {
-        let v = data.coord(units[left], split.dimension);
-        if v < split.value || (split.leq && v == split.value) {
-            left_max = left_max.max(v);
-            left += 1;
-        } else {
-            right_min = right_min.min(v);
-            right -= 1;
-            units.swap(left, right);
+            // If the current border is degenerate, we assume any subsequent borders to be degenerate as
+            // well -- as indices is sorted by border range -- and do an early return.
+            let centre = self.borders[dim].valid_centre()?;
+
+            split.split.value = centre;
+            split.split.leq = true;
+            split.set_unit(data, units);
+
+            if split.unit() == 0 || split.unit() == units.len() {
+                // If the split value does not split the units, the borders might not be good
+                // anymore, so we should redraw them.
+                if !self.redraw(dim, data, units) {
+                    // If the redrawn borders are degenerate, we should look at the next border in
+                    // the list.
+                    continue;
+                }
+
+                // Otherwise, we now know that the new borders touches some units. Depending on the
+                // direction of the first split, we use the new borders as the new split.
+                if split.unit() == 0 {
+                    // All units were above the last split value. Hence, we could split by the
+                    // min border.
+                    split.split.value = self.borders[dim].min();
+                    // split.split.leq = true;
+                } else {
+                    // All units were below the last split value. Hence, we could split by the
+                    // max border.
+                    split.split.value = self.borders[dim].max();
+                    split.split.leq = false;
+                }
+
+                split.set_unit(data, units);
+
+                // We still failed, somehow ... giving up
+                if split.unit() == 0 || split.unit() == units.len() {
+                    return None;
+                }
+            }
+
+            return Some(split);
         }
-    }
 
-    (left, left_max, right_min)
+        // All borders are degenerate
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroUsize;
 
-    use crate::kd_tree::PointAccess;
+    use crate::kd_tree::PointSet;
     use crate::kd_tree::split_methods::{
         Border,
         Split,
@@ -327,9 +461,9 @@ mod tests {
         assert_eq!(split.dimension(), 0);
         assert_eq!(split.value(), 1.5);
         // With leq=true (default for midpoint_slide), 1.5 itself goes left
-        assert!(split.value_is_left(1.5));
-        assert!(split.value_is_left(1.0));
-        assert!(!split.value_is_left(2.0));
+        assert!(split.is_left(1.5));
+        assert!(split.is_left(1.0));
+        assert!(!split.is_left(2.0));
     }
 
     // --- midpoint_slide ---

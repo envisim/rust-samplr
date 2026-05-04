@@ -19,88 +19,88 @@
 //! In proceedings, ICES V, Geneva Switzerland 2016.
 //! In Proceedings of the Fifth International Conference on Establishment Surveys.
 
-mod point_access;
 pub mod searcher;
 pub mod split_methods;
 
 use std::num::NonZeroUsize;
 
-pub use point_access::PointAccess;
 use searcher::TreeSearcher;
 use split_methods::{
-    Border,
     FindSplit,
     Split,
 };
 
-pub trait TreeBuilder {
-    type Data: PointAccess;
+pub use crate::number_traits::Number;
+pub use crate::spatial::PointSet;
+
+pub trait TreeConfig<N>
+where
+    N: Number,
+{
+    type Data: PointSet<N>;
+    type Split: FindSplit<N, Self::Data>;
     fn data(&self) -> &Self::Data;
     fn bucket_size(&self) -> NonZeroUsize;
-    fn split_method(&self) -> FindSplit<Self::Data>;
+    fn split_method(&self, units: &[usize]) -> Self::Split;
 }
 
 #[derive(Clone, Debug)]
-pub struct Tree<'a, T>
-where
-    T: PointAccess,
-{
-    node: Node,
-    data: &'a T,
+pub struct Tree<'b, N, T> {
+    node: Node<N>,
+    data: &'b T,
 }
 #[derive(Clone, Debug)]
 #[allow(clippy::exhaustive_enums)]
-pub enum Node {
-    Branch(Branch),
+pub enum Node<N> {
+    Branch(Branch<N>),
     Leaf(Leaf),
 }
 #[derive(Clone, Debug)]
-pub struct Branch {
-    split: Split,
-    left: Box<Node>,
-    right: Box<Node>,
+pub struct Branch<N> {
+    split: Split<N>,
+    left: Box<Node<N>>,
+    right: Box<Node<N>>,
 }
 #[derive(Clone, Debug)]
 pub struct Leaf {
     units: Vec<usize>,
 }
 
-impl<'a, T> Tree<'a, T>
+impl<'b, N, T> Tree<'b, N, T>
 where
-    T: PointAccess,
+    N: Number,
+    T: PointSet<N>,
 {
     /// A builder with a [`FindSplit`] that is able to return split unit of 0 or len will panic.
     #[inline]
-    pub fn new<B>(builder: &'a B, units: &mut [usize]) -> Self
+    pub fn new<C, S>(config: &'b C, units: &mut [usize]) -> Self
     where
-        B: TreeBuilder<Data = T>,
-        T: PointAccess,
+        C: TreeConfig<N, Data = T, Split = S>,
+        S: FindSplit<N, T>,
     {
-        let data = builder.data();
-        let borders = Border::from_data_to_vec(data, units);
+        let data = config.data();
+        let borders = config.split_method(units);
+        let node = Node::new(config, borders, units);
 
-        Self {
-            node: Node::new(builder, borders, units),
-            data,
-        }
+        Self { node, data }
     }
     #[inline]
     pub fn data(&self) -> &T { self.data }
     #[inline]
     pub fn find_leaf_of_unit(&self, unit: usize) -> Option<&Leaf> {
-        let v: Box<[f64]> = self.data.to_boxed_slice(unit)?;
+        let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, find_leaf should always be Some as there can't be
         // dimension mismatch
         self.find_leaf(&v)
     }
     #[inline]
-    pub fn find_leaf(&self, unit: &[f64]) -> Option<&Leaf> {
+    pub fn find_leaf(&self, unit: &[N]) -> Option<&Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
     }
     #[inline]
     pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> Option<()>
     where
-        S: TreeSearcher,
+        S: TreeSearcher<N>,
     {
         if self.data.dim().get() == searcher.point().len() {
             self.node.iterate_leafs_by(self.data, searcher)
@@ -110,12 +110,12 @@ where
     }
     #[inline]
     pub fn find_leaf_of_unit_mut(&mut self, unit: usize) -> Option<&mut Leaf> {
-        let v: Box<[f64]> = self.data.to_boxed_slice(unit)?;
+        let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, it should always be Some
         self.find_leaf_mut(&v)
     }
     #[inline]
-    pub fn find_leaf_mut(&mut self, unit: &[f64]) -> Option<&mut Leaf> {
+    pub fn find_leaf_mut(&mut self, unit: &[N]) -> Option<&mut Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
     }
 
@@ -135,40 +135,37 @@ where
     }
 }
 
-impl Node {
-    fn new<B>(builder: &B, borders: Box<[Border]>, units: &mut [usize]) -> Self
+impl<N> Node<N> {
+    fn new<B, T, S>(config: &B, borders: S, units: &mut [usize]) -> Self
     where
-        B: TreeBuilder,
+        N: Number,
+        B: TreeConfig<N, Data = T, Split = S>,
+        T: PointSet<N>,
+        S: FindSplit<N, T>,
     {
         // If not enough units remain, a leaf should be constructed
-        if units.len() <= builder.bucket_size().get() {
+        if units.len() <= config.bucket_size().get() {
             return Leaf::new(units).into();
         }
 
         // Try to find a split, and if not possible, construct a leaf
-        let Some(split) = builder.split_method()(builder.data(), &borders, units) else {
+        let Some((split, left, right)) = borders.split(config.data(), units) else {
             return Leaf::new(units).into();
         };
 
-        let mut l_borders = borders.clone();
-        l_borders[split.dimension()].max = split.value();
-        let mut r_borders = borders;
-        r_borders[split.dimension()].min = split.value();
-
         let unit = split.unit();
-        assert!(
-            0 < unit && unit < units.len(),
-            "split_method failed to find valid split without returning None"
-        );
 
         Branch {
             split: split.into(),
-            left: Self::new(builder, l_borders, &mut units[..unit]).into(),
-            right: Self::new(builder, r_borders, &mut units[unit..]).into(),
+            left: Self::new(config, left, &mut units[..unit]).into(),
+            right: Self::new(config, right, &mut units[unit..]).into(),
         }
         .into()
     }
-    fn find_leaf(&self, unit: &[f64]) -> &Leaf {
+    fn find_leaf(&self, unit: &[N]) -> &Leaf
+    where
+        N: Number,
+    {
         match self {
             Self::Branch(branch) => {
                 if branch.split.unit_is_left(unit) {
@@ -180,7 +177,10 @@ impl Node {
             Self::Leaf(leaf) => leaf,
         }
     }
-    fn find_leaf_mut(&mut self, unit: &[f64]) -> &mut Leaf {
+    fn find_leaf_mut(&mut self, unit: &[N]) -> &mut Leaf
+    where
+        N: Number,
+    {
         match self {
             Self::Branch(branch) => {
                 if branch.split.unit_is_left(unit) {
@@ -195,22 +195,23 @@ impl Node {
     #[inline]
     fn iterate_leafs_by<T, S>(&self, data: &T, searcher: &mut S) -> Option<()>
     where
-        T: PointAccess,
-        S: TreeSearcher,
+        N: Number,
+        T: PointSet<N>,
+        S: TreeSearcher<N>,
     {
         match self {
             Self::Branch(branch) => {
-                let (first, second) = if branch.split.unit_is_left(searcher.point()) {
-                    (&branch.left, &branch.right)
+                let (is_left, abs_distance) = branch.split.unit_abs_distance(searcher.point());
+                let other = if is_left {
+                    branch.left.iterate_leafs_by(data, searcher)?;
+                    &branch.right
                 } else {
-                    (&branch.right, &branch.left)
+                    branch.right.iterate_leafs_by(data, searcher)?;
+                    &branch.left
                 };
 
-                first.iterate_leafs_by(data, searcher)?;
-
-                let distance = branch.split.unit_distance(searcher.point());
-                if !searcher.is_satisfied(distance) {
-                    second.iterate_leafs_by(data, searcher)?;
+                if !searcher.is_satisfied(abs_distance) {
+                    other.iterate_leafs_by(data, searcher)?;
                 }
             }
             Self::Leaf(leaf) => {
@@ -219,16 +220,16 @@ impl Node {
                 }
             }
         }
-        ().into()
+        Some(())
     }
 }
-impl Branch {
+impl<N> Branch<N> {
     #[inline]
-    pub fn split(&self) -> &Split { &self.split }
+    pub fn split(&self) -> &Split<N> { &self.split }
     #[inline]
-    pub fn left(&self) -> &Node { &self.left }
+    pub fn left(&self) -> &Node<N> { &self.left }
     #[inline]
-    pub fn right(&self) -> &Node { &self.right }
+    pub fn right(&self) -> &Node<N> { &self.right }
 }
 impl Leaf {
     #[inline]
@@ -261,10 +262,16 @@ impl Leaf {
     }
 }
 
-impl From<Branch> for Node {
-    fn from(branch: Branch) -> Self { Node::Branch(branch) }
+impl<N> From<Branch<N>> for Node<N>
+where
+    N: num_traits::Num + Copy,
+{
+    fn from(branch: Branch<N>) -> Self { Node::Branch(branch) }
 }
-impl From<Leaf> for Node {
+impl<N> From<Leaf> for Node<N>
+where
+    N: num_traits::Num + Copy,
+{
     fn from(leaf: Leaf) -> Self { Node::Leaf(leaf) }
 }
 
@@ -273,7 +280,7 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use crate::kd_tree::{
-        PointAccess,
+        PointSet,
         Tree,
     };
     use crate::matrix::Matrix;
