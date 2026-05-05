@@ -34,8 +34,14 @@ pub mod systematic;
 pub mod unequal;
 mod utils;
 
-pub use correlated_poisson::CorrelatedPoissonSampling;
-pub use cube_method::CubeSampling;
+pub use correlated_poisson::{
+    CorrelatedPoissonSampling,
+    SpatiallyCorrelatedPoissonSampling,
+};
+pub use cube_method::{
+    CubeSampling,
+    LocalCubeSampling,
+};
 pub use dbd::{
     CircularConfiguration,
     DbdConfiguration,
@@ -50,6 +56,9 @@ pub use error::{
     SamplingError,
     SamplingResult,
 };
-pub use pivotal_method::PivotalSampling;
+pub use pivotal_method::{
+    LocalPivotalSampling,
+    PivotalSampling,
+};
 pub use systematic::SystematicSampling;
 pub use unequal::UnequalProbabilitySampling;

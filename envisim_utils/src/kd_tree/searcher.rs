@@ -12,6 +12,7 @@
 
 use std::num::NonZeroUsize;
 
+pub use neighbour::NeighbourSlice;
 use neighbour::{
     Neighbour,
     WeightedNeighbour,
@@ -115,31 +116,35 @@ pub mod neighbour {
     }
     impl<N> Eq for WeightedNeighbour<N> where N: Number {}
 
-    pub trait ToNeighbourIds {
-        fn to_neighbour_ids(&self) -> Box<[usize]>;
-    }
-    impl<N> ToNeighbourIds for &[Neighbour<N>]
-    where
-        N: Copy,
-    {
+    pub trait NeighbourSlice {
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize>;
         #[inline]
         fn to_neighbour_ids(&self) -> Box<[usize]> {
-            self.iter()
-                .map(|n| n.id())
+            self.to_neighbour_id_iter()
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
         }
+        #[inline]
+        fn contains_id(&self, id: usize) -> bool {
+            self.to_neighbour_id_iter().any(|nid| nid == id)
+        }
     }
-    impl<N> ToNeighbourIds for &[WeightedNeighbour<N>]
+    impl<N> NeighbourSlice for [Neighbour<N>]
     where
         N: Copy,
     {
         #[inline]
-        fn to_neighbour_ids(&self) -> Box<[usize]> {
-            self.iter()
-                .map(|n| n.id())
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+            self.iter().map(|n| n.id())
+        }
+    }
+    impl<N> NeighbourSlice for [WeightedNeighbour<N>]
+    where
+        N: Copy,
+    {
+        #[inline]
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+            self.iter().map(|n| n.id())
         }
     }
 }

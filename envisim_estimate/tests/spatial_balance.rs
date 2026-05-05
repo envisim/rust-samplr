@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use envisim_estimate::spatial_balance::*;
 use envisim_test_utils::*;
 use envisim_utils::matrix::Matrix;
@@ -5,7 +7,7 @@ use envisim_utils::sampling_options::SamplingOptions;
 
 #[test]
 fn test_voronoi() {
-    let data = Matrix::new(&DATA_10_2, 10).unwrap();
+    let data = Matrix::new(&DATA_10_2, NonZeroUsize::new(10).unwrap()).unwrap();
     let options = SamplingOptions::new(&PROB_10_E)
         .unwrap()
         .set_spreading(data)
@@ -17,7 +19,7 @@ fn test_voronoi() {
 
 #[test]
 fn test_local() {
-    let data = Matrix::new(&DATA_10_2, 10).unwrap();
+    let data = Matrix::new(&DATA_10_2, NonZeroUsize::new(10).unwrap()).unwrap();
     let options = SamplingOptions::new(&PROB_10_E)
         .unwrap()
         .set_spreading(data)

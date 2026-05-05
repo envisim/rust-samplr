@@ -25,10 +25,16 @@ use envisim_utils::utils::{
     usize_to_f64,
 };
 
-pub use crate::error::SamplingError;
+pub use crate::error::{
+    SamplingError,
+    SamplingResult,
+};
 
 // Assumes probabilites sum to 1.0
-fn draw<R: RandomNumberGenerator>(rng: &mut R, probabilities: &[f64]) -> usize {
+fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
+where
+    R: RandomNumberGenerator,
+{
     let population_size = probabilities.len();
     let rv = rng.rf64();
     let mut psum: f64 = 0.0;
@@ -44,10 +50,10 @@ fn draw<R: RandomNumberGenerator>(rng: &mut R, probabilities: &[f64]) -> usize {
     population_size - 1
 }
 
-pub(crate) fn poisson_internal<R: RandomNumberGenerator>(
-    rng: &mut R,
-    probabilities: &[f64],
-) -> Vec<usize> {
+pub(crate) fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+{
     probabilities
         .iter()
         .enumerate()
@@ -56,22 +62,28 @@ pub(crate) fn poisson_internal<R: RandomNumberGenerator>(
 }
 
 pub trait UnequalProbabilitySampling {
-    fn with_replacement<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-        n: usize,
-    ) -> Result<Vec<usize>, SamplingError>;
-    fn sampford<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError>;
-    fn pareto<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError>;
-    fn brewer<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError>;
-    fn poisson<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
-    fn conditional_poisson<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-        sample_size: usize,
-    ) -> Result<Vec<usize>, SamplingError>;
+    fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+    fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
 }
-impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
+impl<'a, SOP, M> UnequalProbabilitySampling
+    for SamplingOptions<'a, ProbabilitySpecUnequal<'a>, SOP, M>
+{
     /// Draw a with replacment sample according to draw probabilities
     /// Probabilities must sum to 1.0.
     ///
@@ -88,11 +100,10 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn with_replacement<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-        n: usize,
-    ) -> Result<Vec<usize>, SamplingError> {
+    fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
         let psum = self.probabilities().sample_size_f64();
 
@@ -159,7 +170,10 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn sampford<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError> {
+    fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
@@ -222,7 +236,10 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// Rosén, B. (2000).
     /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
     /// Stockholm: Statistiska Centralbyrån.
-    fn pareto<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError> {
+    fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
@@ -272,7 +289,10 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn brewer<R: RandomNumberGenerator>(&self, rng: &mut R) -> Result<Vec<usize>, SamplingError> {
+    fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
@@ -333,7 +353,10 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// let s = opts.poisson(&mut rng);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn poisson<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+    fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
         poisson_internal(rng, probabilities.as_ref())
     }
@@ -352,17 +375,14 @@ impl<'a> UnequalProbabilitySampling for SamplingOptions<'a, ProbabilitySpecUnequ
     /// let s = options.conditional_poisson(&mut rng, 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn conditional_poisson<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-        sample_size: usize,
-    ) -> Result<Vec<usize>, SamplingError> {
+    fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
         let probabilities = self.probabilities().as_f64_slice();
-        let population_size = self.population_size();
+        let population_size = self.population_size().get();
         if sample_size > population_size {
-            return Err(SamplingError::Options(
-                SamplingOptionsError::InvalidSampleSize,
-            ));
+            return Err(SamplingOptionsError::InvalidSampleSize.into());
         } else if sample_size == 0 {
             return Ok(vec![]);
         } else if sample_size == population_size {

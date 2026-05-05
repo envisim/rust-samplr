@@ -23,20 +23,19 @@ use envisim_utils::utils::f64_to_usize;
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;
 
-fn from_order_equal<R: RandomNumberGenerator>(
-    rng: &mut R,
-    spec: ProbabilitySpecEqual,
-    order: &[usize],
-) -> Vec<usize> {
+fn from_order_equal<R>(rng: &mut R, spec: ProbabilitySpecEqual, order: &[usize]) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+{
     let mut sample = Vec::<usize>::with_capacity(spec.sample_size() + 1);
-    let mut r = rng.rusize_to(spec.population_size());
+    let mut r = rng.rusize_to(spec.population_size().get());
     let mut psum: usize = 0;
 
     for &id in order.iter() {
         let pnext = psum + spec.sample_size();
         if psum <= r && r < pnext {
             sample.push(id);
-            r += spec.population_size();
+            r += spec.population_size().get();
         }
         psum = pnext;
     }
@@ -44,11 +43,10 @@ fn from_order_equal<R: RandomNumberGenerator>(
     sample
 }
 
-fn from_order<R: RandomNumberGenerator>(
-    rng: &mut R,
-    probabilities: &[f64],
-    order: &[usize],
-) -> Vec<usize> {
+fn from_order<R>(rng: &mut R, probabilities: &[f64], order: &[usize]) -> Vec<usize>
+where
+    R: RandomNumberGenerator,
+{
     let mut sample =
         Vec::<usize>::with_capacity(f64_to_usize(probabilities.iter().sum::<f64>().ceil()));
     let mut r = rng.rf64();
@@ -68,10 +66,17 @@ fn from_order<R: RandomNumberGenerator>(
 }
 
 pub trait SystematicSampling {
-    fn systematic<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
-    fn systematic_random_order<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
+    fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+    fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
 }
-impl<'a, PS: ProbabilitySpec> SystematicSampling for SamplingOptions<'a, PS> {
+impl<PS> SystematicSampling for SamplingOptions<'_, PS>
+where
+    PS: ProbabilitySpec,
+{
     /// Draw a systematic sample, using the provided order
     ///
     /// # Examples
@@ -87,9 +92,12 @@ impl<'a, PS: ProbabilitySpec> SystematicSampling for SamplingOptions<'a, PS> {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn systematic<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+    fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
         let population_size = self.population_size();
-        let order: Vec<usize> = (0..population_size).collect();
+        let order: Vec<usize> = (0..population_size.get()).collect();
 
         if let Some(spec) = self.probabilities().as_equal() {
             from_order_equal(rng, spec, &order)
@@ -112,7 +120,10 @@ impl<'a, PS: ProbabilitySpec> SystematicSampling for SamplingOptions<'a, PS> {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn systematic_random_order<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+    fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
         let population_size = self.population_size();
         let order = shuffled_indices(rng, population_size);
 

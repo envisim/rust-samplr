@@ -10,23 +10,26 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::num::NonZeroUsize;
+mod cube;
+mod stratified;
+mod utils;
 
-use envisim_utils::random::RandomNumberGenerator;
-
-/// Random permutation of usize [0,...,len] vector
-pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-{
-    let mut order: Vec<usize> = Vec::with_capacity(len.get());
-    order.push(0);
-
-    for i in 1..len.get() {
-        let j = rng.rusize_to(i + 1);
-        order.push(i);
-        order.swap(i, j);
-    }
-
-    order
-}
+pub use cube::{
+    BasicCubeStrategy,
+    CubeRunner,
+    CubeSampling,
+    CubeStrategy,
+    LocalCubeSampling,
+    LocalCubeStrategy,
+};
+pub use envisim_utils::sampling_options::{
+    SamplingOptions,
+    SamplingOptionsError,
+    SamplingOptionsResult,
+    SpreadingOptions,
+};
+pub use stratified::{
+    CubeStratifiedRunner,
+    cube_stratified,
+    local_cube_stratified,
+};

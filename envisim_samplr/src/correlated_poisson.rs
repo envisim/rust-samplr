@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,7 +12,7 @@
 
 //! Correlated poisson designs
 
-use envisim_utils::kd_tree::SearcherWeighted;
+use envisim_utils::kd_tree::searcher::WeightedSearcher;
 use envisim_utils::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
@@ -27,73 +27,122 @@ use envisim_utils::sampling_options::ProbabilitySpec;
 pub use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
+    SamplingOptionsResult,
+};
+use envisim_utils::spatial::{
+    Number,
+    PointSet,
 };
 use envisim_utils::utils::usize_to_f64;
 
 pub use crate::error::SamplingError;
+use crate::error::SamplingResult;
 
-pub trait CorrelatedPoisson<C>
+pub trait CorrelatedPoissonStrategy<C> {
+    fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
+    where
+        R: RandomNumberGenerator;
+    fn select_unit<R>(&mut self, controller: &mut C, rng: &mut R) -> Option<usize>
+    where
+        C: SampleController<Store = FloatProbabilities>,
+        R: RandomNumberGenerator;
+    fn update_probabilities(&mut self, controller: &mut C, id: usize, probability: f64, quota: f64)
+    where
+        C: SampleController<Store = FloatProbabilities>;
+}
+
+pub struct CorrelatedPoissonRunner<C, S> {
+    controller: C,
+    strategy: S,
+}
+
+impl<C, S> CorrelatedPoissonRunner<C, S>
 where
     C: SampleController<Store = FloatProbabilities>,
+    S: CorrelatedPoissonStrategy<C>,
 {
-    fn sample<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Vec<usize> {
+    fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
         self.run(rng);
-        self.controller_mut().sample_mut().sort_to_vec()
+        self.controller.sample_mut().sort_to_vec()
     }
-    fn run<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
-        while let Some(id) = self.select_unit(rng) {
+    fn run<R>(&mut self, rng: &mut R)
+    where
+        R: RandomNumberGenerator,
+    {
+        while let Some(id) = self.strategy.select_unit(&mut self.controller, rng) {
             let (p, q) = self.decide_unit(rng, id);
-            self.update_probabilities(id, p, q);
+            self.strategy
+                .update_probabilities(&mut self.controller, id, p, q);
         }
     }
-    fn decide_unit<R: RandomNumberGenerator>(&mut self, rng: &mut R, id: usize) -> (f64, f64) {
-        let probability = self.controller().probabilities().get(id);
+    fn decide_unit<R>(&mut self, rng: &mut R, id: usize) -> (f64, f64)
+    where
+        R: RandomNumberGenerator,
+    {
+        let probability = self.controller.probabilities().get(id);
         let mut quota = probability;
-        let rv = self.random_value(rng, id);
+        let rv = self.strategy.random_value(rng, id);
 
         if rv < probability {
-            self.controller_mut().unit_set_max(id);
+            self.controller.unit_set_max(id);
             quota -= 1.0;
         } else {
-            self.controller_mut().unit_set_zero(id);
+            self.controller.unit_set_zero(id);
         }
 
         (probability, quota)
     }
-    fn controller(&self) -> &C;
-    fn controller_mut(&mut self) -> &mut C;
-    fn random_value<R: RandomNumberGenerator>(&mut self, rng: &mut R, id: usize) -> f64;
-    fn select_unit<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<usize>;
-    fn update_probabilities(&mut self, id: usize, probability: f64, quota: f64);
 }
 
-pub struct SequentialCorrelatedPoisson<'a> {
-    controller: BasicSampleController<FloatProbabilities>,
+pub struct SequentialStrategy<'a> {
     random_values: Option<&'a [f64]>,
     unit: usize,
 }
-impl<'a> CorrelatedPoisson<BasicSampleController<FloatProbabilities>>
-    for SequentialCorrelatedPoisson<'a>
-{
-    fn controller(&self) -> &BasicSampleController<FloatProbabilities> { &self.controller }
-    fn controller_mut(&mut self) -> &mut BasicSampleController<FloatProbabilities> {
-        &mut self.controller
+impl<'a> SequentialStrategy<'a> {
+    pub fn new<PS, SOP, M>(
+        options: &'a SamplingOptions<'_, PS, SOP, M>,
+    ) -> CorrelatedPoissonRunner<BasicSampleController<FloatProbabilities>, Self>
+    where
+        PS: ProbabilitySpec,
+    {
+        let controller = options.to_controller_float();
+        CorrelatedPoissonRunner {
+            controller,
+            strategy: Self {
+                random_values: options.coordination().map(|c| c.data()),
+                unit: 0,
+            },
+        }
     }
-    fn random_value<R: RandomNumberGenerator>(&mut self, rng: &mut R, id: usize) -> f64 {
+}
+impl<C> CorrelatedPoissonStrategy<C> for SequentialStrategy<'_>
+where
+    C: SampleController<Store = FloatProbabilities>,
+{
+    fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
+    where
+        R: RandomNumberGenerator,
+    {
         self.random_values
             .map(|rv| rv[id])
             .unwrap_or_else(|| rng.rf64())
     }
-    fn select_unit<R: RandomNumberGenerator>(&mut self, _: &mut R) -> Option<usize> {
-        if self.controller.indices().is_empty() {
+    fn select_unit<R>(&mut self, controller: &mut C, _rng: &mut R) -> Option<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        if controller.indices().is_empty() {
             return None;
-        } else if self.unit == 0 && self.controller.indices().contains(0) {
+        } else if self.unit == 0 && controller.indices().contains(0) {
             // Special case for 0, as it is set 0 at construction
             return Some(0);
         }
 
-        let pop_size = self.controller.population_size();
-        let unit = self.controller.indices().seq_after(self.unit, pop_size);
+        let pop_size = controller.population_size();
+        let unit = controller.indices().seq_after(self.unit, pop_size);
 
         if let Some(id) = unit {
             self.unit = id;
@@ -101,55 +150,164 @@ impl<'a> CorrelatedPoisson<BasicSampleController<FloatProbabilities>>
 
         unit
     }
-    fn update_probabilities(&mut self, id: usize, probability: f64, quota: f64) {
-        if self.controller.indices().is_empty() {
+    fn update_probabilities(
+        &mut self,
+        controller: &mut C,
+        id: usize,
+        probability: f64,
+        quota: f64,
+    ) {
+        if controller.indices().is_empty() {
             return;
         }
 
         let mut remaining_weight: f64 = 1.0;
 
-        let pop_size = self.controller.population_size();
+        let pop_size = controller.population_size();
         let mut id_n: usize = id;
         while remaining_weight > 0.0 {
-            id_n = match self.controller.indices().seq_after(id_n, pop_size) {
+            id_n = match controller.indices().seq_after(id_n, pop_size) {
                 Some(v) => v,
                 None => return,
             };
 
-            let possible_weight = self.controller.probabilities().weight_to(probability, id_n);
+            let possible_weight = controller.probabilities().weight_to(probability, id_n);
             let weight = possible_weight.min(remaining_weight);
-            self.controller.unit_add_and_decide(id_n, weight * quota);
+            controller.unit_add_and_decide(id_n, weight * quota);
             remaining_weight -= possible_weight;
         }
     }
 }
 
-pub struct SpatialCorrelatedPoisson<'a> {
-    controller: SpreadingSampleController<'a, FloatProbabilities>,
+pub struct SpatialStrategy<'a, N> {
     random_values: Option<(usize, &'a [f64])>,
-    searcher: SearcherWeighted,
+    searcher: WeightedSearcher<N>,
 }
-impl<'a> CorrelatedPoisson<SpreadingSampleController<'a, FloatProbabilities>>
-    for SpatialCorrelatedPoisson<'a>
-{
-    fn controller(&self) -> &SpreadingSampleController<'a, FloatProbabilities> { &self.controller }
-    fn controller_mut(&mut self) -> &mut SpreadingSampleController<'a, FloatProbabilities> {
-        &mut self.controller
+impl<'b, N> SpatialStrategy<'b, N> {
+    pub fn new<PS, SOP, M>(
+        options: &'b SamplingOptions<'_, PS, SOP, M>,
+    ) -> SamplingResult<
+        CorrelatedPoissonRunner<
+            SpreadingSampleController<'b, FloatProbabilities, N, SOP>,
+            SpatialStrategy<'b, N>,
+        >,
+    >
+    where
+        N: Number,
+        PS: ProbabilitySpec,
+        SOP: PointSet<N>,
+    {
+        let controller = options.to_spreading_controller_float()?;
+        let searcher = WeightedSearcher::new(controller.tree().data());
+        Ok(CorrelatedPoissonRunner {
+            controller,
+            strategy: Self {
+                random_values: options.coordination().map(|c| (0, c.data())),
+                searcher,
+            },
+        })
     }
-    fn random_value<R: RandomNumberGenerator>(&mut self, rng: &mut R, id: usize) -> f64 {
+}
+fn spatial_update_probabilities<P, N>(
+    searcher: &mut WeightedSearcher<N>,
+    controller: &mut SpreadingSampleController<'_, FloatProbabilities, N, P>,
+    id: usize,
+    probability: f64,
+    quota: f64,
+) where
+    P: PointSet<N>,
+    N: Number,
+{
+    if controller.indices().is_empty() {
+        return;
+    }
+
+    searcher
+        .reset_from_unit(controller.tree().data(), id, probability)
+        .expect("id to exist")
+        .search(controller.tree(), controller.probabilities())
+        .expect("nn to be found");
+
+    let mut remaining_weight: f64 = 1.0;
+
+    let max_distance = searcher
+        .max_distance()
+        .expect("searcher to have found a neighbour");
+    // Units with distance below max_distance are guaranteed their weight
+    let guaranteed_units = searcher
+        .neighbours()
+        .partition_point(|n| n.distance() < max_distance);
+
+    for n in searcher.neighbours()[0..guaranteed_units].iter() {
+        controller
+            .unit_add_and_decide(n.id(), n.weight() * quota)
+            .expect("probability to be updated");
+        remaining_weight -= n.weight();
+    }
+
+    let sum_of_tie_weights: f64 = searcher.neighbours()[guaranteed_units..]
+        .iter()
+        .map(|n| n.weight())
+        .sum();
+
+    if sum_of_tie_weights == remaining_weight {
+        // Add everything left, if it's exactly solved (unlikely)
+        for n in searcher.neighbours()[guaranteed_units..].iter() {
+            controller
+                .unit_add_and_decide(n.id(), n.weight() * quota)
+                .expect("probability to be updated");
+            // remaining_weight -= n.weight();
+        }
+        return;
+    }
+
+    // Since the weights are sorted by distance, then weights, we'll try to remove weights by
+    // removing as much as possible of the remaining shares, going from the smallest weight to
+    // the largest.
+    // It might be tempting to add a case before for when only one unit remains, but the only
+    // thing we could save on below is a division by 1.0, as we don't know how much weight can
+    // be used.
+    let mut number_of_shares = usize_to_f64(searcher.neighbours().len() - guaranteed_units);
+    for n in searcher.neighbours()[guaranteed_units..].iter() {
+        let removable_weight = n.weight().min(remaining_weight / number_of_shares);
+        controller
+            .unit_add_and_decide(n.id(), remaining_weight * quota)
+            .expect("probability to be updated");
+        remaining_weight -= removable_weight;
+        number_of_shares -= 1.0;
+    }
+}
+
+impl<'a, P, N> CorrelatedPoissonStrategy<SpreadingSampleController<'a, FloatProbabilities, N, P>>
+    for SpatialStrategy<'a, N>
+where
+    P: PointSet<N>,
+    N: Number,
+{
+    fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
+    where
+        R: RandomNumberGenerator,
+    {
         self.random_values
             .map(|rv| rv.1[id])
             .unwrap_or_else(|| rng.rf64())
     }
-    fn select_unit<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<usize> {
-        if self.controller.indices().is_empty() {
+    fn select_unit<R>(
+        &mut self,
+        controller: &mut SpreadingSampleController<'a, FloatProbabilities, N, P>,
+        rng: &mut R,
+    ) -> Option<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        if controller.indices().is_empty() {
             return None;
         }
 
         match self.random_values {
             Some((ref mut sunit, _)) => {
-                let pop_size = self.controller.population_size();
-                let unit = self.controller.indices().seq_after(*sunit, pop_size);
+                let pop_size = controller.population_size();
+                let unit = controller.indices().seq_after(*sunit, pop_size);
 
                 if let Some(id) = unit {
                     *sunit = id;
@@ -157,129 +315,102 @@ impl<'a> CorrelatedPoisson<SpreadingSampleController<'a, FloatProbabilities>>
 
                 unit
             }
-            None => self.controller.indices().draw(rng),
+            None => controller.indices().draw(rng),
         }
     }
-    fn update_probabilities(&mut self, id: usize, probability: f64, quota: f64) {
-        if self.controller.indices().is_empty() {
-            return;
-        }
-
-        self.searcher
-            .find_neighbours_of_iter(
-                self.controller.tree(),
-                self.controller.probabilities(),
-                self.controller.tree().data().row_iter(id),
-                probability,
-            )
-            .unwrap();
-
-        let mut remaining_weight: f64 = 1.0;
-        let mut i: usize = 0;
-
-        while i < self.searcher.neighbours().len() {
-            // Start by adding up the weights of all ties
-            let mut sum_of_tie_weights = self.searcher.weight_k(i);
-            let distance = self.searcher.distance_k(i);
-            let mut j: usize = i + 1;
-
-            while j < self.searcher.neighbours().len() && self.searcher.distance_k(j) == distance {
-                sum_of_tie_weights += self.searcher.weight_k(j);
-                j += 1;
-            }
-
-            // If the sum of all ties are less than the remaining weight, we can
-            // continue as usual
-            if sum_of_tie_weights < remaining_weight {
-                while i < j {
-                    let id = self.searcher.neighbours()[i];
-                    let removable_weight = self.searcher.weight_k(i);
-                    self.controller
-                        .unit_add_and_decide(id, removable_weight * quota)
-                        .expect("probability to be updated");
-                    remaining_weight -= removable_weight;
-                    i += 1;
-                }
-
-                i = j;
-                continue;
-            }
-
-            // If the sum of all ties are more than the remaining weight, we need
-            // to be a bit more tactful.
-            // No unit should be able to get more than a "fair" share.
-            // Initially, each unit should get equal weight.
-            // If some units cannot accept this much weight, the remainder will
-            // be redistributed amongst the others.
-            // Thus, we sort the remaining neighbours with smallest first.
-            let mut sharers = usize_to_f64(j - i);
-            self.searcher.sort_by_weight(i, j);
-
-            while i < j {
-                let id = self.searcher.neighbours()[i];
-                let removable_weight = self.searcher.weight_k(i).min(remaining_weight / sharers);
-                self.controller
-                    .unit_add_and_decide(id, removable_weight * quota);
-                remaining_weight -= removable_weight;
-                sharers -= 1.0;
-                i += 1;
-            }
-
-            i = j;
-        }
+    fn update_probabilities(
+        &mut self,
+        controller: &mut SpreadingSampleController<'a, FloatProbabilities, N, P>,
+        id: usize,
+        probability: f64,
+        quota: f64,
+    ) {
+        spatial_update_probabilities(&mut self.searcher, controller, id, probability, quota);
     }
 }
 
-pub struct LocalCorrelatedPoisson<'a> {
-    scps: SpatialCorrelatedPoisson<'a>,
+pub struct LocalStrategy<N> {
+    searcher: WeightedSearcher<N>,
     candidates: Vec<usize>,
 }
-impl<'a> CorrelatedPoisson<SpreadingSampleController<'a, FloatProbabilities>>
-    for LocalCorrelatedPoisson<'a>
+impl<N> LocalStrategy<N> {
+    pub fn new<'b, PS, SOP, M>(
+        options: &'b SamplingOptions<'_, PS, SOP, M>,
+    ) -> SamplingResult<
+        CorrelatedPoissonRunner<
+            SpreadingSampleController<'b, FloatProbabilities, N, SOP>,
+            LocalStrategy<N>,
+        >,
+    >
+    where
+        N: Number,
+        PS: ProbabilitySpec,
+        SOP: PointSet<N>,
+    {
+        let controller = options.to_spreading_controller_float()?;
+        let searcher = WeightedSearcher::new(controller.tree().data());
+        Ok(CorrelatedPoissonRunner {
+            controller,
+            strategy: Self {
+                searcher,
+                candidates: Vec::<usize>::with_capacity(20),
+            },
+        })
+    }
+}
+impl<N, P> CorrelatedPoissonStrategy<SpreadingSampleController<'_, FloatProbabilities, N, P>>
+    for LocalStrategy<N>
+where
+    P: PointSet<N>,
+    N: Number,
 {
-    fn controller(&self) -> &SpreadingSampleController<'a, FloatProbabilities> {
-        self.scps.controller()
-    }
-    fn controller_mut(&mut self) -> &mut SpreadingSampleController<'a, FloatProbabilities> {
-        self.scps.controller_mut()
-    }
-    fn random_value<R: RandomNumberGenerator>(&mut self, rng: &mut R, _: usize) -> f64 {
+    fn random_value<R>(&mut self, rng: &mut R, _id: usize) -> f64
+    where
+        R: RandomNumberGenerator,
+    {
         rng.rf64()
     }
-    fn select_unit<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<usize> {
-        if self.controller().indices().len() <= 1 {
-            return self.controller().indices().first();
-        } else if self.controller().indices().len() == 2 {
-            return self.controller().indices().draw(rng);
+    fn select_unit<R>(
+        &mut self,
+        controller: &mut SpreadingSampleController<'_, FloatProbabilities, N, P>,
+        rng: &mut R,
+    ) -> Option<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        if controller.indices().len() <= 1 {
+            return controller.indices().first();
+        } else if controller.indices().len() == 2 {
+            return controller.indices().draw(rng);
         }
 
-        let mut minimum_distance = f64::MAX;
+        let mut minimum_distance = N::max_value();
         self.candidates.clear();
 
         // Loop through all remaining units
         let mut i = 0;
-        while i < self.controller().indices().len() {
-            let id = self.controller().indices().get(i).unwrap();
-            self.scps
-                .searcher
-                .find_neighbours_of_id(
-                    self.scps.controller.tree(),
-                    self.scps.controller.probabilities(),
+        while i < controller.indices().len() {
+            let id = controller.indices().get(i).unwrap();
+            self.searcher
+                .reset_from_unit(
+                    controller.tree().data(),
                     id,
+                    controller.probabilities().get(id),
                 )
-                .unwrap();
-            // We are guaranteed to have at least one neighbour by the
-            // if's in the beginning
+                .expect("id to exist")
+                .search(controller.tree(), controller.probabilities())
+                .expect("nn to be found");
+            // We are guaranteed to have at least one neighbour by the if's in the beginning
             let distance = self
-                .scps
                 .searcher
-                .distance_k(self.scps.searcher.neighbours().len() - 1);
+                .max_distance()
+                .expect("searcher to have found a neighbour");
 
             if distance < minimum_distance {
                 self.candidates.clear();
                 self.candidates.push(id);
                 minimum_distance = distance;
-            } else if distance == minimum_distance {
+            } else if distance == minimum_distance && distance.is_finite() {
                 self.candidates.push(id);
             }
 
@@ -288,34 +419,38 @@ impl<'a> CorrelatedPoisson<SpreadingSampleController<'a, FloatProbabilities>>
 
         rng.relement(&self.candidates).cloned()
     }
-    fn update_probabilities(&mut self, id: usize, probability: f64, quota: f64) {
-        self.scps.update_probabilities(id, probability, quota);
+    fn update_probabilities(
+        &mut self,
+        controller: &mut SpreadingSampleController<'_, FloatProbabilities, N, P>,
+        id: usize,
+        probability: f64,
+        quota: f64,
+    ) {
+        spatial_update_probabilities(&mut self.searcher, controller, id, probability, quota);
     }
 }
 
-pub trait CorrelatedPoissonSampling<'a> {
-    fn to_cps(&'a self) -> SequentialCorrelatedPoisson<'a>;
-    fn cps<R: RandomNumberGenerator>(&'a self, rng: &mut R) -> Vec<usize>;
-    fn to_scps(&'a self) -> Result<SpatialCorrelatedPoisson<'a>, SamplingOptionsError>;
-    fn scps<R: RandomNumberGenerator>(
-        &'a self,
-        rng: &mut R,
-    ) -> Result<Vec<usize>, SamplingOptionsError>;
-    fn to_lcps(&'a self) -> Result<LocalCorrelatedPoisson<'a>, SamplingOptionsError>;
-    fn lcps<R: RandomNumberGenerator>(
-        &'a self,
-        rng: &mut R,
-    ) -> Result<Vec<usize>, SamplingOptionsError>;
+pub trait CorrelatedPoissonSampling {
+    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
 }
-impl<'a, PS: ProbabilitySpec> CorrelatedPoissonSampling<'a> for SamplingOptions<'a, PS> {
-    fn to_cps(&'a self) -> SequentialCorrelatedPoisson<'a> {
-        let controller = self.to_controller_float();
-        SequentialCorrelatedPoisson {
-            controller,
-            random_values: self.coordination().map(|c| c.data()),
-            unit: 0,
-        }
-    }
+pub trait SpatiallyCorrelatedPoissonSampling<P, N>
+where
+    P: PointSet<N>,
+    N: Number,
+{
+    fn scps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    fn lcps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+}
+impl<PS, SOP, M> CorrelatedPoissonSampling for SamplingOptions<'_, PS, SOP, M>
+where
+    PS: ProbabilitySpec,
+{
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -355,19 +490,19 @@ impl<'a, PS: ProbabilitySpec> CorrelatedPoissonSampling<'a> for SamplingOptions<
     /// A list sequential sampling method suitable for real‐time sampling.
     /// Scandinavian Journal of Statistics, 35(3), 466-483.
     /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
-    fn cps<R: RandomNumberGenerator>(&'a self, rng: &mut R) -> Vec<usize> {
-        self.to_cps().sample(rng)
+    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        SequentialStrategy::new(self).sample(rng)
     }
-    fn to_scps(&'a self) -> Result<SpatialCorrelatedPoisson<'a>, SamplingOptionsError> {
-        let controller = self.to_spreading_controller_float()?;
-        let searcher = SearcherWeighted::new(controller.tree());
-
-        Ok(SpatialCorrelatedPoisson {
-            controller,
-            searcher,
-            random_values: self.coordination().map(|c| (0, c.data())),
-        })
-    }
+}
+impl<PS, SOP, N, M> SpatiallyCorrelatedPoissonSampling<SOP, N> for SamplingOptions<'_, PS, SOP, M>
+where
+    PS: ProbabilitySpec,
+    SOP: PointSet<N>,
+    N: Number,
+{
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -413,20 +548,11 @@ impl<'a, PS: ProbabilitySpec> CorrelatedPoissonSampling<'a> for SamplingOptions<
     /// Spatially correlated Poisson sampling.
     /// Journal of Statistical Planning and Inference, 142(1), 139-147.
     /// <https://doi.org/10.1016/j.jspi.2011.07.003>
-    fn scps<R: RandomNumberGenerator>(
-        &'a self,
-        rng: &mut R,
-    ) -> Result<Vec<usize>, SamplingOptionsError> {
-        Ok(self.to_scps()?.sample(rng))
-    }
-    fn to_lcps(&'a self) -> Result<LocalCorrelatedPoisson<'a>, SamplingOptionsError> {
-        let mut scps = self.to_scps()?;
-        scps.random_values = None;
-
-        Ok(LocalCorrelatedPoisson {
-            scps,
-            candidates: Vec::<usize>::with_capacity(20),
-        })
+    fn scps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
+        Ok(SpatialStrategy::new(self)?.sample(rng))
     }
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -452,11 +578,11 @@ impl<'a, PS: ProbabilitySpec> CorrelatedPoissonSampling<'a> for SamplingOptions<
     /// Locally correlated Poisson sampling.
     /// Environmetrics, 35(2), e2832.
     /// <https://doi.org/10.1002/env.2832>
-    fn lcps<R: RandomNumberGenerator>(
-        &'a self,
-        rng: &mut R,
-    ) -> Result<Vec<usize>, SamplingOptionsError> {
-        Ok(self.to_lcps()?.sample(rng))
+    fn lcps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
+        Ok(LocalStrategy::new(self)?.sample(rng))
     }
 }
 
@@ -476,10 +602,12 @@ mod tests {
     const RV_0: [f64; 10] = [0.0; 10];
     const RV_1: [f64; 10] = [1.0; 10];
 
-    fn options_ue() -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>> {
-        SamplingOptions::<ProbabilitySpecUnequal>::new(&PROB_10_E).unwrap()
+    fn options_ue() -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>, (), ()> {
+        SamplingOptions::new(&PROB_10_E).unwrap()
     }
-    fn options_coord(zero: bool) -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>> {
+    fn options_coord(
+        zero: bool,
+    ) -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>, (), ()> {
         options_ue()
             .set_coordination(if zero { &RV_0 } else { &RV_1 })
             .unwrap()

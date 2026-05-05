@@ -10,23 +10,24 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::num::NonZeroUsize;
+mod base;
+mod hierarchical;
+mod runner;
+mod spatial;
 
-use envisim_utils::random::RandomNumberGenerator;
-
-/// Random permutation of usize [0,...,len] vector
-pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-{
-    let mut order: Vec<usize> = Vec::with_capacity(len.get());
-    order.push(0);
-
-    for i in 1..len.get() {
-        let j = rng.rusize_to(i + 1);
-        order.push(i);
-        order.swap(i, j);
-    }
-
-    order
-}
+pub use base::{
+    PivotalSampling,
+    RandomStrategy,
+    SequentialStrategy,
+};
+pub use hierarchical::hierarchical_lpm_2;
+pub use runner::{
+    PivotalRunner,
+    PivotalStrategy,
+};
+pub use spatial::{
+    LocalPivotalSampling,
+    LocalStrategy1,
+    LocalStrategy1S,
+    LocalStrategy2,
+};

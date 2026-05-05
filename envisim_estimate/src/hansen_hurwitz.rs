@@ -12,7 +12,10 @@
 
 //! Hansen-Hurwitz estimators (multiple count estimators)
 
-use envisim_utils::matrix::Matrix;
+use envisim_utils::matrix::{
+    MatrixBase,
+    RawData,
+};
 
 fn quotient(ys: &[f64], ms: &[f64], incs: &[f64]) -> Option<Vec<f64>> {
     let sample_size = ys.len();
@@ -54,15 +57,20 @@ pub fn estimate(y_values: &[f64], expected: &[f64], inclusions: &[f64]) -> Optio
 }
 
 /// Hansen-Hurwitz estimator of variance of total estimate
-pub fn variance(
+pub fn variance<T>(
     y_values: &[f64],
     expected: &[f64],
     inclusions: &[f64],
-    expected_second_order: &Matrix,
-) -> Option<f64> {
+    expected_second_order: &MatrixBase<T>,
+) -> Option<f64>
+where
+    T: RawData<Elem = f64>,
+{
     let sample_size = y_values.len();
 
-    if sample_size != expected_second_order.nrow() || sample_size != expected_second_order.ncol() {
+    if sample_size != expected_second_order.nrow().get()
+        || sample_size != expected_second_order.ncol().get()
+    {
         return None;
     } else if sample_size == 0 {
         return Some(0.0);

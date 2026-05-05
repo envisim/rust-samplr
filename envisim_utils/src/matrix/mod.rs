@@ -307,20 +307,24 @@ impl<N> Matrix<N> {
         Some(Self { data, dims })
     }
     #[inline]
-    pub fn from_value(data: N, dims: MatrixDims) -> Self
+    pub fn from_value<D>(data: N, dims: D) -> Self
     where
         N: Copy,
+        D: Into<MatrixDims>,
     {
+        let dims: MatrixDims = dims.into();
         Self {
             data: OwnedMatrixData::new(vec![data; dims.len().get()]),
-            dims,
+            dims: dims,
         }
     }
     #[inline]
-    pub fn resize(&mut self, dims: MatrixDims)
+    pub fn resize<D>(&mut self, dims: D)
     where
         N: Copy + num_traits::Zero,
+        D: Into<MatrixDims>,
     {
+        let dims: MatrixDims = dims.into();
         if dims == self.dims() {
             return;
         }

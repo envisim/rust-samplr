@@ -26,6 +26,7 @@ pub enum SamplingError {
     IncorrectProbabilitiesIntegerSum,
     IncorrectAnnealingTemperature,
     IncorrectAnnealingRate,
+    ZeroSampleSize,
 }
 pub type SamplingResult<T> = Result<T, SamplingError>;
 
@@ -64,10 +65,13 @@ impl std::fmt::Display for SamplingError {
                     "annealing temperature cooling rate must be in (0.0, 1.0)"
                 )
             }
+            ZeroSampleSize => {
+                write!(f, "sample size must be positive")
+            }
         }
     }
 }
 
 impl From<SamplingOptionsError> for SamplingError {
-    fn from(err: SamplingOptionsError) -> SamplingError { SamplingError::Options(err) }
+    fn from(err: SamplingOptionsError) -> Self { SamplingError::Options(err) }
 }

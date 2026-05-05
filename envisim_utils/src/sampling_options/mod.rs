@@ -41,7 +41,7 @@ use crate::sample_controller::{
 use crate::spatial::PointSet;
 
 #[derive(Clone, Debug)]
-pub struct SamplingOptions<'a, PS, SOP, M> {
+pub struct SamplingOptions<'a, PS, SOP = (), M = ()> {
     probabilities: PS,
     eps: f64,
     max_iterations: NonZeroUsize,
@@ -118,56 +118,86 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
     }
 
     #[inline]
-    pub fn set_spreading<N>(mut self, data: SOP) -> SamplingOptionsResult<Self>
+    pub fn set_spreading<NewSOP, N>(
+        self,
+        data: NewSOP,
+    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, NewSOP, M>>
     where
         PS: ProbabilitySpec,
-        SOP: PointSet<N>,
+        NewSOP: PointSet<N>,
     {
         if data.size() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
-        self.spreading = Some(SpreadingOptions::new(data)?);
-        Ok(self)
+        Ok(SamplingOptions {
+            probabilities: self.probabilities,
+            eps: self.eps,
+            max_iterations: self.max_iterations,
+            coordination: self.coordination,
+            spreading: Some(SpreadingOptions::new(data)?),
+            balancing: self.balancing,
+        })
     }
     #[inline]
-    pub fn set_spreading_opts<N>(
-        mut self,
-        spreading: SpreadingOptions<SOP>,
-    ) -> SamplingOptionsResult<Self>
+    pub fn set_spreading_opts<NewSOP, N>(
+        self,
+        spreading: SpreadingOptions<NewSOP>,
+    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, NewSOP, M>>
     where
         PS: ProbabilitySpec,
-        SOP: PointSet<N>,
+        NewSOP: PointSet<N>,
     {
         if spreading.data().size() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
-        self.spreading = Some(spreading);
-        Ok(self)
+        Ok(SamplingOptions {
+            probabilities: self.probabilities,
+            eps: self.eps,
+            max_iterations: self.max_iterations,
+            coordination: self.coordination,
+            spreading: Some(spreading),
+            balancing: self.balancing,
+        })
     }
     #[inline]
-    pub fn set_balancing(mut self, data: MatrixRef<'a, M>) -> SamplingOptionsResult<Self>
+    pub fn set_balancing<NewM>(
+        self,
+        data: MatrixRef<'a, NewM>,
+    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, SOP, NewM>>
     where
         PS: ProbabilitySpec,
     {
         if data.nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
         }
-        self.balancing = Some(BalancingOptions::new(data)?);
-        Ok(self)
+        Ok(SamplingOptions {
+            probabilities: self.probabilities,
+            eps: self.eps,
+            max_iterations: self.max_iterations,
+            coordination: self.coordination,
+            spreading: self.spreading,
+            balancing: Some(BalancingOptions::new(data)?),
+        })
     }
     #[inline]
-    pub fn set_balancing_opts(
-        mut self,
-        balancing: BalancingOptions<'a, M>,
-    ) -> SamplingOptionsResult<Self>
+    pub fn set_balancing_opts<NewM>(
+        self,
+        balancing: BalancingOptions<'a, NewM>,
+    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, SOP, NewM>>
     where
         PS: ProbabilitySpec,
     {
         if balancing.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
         }
-        self.balancing = Some(balancing);
-        Ok(self)
+        Ok(SamplingOptions {
+            probabilities: self.probabilities,
+            eps: self.eps,
+            max_iterations: self.max_iterations,
+            coordination: self.coordination,
+            spreading: self.spreading,
+            balancing: Some(balancing),
+        })
     }
 
     // BUILDERS
@@ -227,13 +257,21 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
         let spreading = self.spreading()?;
         SpreadingSampleController::new(controller, spreading)
     }
-    // Constructors
+}
+
+impl<'a> SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
+    #[inline]
+    pub fn new(
+        probabilities: &'a [f64],
+    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()>> {
+        Self::with_spec(ProbabilitySpecUnequal::new(probabilities)?)
+    }
     #[inline]
     pub fn with_spec(
         spec: ProbabilitySpecUnequal<'a>,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, SOP, M>> {
+    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()>> {
         const EPS: f64 = 1e-9;
-        Ok(SamplingOptions::<ProbabilitySpecUnequal<'a>, SOP, M> {
+        Ok(SamplingOptions {
             probabilities: spec,
             eps: EPS,
             max_iterations: NonZeroUsize::new(1000).unwrap(),
@@ -242,11 +280,20 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             balancing: None,
         })
     }
+}
+impl<'a> SamplingOptions<'a, ProbabilitySpecEqual> {
+    #[inline]
+    pub fn new_equal(
+        population_size: NonZeroUsize,
+        sample_size: usize,
+    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, (), ()>> {
+        Self::with_spec_equal(ProbabilitySpecEqual::new(population_size, sample_size)?)
+    }
     #[inline]
     pub fn with_spec_equal(
         spec: ProbabilitySpecEqual,
-    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, SOP, M>> {
-        Ok(SamplingOptions::<ProbabilitySpecEqual, SOP, M> {
+    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, (), ()>> {
+        Ok(SamplingOptions {
             probabilities: spec,
             eps: 1e-9,
             max_iterations: NonZeroUsize::new(1000).unwrap(),
@@ -255,27 +302,14 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             balancing: None,
         })
     }
-    #[inline]
-    pub fn new(
-        probabilities: &'a [f64],
-    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, SOP, M>> {
-        Self::with_spec(ProbabilitySpecUnequal::new(probabilities)?)
-    }
-    #[inline]
-    pub fn new_equal(
-        population_size: NonZeroUsize,
-        sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, SOP, M>> {
-        Self::with_spec_equal(ProbabilitySpecEqual::new(population_size, sample_size)?)
-    }
 }
 
-impl<'a, N, M> TryFrom<&'a [f64]> for SamplingOptions<'a, ProbabilitySpecUnequal<'a>, N, M> {
+impl<'a> TryFrom<&'a [f64]> for SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()> {
     type Error = SamplingOptionsError;
     #[inline]
     fn try_from(probabilities: &'a [f64]) -> Result<Self, Self::Error> { Self::new(probabilities) }
 }
-impl<N, M> TryFrom<(NonZeroUsize, usize)> for SamplingOptions<'static, ProbabilitySpecEqual, N, M> {
+impl TryFrom<(NonZeroUsize, usize)> for SamplingOptions<'static, ProbabilitySpecEqual, (), ()> {
     type Error = SamplingOptionsError;
     #[inline]
     fn try_from(

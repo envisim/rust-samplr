@@ -10,9 +10,11 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::num::NonZeroUsize;
+
 pub use config::*;
-use envisim_utils::matrix::Matrix;
 use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::spatial::PointSet;
 use envisim_utils::utils::usize_to_f64;
 
 use super::DistributionalDesignOptions;
@@ -23,6 +25,10 @@ use super::annealing::{
 use super::energy_distance::EnergyDistance;
 
 mod config {
+    use std::num::NonZeroUsize;
+
+    use envisim_utils::spatial::PointSet;
+
     use crate::dbd::energy_distance::EnergyDistance;
     pub use crate::dbd::tc_parameters::{
         DbdConfiguration,
@@ -41,10 +47,17 @@ mod config {
     }
     impl CircularConfiguration {
         /// Construct a new circular configuration from a sequence
-        pub fn new(sequence: Vec<usize>, sample_size: usize, ed: &EnergyDistance) -> Self {
-            let population_size = sequence.len();
-            assert!(0 < population_size);
-            assert!(0 < sample_size && sample_size < population_size);
+        pub fn new<P>(
+            sequence: Vec<usize>,
+            sample_size: NonZeroUsize,
+            ed: &EnergyDistance<P>,
+        ) -> Self
+        where
+            P: PointSet<f64>,
+        {
+            let population_size =
+                NonZeroUsize::new(sequence.len()).expect("sequence to be non-empty");
+            let sample_size = sample_size.min(population_size);
 
             let mut cc = Self {
                 sequence,
@@ -74,9 +87,12 @@ mod config {
             self.total_nenergy
         }
         /// Reset the total nenergy
-        fn reset_total_nenergy(&mut self, ed: &EnergyDistance) -> f64 {
+        fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
+        where
+            P: PointSet<f64>,
+        {
             self.total_nenergy = 0.0;
-            for i in 0..self.tcp.n_samples() {
+            for i in 0..self.tcp.n_samples().get() {
                 self.total_nenergy += self.nenergy_of_sample(ed, i);
             }
             self.total_nenergy
@@ -90,15 +106,15 @@ mod config {
             self.sequence[sample_id..]
                 .iter()
                 .chain(self.sequence[..sample_id].iter())
-                .take(self.tcp.sample_size())
+                .take(self.tcp.sample_size().get())
                 .cloned()
         }
     }
 }
 
-pub struct DbdCircular<'a> {
+pub struct DbdCircular<P> {
     temperature: AnnealingTemperature,
-    ed: EnergyDistance<'a>,
+    ed: EnergyDistance<P>,
 
     configuration: CircularConfiguration,
     configuration_best: Option<CircularConfiguration>,
@@ -106,7 +122,7 @@ pub struct DbdCircular<'a> {
     pair: (usize, usize), // k-index
     total_nenergy_delta: f64,
 }
-impl<'a> DbdCircular<'a> {
+impl<P> DbdCircular<P> {
     pub fn optimal_configuration(&self) -> &CircularConfiguration {
         self.configuration_best
             .as_ref()
@@ -118,25 +134,31 @@ impl<'a> DbdCircular<'a> {
             .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
             .unwrap_or(self.configuration)
     }
-    pub fn ed(&self) -> &EnergyDistance { &self.ed }
+    pub fn ed(&self) -> &EnergyDistance<P> { &self.ed }
     pub fn tcp(&self) -> &TacticalConfigurationParameters { self.configuration.tcp() }
 
     // CONSTRUCTORS
     pub fn new(
         dbs_options: &DistributionalDesignOptions,
-        matrix: &'a Matrix<'a>,
-        sample_size: usize,
+        matrix: P,
+        sample_size: NonZeroUsize,
         eps: f64,
-    ) -> Self {
-        let population_size = matrix.nrow();
-        let sequence: Vec<usize> = (0..population_size).collect();
+    ) -> Result<Self, CircularConfiguration>
+    where
+        P: PointSet<f64>,
+    {
+        let sequence: Vec<usize> = matrix.id_iter().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
         let ed = EnergyDistance::new(matrix, sample_size);
 
         let pair = (sequence[0], sequence[1]);
         let configuration = CircularConfiguration::new(sequence, sample_size, &ed);
 
-        Self {
+        if configuration.tcp().n_samples().get() <= 1 {
+            return Err(configuration);
+        }
+
+        Ok(Self {
             temperature: annealing_temperature,
             ed,
 
@@ -145,16 +167,22 @@ impl<'a> DbdCircular<'a> {
 
             pair,
             total_nenergy_delta: 0.0,
-        }
+        })
     }
 }
 
-impl<'a> AnnealingDistributionalDesign for DbdCircular<'a> {
+impl<P> AnnealingDistributionalDesign for DbdCircular<P>
+where
+    P: PointSet<f64>,
+{
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }
     fn temperature_mut(&mut self) -> &mut AnnealingTemperature { &mut self.temperature }
 
-    fn draw_units<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
-        let n = self.tcp().population_size();
+    fn draw_units<R>(&mut self, rng: &mut R)
+    where
+        R: RandomNumberGenerator,
+    {
+        let n = self.tcp().population_size().get();
         let a = rng.rusize_to(n);
         let b = rng.rusize_to(n - 1);
         self.pair = if a == b { (a, n - 1) } else { (a, b) };
@@ -168,8 +196,8 @@ impl<'a> AnnealingDistributionalDesign for DbdCircular<'a> {
             return None;
         }
 
-        let population_size = self.tcp().population_size();
-        let sample_size = self.tcp().sample_size();
+        let population_size = self.tcp().population_size().get();
+        let sample_size = self.tcp().sample_size().get();
         let d = population_size - sample_size + 1;
 
         let id1 = self.configuration.sequence_get(k1).unwrap();

@@ -12,11 +12,11 @@
 
 //! Nearest neighbour estimator
 
+use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::kd_tree::{
-    Searcher,
-    TreeBuilder,
+    PointSet,
+    Tree,
 };
-use envisim_utils::matrix::Matrix;
 use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SpreadingOptions,
@@ -29,12 +29,15 @@ use rustc_hash::{
 
 /// Nearest neighbour estimator of total.
 /// Is not an design-unbiased estimator of the total.
-pub fn nearest_neighbour(
+pub fn nearest_neighbour<P>(
     y_values: &[f64],
     sample: &[usize],
-    auxiliaries: &Matrix,
-) -> Result<f64, SamplingOptionsError> {
-    let population_size = auxiliaries.nrow();
+    auxiliaries: P,
+) -> Result<f64, SamplingOptionsError>
+where
+    P: PointSet<f64>,
+{
+    let population_size = auxiliaries.size().get();
     let sample_size = sample.len();
 
     if sample.len() != y_values.len() || !sample.iter().all(|id| (0..population_size).contains(id))
@@ -46,9 +49,9 @@ pub fn nearest_neighbour(
         return Ok(0.0);
     }
 
-    let spr_opts = SpreadingOptions::new(auxiliaries.clone_shallow())?;
-    let tree = spr_opts.build(&mut sample.to_vec())?;
-    let mut searcher = Searcher::new_1(&tree);
+    let spr_opts = SpreadingOptions::new(auxiliaries)?;
+    let tree = Tree::new(&spr_opts, &mut sample.to_vec());
+    let mut searcher = NearestNeighbourSearcher::new(tree.data());
 
     let mut number_of_neighbours =
         FxHashMap::<usize, f64>::with_capacity_and_hasher(sample_size, FxBuildHasher);
@@ -58,13 +61,12 @@ pub fn nearest_neighbour(
     }
 
     for i in 0..population_size {
-        searcher
-            .find_neighbours_of_iter(&tree, auxiliaries.row_iter(i))
-            .unwrap();
-        let part = 1.0 / usize_to_f64(searcher.neighbours().len());
+        searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
+        searcher.search(&tree).unwrap();
+        let partial_prob = 1.0 / usize_to_f64(searcher.neighbours().len());
 
-        for id in searcher.neighbours().iter() {
-            *number_of_neighbours.get_mut(id).unwrap() += part;
+        for n in searcher.neighbours().iter() {
+            *number_of_neighbours.get_mut(&n.id()).unwrap() += partial_prob;
         }
     }
 

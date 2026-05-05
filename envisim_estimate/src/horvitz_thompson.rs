@@ -14,11 +14,12 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::kd_tree::{
-    Searcher,
-    TreeBuilder,
+use envisim_utils::kd_tree::PointSet;
+use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
+use envisim_utils::matrix::{
+    MatrixBase,
+    RawData,
 };
-use envisim_utils::matrix::Matrix;
 use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
@@ -70,15 +71,18 @@ pub fn ratio(
 }
 
 /// Horvitz-Thompson estimator of variance of total estimate
-pub fn variance(
+pub fn variance<T>(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &Matrix,
-) -> Option<f64> {
+    probabilities_second_order: &MatrixBase<T>,
+) -> Option<f64>
+where
+    T: RawData<Elem = f64>,
+{
     let sample_size = y_values.len();
 
-    if sample_size != probabilities_second_order.nrow()
-        || sample_size != probabilities_second_order.ncol()
+    if sample_size != probabilities_second_order.nrow().get()
+        || sample_size != probabilities_second_order.ncol().get()
     {
         return None;
     } else if sample_size == 0 {
@@ -112,15 +116,18 @@ pub fn variance(
 }
 
 /// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample
-pub fn syg_variance(
+pub fn syg_variance<T>(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &Matrix,
-) -> Option<f64> {
+    probabilities_second_order: &MatrixBase<T>,
+) -> Option<f64>
+where
+    T: RawData<Elem = f64>,
+{
     let sample_size = y_values.len();
 
-    if sample_size != probabilities_second_order.nrow()
-        || sample_size != probabilities_second_order.ncol()
+    if sample_size != probabilities_second_order.nrow().get()
+        || sample_size != probabilities_second_order.ncol().get()
     {
         return None;
     } else if sample_size == 0 {
@@ -179,11 +186,15 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Option<f64> 
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn local_mean_variance<PS: ProbabilitySpec>(
+pub fn local_mean_variance<PS, SOP, M>(
     y_values: &[f64],
-    options: &SamplingOptions<PS>,
+    options: &SamplingOptions<PS, SOP, M>,
     n_neighbours: NonZeroUsize,
-) -> Result<f64, SamplingOptionsError> {
+) -> Result<f64, SamplingOptionsError>
+where
+    PS: ProbabilitySpec,
+    SOP: PointSet<f64>,
+{
     let sample_size = y_values.len();
 
     if sample_size == 0 {
@@ -191,10 +202,10 @@ pub fn local_mean_variance<PS: ProbabilitySpec>(
     }
 
     let probabilities = options.probabilities().as_f64_slice();
-    let tree = options
-        .get_spreading()?
-        .build(&mut (0..sample_size).collect::<Vec<usize>>())?;
-    let mut searcher = Searcher::new(&tree, n_neighbours);
+    let tree = options.spreading()?.to_tree();
+    // +1 since we search for self also
+    let mut searcher =
+        KNearestNeighbourSearcher::new(n_neighbours.checked_add(1).unwrap(), tree.data());
 
     let yp =
         quotient(y_values, probabilities.as_ref()).ok_or(SamplingOptionsError::InvalidSample)?;
@@ -205,9 +216,17 @@ pub fn local_mean_variance<PS: ProbabilitySpec>(
             return Ok(f64::NAN);
         }
 
-        searcher.find_neighbours_of_id(&tree, i).unwrap();
-        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len()) + 1.0;
-        let local_mean: f64 = (yp[i] + searcher.neighbours().iter().map(|&id| yp[id]).sum::<f64>())
+        searcher
+            .reset_from_slice(&tree.data().to_boxed_slice(i).unwrap())
+            .unwrap()
+            .search(&tree)
+            .unwrap();
+        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len());
+        let local_mean: f64 = searcher
+            .neighbours()
+            .iter()
+            .map(|n| yp[n.id()])
+            .sum::<f64>()
             / number_of_neighbours;
         variance +=
             number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
