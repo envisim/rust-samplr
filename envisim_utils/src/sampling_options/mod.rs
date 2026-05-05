@@ -281,7 +281,7 @@ impl<'a> SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
         })
     }
 }
-impl<'a> SamplingOptions<'a, ProbabilitySpecEqual> {
+impl SamplingOptions<'_, ProbabilitySpecEqual> {
     #[inline]
     pub fn new_equal(
         population_size: NonZeroUsize,

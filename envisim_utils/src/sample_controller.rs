@@ -263,7 +263,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    // use envisim_test_utils::*;
+    use envisim_test_utils::nz;
 
     use super::*;
     use crate::sampling_options::{
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn basic_controller_exact() {
-        let opts = SamplingOptions::new_equal(10, 3).unwrap();
+        let opts = SamplingOptions::new_equal(nz(10), 3).unwrap();
         let controller = opts.to_controller();
         assert_eq!(controller.population_size(), 10);
         assert_eq!(controller.probabilities().max(), 10);

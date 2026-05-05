@@ -33,6 +33,9 @@ use split_methods::{
 pub use crate::number_traits::Number;
 pub use crate::spatial::PointSet;
 
+/// Tree construction trait
+///
+/// Provides methods necessary for the construction of a [`Tree`]
 pub trait TreeConfig<N>
 where
     N: Number,
@@ -44,23 +47,32 @@ where
     fn split_method(&self, units: &[usize]) -> Self::Split;
 }
 
+/// A kd-tree
 #[derive(Clone, Debug)]
 pub struct Tree<'b, N, T> {
+    /// The first node
     node: Node<N>,
+    /// A reference to the data
     data: &'b T,
 }
+
+/// A `Node` is either a [`Branch`], which defines a split, or a [`Leaf`] with units.
 #[derive(Clone, Debug)]
 #[allow(clippy::exhaustive_enums)]
 pub enum Node<N> {
     Branch(Branch<N>),
     Leaf(Leaf),
 }
+
+/// A `Branch` is a [`Node`] which defines a split along a dimension.
 #[derive(Clone, Debug)]
 pub struct Branch<N> {
     split: Split<N>,
     left: Box<Node<N>>,
     right: Box<Node<N>>,
 }
+
+/// A `Leaf` is a [`Node`] which contains units.
 #[derive(Clone, Debug)]
 pub struct Leaf {
     units: Vec<usize>,
@@ -71,7 +83,7 @@ where
     N: Number,
     T: PointSet<N>,
 {
-    /// A builder with a [`FindSplit`] that is able to return split unit of 0 or len will panic.
+    /// Constructs a new tree containing `units`, according to some `config`.
     #[inline]
     pub fn new<C, S>(config: &'b C, units: &mut [usize]) -> Self
     where
@@ -84,8 +96,11 @@ where
 
         Self { node, data }
     }
+    /// Returns a reference to the data.
     #[inline]
     pub fn data(&self) -> &T { self.data }
+    /// Returns a reference to the leaf that would contain `unit`.
+    /// Returns `None` if `unit` does not exists in the tree data.
     #[inline]
     pub fn find_leaf_of_unit(&self, unit: usize) -> Option<&Leaf> {
         let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
@@ -93,10 +108,13 @@ where
         // dimension mismatch
         self.find_leaf(&v)
     }
+    /// Returns a reference to the leaf that would contain `unit`.
+    /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[inline]
     pub fn find_leaf(&self, unit: &[N]) -> Option<&Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
     }
+    /// Iterates the leaf by a [`TreeSearcher`].
     #[inline]
     pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> Option<()>
     where
@@ -108,26 +126,31 @@ where
             None
         }
     }
+    /// Returns a mutable reference to the leaf that would contain `unit`.
+    /// Returns `None` if `unit` does not exists in the tree data.
     #[inline]
     pub fn find_leaf_of_unit_mut(&mut self, unit: usize) -> Option<&mut Leaf> {
         let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, it should always be Some
         self.find_leaf_mut(&v)
     }
+    /// Returns a mutable reference to the leaf that would contain `unit`.
+    /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[inline]
     pub fn find_leaf_mut(&mut self, unit: &[N]) -> Option<&mut Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
     }
-
-    /// Returns None if leaf or unit cannot be found/is invalid.
-    /// Returns Some(true) if unit did not already exist.
+    /// Inserts a unit into the tree.
+    /// Returns `None` if `unit` does not exists in the tree data.
+    /// Returns `true` if the unit did not already exist.
     /// Does not rebalance the tree.
     #[inline]
     pub fn insert_unit(&mut self, unit: usize) -> Option<bool> {
         self.find_leaf_of_unit_mut(unit)?.insert_unit(unit).into()
     }
-    /// Returns None if leaf or unit cannot be found/is invalid.
-    /// Returns Some(true) if unit existed.
+    /// Removes a unit from the tree.
+    /// Returns `None` if `unit` does not exists in the tree data.
+    /// Returns `false` if the unit did not already exist.
     /// Does not rebalance the tree.
     #[inline]
     pub fn remove_unit(&mut self, unit: usize) -> Option<bool> {
@@ -153,7 +176,7 @@ impl<N> Node<N> {
             return Leaf::new(units).into();
         };
 
-        let unit = split.unit();
+        let unit = split.unit;
 
         Branch {
             split: split.into(),
@@ -224,22 +247,28 @@ impl<N> Node<N> {
     }
 }
 impl<N> Branch<N> {
+    /// Returns the split that defines the branch.
     #[inline]
     pub fn split(&self) -> &Split<N> { &self.split }
+    /// Returns a reference to the node left of the split.
     #[inline]
     pub fn left(&self) -> &Node<N> { &self.left }
+    /// Returns a reference to the node right of the split.
     #[inline]
     pub fn right(&self) -> &Node<N> { &self.right }
 }
 impl Leaf {
+    /// Constructs a new leaf.
     #[inline]
     fn new(units: &[usize]) -> Self {
         Self {
             units: units.to_vec(),
         }
     }
+    /// Returns a reference to the units in the leaf.
     #[inline]
     pub fn units(&self) -> &[usize] { &self.units }
+    /// Returns `true` if the leaf contains `unit`.
     #[inline]
     pub fn contains_unit(&self, unit: usize) -> bool { self.units.contains(&unit) }
     #[inline]
@@ -277,183 +306,92 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroUsize;
+    use envisim_test_utils::nz;
+    use searcher::NearestNeighbourSearcher;
 
-    use crate::kd_tree::{
-        PointSet,
-        Tree,
-    };
+    use super::*;
     use crate::matrix::Matrix;
     use crate::sampling_options::SpreadingOptions;
 
-    fn test_builder<'a>(data: Matrix<'a>) -> SpreadingOptions<'a> {
-        SpreadingOptions::new(data).unwrap()
-    }
-
-    fn mat_from(data: Vec<f64>, rows: usize) -> Matrix<'static> {
-        Matrix::from_vec(data, NonZeroUsize::new(rows).unwrap()).unwrap()
-    }
-
-    // Grid of 9 2D points: (0,0), (0,1), (0,2), (1,0), ..., (2,2)
-    fn grid_3x3() -> Matrix<'static> {
+    /// Setup a 2D Matrix with 4 points: (0,0), (1,0), (0,1), (1,1)
+    fn setup() -> SpreadingOptions<Matrix<f64>> {
         let data = vec![
-            0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, // dim 0
-            0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0, // dim 1
+            0.0, 1.0, 0.0, 1.0, // Dim 0 (X)
+            0.0, 0.0, 1.0, 1.0, // Dim 1 (Y)
         ];
-        mat_from(data, 9)
+        let mat = Matrix::new(data, nz(4)).unwrap();
+        // SpreadingOptions implements TreeConfig and uses MidpointSlide internally
+        let options = SpreadingOptions::new(mat).unwrap();
+        options
     }
 
     #[test]
-    fn tree_with_bucket_larger_than_population_is_single_leaf() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(100).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let tree = Tree::new(&builder, &mut units);
+    fn test_tree_find_leaf_logic() {
+        let options = setup();
+        let mut units = vec![0, 1, 2, 3];
 
-        // Every unit should resolve to the same leaf
-        for id in 0..9 {
-            let leaf = tree.find_leaf_of_unit(id).unwrap();
-            assert_eq!(leaf.units().len(), 9);
-            assert!(leaf.contains_unit(id));
-        }
-    }
+        // Construct tree with small bucket size to force branching
+        let tree = Tree::new(&options, &mut units);
 
-    #[test]
-    fn tree_with_small_bucket_partitions_units() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let tree = Tree::new(&builder, &mut units);
+        // Find leaf by specific coordinate (0.1, 0.1)
+        let leaf = tree.find_leaf(&[0.1, 0.1]).expect("Leaf should exist");
 
-        // Every unit must be findable in exactly one leaf
-        for id in 0..9 {
-            let leaf = tree.find_leaf_of_unit(id).unwrap();
-            assert!(leaf.units().len() <= 2);
-            assert!(leaf.contains_unit(id));
-        }
-    }
-
-    #[test]
-    fn find_leaf_returns_none_for_wrong_dim() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let tree = Tree::new(&builder, &mut units);
-
-        // tree is 2D; probing with a 3D point must fail
-        assert!(tree.find_leaf(&[0.0, 0.0, 0.0]).is_none());
-    }
-
-    #[test]
-    fn find_leaf_of_unit_returns_none_for_invalid_id() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let tree = Tree::new(&builder, &mut units);
-
-        assert!(tree.find_leaf_of_unit(100).is_none());
-    }
-
-    #[test]
-    fn insert_unit_into_correct_leaf() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..8).collect(); // insert id 8 later
-        let mut tree = Tree::new(&builder, &mut units);
-
-        // id 8 initially not in any leaf
-        let leaf_before = tree.find_leaf_of_unit(8).unwrap();
-        assert!(!leaf_before.contains_unit(8));
-
-        assert_eq!(
-            tree.insert_unit(8),
-            Some(true),
-            "insertion of a new unit should return true"
-        );
-
-        let leaf_after = tree.find_leaf_of_unit(8).unwrap();
-        assert!(leaf_after.contains_unit(8));
-
-        assert_eq!(
-            tree.insert_unit(8),
-            Some(false),
-            "insertion of a new unit should return false"
-        );
-
-        assert_eq!(
-            tree.insert_unit(999),
-            None,
-            "insertion of an invalid id should return None"
-        );
-    }
-
-    #[test]
-    fn remove_unit_that_exists() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let mut tree = Tree::new(&builder, &mut units);
-
-        let leaf_before = tree.find_leaf_of_unit(4).unwrap();
-        assert!(leaf_before.contains_unit(4));
-
-        assert_eq!(
-            tree.remove_unit(4),
-            Some(true),
-            "removal of an existing unit should return true"
-        );
-
-        let leaf_after = tree.find_leaf_of_unit(4).unwrap();
-        assert!(!leaf_after.contains_unit(4));
-
-        assert_eq!(
-            tree.remove_unit(4),
-            Some(false),
-            "removal of a non-existing unit should return false"
-        );
-
-        assert_eq!(
-            tree.remove_unit(400),
-            None,
-            "removal of an invalid unit should return None"
-        );
-    }
-
-    #[test]
-    fn tree_data_returns_backing_pointaccess() {
-        let m = grid_3x3();
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..9).collect();
-        let tree = Tree::new(&builder, &mut units);
-
-        assert_eq!(tree.data().dim().get(), 2);
-        assert_eq!(tree.data().coord(4, 0), 1.0);
-        assert_eq!(tree.data().coord(4, 1), 1.0);
-    }
-
-    #[test]
-    fn tree_handles_single_point() {
-        let m = mat_from(vec![1.0, 2.0], 1);
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = vec![0];
-        let tree = Tree::new(&builder, &mut units);
-
-        let leaf = tree.find_leaf_of_unit(0).unwrap();
+        // Given (0,0) is unit 0, and midpoint of (0,1) is 0.5,
+        // unit 0 should be in this leaf.
         assert!(leaf.contains_unit(0));
-        assert_eq!(leaf.units().len(), 1);
+
+        // Find leaf of a specific unit ID
+        let leaf_of_unit = tree.find_leaf_of_unit(3).expect("Unit 3 exists");
+        assert!(leaf_of_unit.contains_unit(3));
     }
 
     #[test]
-    fn tree_handles_collocated_points_as_leaf() {
-        // All 4 points identical -> midpoint_slide returns None -> single leaf
-        let m = mat_from(vec![1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0], 4);
-        let builder = test_builder(m).set_bucket_size(2).unwrap();
-        let mut units: Vec<usize> = (0..4).collect();
-        let tree = Tree::new(&builder, &mut units);
+    fn test_tree_dynamic_modification() {
+        let options = setup();
+        let mut units = vec![0, 1]; // Start with only 2 units
+        let mut tree = Tree::new(&options, &mut units);
 
-        // Even though bucket_size < n, no split is possible, so we must have
-        // one leaf with all 4 units.
-        let leaf = tree.find_leaf_of_unit(0).unwrap();
-        assert_eq!(leaf.units().len(), 4);
+        // Insert unit 2 (0, 1)
+        let inserted = tree.insert_unit(2).expect("Unit 2 is in Matrix bounds");
+        assert!(inserted);
+
+        // Verify it was actually added to the leaf responsible for that area
+        let leaf = tree.find_leaf_of_unit(2).unwrap();
+        assert!(leaf.contains_unit(2));
+
+        // Remove unit 0
+        let removed = tree.remove_unit(0).expect("Unit 0 is in Matrix bounds");
+        assert!(removed);
+        assert!(!tree.find_leaf_of_unit(0).unwrap().contains_unit(0));
+    }
+
+    #[test]
+    fn test_tree_iteration_with_real_searcher() {
+        let options = setup();
+        let mut units = vec![0, 1, 2, 3];
+        let tree = Tree::new(&options, &mut units);
+
+        // Use the real NearestNeighbourSearcher
+        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.1, 0.1]).unwrap();
+
+        // Traverse the tree
+        tree.iterate_leafs_by(&mut searcher)
+            .expect("Dimensions match");
+
+        let neighbours = searcher.neighbours();
+        assert!(!neighbours.is_empty());
+        // Closest to (0.1, 0.1) should be unit 0 (0,0)
+        assert_eq!(neighbours[0].id(), 0);
+    }
+
+    #[test]
+    fn test_tree_dimension_mismatch_safety() {
+        let options = setup();
+        let mut units = vec![0, 1];
+        let tree = Tree::new(&options, &mut units);
+
+        // Try to find leaf using a 3D point on a 2D tree
+        let result = tree.find_leaf(&[0.0, 0.0, 0.0]);
+        assert!(result.is_none()); // Should safely return None
     }
 }

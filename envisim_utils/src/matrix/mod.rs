@@ -10,6 +10,11 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Matrix representations
+//!
+//! Provides [`Matrix`] and [`MatrixRef`] as mutable and borrowed matrix representations.
+//! Both are derived from [`MatrixBase`].
+
 mod dims;
 
 use std::num::NonZeroUsize;
@@ -26,27 +31,34 @@ use crate::number_traits::{
 };
 pub use crate::spatial::PointSet;
 
+/// Data container trait
 pub trait RawData: Sized {
     type Elem;
     fn data(&self) -> &[Self::Elem];
 }
 
+/// Base matrix representation
 #[derive(Debug, Clone)]
 pub struct MatrixBase<T, N = <T as RawData>::Elem>
 where
     T: RawData<Elem = N>,
 {
+    /// Data
     data: T,
+    /// Matrix dimension
     dims: MatrixDims,
 }
 
+/// Owned matrix representation
 pub type Matrix<N> = MatrixBase<OwnedMatrixData<N>>;
+/// Borrowed matrix representation
 pub type MatrixRef<'a, N> = MatrixBase<BorrowedMatrixData<'a, N>>;
 
 impl<T, N> MatrixBase<T, N>
 where
     T: RawData<Elem = N>,
 {
+    /// Constructs a borrowed matrix representation from a matrix.
     #[inline]
     pub fn to_matrixref(&self) -> MatrixRef<'_, N> {
         MatrixRef {
@@ -54,6 +66,7 @@ where
             dims: self.dims(),
         }
     }
+    /// Constructs an owned matrix representation from a matrix. Copies the data.
     #[inline]
     pub fn to_matrix(&self) -> Matrix<N>
     where
@@ -64,14 +77,20 @@ where
             dims: self.dims(),
         }
     }
+    /// Returns a reference to the underlying data as a slice.
     #[inline]
     pub fn data(&self) -> &[N] { self.data.data() }
+    /// Returns the matrix dimension.
     #[inline]
     pub fn dims(&self) -> MatrixDims { self.dims }
+    /// Returns the number of rows in the matrix.
     #[inline]
     pub fn nrow(&self) -> NonZeroUsize { self.dims.rows }
+    /// Returns the number of columns in the matrix.
     #[inline]
     pub fn ncol(&self) -> NonZeroUsize { self.dims.cols }
+    /// Returns the element at a specific coordinate.
+    /// Returns `None`  if the coordinates are invalid.
     #[inline]
     pub fn get<C>(&self, coord: C) -> Option<N>
     where
@@ -81,12 +100,17 @@ where
         let coord = coord.into();
         self.dims.contains(coord).then(|| self[coord])
     }
-    /// Returns an iterator on the row
+    /// Returns an iterator of the elements in a row.
+    /// Returns `None` if the row is invalid.
     #[inline]
     pub fn row_iter(&self, row: usize) -> Option<RowIterator<'_, N>> { RowIterator::new(self, row) }
-    /// Returns an iterator on the column
+    /// Returns an iterator of the elements in a column.
+    /// Returns `None` if the column is invalid.
     #[inline]
     pub fn col_iter(&self, col: usize) -> Option<ColIterator<'_, N>> { ColIterator::new(self, col) }
+    /// Multiplies the matrix by a column vector.
+    /// Returns `None` if the column vector length does not match the number of columns in the
+    /// matrix.
     #[inline]
     pub fn mul_vec(&self, rhs: &[N]) -> Option<Matrix<N>>
     where
@@ -105,6 +129,9 @@ where
         }
         Matrix::new(product, self.nrow())
     }
+    /// Multiplies the matrix by another matrix.
+    /// Returns `None` if the number of columns in self does not match the number of rows in the
+    /// other matrix.
     #[inline]
     pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2, N>) -> Option<Matrix<N>>
     where
@@ -158,30 +185,39 @@ impl<T, N> PointSet<N> for MatrixBase<T, N>
 where
     T: RawData<Elem = N>,
 {
+    /// Returns the number of rows in the matrix
     #[inline]
     fn size(&self) -> NonZeroUsize { self.dims.rows }
+    /// Returns an iterator of the rows in the matrix.
     #[inline]
     fn id_iter(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
+    /// Returns the number of columns in the matrix
     #[inline]
     fn dim(&self) -> NonZeroUsize { self.dims.cols }
+    /// Returns true if `id` is contained within the matrix.
     #[inline]
-    fn exists(&self, id: usize) -> bool { id < self.dims.rows.get() }
+    fn exists(&self, row: usize) -> bool { row < self.dims.rows.get() }
+    /// Returns the element at coordinates `(row, col)`.
+    /// Panics on oob.
     #[inline]
-    fn coord(&self, id: usize, dim: usize) -> N
+    fn coord(&self, row: usize, col: usize) -> N
     where
         N: Copy,
     {
-        let idx = id + dim * self.dims.rows.get();
+        let idx = row + col * self.dims.rows.get();
         self.data()[idx]
     }
+    /// Returns the element at coordinates `(row, col)`.
+    /// Returns `None` if the coordinates are oob.
     #[inline]
-    fn try_coord(&self, id: usize, dim: usize) -> Option<N>
+    fn try_coord(&self, row: usize, col: usize) -> Option<N>
     where
         N: Copy,
     {
-        let idx = id + dim * self.dims.rows.get();
-        self.data().get(idx).copied()
+        self.get((row, col))
     }
+    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
+    /// Panics on oob.
     #[inline]
     fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N
     where
@@ -200,6 +236,8 @@ where
         }
         sum
     }
+    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
+    /// Returns `None` if any row is oob.
     #[inline]
     fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N>
     where
@@ -215,7 +253,7 @@ pub struct RowIterator<'a, N> {
 }
 impl<'a, N> RowIterator<'a, N> {
     #[inline]
-    pub fn new<T>(matrix: &'a MatrixBase<T, N>, row: usize) -> Option<Self>
+    fn new<T>(matrix: &'a MatrixBase<T, N>, row: usize) -> Option<Self>
     where
         T: RawData<Elem = N>,
     {
@@ -259,7 +297,7 @@ pub struct ColIterator<'a, N> {
 }
 impl<'a, N> ColIterator<'a, N> {
     #[inline]
-    pub fn new<T>(matrix: &'a MatrixBase<T, N>, col: usize) -> Option<Self>
+    fn new<T>(matrix: &'a MatrixBase<T, N>, col: usize) -> Option<Self>
     where
         T: RawData<Elem = N>,
     {
@@ -300,12 +338,15 @@ where
 use std::ops::IndexMut;
 
 impl<N> Matrix<N> {
+    /// Constructs a new owned matrix representation from some data vector.
+    /// Returns `None` if the rows are not a divisor of the data length.
     #[inline]
     pub fn new(data: Vec<N>, rows: NonZeroUsize) -> Option<Self> {
         let dims = MatrixDims::from_row_count(data.len(), rows)?;
         let data = OwnedMatrixData::new(data);
         Some(Self { data, dims })
     }
+    /// Constructs a new owned matrix representation filled with some value `data`.
     #[inline]
     pub fn from_value<D>(data: N, dims: D) -> Self
     where
@@ -315,9 +356,11 @@ impl<N> Matrix<N> {
         let dims: MatrixDims = dims.into();
         Self {
             data: OwnedMatrixData::new(vec![data; dims.len().get()]),
-            dims: dims,
+            dims,
         }
     }
+    /// Resizes the matrix.
+    /// Does not respect data on expansion.
     #[inline]
     pub fn resize<D>(&mut self, dims: D)
     where
@@ -494,4 +537,168 @@ impl<'b, N> From<&'b OwnedMatrixData<N>> for BorrowedMatrixData<'b, N> {
 impl<'b, N> From<&'b [N]> for BorrowedMatrixData<'b, N> {
     #[inline]
     fn from(data: &'b [N]) -> Self { Self::new(data) }
+}
+
+#[cfg(test)]
+mod tests {
+    use envisim_test_utils::nz;
+
+    use super::*;
+
+    /// Creates a 3x2 matrix in column-major order:
+    /// [ 1, 4 ]
+    /// [ 2, 5 ]
+    /// [ 3, 6 ]
+    fn setup_matrix() -> Matrix<f64> {
+        Matrix::new(
+            vec![
+                1.0, 2.0, 3.0, // dim 0
+                4.0, 5.0, 6.0, // dim 1
+            ],
+            nz(3),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_matrix_construction() {
+        // Valid construction
+        let m = Matrix::new(vec![1, 2, 3, 4], nz(2));
+        assert!(m.is_some());
+
+        // Invalid: 5 elements cannot form a matrix with 2 rows
+        let m_invalid = Matrix::new(vec![1, 2, 3, 4, 5], nz(2));
+        assert!(m_invalid.is_none());
+
+        // From value
+        let m_val = Matrix::from_value(10, MatrixDims::new(nz(2), nz(2)));
+        assert_eq!(m_val.data.data(), &[10, 10, 10, 10]);
+    }
+
+    #[test]
+    fn test_accessors() {
+        let m = setup_matrix();
+        assert_eq!(m.nrow(), nz(3));
+        assert_eq!(m.ncol(), nz(2));
+        assert_eq!(m.dims().rows, nz(3));
+
+        // get() method
+        assert_eq!(m.get((0, 0)), Some(1.0));
+        assert_eq!(m.get((2, 1)), Some(6.0));
+        assert_eq!(m.get((3, 0)), None); // Out of bounds
+    }
+
+    #[test]
+    fn test_indexing() {
+        let mut m = setup_matrix();
+
+        // Index read
+        assert_eq!(m[(1, 0)], 2.0);
+        assert_eq!(m[(0, 1)], 4.0);
+
+        // IndexMut write
+        m[(0, 1)] = 10.0;
+        assert_eq!(m[(0, 1)], 10.0);
+    }
+
+    #[test]
+    fn test_conversions() {
+        let m = setup_matrix();
+
+        // To MatrixRef
+        let m_ref: MatrixRef<f64> = m.to_matrixref();
+        assert_eq!(m_ref[(0, 0)], 1.0);
+
+        // To Matrix (Clone/Copy)
+        let m_owned = m_ref.to_matrix();
+        assert_eq!(m_owned[(2, 1)], 6.0);
+    }
+
+    #[test]
+    fn test_iterators() {
+        let m = setup_matrix();
+
+        // Row Iterator for row 1: [2.0, 5.0]
+        let mut row_iter = m.row_iter(1).unwrap();
+        assert_eq!(row_iter.len(), 2);
+        assert_eq!(row_iter.next(), Some(2.0));
+        assert_eq!(row_iter.next(), Some(5.0));
+        assert_eq!(row_iter.next(), None);
+
+        // Column Iterator for col 1: [4.0, 5.0, 6.0]
+        let mut col_iter = m.col_iter(1).unwrap();
+        assert_eq!(col_iter.len(), 3);
+        assert_eq!(col_iter.next(), Some(4.0));
+        assert_eq!(col_iter.next(), Some(5.0));
+        assert_eq!(col_iter.next(), Some(6.0));
+        assert_eq!(col_iter.next(), None);
+
+        // Invalid indices
+        assert!(m.row_iter(3).is_none());
+        assert!(m.col_iter(2).is_none());
+    }
+
+    #[test]
+    fn test_point_set_trait() {
+        let m = setup_matrix();
+
+        // Basic trait methods
+        assert_eq!(PointSet::size(&m), nz(3));
+        assert_eq!(PointSet::dim(&m), nz(2));
+        assert!(m.exists(2));
+        assert!(!m.exists(3));
+
+        // Coordinate access
+        assert_eq!(m.coord(1, 1), 5.0);
+        assert_eq!(m.try_coord(2, 0), Some(3.0));
+        assert_eq!(m.try_coord(3, 0), None);
+    }
+
+    #[test]
+    fn test_distance_calculations() {
+        // Matrix:
+        // R0: [1, 4]
+        // R1: [2, 5]
+        // Distance R0 to R1: (1-2)^2 + (4-5)^2 = 1 + 1 = 2
+        let m = setup_matrix();
+
+        let dist_sq = m.sq_distance_between(0, 1);
+        assert_eq!(dist_sq, 2.0);
+
+        let same_dist = m.sq_distance_between(2, 2);
+        assert_eq!(same_dist, 0.0);
+
+        assert!(m.try_sq_distance_between(0, 3).is_none());
+    }
+
+    #[test]
+    fn test_resize() {
+        let mut m = setup_matrix(); // 3x2
+        let new_dims = MatrixDims::new(nz(2), nz(2)); // 2x2
+
+        m.resize(new_dims);
+        assert_eq!(m.nrow(), nz(2));
+        assert_eq!(m.ncol(), nz(2));
+        // Verify data was truncated/kept according to layout
+        assert_eq!(m.data.data().len(), 4);
+    }
+
+    #[test]
+    fn test_linear_algebra_stubs() {
+        let m = setup_matrix(); // 3x2
+
+        // mul_vec: rhs must match ncol (2)
+        let vec_good = vec![1.0, 1.0];
+        let vec_bad = vec![1.0, 1.0, 1.0];
+
+        assert!(m.mul_vec(&vec_good).is_some());
+        assert!(m.mul_vec(&vec_bad).is_none());
+
+        // mul_mat: rhs rows (2) must match lhs cols (2)
+        let rhs_good = Matrix::from_value(1.0, MatrixDims::new(nz(2), nz(4)));
+        let rhs_bad = Matrix::from_value(1.0, MatrixDims::new(nz(3), nz(4)));
+
+        assert!(m.mul_mat(&rhs_good).is_some());
+        assert!(m.mul_mat(&rhs_bad).is_none());
+    }
 }

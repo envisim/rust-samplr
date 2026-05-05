@@ -25,6 +25,9 @@ pub fn assert_fvec_eps(v1: &[f64], v2: &[f64], d: f64) {
     }
 }
 
+// Helper for NonZeroUsize
+pub fn nz(n: usize) -> std::num::NonZeroUsize { std::num::NonZeroUsize::new(n).unwrap() }
+
 pub const EPS: f64 = 1e-12;
 
 // DISTS:
