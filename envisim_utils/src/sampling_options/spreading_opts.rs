@@ -45,9 +45,13 @@ impl<P> SpreadingOptions<P> {
         })
     }
     #[inline]
-    pub fn set_bucket_size(mut self, size: usize) -> SamplingOptionsResult<Self> {
-        self.bucket_size =
-            NonZeroUsize::new(size).ok_or(SamplingOptionsError::InvalidBucketSize)?;
+    pub fn set_bucket_size<NZ>(mut self, size: NZ) -> SamplingOptionsResult<Self>
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
+        self.bucket_size = size
+            .try_into()
+            .map_err(|_| SamplingOptionsError::InvalidBucketSize)?;
         Ok(self)
     }
     #[inline]

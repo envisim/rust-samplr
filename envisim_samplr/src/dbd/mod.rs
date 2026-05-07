@@ -34,7 +34,7 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
 };
 use envisim_utils::spatial::PointSet;
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 pub use tc_parameters::{
     DbdConfiguration,
     TacticalConfigurationParameters,
@@ -50,18 +50,15 @@ pub trait DistributionalDesigns {
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-    ///   .unwrap();
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
     /// let dbd_opts = DistributionalDesignOptions::default();
     /// let dbd = opts.dbd_circular(&mut rng, dbd_opts)?;
     /// let s: Vec<usize> = dbd.draw(&mut rng).collect();
-    ///
     /// assert_eq!(s.len(), 2);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -82,18 +79,15 @@ pub trait DistributionalDesigns {
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-    ///   .unwrap();
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
     /// let dbd_opts = DistributionalDesignOptions::default();
     /// let dbd = opts.dbd_tc(&mut rng, dbd_opts)?;
     /// let s: Vec<usize> = dbd.draw(&mut rng).collect();
-    ///
     /// assert_eq!(s.len(), 2);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -132,7 +126,7 @@ pub trait DistributionalDesigns {
         R: RandomNumberGenerator;
 }
 
-impl<SOP, M> DistributionalDesigns for SamplingOptions<'_, ProbabilitySpecEqual, SOP, M>
+impl<SOP, BOP> DistributionalDesigns for SamplingOptions<ProbabilitySpecEqual, SOP, BOP>
 where
     SOP: PointSet<f64>,
 {
@@ -205,7 +199,7 @@ where
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-        let sample_size_float = usize_to_f64(sample_size.get());
+        let sample_size_float = sample_size.get().to_f64().unwrap();
         let eps = self.eps();
         let spreading_data = self.spreading()?.data();
 
@@ -232,7 +226,7 @@ where
                 sd += (energy - mean).powi(2);
             }
 
-            sd = (sd / usize_to_f64(optimal_conf.tcp().n_samples().get())).sqrt();
+            sd = (sd / optimal_conf.tcp().n_samples().get().to_f64().unwrap()).sqrt();
             res.push(mean);
             res.push(sd);
             iters += by;
@@ -258,7 +252,7 @@ where
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-        let sample_size_float = usize_to_f64(sample_size.get());
+        let sample_size_float = sample_size.get().to_f64().unwrap();
         let eps = self.eps();
         let spreading_data = self.spreading()?.data();
 
@@ -276,7 +270,7 @@ where
         };
 
         let mut res: Vec<f64> = Vec::with_capacity(to / by * 2);
-        let n_buckets_float = usize_to_f64(v.tcp().n_samples().get());
+        let n_buckets_float = v.tcp().n_samples().get().to_f64().unwrap();
         let by_nz = unsafe { NonZeroUsize::new_unchecked(by) };
 
         let mut iters = by;

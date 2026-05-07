@@ -457,10 +457,9 @@ impl<N> MidpointSlide<N> {
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::nz;
-
     use super::*;
     use crate::matrix::Matrix;
+    use crate::test_utils::*;
 
     /// Helper to create a NonZeroUsize
 

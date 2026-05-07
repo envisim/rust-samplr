@@ -22,7 +22,7 @@ use envisim_utils::spatial::{
     Number,
     PointSet,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 use rustc_hash::FxHashSet;
 
 use super::runner::PivotalRunner;
@@ -42,16 +42,14 @@ use crate::error::{
 /// ```
 /// # use envisim_samplr::*;
 /// # use envisim_samplr::pivotal_method::hierarchical_lpm_2;
-/// use envisim_utils::random::*;
-/// use envisim_utils::matrix::Matrix;
-///
+/// # use envisim_utils::random::*;
+/// # use envisim_utils::matrix::Matrix;
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
-///
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
@@ -61,9 +59,9 @@ use crate::error::{
 /// Spatially balanced sampling through the pivotal method.
 /// Biometrics, 68(2), 514-520.
 /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-pub fn hierarchical_lpm_2<'a, R, PS, SOP, M, N>(
+pub fn hierarchical_lpm_2<R, PS, SOP, BOP, N>(
     rng: &mut R,
-    options: &'a SamplingOptions<'a, PS, SOP, M>,
+    options: &SamplingOptions<PS, SOP, BOP>,
     sizes: &[usize],
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
@@ -107,7 +105,7 @@ where
 
         pm.controller.sample_mut().clear();
 
-        let prob = usize_to_f64(size) / usize_to_f64(main_sample.len());
+        let prob = size.to_f64().unwrap() / main_sample.len().to_f64().unwrap();
 
         // Reset probs and add to indices/tree
         for id in 0..pm.controller.population_size() {

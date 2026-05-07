@@ -13,7 +13,7 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::spatial::PointSet;
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 /// Energy distance cointainer (or n-energy distance)
 #[derive(Clone, Debug)]
@@ -30,7 +30,7 @@ impl<P> EnergyDistance<P> {
         P: PointSet<f64>,
     {
         let size = matrix.size().get();
-        let u_size = usize_to_f64(size);
+        let u_size = size.to_f64().unwrap();
         let mut phi = vec![0.0; size];
         let mut u_spread = 0.0;
 
@@ -44,7 +44,7 @@ impl<P> EnergyDistance<P> {
             u_spread += phi[id1];
         }
 
-        u_spread *= usize_to_f64(sample_size.get()) / u_size;
+        u_spread *= sample_size.get().to_f64().unwrap() / u_size;
 
         Self {
             matrix,
@@ -88,7 +88,7 @@ impl<P> EnergyDistance<P> {
         }
 
         inter_spread *= 2.0;
-        s_spread *= 2.0 / usize_to_f64(self.sample_size.get());
+        s_spread *= 2.0 / self.sample_size.get().to_f64().unwrap();
         inter_spread - s_spread - self.u_spread
     }
     fn i_delta(&self, add: usize, rem: usize) -> Option<f64> {
@@ -119,7 +119,7 @@ impl<P> EnergyDistance<P> {
             s_spread += self.relative_distance(id, rem, add);
         }
 
-        s_spread *= 2.0 / usize_to_f64(self.sample_size.get());
+        s_spread *= 2.0 / self.sample_size.get().to_f64().unwrap();
         Some(s_spread)
     }
     pub fn delta<I>(&self, sample: I, add: usize, rem: usize) -> Option<f64>

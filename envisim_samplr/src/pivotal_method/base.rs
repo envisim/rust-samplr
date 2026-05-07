@@ -31,8 +31,8 @@ pub struct SequentialStrategy {
     pair: (usize, usize),
 }
 impl SequentialStrategy {
-    pub fn new<PS, SOP, M>(
-        options: &SamplingOptions<'_, PS, SOP, M>,
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
     ) -> PivotalRunner<BasicSampleController<PS::Native>, Self>
     where
         PS: ProbabilitySpec,
@@ -84,8 +84,8 @@ where
 
 pub struct RandomStrategy();
 impl RandomStrategy {
-    pub fn new<PS, SOP, M>(
-        options: &SamplingOptions<'_, PS, SOP, M>,
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
     ) -> PivotalRunner<BasicSampleController<PS::Native>, Self>
     where
         PS: ProbabilitySpec,
@@ -133,7 +133,7 @@ pub trait PivotalSampling {
         R: RandomNumberGenerator;
 }
 
-impl<PS, SOP, M> PivotalSampling for SamplingOptions<'_, PS, SOP, M>
+impl<PS, SOP, BOP> PivotalSampling for SamplingOptions<PS, SOP, BOP>
 where
     PS: ProbabilitySpec,
 {
@@ -142,14 +142,12 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
+    /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let opts = SamplingOptions::new(p.into())?;
     /// let s = opts.spm(&mut rng);
-    ///
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
@@ -170,14 +168,12 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
+    /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let opts = SamplingOptions::new(p.into())?;
     /// let s = opts.rpm(&mut rng);
-    ///
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```

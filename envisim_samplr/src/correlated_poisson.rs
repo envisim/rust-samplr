@@ -25,6 +25,7 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::ProbabilitySpec;
 pub use envisim_utils::sampling_options::{
+    CoordinationOptions,
     SamplingOptions,
     SamplingOptionsError,
     SamplingOptionsResult,
@@ -33,7 +34,7 @@ use envisim_utils::spatial::{
     Number,
     PointSet,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;
 use crate::error::SamplingResult;
@@ -98,24 +99,28 @@ where
 }
 
 pub struct SequentialStrategy<'a> {
-    random_values: Option<&'a [f64]>,
+    random_values: CoordinationOptions<'a>,
     unit: usize,
 }
 impl<'a> SequentialStrategy<'a> {
-    pub fn new<PS, SOP, M>(
-        options: &'a SamplingOptions<'_, PS, SOP, M>,
-    ) -> CorrelatedPoissonRunner<BasicSampleController<FloatProbabilities>, Self>
+    pub fn new<PS, SOP, BOP, C>(
+        options: &'a SamplingOptions<PS, SOP, BOP>,
+        random_values: C,
+    ) -> SamplingResult<CorrelatedPoissonRunner<BasicSampleController<FloatProbabilities>, Self>>
     where
         PS: ProbabilitySpec,
+        C: Into<CoordinationOptions<'a>>,
     {
         let controller = options.to_controller_float();
-        CorrelatedPoissonRunner {
+        let random_values = random_values.into();
+        random_values.check(controller.population_size_nz()?)?;
+        Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values: options.coordination().map(|c| c.data()),
+                random_values,
                 unit: 0,
             },
-        }
+        })
     }
 }
 impl<C> CorrelatedPoissonStrategy<C> for SequentialStrategy<'_>
@@ -126,9 +131,7 @@ where
     where
         R: RandomNumberGenerator,
     {
-        self.random_values
-            .map(|rv| rv[id])
-            .unwrap_or_else(|| rng.rf64())
+        self.random_values.get_or(id, rng)
     }
     fn select_unit<R>(&mut self, controller: &mut C, _rng: &mut R) -> Option<usize>
     where
@@ -180,12 +183,16 @@ where
 }
 
 pub struct SpatialStrategy<'a, N> {
-    random_values: Option<(usize, &'a [f64])>,
+    random_values: CoordinationOptions<'a>,
+    /// Order is used together with random_values, in order to ensure that the selection order is
+    /// the same. If no random values (no coordination), the order is random.
+    order: usize,
     searcher: WeightedSearcher<N>,
 }
 impl<'b, N> SpatialStrategy<'b, N> {
-    pub fn new<PS, SOP, M>(
-        options: &'b SamplingOptions<'_, PS, SOP, M>,
+    pub fn new<PS, SOP, BOP, C>(
+        options: &'b SamplingOptions<PS, SOP, BOP>,
+        random_values: C,
     ) -> SamplingResult<
         CorrelatedPoissonRunner<
             SpreadingSampleController<'b, FloatProbabilities, N, SOP>,
@@ -196,13 +203,17 @@ impl<'b, N> SpatialStrategy<'b, N> {
         N: Number,
         PS: ProbabilitySpec,
         SOP: PointSet<N>,
+        C: Into<CoordinationOptions<'b>>,
     {
         let controller = options.to_spreading_controller_float()?;
         let searcher = WeightedSearcher::new(controller.tree().data());
+        let random_values = random_values.into();
+        random_values.check(controller.population_size_nz()?)?;
         Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values: options.coordination().map(|c| (0, c.data())),
+                random_values,
+                order: 0,
                 searcher,
             },
         })
@@ -267,7 +278,9 @@ fn spatial_update_probabilities<P, N>(
     // It might be tempting to add a case before for when only one unit remains, but the only
     // thing we could save on below is a division by 1.0, as we don't know how much weight can
     // be used.
-    let mut number_of_shares = usize_to_f64(searcher.neighbours().len() - guaranteed_units);
+    let mut number_of_shares = (searcher.neighbours().len() - guaranteed_units)
+        .to_f64()
+        .unwrap();
     for n in searcher.neighbours()[guaranteed_units..].iter() {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
         controller
@@ -288,9 +301,7 @@ where
     where
         R: RandomNumberGenerator,
     {
-        self.random_values
-            .map(|rv| rv.1[id])
-            .unwrap_or_else(|| rng.rf64())
+        self.random_values.get_or(id, rng)
     }
     fn select_unit<R>(
         &mut self,
@@ -304,18 +315,15 @@ where
             return None;
         }
 
-        match self.random_values {
-            Some((ref mut sunit, _)) => {
-                let pop_size = controller.population_size();
-                let unit = controller.indices().seq_after(*sunit, pop_size);
-
-                if let Some(id) = unit {
-                    *sunit = id;
-                }
-
-                unit
+        if self.random_values.is_empty() {
+            controller.indices().draw(rng)
+        } else {
+            let pop_size = controller.population_size();
+            let unit = controller.indices().seq_after(self.order, pop_size);
+            if let Some(id) = unit {
+                self.order = id;
             }
-            None => controller.indices().draw(rng),
+            unit
         }
     }
     fn update_probabilities(
@@ -334,11 +342,11 @@ pub struct LocalStrategy<N> {
     candidates: Vec<usize>,
 }
 impl<N> LocalStrategy<N> {
-    pub fn new<'b, PS, SOP, M>(
-        options: &'b SamplingOptions<'_, PS, SOP, M>,
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
     ) -> SamplingResult<
         CorrelatedPoissonRunner<
-            SpreadingSampleController<'b, FloatProbabilities, N, SOP>,
+            SpreadingSampleController<'_, FloatProbabilities, N, SOP>,
             LocalStrategy<N>,
         >,
     >
@@ -431,58 +439,18 @@ where
 }
 
 pub trait CorrelatedPoissonSampling {
-    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-pub trait SpatiallyCorrelatedPoissonSampling<P, N>
-where
-    P: PointSet<N>,
-    N: Number,
-{
-    fn scps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-    fn lcps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-}
-impl<PS, SOP, M> CorrelatedPoissonSampling for SamplingOptions<'_, PS, SOP, M>
-where
-    PS: ProbabilitySpec,
-{
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
-    /// let s = opts.cps(&mut rng);
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.cps(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
-    /// ```
-    ///
-    /// ## Coordination
-    /// `random_values` are used in order to decide the inclusions of units, allowing for coordination
-    /// between multiple sampling efforts.
-    /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
-    /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let rv = [0.2; 10];
-    /// let opts = SamplingOptions::new(&p)?.set_coordination(&rv)?;
-    /// let s = opts.cps(&mut rng);
-    ///
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
@@ -490,14 +458,94 @@ where
     /// A list sequential sampling method suitable for real‐time sampling.
     /// Scandinavian Journal of Statistics, 35(3), 466-483.
     /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
-    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
+    #[inline]
+    fn cps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
     {
-        SequentialStrategy::new(self).sample(rng)
+        self.cps_coord(rng, CoordinationOptions::new_empty())
+    }
+    fn cps_coord<'b, R, C>(&'b self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'b>>;
+}
+pub trait SpatiallyCorrelatedPoissonSampling<P, N>
+where
+    P: PointSet<N>,
+    N: Number,
+{
+    /// Draw a sample using the spatially correlated poisson sampling method.
+    /// The sample is spatially balanced on the provided auxilliary variables in `data`.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.scps(&mut rng)?;
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # References
+    /// Grafström, A. (2012).
+    /// Spatially correlated Poisson sampling.
+    /// Journal of Statistical Planning and Inference, 142(1), 139-147.
+    /// <https://doi.org/10.1016/j.jspi.2011.07.003>
+    #[inline]
+    fn scps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+    {
+        self.scps_coord(rng, CoordinationOptions::new_empty())
+    }
+    fn scps_coord<'b, R, C>(&'b self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'b>>;
+    fn lcps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+}
+impl<PS, SOP, BOP> CorrelatedPoissonSampling for SamplingOptions<PS, SOP, BOP>
+where
+    PS: ProbabilitySpec,
+{
+    /// Draw a sample using the (sequential) correlated poisson sampling method.
+    /// A variant of the cps where unit competes in order.
+    ///
+    /// `random_values` are used in order to decide the inclusions of units, allowing for coordination
+    /// between multiple sampling efforts.
+    ///
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::from_os_rng();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let rv: Vec<f64> = vec![0.2; 10];
+    /// let s = SamplingOptions::new(p.into())?.cps_coord(&mut rng, rv)?;
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # References
+    /// Bondesson, L., & Thorburn, D. (2008).
+    /// A list sequential sampling method suitable for real‐time sampling.
+    /// Scandinavian Journal of Statistics, 35(3), 466-483.
+    /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
+    fn cps_coord<'b, R, C>(&'b self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'b>>,
+    {
+        Ok(SequentialStrategy::new(self, random_values)?.sample(rng))
     }
 }
-impl<PS, SOP, N, M> SpatiallyCorrelatedPoissonSampling<SOP, N> for SamplingOptions<'_, PS, SOP, M>
+impl<PS, SOP, N, BOP> SpatiallyCorrelatedPoissonSampling<SOP, N> for SamplingOptions<PS, SOP, BOP>
 where
     PS: ProbabilitySpec,
     SOP: PointSet<N>,
@@ -506,41 +554,22 @@ where
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
-    /// # Examples
-    /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
-    /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_spreading(m)?;
-    /// let s = opts.scps(&mut rng)?;
-    ///
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
-    /// ```
-    ///
-    /// ## Coordination
     /// `random_values` are used in order to decide the inclusions of units, allowing for coordination
     /// between multiple sampling efforts.
+    ///
     /// ```
-    /// use envisim_samplr::correlated_poisson::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::correlated_poisson::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let rv = [0.2; 10];
-    /// let opts = SamplingOptions::new(&p)?
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let rv: Vec<f64> = vec![0.2; 10];
+    /// let s = SamplingOptions::new(p.into())?
     ///     .set_spreading(m)?
-    ///     .set_coordination(&rv)?;
-    /// let s = opts.scps(&mut rng)?;
-    ///
+    ///     .scps_coord(&mut rng, rv)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
@@ -548,29 +577,27 @@ where
     /// Spatially correlated Poisson sampling.
     /// Journal of Statistical Planning and Inference, 142(1), 139-147.
     /// <https://doi.org/10.1016/j.jspi.2011.07.003>
-    fn scps<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    fn scps_coord<'b, R, C>(&'b self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'b>>,
     {
-        Ok(SpatialStrategy::new(self)?.sample(rng))
+        Ok(SpatialStrategy::new(self, random_values)?.sample(rng))
     }
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_spreading(m)?;
-    /// let s = opts.lcps(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.lcps(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
@@ -588,53 +615,49 @@ where
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::*;
-    use envisim_utils::matrix::Matrix;
+    use std::borrow::Cow;
+
     use envisim_utils::random::*;
     use envisim_utils::sampling_options::{
-        ProbabilitySpecEqual,
-        ProbabilitySpecUnequal,
+        CoordinationOptions,
         SamplingOptionsError,
     };
+    use envisim_utils::test_utils::*;
 
     use super::*;
 
     const RV_0: [f64; 10] = [0.0; 10];
     const RV_1: [f64; 10] = [1.0; 10];
 
-    fn options_ue() -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>, (), ()> {
-        SamplingOptions::new(&PROB_10_E).unwrap()
-    }
-    fn options_coord(
-        zero: bool,
-    ) -> SamplingOptions<'static, ProbabilitySpecUnequal<'static>, (), ()> {
-        options_ue()
-            .set_coordination(if zero { &RV_0 } else { &RV_1 })
-            .unwrap()
-    }
+    fn coord_0() -> CoordinationOptions<'static> { Cow::from(&RV_0).into() }
+    fn coord_1() -> CoordinationOptions<'static> { Cow::from(&RV_1).into() }
 
     #[test]
     fn cps_sampler() -> Result<(), SamplingOptionsError> {
         let mut rng = SmallRng::seed_from_u64(42);
 
-        let options = options_coord(true);
-        let mut cps = options.to_cps();
+        let options = Data10::options_e();
+        let mut cps = SequentialStrategy::new(&options, coord_0()).unwrap();
         assert_eq!(cps.decide_unit(&mut rng, 7), (0.2, -0.8));
 
-        let options = options_coord(false);
-        let mut cps = options.to_cps();
+        let mut cps = SequentialStrategy::new(&options, coord_1()).unwrap();
         assert_eq!(cps.decide_unit(&mut rng, 7), (0.2, 0.2));
         Ok(())
     }
 
-    fn decide_and_update<'a, R, C, S>(cps: &mut C, rng: &mut R, id: usize) -> (f64, f64)
+    fn decide_and_update<'a, R, C, S>(
+        cps: &mut CorrelatedPoissonRunner<C, S>,
+        rng: &mut R,
+        id: usize,
+    ) -> (f64, f64)
     where
         R: RandomNumberGenerator,
-        C: CorrelatedPoisson<S>,
-        S: SampleController<Store = FloatProbabilities>,
+        C: SampleController<Store = FloatProbabilities>,
+        S: CorrelatedPoissonStrategy<C>,
     {
         let (p, q) = cps.decide_unit(rng, id);
-        cps.update_probabilities(id, p, q);
+        cps.strategy
+            .update_probabilities(&mut cps.controller, id, p, q);
         (p, q)
     }
 
@@ -642,16 +665,16 @@ mod tests {
     fn cps_variant() {
         let mut rng = SmallRng::seed_from_u64(42);
 
-        let options = options_coord(true);
-        let mut cpsv = options.to_cps();
+        let options = Data10::options_e();
+        let mut cpsv = SequentialStrategy::new(&options, coord_0()).unwrap();
         decide_and_update(&mut cpsv, &mut rng, 0);
         assert_fvec(
             &cpsv.controller.probabilities().data()[1..=4],
             &vec![0.0; 4],
         );
 
-        let options = options_coord(false);
-        let mut cpsv = options.to_cps();
+        let options = Data10::options_e();
+        let mut cpsv = SequentialStrategy::new(&options, coord_1()).unwrap();
         decide_and_update(&mut cpsv, &mut rng, 0);
         assert_fvec(
             &cpsv.controller.probabilities().data()[1..=4],
@@ -661,25 +684,21 @@ mod tests {
         // let options = options_ue();
         println!("CPS1");
         let mut rng = SmallRng::seed_from_u64(42);
-        let options = options_ue();
-        let s = options.cps(&mut rng);
+        let options = Data10::options_e();
+        let s = options.cps(&mut rng).unwrap();
         assert_eq!(s.len(), 2);
         println!("CPS2");
-        // let mut rng = SmallRng::seed_from_u64(42);
-        let options: SamplingOptions<'static, ProbabilitySpecEqual> = (10, 2).try_into().unwrap();
-        let s = options.cps(&mut rng);
+        let options = Data10::options_e();
+        let s = options.cps(&mut rng).unwrap();
         assert_eq!(s.len(), 2);
     }
 
     #[test]
     fn scps_variant() {
         let mut rng = SmallRng::seed_from_u64(42);
-        let data = Matrix::new(&DATA_10_2, 10).unwrap();
 
-        let options = options_coord(true)
-            .set_spreading(data.clone_shallow())
-            .unwrap();
-        let mut cps = options.to_scps().unwrap();
+        let options = Data10::options_e();
+        let mut cps = SpatialStrategy::new(&options, coord_0()).unwrap();
         decide_and_update(&mut cps, &mut rng, 0);
         println!("{:?}", cps.controller.probabilities().data());
         assert_delta!(cps.controller.probabilities().get(1), 0.0);
@@ -687,10 +706,7 @@ mod tests {
         assert_delta!(cps.controller.probabilities().get(4), 0.0);
         assert_delta!(cps.controller.probabilities().get(2), 0.0);
 
-        let options = options_coord(false)
-            .set_spreading(data.clone_shallow())
-            .unwrap();
-        let mut cps = options.to_scps().unwrap();
+        let mut cps = SpatialStrategy::new(&options, coord_1()).unwrap();
         decide_and_update(&mut cps, &mut rng, 9);
         assert_delta!(cps.controller.probabilities().get(4), 0.25);
         assert_delta!(cps.controller.probabilities().get(2), 0.25);
@@ -701,10 +717,11 @@ mod tests {
     #[test]
     fn lcps_variant() {
         let mut rng = SmallRng::seed_from_u64(42);
-        let data = Matrix::new(&DATA_10_2, 10).unwrap();
-
-        let options = options_coord(true).set_spreading(data).unwrap();
-        let mut cps = options.to_lcps().unwrap();
-        assert_eq!(cps.select_unit(&mut rng), Some(8));
+        let options = Data10::options_e();
+        let mut cps = LocalStrategy::new(&options).unwrap();
+        assert_eq!(
+            cps.strategy.select_unit(&mut cps.controller, &mut rng),
+            Some(8)
+        );
     }
 }

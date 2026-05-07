@@ -853,10 +853,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::nz;
 
     use super::*;
     use crate::matrix::Matrix;
+    use crate::test_utils::*;
 
     // Helper to create a 2D Matrix PointSet
     fn setup_matrix() -> Matrix<f64> {

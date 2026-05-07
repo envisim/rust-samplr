@@ -15,7 +15,7 @@ use std::num::NonZeroUsize;
 pub use config::*;
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::spatial::PointSet;
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 use super::DistributionalDesignOptions;
 use super::annealing::{
@@ -234,7 +234,7 @@ where
                 continue;
             }
 
-            let m_f64 = ((2 * (m1 - m2)) as f64) / usize_to_f64(sample_size);
+            let m_f64 = ((2 * (m1 - m2)) as f64) / sample_size.to_f64().unwrap();
 
             let id = self.configuration.sequence_get(k).unwrap();
             let delta = self.ed.relative_distance(id, id1, id2);
@@ -257,7 +257,7 @@ where
             let abs_dist = k2.abs_diff(k);
             let dist = abs_dist.min(population_size - abs_dist);
             let m_f64: f64 = if dist < sample_size {
-                ((2 * (sample_size - dist)) as f64) / usize_to_f64(sample_size)
+                (2 * (sample_size - dist)).to_f64().unwrap() / sample_size.to_f64().unwrap()
             } else {
                 continue;
             };

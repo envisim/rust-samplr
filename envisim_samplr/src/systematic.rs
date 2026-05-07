@@ -18,7 +18,7 @@ use envisim_utils::sampling_options::{
     ProbabilitySpecEqual,
     SamplingOptions,
 };
-use envisim_utils::utils::f64_to_usize;
+use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;
@@ -48,7 +48,7 @@ where
     R: RandomNumberGenerator,
 {
     let mut sample =
-        Vec::<usize>::with_capacity(f64_to_usize(probabilities.iter().sum::<f64>().ceil()));
+        Vec::<usize>::with_capacity(probabilities.iter().sum::<f64>().ceil().to_usize().unwrap());
     let mut r = rng.rf64();
     let mut psum: f64 = 0.0;
 
@@ -73,7 +73,7 @@ pub trait SystematicSampling {
     where
         R: RandomNumberGenerator;
 }
-impl<PS> SystematicSampling for SamplingOptions<'_, PS>
+impl<PS, SOP, BOP> SystematicSampling for SamplingOptions<PS, SOP, BOP>
 where
     PS: ProbabilitySpec,
 {
@@ -81,14 +81,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
-    /// let s = opts.systematic(&mut rng);
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.systematic(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -109,14 +106,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
-    /// let s = opts.systematic_random_order(&mut rng);
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.systematic_random_order(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```

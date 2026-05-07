@@ -20,10 +20,7 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
 };
-use envisim_utils::utils::{
-    f64_to_usize,
-    usize_to_f64,
-};
+use num_traits::ToPrimitive;
 
 pub use crate::error::{
     SamplingError,
@@ -81,22 +78,19 @@ pub trait UnequalProbabilitySampling {
     where
         R: RandomNumberGenerator;
 }
-impl<'a, SOP, M> UnequalProbabilitySampling
-    for SamplingOptions<'a, ProbabilitySpecUnequal<'a>, SOP, M>
+impl<SOP, BOP> UnequalProbabilitySampling
+    for SamplingOptions<ProbabilitySpecUnequal<'_>, SOP, BOP>
 {
     /// Draw a with replacment sample according to draw probabilities
     /// Probabilities must sum to 1.0.
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.1; 10];
-    /// let options = SamplingOptions::new(&p)?;
-    /// let s = options.with_replacement(&mut rng, 5)?;
-    ///
+    /// let p: Vec<f64> = vec![0.1; 10];
+    /// let s = SamplingOptions::new(p.into())?.with_replacement(&mut rng, 5)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -159,14 +153,11 @@ impl<'a, SOP, M> UnequalProbabilitySampling
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let options = SamplingOptions::new(&p)?;
-    /// let s = options.sampford(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.sampford(&mut rng)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -178,7 +169,7 @@ impl<'a, SOP, M> UnequalProbabilitySampling
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
         let sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            f64_to_usize(psum)
+            psum.to_usize().unwrap()
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
@@ -202,13 +193,8 @@ impl<'a, SOP, M> UnequalProbabilitySampling
 
             // Since sample is ordered, we don't need to check units with
             // higher id than a_unit
-            if sample
-                .iter()
-                .find(|&&id| id >= a_unit)
-                .is_some_and(|&id| id != a_unit)
-            {
-                sample.push(a_unit);
-                sample.sort_unstable();
+            if let Err(pos) = sample.binary_search(&a_unit) {
+                sample.insert(pos, a_unit);
                 return Ok(sample);
             }
         }
@@ -220,14 +206,11 @@ impl<'a, SOP, M> UnequalProbabilitySampling
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let options = SamplingOptions::new(&p)?;
-    /// let s = options.pareto(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.pareto(&mut rng)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -244,7 +227,7 @@ impl<'a, SOP, M> UnequalProbabilitySampling
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
         let sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            f64_to_usize(psum)
+            psum.to_usize().unwrap()
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
@@ -278,14 +261,11 @@ impl<'a, SOP, M> UnequalProbabilitySampling
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
-    /// let s = opts.brewer(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.brewer(&mut rng)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -297,7 +277,7 @@ impl<'a, SOP, M> UnequalProbabilitySampling
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
         let mut sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            f64_to_usize(psum)
+            psum.to_usize().unwrap()
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
@@ -322,12 +302,19 @@ impl<'a, SOP, M> UnequalProbabilitySampling
             let mut psum = 0.0;
             for &id in indices.list() {
                 let p = probabilities[id];
-                q_probs[id] = p * (n_d - p) / (n_d - p * usize_to_f64(sample_size - i + 1));
+                let remaining_draws = (sample_size - i).to_f64().unwrap();
+                q_probs[id] = p * (n_d - p) / (n_d - p * remaining_draws);
                 psum += q_probs[id];
             }
 
             for &id in indices.list() {
                 q_probs[id] /= psum;
+                assert!(
+                    (0.0..=1.0).contains(&q_probs[id]),
+                    "invalid q_probs {} for {}",
+                    q_probs[id],
+                    id
+                );
             }
 
             let a_unit = draw(rng, &q_probs);
@@ -344,13 +331,11 @@ impl<'a, SOP, M> UnequalProbabilitySampling
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(&p)?;
-    /// let s = opts.poisson(&mut rng);
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
     /// # Ok::<(), SamplingError>(())
     /// ```
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
@@ -366,13 +351,11 @@ impl<'a, SOP, M> UnequalProbabilitySampling
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let options = SamplingOptions::new(&p)?;
-    /// let s = options.conditional_poisson(&mut rng, 5);
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
     /// # Ok::<(), SamplingError>(())
     /// ```
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>

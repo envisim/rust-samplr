@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Fixed bug in `brewer` unequal probability sampling.
+- Removed `usize_to_f64` and `f64_to_usize` from utils, in favour of `num_traits`.
 
 ## [0.5.0] - 2026-03-27
 - Bump `envisim_utils`.

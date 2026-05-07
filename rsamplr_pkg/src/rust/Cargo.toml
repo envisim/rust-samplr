@@ -1,38 +1,25 @@
 [package]
 name = "rsamplr"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 license = "AGPL-3.0-only"
 publish = false
-rust-version = "1.84.1"
 
 [lib]
 crate-type = ["staticlib", "lib"]
 
 [dependencies]
+num-traits = "0.2.19"
 savvy = "0.9.2"
-envisim_estimate = {version="0.4.0"}
-envisim_samplr = {version="0.5.0"}
-envisim_utils = {version="0.4.0", default-features=false}
-# envisim_estimate = {version="*", path="../../../envisim_estimate"}
-# envisim_samplr = {version="*", path="../../../envisim_samplr"}
-# envisim_utils = {version="*", path="../../../envisim_utils", default-features=false}
+# envisim_estimate = {version="0.4.0"}
+# envisim_samplr = {version="0.5.0"}
+# envisim_utils = {version="0.4.0", default-features=false}
+envisim_estimate = {version="*", path="../../../envisim_estimate"}
+envisim_samplr = {version="*", path="../../../envisim_samplr"}
+envisim_utils = {version="*", path="../../../envisim_utils", default-features=false}
 
-[lints.clippy]
-assertions_on_result_states = "warn"
-cast_lossless = "warn"
-cast_possible_wrap = "warn"
-cognitive_complexity = "warn"
-equatable_if_let = "warn"
-exhaustive_enums = "deny"
-from_iter_instead_of_collect = "warn"
-get_unwrap = "warn"
-if_not_else = "warn"
-if_then_some_else_none = "warn"
-imprecise_flops = "warn"
-match_bool = "warn"
-needless_collect = "warn"
-too_many_arguments = "allow"
+[lints]
+workspace = true
 
 [profile.release]
 # By default, on release build, savvy terminates the R session when a panic

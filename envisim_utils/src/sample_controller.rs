@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::num::NonZeroUsize;
+
 use crate::indices::Indices;
 use crate::kd_tree::{
     PointSet,
@@ -19,6 +21,7 @@ use crate::number_traits::Number;
 use crate::probabilities::ProbabilityStore;
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
+    SamplingOptionsError,
     SamplingOptionsResult,
     SpreadingOptions,
 };
@@ -77,6 +80,10 @@ pub trait SampleController {
 
     #[inline]
     fn population_size(&self) -> usize { self.probabilities().len() }
+    #[inline]
+    fn population_size_nz(&self) -> SamplingOptionsResult<NonZeroUsize> {
+        NonZeroUsize::new(self.population_size()).ok_or(SamplingOptionsError::InvalidPopulationSize)
+    }
 
     #[inline]
     fn draw<R: RandomNumberGenerator>(
@@ -263,18 +270,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::nz;
-
     use super::*;
-    use crate::sampling_options::{
-        ProbabilitySpecUnequal,
-        SamplingOptions,
-    };
+    use crate::sampling_options::SamplingOptions;
+    use crate::test_utils::*;
 
     #[test]
     fn basic_controller_from_options() {
-        let probs = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-        let opts: SamplingOptions<ProbabilitySpecUnequal> = probs.as_slice().try_into().unwrap();
+        let opts = SamplingOptions::with_spec(Data10::prob_u()).unwrap();
         let controller = opts.to_controller();
         assert_eq!(controller.population_size(), 10);
     }

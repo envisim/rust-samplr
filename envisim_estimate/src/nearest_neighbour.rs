@@ -21,7 +21,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SpreadingOptions,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -63,7 +63,7 @@ where
     for i in 0..population_size {
         searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
         searcher.search(&tree).unwrap();
-        let partial_prob = 1.0 / usize_to_f64(searcher.neighbours().len());
+        let partial_prob = 1.0 / searcher.neighbours().len().to_f64().unwrap();
 
         for n in searcher.neighbours().iter() {
             *number_of_neighbours.get_mut(&n.id()).unwrap() += partial_prob;

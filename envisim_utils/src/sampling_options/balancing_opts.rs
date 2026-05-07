@@ -11,15 +11,14 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::SamplingOptionsResult;
-use crate::matrix::MatrixRef;
 
 #[derive(Clone, Debug)]
-pub struct BalancingOptions<'a, N> {
-    data: MatrixRef<'a, N>,
+pub struct BalancingOptions<P> {
+    data: P,
 }
-impl<'a, N> BalancingOptions<'a, N> {
+impl<P> BalancingOptions<P> {
     #[inline]
-    pub fn new(data: MatrixRef<'a, N>) -> SamplingOptionsResult<Self> { Ok(Self { data }) }
+    pub fn data(&self) -> &P { &self.data }
     #[inline]
-    pub fn data(&self) -> &MatrixRef<'a, N> { &self.data }
+    pub fn new(data: P) -> SamplingOptionsResult<Self> { Ok(Self { data }) }
 }

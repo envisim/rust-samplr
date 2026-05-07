@@ -12,11 +12,12 @@
 
 //! Functions for calculating probabilities proportional to size
 
+use num_traits::ToPrimitive;
+
 use crate::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
 };
-use crate::utils::usize_to_f64;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
@@ -60,7 +61,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
         return Err(PipsError::InvalidAuxiliary);
     }
 
-    let mut n = usize_to_f64(sample_size);
+    let mut n = sample_size.to_f64().unwrap();
 
     let mut pips = FloatProbabilities::new_equal_f64(0.0, arr.len(), 1e-12);
     let mut failed: bool = true;
@@ -109,5 +110,41 @@ impl std::fmt::Display for PipsError {
             InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
             NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+
+    #[test]
+    fn pps() {
+        let dt1 = vec![1.0f64, 2.0, 3.0, 4.0];
+        let dt2 = vec![-1.0f64, 2.0, 3.0, 4.0];
+
+        assert_fvec(
+            pps_from_slice(&dt1).unwrap().data(),
+            &vec![0.1, 0.2, 0.3, 0.4],
+        );
+
+        assert!(pps_from_slice(&dt2).is_err());
+    }
+
+    #[test]
+    fn pips() {
+        let dt1 = vec![1.0f64, 2.0, 3.0, 4.0];
+        let dt2 = vec![-1.0f64, 2.0, 3.0, 4.0];
+        let dt3 = vec![1.0f64, 1.0, 1.0, 7.0];
+
+        let pips1 = pips_from_slice(&dt1, 2).unwrap();
+        assert_fvec(pips1.data(), &vec![0.2, 0.4, 0.6, 0.8]);
+
+        assert!(pips_from_slice(&dt2, 2).is_err());
+
+        assert_fvec(
+            pips_from_slice(&dt3, 2).unwrap().data(),
+            &vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0],
+        );
     }
 }

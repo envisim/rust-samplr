@@ -306,12 +306,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::nz;
     use searcher::NearestNeighbourSearcher;
 
     use super::*;
     use crate::matrix::Matrix;
     use crate::sampling_options::SpreadingOptions;
+    use crate::test_utils::*;
 
     /// Setup a 2D Matrix with 4 points: (0,0), (1,0), (0,1), (1,1)
     fn setup() -> SpreadingOptions<Matrix<f64>> {

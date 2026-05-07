@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+  "envisim_utils",
+  "envisim_estimate",
+  "envisim_samplr",
+  "rsamplr_pkg/src/rust",
+]
+
+[workspace.lints.clippy]
+assertions_on_result_states = "warn"
+cargo_common_metadata = "warn"
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+cognitive_complexity = "warn"
+equatable_if_let = "warn"
+exhaustive_enums = "deny"
+from_iter_instead_of_collect = "warn"
+get_unwrap = "warn"
+if_not_else = "warn"
+if_then_some_else_none = "warn"
+imprecise_flops = "warn"
+match_bool = "warn"
+needless_collect = "warn"

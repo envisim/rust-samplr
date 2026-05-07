@@ -48,20 +48,19 @@ where
 /// # use envisim_estimate::balance::*;
 /// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(
 ///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
 ///     std::num::NonZeroUsize::new(10).unwrap(),
 /// ).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-///
-/// // let sb = balance_deviation_spreading(&s, &options).unwrap();
+/// let sb = balance_deviation_spreading(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_spreading<PS, SOP, M>(
+pub fn balance_deviation_spreading<PS, SOP, BOP>(
     sample: &[usize],
-    options: &SamplingOptions<'_, PS, SOP, M>,
+    options: &SamplingOptions<PS, SOP, BOP>,
 ) -> Option<Vec<f64>>
 where
     PS: ProbabilitySpec,
@@ -88,24 +87,23 @@ where
 /// # use envisim_estimate::balance::*;
 /// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(
 ///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
 ///     std::num::NonZeroUsize::new(10).unwrap(),
 /// ).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_balancing(m)?;
+/// let options = SamplingOptions::new(p.into())?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
-///
-/// // let sb = balance_deviation_balancing(&s, &options).unwrap();
+/// let sb = balance_deviation_balancing(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_balancing<PS, SOP, M>(
+pub fn balance_deviation_balancing<PS, SOP, BOP>(
     sample: &[usize],
-    options: &SamplingOptions<'_, PS, SOP, M>,
+    options: &SamplingOptions<PS, SOP, BOP>,
 ) -> Option<Vec<f64>>
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<f64>,
+    BOP: PointSet<f64>,
 {
     let population_size = options.population_size().get();
 
@@ -113,10 +111,42 @@ where
         return None;
     }
 
-    let balancing = options.spreading().ok()?;
+    let balancing = options.balancing().ok()?;
     Some(balance_deviation(
         sample,
         &options.probabilities().as_f64_slice(),
         balancing.data(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use envisim_utils::sampling_options::SamplingOptions;
+    use envisim_utils::test_utils::*;
+
+    use super::*;
+
+    #[test]
+    fn test_balance() {
+        let data = Data10::matrix();
+        let spec = Data10::prob_e();
+        let p = spec.as_f64();
+        let options = SamplingOptions::with_spec_equal(spec)
+            .unwrap()
+            .set_spreading(&data)
+            .unwrap();
+
+        let sb = balance_deviation_spreading(&[0], &options).unwrap();
+        let dev = vec![
+            data.col_iter(0).unwrap().sum::<f64>() - data[(0, 0)] / p,
+            data.col_iter(1).unwrap().sum::<f64>() - data[(0, 1)] / p,
+        ];
+
+        assert_fvec(&sb, &dev);
+
+        let options = options.set_balancing(&data).unwrap();
+        let sb = balance_deviation_balancing(&[0], &options).unwrap();
+
+        assert_fvec(&sb, &dev);
+    }
 }

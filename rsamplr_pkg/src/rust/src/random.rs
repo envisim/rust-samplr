@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 pub use envisim_utils::random::RandomNumberGenerator;
 
-extern "C" {
+unsafe extern "C" {
     fn GetRNGstate();
     fn PutRNGstate();
     fn unif_rand() -> f64;

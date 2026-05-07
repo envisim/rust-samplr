@@ -16,6 +16,7 @@ mod error;
 mod probability_spec;
 mod spreading_opts;
 
+use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
 pub use balancing_opts::BalancingOptions;
@@ -31,7 +32,7 @@ pub use probability_spec::{
 };
 pub use spreading_opts::SpreadingOptions;
 
-use crate::matrix::MatrixRef;
+use crate::matrix::Dimensions;
 use crate::number_traits::Number;
 use crate::probabilities::FloatProbabilities;
 use crate::sample_controller::{
@@ -41,17 +42,16 @@ use crate::sample_controller::{
 use crate::spatial::PointSet;
 
 #[derive(Clone, Debug)]
-pub struct SamplingOptions<'a, PS, SOP = (), M = ()> {
+pub struct SamplingOptions<PS, SOP = (), BOP = ()> {
     probabilities: PS,
     eps: f64,
     max_iterations: NonZeroUsize,
-    coordination: Option<CoordinationOptions<'a>>,
 
     spreading: Option<SpreadingOptions<SOP>>,
-    balancing: Option<BalancingOptions<'a, M>>,
+    balancing: Option<BalancingOptions<BOP>>,
 }
 
-impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
+impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     // ACCESSORS
     #[inline]
     pub fn probabilities(&self) -> &PS { &self.probabilities }
@@ -74,15 +74,13 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
     #[inline]
     pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
     #[inline]
-    pub fn coordination(&self) -> Option<&CoordinationOptions<'a>> { self.coordination.as_ref() }
-    #[inline]
     pub fn spreading(&self) -> SamplingOptionsResult<&SpreadingOptions<SOP>> {
         self.spreading
             .as_ref()
             .ok_or(SamplingOptionsError::MissingSpreading)
     }
     #[inline]
-    pub fn balancing(&self) -> SamplingOptionsResult<&BalancingOptions<'a, M>> {
+    pub fn balancing(&self) -> SamplingOptionsResult<&BalancingOptions<BOP>> {
         self.balancing
             .as_ref()
             .ok_or(SamplingOptionsError::MissingBalancing)
@@ -98,22 +96,13 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
         Ok(self)
     }
     #[inline]
-    pub fn set_max_iterations(mut self, max: NonZeroUsize) -> SamplingOptionsResult<Self> {
-        self.max_iterations = max;
-        Ok(self)
-    }
-    #[inline]
-    pub fn set_coordination(
-        mut self,
-        random_values: &'a [f64],
-    ) -> Result<Self, SamplingOptionsError>
+    pub fn set_max_iterations<NZ>(mut self, max: NZ) -> SamplingOptionsResult<Self>
     where
-        PS: ProbabilitySpec,
+        NZ: TryInto<NonZeroUsize>,
     {
-        if random_values.len() < self.population_size().get() {
-            return Err(SamplingOptionsError::InvalidRandomValues);
-        }
-        self.coordination = Some(CoordinationOptions::new(random_values)?);
+        self.max_iterations = max
+            .try_into()
+            .map_err(|_| SamplingOptionsError::InvalidIterations)?;
         Ok(self)
     }
 
@@ -121,7 +110,7 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
     pub fn set_spreading<NewSOP, N>(
         self,
         data: NewSOP,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, NewSOP, M>>
+    ) -> SamplingOptionsResult<SamplingOptions<PS, NewSOP, BOP>>
     where
         PS: ProbabilitySpec,
         NewSOP: PointSet<N>,
@@ -133,7 +122,6 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             probabilities: self.probabilities,
             eps: self.eps,
             max_iterations: self.max_iterations,
-            coordination: self.coordination,
             spreading: Some(SpreadingOptions::new(data)?),
             balancing: self.balancing,
         })
@@ -142,7 +130,7 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
     pub fn set_spreading_opts<NewSOP, N>(
         self,
         spreading: SpreadingOptions<NewSOP>,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, NewSOP, M>>
+    ) -> SamplingOptionsResult<SamplingOptions<PS, NewSOP, BOP>>
     where
         PS: ProbabilitySpec,
         NewSOP: PointSet<N>,
@@ -154,18 +142,18 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             probabilities: self.probabilities,
             eps: self.eps,
             max_iterations: self.max_iterations,
-            coordination: self.coordination,
             spreading: Some(spreading),
             balancing: self.balancing,
         })
     }
     #[inline]
-    pub fn set_balancing<NewM>(
+    pub fn set_balancing<NewBOP>(
         self,
-        data: MatrixRef<'a, NewM>,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, SOP, NewM>>
+        data: NewBOP,
+    ) -> SamplingOptionsResult<SamplingOptions<PS, SOP, NewBOP>>
     where
         PS: ProbabilitySpec,
+        NewBOP: Dimensions,
     {
         if data.nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
@@ -174,18 +162,18 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             probabilities: self.probabilities,
             eps: self.eps,
             max_iterations: self.max_iterations,
-            coordination: self.coordination,
             spreading: self.spreading,
             balancing: Some(BalancingOptions::new(data)?),
         })
     }
     #[inline]
-    pub fn set_balancing_opts<NewM>(
+    pub fn set_balancing_opts<NewBOP>(
         self,
-        balancing: BalancingOptions<'a, NewM>,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, PS, SOP, NewM>>
+        balancing: BalancingOptions<NewBOP>,
+    ) -> SamplingOptionsResult<SamplingOptions<PS, SOP, NewBOP>>
     where
         PS: ProbabilitySpec,
+        NewBOP: Dimensions,
     {
         if balancing.data().nrow() != self.population_size() {
             return Err(SamplingOptionsError::InvalidBalancing);
@@ -194,7 +182,6 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
             probabilities: self.probabilities,
             eps: self.eps,
             max_iterations: self.max_iterations,
-            coordination: self.coordination,
             spreading: self.spreading,
             balancing: Some(balancing),
         })
@@ -259,62 +246,48 @@ impl<'a, PS, SOP, M> SamplingOptions<'a, PS, SOP, M> {
     }
 }
 
-impl<'a> SamplingOptions<'a, ProbabilitySpecUnequal<'a>> {
+impl<'a> SamplingOptions<ProbabilitySpecUnequal<'a>> {
     #[inline]
     pub fn new(
-        probabilities: &'a [f64],
-    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()>> {
+        probabilities: Cow<'a, [f64]>,
+    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecUnequal<'a>, (), ()>> {
         Self::with_spec(ProbabilitySpecUnequal::new(probabilities)?)
     }
     #[inline]
     pub fn with_spec(
         spec: ProbabilitySpecUnequal<'a>,
-    ) -> SamplingOptionsResult<SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()>> {
+    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecUnequal<'a>, (), ()>> {
         const EPS: f64 = 1e-9;
         Ok(SamplingOptions {
             probabilities: spec,
             eps: EPS,
             max_iterations: NonZeroUsize::new(1000).unwrap(),
-            coordination: None,
             spreading: None,
             balancing: None,
         })
     }
 }
-impl SamplingOptions<'_, ProbabilitySpecEqual> {
+impl SamplingOptions<ProbabilitySpecEqual> {
     #[inline]
-    pub fn new_equal(
-        population_size: NonZeroUsize,
+    pub fn new_equal<NZ>(
+        population_size: NZ,
         sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, (), ()>> {
+    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecEqual, (), ()>>
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
         Self::with_spec_equal(ProbabilitySpecEqual::new(population_size, sample_size)?)
     }
     #[inline]
     pub fn with_spec_equal(
         spec: ProbabilitySpecEqual,
-    ) -> SamplingOptionsResult<SamplingOptions<'static, ProbabilitySpecEqual, (), ()>> {
+    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecEqual, (), ()>> {
         Ok(SamplingOptions {
             probabilities: spec,
             eps: 1e-9,
             max_iterations: NonZeroUsize::new(1000).unwrap(),
-            coordination: None,
             spreading: None,
             balancing: None,
         })
-    }
-}
-
-impl<'a> TryFrom<&'a [f64]> for SamplingOptions<'a, ProbabilitySpecUnequal<'a>, (), ()> {
-    type Error = SamplingOptionsError;
-    #[inline]
-    fn try_from(probabilities: &'a [f64]) -> Result<Self, Self::Error> { Self::new(probabilities) }
-}
-impl TryFrom<(NonZeroUsize, usize)> for SamplingOptions<'static, ProbabilitySpecEqual, (), ()> {
-    type Error = SamplingOptionsError;
-    #[inline]
-    fn try_from(
-        (population_size, sample_size): (NonZeroUsize, usize),
-    ) -> Result<Self, Self::Error> {
-        Self::new_equal(population_size, sample_size)
     }
 }

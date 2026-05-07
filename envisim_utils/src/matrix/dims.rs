@@ -83,6 +83,28 @@ impl From<MatrixDims> for (usize, usize) {
     fn from(value: MatrixDims) -> Self { (value.rows.get(), value.cols.get()) }
 }
 
+pub trait Dimensions {
+    /// Returns the dimensions of the object
+    fn dims(&self) -> MatrixDims;
+    /// Returns the number of rows of the object
+    #[inline]
+    fn nrow(&self) -> NonZeroUsize { self.dims().rows }
+    /// Returns the number of columns of the object
+    #[inline]
+    fn ncol(&self) -> NonZeroUsize { self.dims().cols }
+}
+impl<D> Dimensions for &D
+where
+    D: Dimensions + ?Sized,
+{
+    #[inline]
+    fn dims(&self) -> MatrixDims { (**self).dims() }
+    #[inline]
+    fn nrow(&self) -> NonZeroUsize { (**self).nrow() }
+    #[inline]
+    fn ncol(&self) -> NonZeroUsize { (**self).ncol() }
+}
+
 /// A zero-indexed position within a matrix: (`row`, `col`)
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MatrixCoord {

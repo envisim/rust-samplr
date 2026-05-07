@@ -10,13 +10,14 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use num_traits::ToPrimitive;
+
 use crate::kd_tree::searcher::WeightCollection;
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
     ProbabilitySpec,
     ProbabilitySpecEqual,
 };
-use crate::utils::usize_to_f64;
 
 pub struct FloatProbabilities {
     data: Vec<f64>,
@@ -32,7 +33,8 @@ impl FloatProbabilities {
     }
     #[inline]
     pub fn new_equal(spec: ProbabilitySpecEqual, eps: f64) -> Self {
-        let p = usize_to_f64(spec.sample_size()) / usize_to_f64(spec.population_size().get());
+        let p =
+            spec.sample_size().to_f64().unwrap() / spec.population_size().get().to_f64().unwrap();
         Self::new(vec![p; spec.population_size().get()], eps)
     }
     #[inline]
@@ -166,4 +168,37 @@ impl WeightCollection for FloatProbabilities {
     fn get_weight(&self, id: usize) -> f64 { self.get(id) }
     #[inline]
     fn try_get_weight(&self, id: usize) -> Option<f64> { self.data().get(id).copied() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+
+    static PROBABILITY_ARR: [f64; 6] = [0.1, 0.2, 0.0, 1.0, 0.6, 0.8];
+    fn prob_new(eps: f64) -> FloatProbabilities {
+        FloatProbabilities::new(PROBABILITY_ARR.to_vec(), eps)
+    }
+
+    #[test]
+    fn is_zero() {
+        let p = prob_new(EPS);
+        assert!(!p.is_zero(0));
+        assert!(p.is_zero(2));
+        assert!(!p.is_max(0));
+        assert!(p.is_max(3));
+
+        let mut p = prob_new(1e-2);
+        p.set(0, 0.999);
+        assert!(p.is_max(0));
+    }
+
+    #[test]
+    fn weight() {
+        let p = prob_new(EPS);
+        assert_delta!(p.weight(0, 1), 0.2 / 0.9);
+        assert_delta!(p.weight_to(0.1, 1), 0.2 / 0.9);
+        assert_delta!(p.weight(4, 5), 0.2 / 0.6);
+        assert_delta!(p.weight_to(0.6, 5), 0.2 / 0.6);
+    }
 }

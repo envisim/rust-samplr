@@ -29,18 +29,15 @@ pub trait EqualProbabilitySampling {
     where
         R: RandomNumberGenerator;
 }
-impl<SOP, M> EqualProbabilitySampling for SamplingOptions<'_, ProbabilitySpecEqual, SOP, M> {
+impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual, SOP, BOP> {
     /// Draw a simple random sample without replacement
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.srs(&mut rng);
-    ///
+    /// let s = SamplingOptions::new_equal(10, 5)?.srs(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
@@ -71,13 +68,10 @@ impl<SOP, M> EqualProbabilitySampling for SamplingOptions<'_, ProbabilitySpecEqu
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.srs_with_replacement(&mut rng);
-    ///
+    /// let s = SamplingOptions::new_equal(10, 5)?.srs_with_replacement(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
@@ -105,12 +99,10 @@ impl<SOP, M> EqualProbabilitySampling for SamplingOptions<'_, ProbabilitySpecEqu
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.bernoulli(&mut rng);
+    /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn bernoulli<R>(&self, rng: &mut R) -> Vec<usize>

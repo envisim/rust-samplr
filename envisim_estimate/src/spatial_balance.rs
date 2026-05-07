@@ -17,6 +17,7 @@ use std::num::NonZeroUsize;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
+    Dimensions,
     Matrix,
     MatrixDims,
     MatrixRef,
@@ -27,7 +28,7 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -40,15 +41,14 @@ use rustc_hash::{
 /// # use envisim_estimate::spatial_balance::*;
 /// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(
 ///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
 ///     std::num::NonZeroUsize::new(10).unwrap(),
 /// ).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-///
-/// // let sb = voronoi(&s, &options).unwrap();
+/// let sb = voronoi(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
 ///
@@ -87,7 +87,7 @@ where
         for i in 0..population_size {
             searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
             searcher.search(&tree).unwrap();
-            let partial_prob = p / usize_to_f64(searcher.neighbours().len());
+            let partial_prob = p / searcher.neighbours().len().to_f64().unwrap();
             for n in searcher.neighbours().iter() {
                 *voronoi_pi.get_mut(&n.id()).unwrap() += partial_prob;
             }
@@ -97,7 +97,7 @@ where
         for (i, &p) in values.iter().enumerate() {
             searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
             searcher.search(&tree).unwrap();
-            let partial_prob = p / usize_to_f64(searcher.neighbours().len());
+            let partial_prob = p / searcher.neighbours().len().to_f64().unwrap();
             for n in searcher.neighbours().iter() {
                 *voronoi_pi.get_mut(&n.id()).unwrap() += partial_prob;
             }
@@ -108,7 +108,7 @@ where
         .iter()
         .fold(0.0, |acc, (_, &pi)| acc + (pi - 1.0).powi(2));
 
-    Ok(result / usize_to_f64(sample.len()))
+    Ok(result / sample.len().to_f64().unwrap())
 }
 
 /// Local measure of spatial balance.
@@ -118,14 +118,13 @@ where
 /// # use envisim_estimate::spatial_balance::*;
 /// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(
 ///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
 ///     std::num::NonZeroUsize::new(10).unwrap(),
 /// ).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-///
 /// let sb = local(&s, &options, true).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
@@ -224,7 +223,7 @@ where
         searcher.reset_from_slice(&tree.data().to_boxed_slice(id).unwrap());
         searcher.search(&tree);
 
-        let share = usize_to_f64(searcher.neighbours().len());
+        let share = searcher.neighbours().len().to_f64().unwrap();
         for &n in searcher.neighbours().iter() {
             let mean = voronoi_means.get_mut(&n.id()).unwrap();
 
@@ -237,6 +236,9 @@ where
             }
         }
     }
+
+    println!("{:?}", norm_matrix);
+    println!("{:?}", voronoi_means);
 
     norm_matrix.reduced_row_echelon_form();
     let inv_matrix = Matrix::new(
@@ -255,7 +257,7 @@ where
             .data()[0]
     });
 
-    Ok((result / usize_to_f64(population_size)).sqrt())
+    Ok((result / population_size.to_f64().unwrap()).sqrt())
 }
 
 /// Energy distance between sample distribution and population.
@@ -265,14 +267,13 @@ where
 /// # use envisim_estimate::spatial_balance::*;
 /// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::from_vec(
+/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(
 ///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
 ///     std::num::NonZeroUsize::new(10).unwrap(),
 /// ).unwrap();
-/// let options = SamplingOptions::new(&p)?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-///
 /// let sb = energy_distance(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
@@ -291,7 +292,7 @@ where
         energy_distance_phi_equal(matrix)
     } else {
         let values = options.probabilities().as_f64_slice();
-        let s_size = usize_to_f64(sample.len());
+        let s_size = sample.len().to_f64().unwrap();
         energy_distance_phi_unequal(matrix, &values, s_size)
     };
 
@@ -307,7 +308,7 @@ where
     P: PointSet<f64>,
 {
     let size = matrix.size().get();
-    let u_size = usize_to_f64(size);
+    let u_size = size.to_f64().unwrap();
     let mut phi = vec![0.0; size];
     let mut u_spread = 0.0;
 
@@ -351,7 +352,7 @@ pub(crate) fn energy_distance_internal<P>(sample: &[usize], matrix: P, phi: &[f6
 where
     P: PointSet<f64>,
 {
-    let s_size = usize_to_f64(sample.len());
+    let s_size = sample.len().to_f64().unwrap();
     let mut s_spread: f64 = 0.0;
     let mut inter_spread: f64 = 0.0;
 
@@ -372,14 +373,14 @@ where
 
 #[cfg(test)]
 mod test {
-    use envisim_test_utils::*;
+    use envisim_utils::test_utils::*;
 
     use super::*;
 
     #[test]
     fn ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        let data = MatrixRef::new(&m_data, NonZeroUsize::new(3).unwrap()).unwrap();
+        let data = MatrixRef::new(&m_data, nz(3)).unwrap();
         let phi = energy_distance_phi_equal(&data);
         let res: Vec<f64> = vec![
             (2.0f64.sqrt() + 8.0f64.sqrt()) / 3.0f64,
@@ -392,11 +393,36 @@ mod test {
     #[test]
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        let data = MatrixRef::new(&m_data, NonZeroUsize::new(3).unwrap()).unwrap();
+        let data = MatrixRef::new(&m_data, nz(3)).unwrap();
         let phi = energy_distance_phi_equal(&data);
         let dist = energy_distance_internal(&[1, 2], &data, &phi.0);
         let res: f64 = 2.0 * (phi.0[1] + phi.0[2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
 
         assert_delta!(dist, res);
+    }
+
+    #[test]
+    fn test_voronoi() {
+        let options = SamplingOptions::with_spec_equal(Data10::prob_e())
+            .unwrap()
+            .set_spreading(Data10::matrix())
+            .unwrap();
+
+        let sb = voronoi(&[0], &options).unwrap();
+        assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2));
+    }
+
+    #[test]
+    fn test_local() {
+        let options = SamplingOptions::with_spec_equal(Data10::prob_e())
+            .unwrap()
+            .set_spreading(Data10::matrix())
+            .unwrap();
+
+        let sb = local(&[0], &options, false).unwrap();
+        assert_delta!(sb, 0.7515302, 1e-7);
+
+        let sb = local(&[0, 1], &options, false).unwrap();
+        assert_delta!(sb, 0.6454327, 1e-7);
     }
 }

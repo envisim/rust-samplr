@@ -23,3 +23,6 @@ pub mod sample_controller;
 pub mod sampling_options;
 pub mod spatial;
 pub mod utils;
+
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;

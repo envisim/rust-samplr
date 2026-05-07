@@ -14,7 +14,7 @@ use std::num::NonZeroUsize;
 
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::spatial::PointSet;
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 use super::energy_distance::EnergyDistance;
 use crate::dbd::utils::gcd;
@@ -87,11 +87,11 @@ pub trait DbdConfiguration {
     fn total_nenergy(&self) -> f64;
     /// Returns the total energy of all samples
     fn total_energy(&self) -> f64 {
-        self.total_nenergy() / usize_to_f64(self.tcp().sample_size().get())
+        self.total_nenergy() / self.tcp().sample_size().get().to_f64().unwrap()
     }
     /// Returns the average energy of all samples
     fn average_energy(&self) -> f64 {
-        self.total_energy() / usize_to_f64(self.tcp().n_samples().get())
+        self.total_energy() / self.tcp().n_samples().get().to_f64().unwrap()
     }
     /// Returns an iterator over a specific sample
     fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_;

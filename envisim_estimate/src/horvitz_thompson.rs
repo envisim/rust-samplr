@@ -17,6 +17,7 @@ use std::num::NonZeroUsize;
 use envisim_utils::kd_tree::PointSet;
 use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
 use envisim_utils::matrix::{
+    Dimensions,
     MatrixBase,
     RawData,
 };
@@ -26,7 +27,7 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsError,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -221,7 +222,7 @@ where
             .unwrap()
             .search(&tree)
             .unwrap();
-        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len());
+        let number_of_neighbours: f64 = searcher.neighbours().len().to_f64().unwrap();
         let local_mean: f64 = searcher
             .neighbours()
             .iter()
@@ -255,7 +256,7 @@ fn quotient(ys: &[f64], ps: &[f64]) -> Option<Vec<f64>> {
 
 #[cfg(test)]
 mod test {
-    use envisim_test_utils::*;
+    use envisim_utils::test_utils::*;
 
     use super::*;
 

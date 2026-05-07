@@ -40,6 +40,7 @@ use crate::error::SamplingResult;
 fn is_mutual_nn<P, N>(
     searcher: &mut NearestNeighbourSearcher<N>,
     tree: &Tree<'_, N, P>,
+    id_org: usize,
     id_n: usize,
 ) -> bool
 where
@@ -51,7 +52,7 @@ where
         .expect("id_n to exist")
         .search(tree)
         .expect("nn to be found");
-    searcher.neighbours().contains_id(id_n)
+    searcher.neighbours().contains_id(id_org)
 }
 
 pub type PivotalRunnerLocal1<'b, PT, P, N> =
@@ -61,9 +62,9 @@ pub struct LocalStrategy1<N> {
     candidates: Vec<usize>,
 }
 impl<N> LocalStrategy1<N> {
-    pub fn new<'b, PS, SOP, M>(
-        options: &'b SamplingOptions<'_, PS, SOP, M>,
-    ) -> SamplingResult<PivotalRunnerLocal1<'b, PS::Native, SOP, N>>
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
+    ) -> SamplingResult<PivotalRunnerLocal1<'_, PS::Native, SOP, N>>
     where
         N: Number,
         PS: ProbabilitySpec,
@@ -116,7 +117,12 @@ where
             {
                 let mut i = 0usize;
                 while i < self.candidates.len() {
-                    if is_mutual_nn(&mut self.searcher, controller.tree(), self.candidates[i]) {
+                    if is_mutual_nn(
+                        &mut self.searcher,
+                        controller.tree(),
+                        id1,
+                        self.candidates[i],
+                    ) {
                         i += 1;
                     } else {
                         self.candidates.swap_remove(i);
@@ -140,9 +146,9 @@ pub struct LocalStrategy1S<N> {
     history: Vec<usize>,
 }
 impl<N> LocalStrategy1S<N> {
-    pub fn new<'b, PS, SOP, M>(
-        options: &'b SamplingOptions<'_, PS, SOP, M>,
-    ) -> SamplingResult<PivotalRunnerLocal1S<'b, PS::Native, SOP, N>>
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
+    ) -> SamplingResult<PivotalRunnerLocal1S<'_, PS::Native, SOP, N>>
     where
         N: Number,
         PS: ProbabilitySpec,
@@ -212,7 +218,12 @@ where
             let mut left = 0;
             let mut right = self.candidates.len();
             while left < right {
-                if is_mutual_nn(&mut self.searcher, controller.tree(), self.candidates[left]) {
+                if is_mutual_nn(
+                    &mut self.searcher,
+                    controller.tree(),
+                    id1,
+                    self.candidates[left],
+                ) {
                     left += 1;
                 } else {
                     right -= 1;
@@ -246,9 +257,9 @@ pub struct LocalStrategy2<N> {
     pub(super) searcher: NearestNeighbourSearcher<N>,
 }
 impl<N> LocalStrategy2<N> {
-    pub fn new<'b, PS, SOP, M>(
-        options: &'b SamplingOptions<'_, PS, SOP, M>,
-    ) -> SamplingResult<PivotalRunnerLocal2<'b, PS::Native, SOP, N>>
+    pub fn new<PS, SOP, BOP>(
+        options: &SamplingOptions<PS, SOP, BOP>,
+    ) -> SamplingResult<PivotalRunnerLocal2<'_, PS::Native, SOP, N>>
     where
         N: Number,
         PS: ProbabilitySpec,
@@ -311,7 +322,7 @@ where
     where
         R: RandomNumberGenerator;
 }
-impl<PS, SOP, M, N> LocalPivotalSampling<SOP, N> for SamplingOptions<'_, PS, SOP, M>
+impl<PS, SOP, BOP, N> LocalPivotalSampling<SOP, N> for SamplingOptions<PS, SOP, BOP>
 where
     PS: ProbabilitySpec,
     SOP: PointSet<N>,
@@ -322,18 +333,17 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_spreading(m)?;
-    /// let s = opts.lpm_1(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_spreading(m)?
+    ///     .lpm_1(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
@@ -352,18 +362,17 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_spreading(m)?;
-    /// let s = opts.lpm_1s(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_spreading(m)?
+    ///     .lpm_1s(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
@@ -382,18 +391,17 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_spreading(m)?;
-    /// let s = opts.lpm_2(&mut rng)?;
-    ///
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_spreading(m)?
+    ///     .lpm_2(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References

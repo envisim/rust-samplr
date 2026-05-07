@@ -16,9 +16,12 @@ use std::hash::Hash;
 
 use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
 use envisim_utils::matrix::{
+    Dimensions,
     Matrix,
+    MatrixBase,
     MatrixDims,
     MatrixRef,
+    RawData,
 };
 use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::random::RandomNumberGenerator;
@@ -55,8 +58,8 @@ where
     S: CubeStrategy<C>,
     STRATA: Copy + Eq + Hash,
 {
-    fn new<PS, SOP, R>(
-        options: &'a SamplingOptions<'a, PS, SOP, f64>,
+    fn new<PS, SOP, R, T>(
+        options: &'a SamplingOptions<PS, SOP, MatrixBase<T>>,
         rng: &mut R,
         controller: C,
         strategy: S,
@@ -65,6 +68,7 @@ where
     where
         PS: ProbabilitySpec,
         R: RandomNumberGenerator,
+        T: RawData<Elem = f64>,
     {
         let org_probabilities = options.probabilities().as_f64_slice();
         let balancing_data = options.balancing()?.data().to_matrixref();
@@ -286,20 +290,18 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::{*, cube_method::*};
-/// use envisim_utils::random::*;
-/// use envisim_utils::matrix::Matrix;
-///
+/// # use envisim_samplr::*;
+/// # use envisim_samplr::cube_method::*;
+/// # use envisim_utils::random::*;
+/// # use envisim_utils::matrix::*;
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2; 10];
-/// let bal_m = Matrix::from_vec(vec![
+/// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new(&p)?.set_balancing(bal_m)?;
+/// let options = SamplingOptions::new_equal(10, 2)?.set_balancing(bal_m)?;
 /// let s = cube_stratified(&mut rng, &options, &strata)?;
-///
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
@@ -313,14 +315,15 @@ where
 /// Efficient balanced sampling: the cube method.
 /// Biometrika, 91(4), 893-912.
 /// <https://doi.org/10.1093/biomet/91.4.893>
-pub fn cube_stratified<R, PS, SOP, N, STRATA>(
+pub fn cube_stratified<R, PS, SOP, T, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<'_, PS, SOP, f64>,
+    options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
     R: RandomNumberGenerator,
     PS: ProbabilitySpec,
+    T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_controller_float();
@@ -337,22 +340,19 @@ where
 ///
 /// # Examples
 /// ```
-/// use envisim_samplr::{*, cube_method::*};
-/// use envisim_utils::random::*;
-/// use envisim_utils::matrix::Matrix;
-///
+/// # use envisim_samplr::*;
+/// # use envisim_samplr::cube_method::*;
+/// # use envisim_utils::random::*;
+/// # use envisim_utils::matrix::Matrix;
 /// let mut rng = SmallRng::from_os_rng();
-/// let p = [0.2; 10];
-/// let bal_m = Matrix::from_vec(vec![
+/// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
-/// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-///     .unwrap();
+/// let spr_m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new(&p)?.set_balancing(bal_m)?.set_spreading(spr_m)?;
+/// let options = SamplingOptions::new_equal(10, 2)?.set_balancing(bal_m)?.set_spreading(spr_m)?;
 /// let s = local_cube_stratified(&mut rng, &options, &strata)?;
-///
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
@@ -371,9 +371,9 @@ where
 /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
 /// Environmetrics, 24(2), 120-131.
 /// <https://doi.org/10.1002/env.2194>
-pub fn local_cube_stratified<R, PS, SOP, N, STRATA>(
+pub fn local_cube_stratified<R, PS, SOP, N, T, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<'_, PS, SOP, f64>,
+    options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
@@ -381,6 +381,7 @@ where
     PS: ProbabilitySpec,
     SOP: PointSet<N>,
     N: Number,
+    T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_spreading_controller_float()?;

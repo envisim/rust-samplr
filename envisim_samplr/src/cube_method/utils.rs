@@ -10,7 +10,10 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use envisim_utils::matrix::Matrix;
+use envisim_utils::matrix::{
+    Dimensions,
+    Matrix,
+};
 use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::sample_controller::SampleController;
 
@@ -36,9 +39,6 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
     assert!(nrow == ncol - 1);
 
     mat.reduced_row_echelon_form();
-    // If (0, 0) == 0.0, then the we have big problems
-    assert!(mat[(0, 0)] != 0.0);
-
     let mut v = vec![1.0; ncol];
 
     // If (n-1, n-1) = 1.0, then we have linearly independent rows,
@@ -48,7 +48,6 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
         for i in 0..nrow {
             v[i] = -mat[(i, ncol - 1)];
         }
-
         return v;
     }
 
@@ -59,7 +58,6 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
         for col in 0..ncol {
             if mat[(row, col)] != 0.0 {
                 // Found first non-zero entry in row
-
                 if mat[(row, col)] == 1.0 {
                     pivot_cols.push(col);
                     is_pivot[col] = true;
@@ -96,19 +94,19 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::*;
+    use envisim_utils::test_utils::*;
 
     use super::*;
 
     #[test]
     fn null() {
-        let mut mat1 = Matrix::from_vec(
+        let mut mat1 = Matrix::new(
             vec![
                 1.0, 2.0, 3.0, 1.0, //
                 5.0, 10.0, 1.0, 5.0, //
                 10.0, 1.0, 5.0, 10.0, //
             ],
-            3,
+            nz(3),
         )
         .unwrap();
         mat1.reduced_row_echelon_form();
@@ -119,15 +117,18 @@ mod tests {
                 ]
         );
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
-        assert_fvec(&mat1.prod_vec(&mat1_nullvec).unwrap(), &[0.0, 0.0, 0.0]);
+        assert_fvec(
+            &mat1.mul_vec(&mat1_nullvec).unwrap().data(),
+            &[0.0, 0.0, 0.0],
+        );
 
-        let mut mat2 = Matrix::from_vec(
+        let mut mat2 = Matrix::new(
             vec![
                 1.0, 2.0, 3.0, 1.0, //
                 5.0, 10.0, 10.0, 5.0, //
                 1.0, 1.0, 5.0, 11.0, //
             ],
-            3,
+            nz(3),
         )
         .unwrap();
         mat2.reduced_row_echelon_form();
@@ -137,6 +138,9 @@ mod tests {
             &[-2.5, 1.833333333333333, 0.166666666666667],
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
-        assert_fvec(&mat2.prod_vec(&mat2_nullvec).unwrap(), &[0.0, 0.0, 0.0]);
+        assert_fvec(
+            &mat2.mul_vec(&mat2_nullvec).unwrap().data(),
+            &[0.0, 0.0, 0.0],
+        );
     }
 }

@@ -21,6 +21,7 @@ use std::num::NonZeroUsize;
 use std::ops::Index;
 
 pub use dims::{
+    Dimensions,
     MatrixCoord,
     MatrixDims,
 };
@@ -80,15 +81,6 @@ where
     /// Returns a reference to the underlying data as a slice.
     #[inline]
     pub fn data(&self) -> &[N] { self.data.data() }
-    /// Returns the matrix dimension.
-    #[inline]
-    pub fn dims(&self) -> MatrixDims { self.dims }
-    /// Returns the number of rows in the matrix.
-    #[inline]
-    pub fn nrow(&self) -> NonZeroUsize { self.dims.rows }
-    /// Returns the number of columns in the matrix.
-    #[inline]
-    pub fn ncol(&self) -> NonZeroUsize { self.dims.cols }
     /// Returns the element at a specific coordinate.
     /// Returns `None`  if the coordinates are invalid.
     #[inline]
@@ -153,6 +145,14 @@ where
     }
 }
 
+impl<T, N> Dimensions for MatrixBase<T, N>
+where
+    T: RawData<Elem = N>,
+{
+    /// Returns the matrix dimension.
+    #[inline]
+    fn dims(&self) -> MatrixDims { self.dims }
+}
 impl<T, N, I> Index<I> for MatrixBase<T, N>
 where
     T: RawData<Elem = N>,
@@ -341,7 +341,11 @@ impl<N> Matrix<N> {
     /// Constructs a new owned matrix representation from some data vector.
     /// Returns `None` if the rows are not a divisor of the data length.
     #[inline]
-    pub fn new(data: Vec<N>, rows: NonZeroUsize) -> Option<Self> {
+    pub fn new<NZ>(data: Vec<N>, rows: NZ) -> Option<Self>
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let rows = rows.try_into().ok()?;
         let dims = MatrixDims::from_row_count(data.len(), rows)?;
         let data = OwnedMatrixData::new(data);
         Some(Self { data, dims })
@@ -463,7 +467,11 @@ impl<N> Matrix<N> {
 
 impl<'a, N> MatrixRef<'a, N> {
     #[inline]
-    pub fn new(data: &'a [N], rows: NonZeroUsize) -> Option<Self> {
+    pub fn new<NZ>(data: &'a [N], rows: NZ) -> Option<Self>
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let rows = rows.try_into().ok()?;
         let dims = MatrixDims::from_row_count(data.len(), rows)?;
         let data = BorrowedMatrixData::new(data);
         Some(Self { data, dims })
@@ -541,9 +549,8 @@ impl<'b, N> From<&'b [N]> for BorrowedMatrixData<'b, N> {
 
 #[cfg(test)]
 mod tests {
-    use envisim_test_utils::nz;
-
     use super::*;
+    use crate::test_utils::*;
 
     /// Creates a 3x2 matrix in column-major order:
     /// [ 1, 4 ]

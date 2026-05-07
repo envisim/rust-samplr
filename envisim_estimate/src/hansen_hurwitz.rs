@@ -13,6 +13,7 @@
 //! Hansen-Hurwitz estimators (multiple count estimators)
 
 use envisim_utils::matrix::{
+    Dimensions,
     MatrixBase,
     RawData,
 };

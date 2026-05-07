@@ -16,7 +16,7 @@ pub use config::*;
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::spatial::PointSet;
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
 
 use super::DistributionalDesignOptions;
 use super::annealing::{
@@ -179,12 +179,12 @@ impl<P> DbdTacticalConfiguration<P> {
                     } else if bb == tcp.n_samples().get() {
                         1.0
                     } else {
-                        usize_to_f64(bb) / usize_to_f64(tcp.n_samples().get() - k)
+                        bb.to_f64().unwrap() / (tcp.n_samples().get() - k).to_f64().unwrap()
                     };
                 }
 
                 // Construct lpm opts
-                let lpm_opts = SamplingOptions::new(&p)
+                let lpm_opts = SamplingOptions::new((&p).into())
                     .unwrap()
                     .set_spreading(&matrix)
                     .unwrap();

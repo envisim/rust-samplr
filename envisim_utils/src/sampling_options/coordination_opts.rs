@@ -10,16 +10,65 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::SamplingOptionsResult;
+use std::borrow::Cow;
+use std::num::NonZeroUsize;
+
+use super::error::{
+    SamplingOptionsError,
+    SamplingOptionsResult,
+};
+use crate::random::RandomNumberGenerator;
 
 #[derive(Clone, Debug)]
 pub struct CoordinationOptions<'a> {
-    data: &'a [f64],
+    data: Option<Cow<'a, [f64]>>,
 }
 
 impl<'a> CoordinationOptions<'a> {
+    /// Returns the value at `id`, or `None` if no values exist, or the `id` does not exist.
     #[inline]
-    pub fn new(data: &'a [f64]) -> SamplingOptionsResult<Self> { Ok(Self { data }) }
+    pub fn get(&self, id: usize) -> Option<f64> {
+        self.data.as_ref().and_then(|dt| dt.get(id).copied())
+    }
     #[inline]
-    pub fn data(&self) -> &'a [f64] { self.data }
+    pub fn get_or<R>(&self, id: usize, rng: &mut R) -> f64
+    where
+        R: RandomNumberGenerator,
+    {
+        self.get(id).unwrap_or_else(|| rng.rf64())
+    }
+    /// Returns the stored random values
+    #[inline]
+    pub fn data(&'a self) -> Option<&'a [f64]> { self.data.as_ref().map(|dt| dt.as_ref()) }
+    #[inline]
+    pub fn is_empty(&self) -> bool { self.data.is_none() }
+    /// If the provided `len` is less than the number of values stored, returns an error.
+    /// Usable for ensuring that enough random values are provided.
+    #[inline]
+    pub fn check(&self, len: NonZeroUsize) -> SamplingOptionsResult<()> {
+        if let Some(ref dt) = self.data {
+            if dt.len() < len.get() {
+                return Err(SamplingOptionsError::InvalidRandomValues);
+            }
+        }
+        Ok(())
+    }
+    /// Constructs a new random value container
+    #[inline]
+    pub fn new(data: Cow<'a, [f64]>) -> Self { Self { data: Some(data) } }
+    /// Constructs a new random value container
+    #[inline]
+    pub fn new_empty() -> Self { Self { data: None } }
+}
+impl<'a> From<Cow<'a, [f64]>> for CoordinationOptions<'a> {
+    #[inline]
+    fn from(value: Cow<'a, [f64]>) -> Self { Self::new(value) }
+}
+impl<'a> From<&'a [f64]> for CoordinationOptions<'a> {
+    #[inline]
+    fn from(value: &'a [f64]) -> Self { Self::new(Cow::Borrowed(value)) }
+}
+impl From<Vec<f64>> for CoordinationOptions<'_> {
+    #[inline]
+    fn from(value: Vec<f64>) -> Self { Self::new(Cow::Owned(value)) }
 }

@@ -17,8 +17,11 @@ use envisim_utils::kd_tree::searcher::{
     NeighbourSlice,
 };
 use envisim_utils::matrix::{
+    Dimensions,
     Matrix,
+    MatrixBase,
     MatrixDims,
+    RawData,
 };
 use envisim_utils::probabilities::{
     FloatProbabilities,
@@ -121,13 +124,14 @@ where
             .unit_decide_last(rng)
             .expect("last unit to be decided");
     }
-    pub fn new<PS, SOP>(
-        options: &SamplingOptions<'_, PS, SOP, f64>,
+    pub fn new<PS, SOP, T>(
+        options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
         controller: C,
         strategy: S,
     ) -> SamplingResult<Self>
     where
         PS: ProbabilitySpec,
+        T: RawData<Elem = f64>,
     {
         let balancing_data = options.balancing()?.data();
         let b_dims = balancing_data.dims();
@@ -209,11 +213,12 @@ where
 
 pub struct BasicCubeStrategy();
 impl BasicCubeStrategy {
-    pub fn new<PS, SOP>(
-        options: &SamplingOptions<'_, PS, SOP, f64>,
+    pub fn new<PS, SOP, T>(
+        options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
     ) -> SamplingResult<CubeRunner<BasicSampleController<FloatProbabilities>, Self>>
     where
         PS: ProbabilitySpec,
+        T: RawData<Elem = f64>,
     {
         let controller = options.to_controller_float();
         CubeRunner::new(options, controller, BasicCubeStrategy())
@@ -247,13 +252,14 @@ pub struct LocalCubeStrategy<'a, P, N> {
     pub(super) searcher: KNearestNeighbourSearcher<N>,
 }
 impl<'a, SOP, N> LocalCubeStrategy<'a, SOP, N> {
-    pub fn new<PS>(
-        options: &'a SamplingOptions<'_, PS, SOP, f64>,
+    pub fn new<PS, T>(
+        options: &'a SamplingOptions<PS, SOP, MatrixBase<T>>,
     ) -> SamplingResult<CubeRunner<SpreadingSampleController<'a, FloatProbabilities, N, SOP>, Self>>
     where
         SOP: PointSet<N>,
         N: Number,
         PS: ProbabilitySpec,
+        T: RawData<Elem = f64>,
     {
         let controller = options.to_spreading_controller_float()?;
         let searcher = KNearestNeighbourSearcher::new(
@@ -374,9 +380,10 @@ where
     where
         R: RandomNumberGenerator;
 }
-impl<PS, SOP> CubeSampling for SamplingOptions<'_, PS, SOP, f64>
+impl<PS, SOP, T> CubeSampling for SamplingOptions<PS, SOP, MatrixBase<T>>
 where
     PS: ProbabilitySpec,
+    T: RawData<Elem = f64>,
 {
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
@@ -384,19 +391,18 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let bal_m = Matrix::from_vec(vec![
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let opts = SamplingOptions::new(&p)?.set_balancing(bal_m)?;
-    /// let s = opts.cube(&mut rng)?;
-    ///
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_balancing(m)?
+    ///     .cube(&mut rng)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -413,11 +419,12 @@ where
         Ok(BasicCubeStrategy::new(self)?.sample(rng))
     }
 }
-impl<PS, SOP, N> LocalCubeSampling<SOP, N> for SamplingOptions<'_, PS, SOP, f64>
+impl<PS, SOP, N, T> LocalCubeSampling<SOP, N> for SamplingOptions<PS, SOP, MatrixBase<T>>
 where
     PS: ProbabilitySpec,
     SOP: PointSet<N>,
     N: Number,
+    T: RawData<Elem = f64>,
 {
     /// Draw a sample using the local cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
@@ -426,25 +433,22 @@ where
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    /// use envisim_utils::matrix::Matrix;
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::from_os_rng();
-    /// let p = [0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let bal_m = Matrix::from_vec(vec![
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let bal = Matrix::new(vec![
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let spr_m = Matrix::from_vec(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10)
-    ///     .unwrap();
-    /// let opts = SamplingOptions::new(&p)?
-    ///     .set_balancing(bal_m)?
-    ///     .set_spreading(spr_m)?;
-    /// let s = opts.local_cube(&mut rng)?;
-    ///
+    /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_balancing(bal)?
+    ///     .set_spreading(spr)?
+    ///     .local_cube(&mut rng)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// # Ok::<(), SamplingError>(())
     /// ```
     ///
     /// # References
