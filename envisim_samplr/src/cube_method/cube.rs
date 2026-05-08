@@ -50,17 +50,23 @@ use super::utils::{
 use crate::EqualProbabilitySampling;
 use crate::error::SamplingResult;
 
-pub trait CubeStrategy<C> {
+pub trait CubeStrategy {
+    type Controller;
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut C,
+        controller: &mut Self::Controller,
         rng: &mut R,
         n_units: usize,
     ) where
         R: RandomNumberGenerator;
     // Used for stratified
-    fn reset_to_ids(&mut self, controller: &mut C, ids: &mut [usize], n_neighbours: usize);
+    fn reset_to_ids(
+        &mut self,
+        controller: &mut Self::Controller,
+        ids: &mut [usize],
+        n_neighbours: usize,
+    );
 }
 
 pub struct CubeRunner<C, S> {
@@ -73,7 +79,7 @@ pub struct CubeRunner<C, S> {
 impl<C, S> CubeRunner<C, S>
 where
     C: SampleController<Store = FloatProbabilities>,
-    S: CubeStrategy<C>,
+    S: CubeStrategy<Controller = C>,
 {
     pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
@@ -115,7 +121,7 @@ where
         );
 
         while self.controller.indices().len() > 1 {
-            set_candidates_from_indices(&mut self.candidates, &mut self.controller, 0);
+            set_candidates_from_indices(&mut self.candidates, self.controller.indices(), 0);
             self.set_candidate_data();
             self.update_probabilities(rng)
         }
@@ -224,22 +230,25 @@ impl BasicCubeStrategy {
         CubeRunner::new(options, controller, BasicCubeStrategy())
     }
 }
-impl<C> CubeStrategy<C> for BasicCubeStrategy
-where
-    C: SampleController<Store = FloatProbabilities>,
-{
+impl CubeStrategy for BasicCubeStrategy {
+    type Controller = BasicSampleController<FloatProbabilities>;
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut C,
+        controller: &mut Self::Controller,
         _rng: &mut R,
         n_units: usize,
     ) where
         R: RandomNumberGenerator,
     {
-        set_candidates_from_indices(candidates, controller, n_units)
+        set_candidates_from_indices(candidates, controller.indices(), n_units)
     }
-    fn reset_to_ids(&mut self, controller: &mut C, ids: &mut [usize], _n_neighbours: usize) {
+    fn reset_to_ids(
+        &mut self,
+        controller: &mut Self::Controller,
+        ids: &mut [usize],
+        _n_neighbours: usize,
+    ) {
         controller.indices_mut().clear();
         for &id in ids.iter() {
             controller.indices_mut().insert(id).unwrap();
@@ -276,16 +285,16 @@ impl<'a, SOP, N> LocalCubeStrategy<'a, SOP, N> {
         )
     }
 }
-impl<'a, P, N> CubeStrategy<SpreadingSampleController<'a, FloatProbabilities, N, P>>
-    for LocalCubeStrategy<'a, P, N>
+impl<'a, P, N> CubeStrategy for LocalCubeStrategy<'a, P, N>
 where
     P: PointSet<N>,
     N: Number,
 {
+    type Controller = SpreadingSampleController<'a, FloatProbabilities, N, P>;
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut SpreadingSampleController<'a, FloatProbabilities, N, P>,
+        controller: &mut Self::Controller,
         rng: &mut R,
         n_units: usize,
     ) where
@@ -296,7 +305,7 @@ where
         assert!(len >= n_units);
 
         if len == n_units {
-            return set_candidates_from_indices(candidates, controller, n_units);
+            return set_candidates_from_indices(candidates, controller.indices(), n_units);
         }
 
         candidates.clear();
@@ -347,7 +356,7 @@ where
     }
     fn reset_to_ids(
         &mut self,
-        controller: &mut SpreadingSampleController<'a, FloatProbabilities, N, P>,
+        controller: &mut Self::Controller,
         ids: &mut [usize],
         n_neighbours: usize,
     ) {

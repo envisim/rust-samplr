@@ -32,13 +32,10 @@ pub use probability_spec::{
 };
 pub use spreading_opts::SpreadingOptions;
 
+use crate::kd_tree::Tree;
 use crate::matrix::Dimensions;
-use crate::number_traits::Number;
 use crate::probabilities::FloatProbabilities;
-use crate::sample_controller::{
-    BasicSampleController,
-    SpreadingSampleController,
-};
+use crate::sample_controller::SampleController;
 use crate::spatial::PointSet;
 
 #[must_use]
@@ -131,13 +128,13 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     /// # Errors
     /// Returns an error if `data.size()` does not match population size
     #[inline]
-    pub fn set_spreading<NewSOP, N>(
+    pub fn set_spreading<NewSOP>(
         self,
         data: NewSOP,
     ) -> SamplingOptionsResult<SamplingOptions<PS, NewSOP, BOP>>
     where
         PS: ProbabilitySpec,
-        NewSOP: PointSet<N>,
+        NewSOP: PointSet,
     {
         if data.size() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
@@ -155,13 +152,13 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     /// # Errors
     /// Returns an error if `data.size()` does not match population size
     #[inline]
-    pub fn set_spreading_opts<NewSOP, N>(
+    pub fn set_spreading_opts<NewSOP>(
         self,
         spreading: SpreadingOptions<NewSOP>,
     ) -> SamplingOptionsResult<SamplingOptions<PS, NewSOP, BOP>>
     where
         PS: ProbabilitySpec,
-        NewSOP: PointSet<N>,
+        NewSOP: PointSet,
     {
         if spreading.data().size() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
@@ -241,48 +238,46 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
         self.probabilities.to_float(self.eps)
     }
     #[inline]
-    pub fn to_controller(&self) -> BasicSampleController<PS::Native>
+    pub fn to_controller(&self) -> SampleController<PS::Native, ()>
     where
         PS: ProbabilitySpec,
     {
         let probs = self.to_probabilities();
-        BasicSampleController::new(probs)
+        SampleController::new(probs)
     }
     #[inline]
-    pub fn to_controller_float(&self) -> BasicSampleController<FloatProbabilities>
+    pub fn to_controller_float(&self) -> SampleController<FloatProbabilities, ()>
     where
         PS: ProbabilitySpec,
     {
         let probs = self.to_probabilities_float();
-        BasicSampleController::new(probs)
+        SampleController::new(probs)
     }
     #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
-    pub fn to_spreading_controller<N>(
+    pub fn to_spreading_controller(
         &self,
-    ) -> SamplingOptionsResult<SpreadingSampleController<'_, PS::Native, N, SOP>>
+    ) -> SamplingOptionsResult<SampleController<PS::Native, Tree<'_, SOP>>>
     where
         PS: ProbabilitySpec,
-        N: Number,
-        SOP: PointSet<N>,
+        SOP: PointSet,
     {
-        let controller = self.to_controller();
+        let probs = self.to_probabilities();
         let spreading = self.spreading()?;
-        Ok(SpreadingSampleController::new(controller, spreading))
+        Ok(SampleController::new_spreading(probs, spreading))
     }
     #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
-    pub fn to_spreading_controller_float<N>(
+    pub fn to_spreading_controller_float(
         &self,
-    ) -> SamplingOptionsResult<SpreadingSampleController<'_, FloatProbabilities, N, SOP>>
+    ) -> SamplingOptionsResult<SampleController<FloatProbabilities, Tree<'_, SOP>>>
     where
         PS: ProbabilitySpec,
-        N: Number,
-        SOP: PointSet<N>,
+        SOP: PointSet,
     {
-        let controller = self.to_controller_float();
+        let probs = self.to_probabilities_float();
         let spreading = self.spreading()?;
-        Ok(SpreadingSampleController::new(controller, spreading))
+        Ok(SampleController::new_spreading(probs, spreading))
     }
 }
 

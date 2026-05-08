@@ -10,6 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use envisim_utils::indices::Indices;
 use envisim_utils::matrix::{
     Dimensions,
     Matrix,
@@ -17,11 +18,11 @@ use envisim_utils::matrix::{
 use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::sample_controller::SampleController;
 
-pub fn set_candidates_from_indices<C>(candidates: &mut Vec<usize>, controller: &mut C, len: usize)
+pub fn set_candidates_from_indices<C>(candidates: &mut Vec<usize>, indices: &Indices, len: usize)
 where
     C: SampleController<Store = FloatProbabilities>,
 {
-    let number_of_remaining_units = controller.indices().len();
+    let number_of_remaining_units = indices.len();
     let len = if len == 0 || len > number_of_remaining_units {
         number_of_remaining_units
     } else {
@@ -30,7 +31,7 @@ where
 
     // Set candidates
     candidates.clear();
-    candidates.extend_from_slice(&controller.indices().list()[0..len]);
+    candidates.extend_from_slice(&indices.list()[0..len]);
 }
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
 pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {

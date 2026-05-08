@@ -24,7 +24,6 @@ use crate::kd_tree::{
     Tree,
     TreeConfig,
 };
-use crate::number_traits::Number;
 
 #[must_use]
 #[derive(Clone, Debug)]
@@ -41,9 +40,9 @@ impl<P> SpreadingOptions<P> {
     #[inline]
     pub fn bucket_size(&self) -> NonZeroUsize { self.bucket_size }
     #[inline]
-    pub fn new<N>(data: P) -> Self
+    pub fn new(data: P) -> Self
     where
-        P: PointSet<N>,
+        P: PointSet,
     {
         Self {
             bucket_size: Self::estimate_bucket_size(data.size()),
@@ -81,23 +80,21 @@ impl<P> SpreadingOptions<P> {
         NonZeroUsize::new(bucket_size).expect("infallible")
     }
     #[inline]
-    pub fn to_tree<N>(&self) -> Tree<'_, N, P>
+    pub fn to_tree(&self) -> Tree<'_, P>
     where
-        P: PointSet<N>,
-        N: Number,
+        P: PointSet,
     {
         let mut units: Vec<usize> = self.data.id_iter().collect();
         Tree::new(self, &mut units)
     }
 }
 
-impl<P, N> TreeConfig<N> for SpreadingOptions<P>
+impl<P> TreeConfig for SpreadingOptions<P>
 where
-    P: PointSet<N>,
-    N: Number,
+    P: PointSet,
 {
     type Data = P;
-    type Split = MidpointSlide<N>;
+    type Split = MidpointSlide<P::N>;
     #[inline]
     fn data(&self) -> &Self::Data { &self.data }
     #[inline]

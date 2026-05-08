@@ -12,9 +12,13 @@
 
 use std::num::NonZeroUsize;
 
+use num_traits::ConstZero;
+
 pub use crate::number_traits::Number;
 
-pub trait PointSet<N> {
+pub trait PointSet {
+    type N: Number;
+
     /// Number of points in set
     #[must_use]
     fn size(&self) -> NonZeroUsize;
@@ -30,28 +34,20 @@ pub trait PointSet<N> {
     /// Returns the dimension value of point `id`
     #[must_use]
     #[inline]
-    fn coord(&self, id: usize, dim: usize) -> N
-    where
-        N: Copy,
-    {
+    fn coord(&self, id: usize, dim: usize) -> Self::N {
         self.try_coord(id, dim).expect("valid id and dim")
     }
     #[must_use]
-    fn try_coord(&self, id: usize, dim: usize) -> Option<N>
-    where
-        N: Copy;
+    fn try_coord(&self, id: usize, dim: usize) -> Option<Self::N>;
     #[must_use]
     #[inline]
-    fn sq_distance(&self, id: usize, point: &[N]) -> N
-    where
-        N: Number,
-    {
+    fn sq_distance(&self, id: usize, point: &[Self::N]) -> Self::N {
         assert_eq!(
             point.len(),
             self.dim().get(),
             "point dimensions must match set dimension"
         );
-        let mut sum = N::zero();
+        let mut sum = <Self::N as ConstZero>::ZERO;
         for (d, &p) in point.iter().enumerate() {
             let diff = p - self.coord(id, d);
             sum += diff * diff;
@@ -60,10 +56,7 @@ pub trait PointSet<N> {
     }
     #[must_use]
     #[inline]
-    fn try_sq_distance(&self, id: usize, point: &[N]) -> Option<N>
-    where
-        N: Number,
-    {
+    fn try_sq_distance(&self, id: usize, point: &[Self::N]) -> Option<Self::N> {
         if !self.exists(id) || point.len() != self.dim().get() {
             return None;
         }
@@ -71,11 +64,8 @@ pub trait PointSet<N> {
     }
     #[must_use]
     #[inline]
-    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N
-    where
-        N: Number,
-    {
-        let mut sum = N::zero();
+    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> Self::N {
+        let mut sum = <Self::N as ConstZero>::ZERO;
         for d in 0..self.dim().get() {
             let diff = self.coord(id_a, d) - self.coord(id_b, d);
             sum += diff * diff;
@@ -84,10 +74,7 @@ pub trait PointSet<N> {
     }
     #[must_use]
     #[inline]
-    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N>
-    where
-        N: Number,
-    {
+    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<Self::N> {
         if !self.exists(id_a) || !self.exists(id_b) {
             return None;
         }
@@ -95,18 +82,16 @@ pub trait PointSet<N> {
     }
     #[must_use]
     #[inline]
-    fn to_boxed_slice(&self, id: usize) -> Option<Box<[N]>>
-    where
-        N: Copy,
-    {
+    fn to_boxed_slice(&self, id: usize) -> Option<Box<[Self::N]>> {
         self.exists(id)
             .then(|| (0..self.dim().get()).map(|d| self.coord(id, d)).collect())
     }
 }
-impl<N, P> PointSet<N> for &P
+impl<P> PointSet for &P
 where
-    P: PointSet<N> + ?Sized,
+    P: PointSet + ?Sized,
 {
+    type N = P::N;
     #[inline]
     fn size(&self) -> NonZeroUsize { (**self).size() }
     #[inline]
@@ -116,38 +101,17 @@ where
     #[inline]
     fn exists(&self, id: usize) -> bool { (**self).exists(id) }
     #[inline]
-    fn coord(&self, id: usize, dim: usize) -> N
-    where
-        N: Copy,
-    {
-        (**self).coord(id, dim)
-    }
+    fn coord(&self, id: usize, dim: usize) -> Self::N { (**self).coord(id, dim) }
     #[inline]
-    fn try_coord(&self, id: usize, dim: usize) -> Option<N>
-    where
-        N: Copy,
-    {
-        (**self).try_coord(id, dim)
-    }
+    fn try_coord(&self, id: usize, dim: usize) -> Option<Self::N> { (**self).try_coord(id, dim) }
     #[inline]
-    fn sq_distance(&self, id: usize, point: &[N]) -> N
-    where
-        N: Number,
-    {
+    fn sq_distance(&self, id: usize, point: &[Self::N]) -> Self::N {
         (**self).sq_distance(id, point)
     }
     #[inline]
-    fn try_sq_distance(&self, id: usize, point: &[N]) -> Option<N>
-    where
-        N: Number,
-    {
+    fn try_sq_distance(&self, id: usize, point: &[Self::N]) -> Option<Self::N> {
         (**self).try_sq_distance(id, point)
     }
     #[inline]
-    fn to_boxed_slice(&self, id: usize) -> Option<Box<[N]>>
-    where
-        N: Copy,
-    {
-        (**self).to_boxed_slice(id)
-    }
+    fn to_boxed_slice(&self, id: usize) -> Option<Box<[Self::N]>> { (**self).to_boxed_slice(id) }
 }

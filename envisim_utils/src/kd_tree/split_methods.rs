@@ -120,7 +120,7 @@ mod split {
         pub(super) fn set_unit<T>(&mut self, data: &T, units: &mut [usize])
         where
             N: Number,
-            T: PointSet<N>,
+            T: PointSet<N = N>,
         {
             let mut left: usize = 0;
             let mut right: usize = units.len();
@@ -284,7 +284,7 @@ impl<N> Border<N> {
     fn from_data<T>(data: &T, units: &[usize], dim: usize) -> Self
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         if units.is_empty() {
             return Self::default();
@@ -314,30 +314,25 @@ where
 }
 
 /// Splits the data into left and right according to some algorithm.
-pub trait FindSplit<N, T>
+pub trait FindSplit<T>
 where
     Self: Sized,
-    T: PointSet<N>,
+    T: PointSet,
 {
     /// Returns the split as:
     /// `SplitUnit`, the split and index of first right-unit.
     /// The left and right splits.
-    fn split(self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<N>, Self, Self)>
-    where
-        N: Number;
+    fn split(self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<T::N>, Self, Self)>;
 }
 
-impl<N, T> FindSplit<N, T> for MidpointSlide<N>
+impl<T> FindSplit<T> for MidpointSlide<T::N>
 where
     Self: Sized,
-    T: PointSet<N>,
+    T: PointSet,
 {
     #[must_use]
     #[inline]
-    fn split(mut self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<N>, Self, Self)>
-    where
-        N: Number,
-    {
+    fn split(mut self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<T::N>, Self, Self)> {
         let split = self.find_split(data, units)?;
         let mut left = self.clone();
         let mut right = self;
@@ -372,7 +367,7 @@ impl<N> MidpointSlide<N> {
     pub fn new<T>(data: &T, units: &[usize]) -> Self
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         Self {
             borders: (0..data.dim().get())
@@ -398,7 +393,7 @@ impl<N> MidpointSlide<N> {
     fn redraw<T>(&mut self, dim: usize, data: &T, units: &[usize]) -> bool
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         self.borders[dim] = Border::from_data(data, units, dim);
         self.borders[dim].min != self.borders[dim].max
@@ -424,7 +419,7 @@ impl<N> MidpointSlide<N> {
     fn find_split<T>(&mut self, data: &T, units: &mut [usize]) -> Option<SplitUnit<N>>
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         assert_eq!(
             data.dim().get(),

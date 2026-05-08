@@ -36,12 +36,9 @@ pub use crate::spatial::PointSet;
 /// Tree construction trait
 ///
 /// Provides methods necessary for the construction of a [`Tree`]
-pub trait TreeConfig<N>
-where
-    N: Number,
-{
-    type Data: PointSet<N>;
-    type Split: FindSplit<N, Self::Data>;
+pub trait TreeConfig {
+    type Data: PointSet;
+    type Split: FindSplit<Self::Data>;
     #[must_use]
     fn data(&self) -> &Self::Data;
     #[must_use]
@@ -53,11 +50,14 @@ where
 /// A kd-tree
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct Tree<'bdata, N, T> {
+pub struct Tree<'bdata, P>
+where
+    P: PointSet,
+{
     /// The first node
-    node: Node<N>,
+    node: Node<P::N>,
     /// A reference to the data
-    data: &'bdata T,
+    data: &'bdata P,
 }
 
 /// A `Node` is either a [`Branch`], which defines a split, or a [`Leaf`] with units.
@@ -92,17 +92,16 @@ pub struct Leaf {
     units: Vec<usize>,
 }
 
-impl<'bdata, N, T> Tree<'bdata, N, T>
+impl<'bdata, P> Tree<'bdata, P>
 where
-    N: Number,
-    T: PointSet<N>,
+    P: PointSet,
 {
     /// Constructs a new tree containing `units`, according to some `config`.
     #[inline]
     pub fn new<C, S>(config: &'bdata C, units: &mut [usize]) -> Self
     where
-        C: TreeConfig<N, Data = T, Split = S>,
-        S: FindSplit<N, T>,
+        C: TreeConfig<Data = P, Split = S>,
+        S: FindSplit<P>,
     {
         let data = config.data();
         let borders = config.split_method(units);
@@ -113,13 +112,13 @@ where
     /// Returns a reference to the data.
     #[must_use]
     #[inline]
-    pub fn data(&self) -> &T { self.data }
+    pub fn data(&self) -> &P { self.data }
     /// Returns a reference to the leaf that would contain `unit`.
     /// Returns `None` if `unit` does not exists in the tree data.
     #[must_use]
     #[inline]
     pub fn find_leaf_of_unit(&self, unit: usize) -> Option<&Leaf> {
-        let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
+        let v: Box<[P::N]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, find_leaf should always be Some as there can't be
         // dimension mismatch
         self.find_leaf(&v)
@@ -128,7 +127,7 @@ where
     /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf(&self, unit: &[N]) -> Option<&Leaf> {
+    pub fn find_leaf(&self, unit: &[P::N]) -> Option<&Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
     }
     /// Iterates the leaf by a [`TreeSearcher`].
@@ -136,7 +135,7 @@ where
     #[inline]
     pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> Option<()>
     where
-        S: TreeSearcher<N>,
+        S: TreeSearcher<P::N>,
     {
         if self.data.dim().get() == searcher.point().len() {
             self.node.iterate_leafs_by(self.data, searcher)
@@ -149,7 +148,7 @@ where
     #[must_use]
     #[inline]
     pub fn find_leaf_of_unit_mut(&mut self, unit: usize) -> Option<&mut Leaf> {
-        let v: Box<[N]> = self.data.to_boxed_slice(unit)?;
+        let v: Box<[P::N]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, it should always be Some
         self.find_leaf_mut(&v)
     }
@@ -157,7 +156,7 @@ where
     /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf_mut(&mut self, unit: &[N]) -> Option<&mut Leaf> {
+    pub fn find_leaf_mut(&mut self, unit: &[P::N]) -> Option<&mut Leaf> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
     }
     /// Inserts a unit into the tree.
@@ -181,12 +180,12 @@ where
 impl<N> Node<N> {
     /// Constructs a new node, by trying to find a possible split, otherwise creating a leaf.
     /// A leaf is also created if the bucket size has been fulfilled.
-    fn new<B, T, S>(config: &B, borders: S, units: &mut [usize]) -> Self
+    fn new<B, P, S>(config: &B, borders: S, units: &mut [usize]) -> Self
     where
         N: Number,
-        B: TreeConfig<N, Data = T, Split = S>,
-        T: PointSet<N>,
-        S: FindSplit<N, T>,
+        B: TreeConfig<Data = P, Split = S>,
+        P: PointSet<N = N>,
+        S: FindSplit<P>,
     {
         // If not enough units remain, a leaf should be constructed
         if units.len() <= config.bucket_size().get() {
@@ -242,10 +241,10 @@ impl<N> Node<N> {
     /// Iterates the leaf by a [`TreeSearcher`].
     #[must_use]
     #[inline]
-    fn iterate_leafs_by<T, S>(&self, data: &T, searcher: &mut S) -> Option<()>
+    fn iterate_leafs_by<P, S>(&self, data: &P, searcher: &mut S) -> Option<()>
     where
         N: Number,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
         S: TreeSearcher<N>,
     {
         match self {
@@ -355,7 +354,7 @@ mod tests {
         ];
         let mat = Matrix::new(data, nz(4)).unwrap();
         // SpreadingOptions implements TreeConfig and uses MidpointSlide internally
-        let options = SpreadingOptions::new(mat).unwrap();
+        let options = SpreadingOptions::new(mat);
         options
     }
 

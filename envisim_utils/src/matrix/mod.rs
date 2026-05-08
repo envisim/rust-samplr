@@ -205,10 +205,12 @@ where
     fn from(matrix: &'bdata MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
 }
 
-impl<T, N> PointSet<N> for MatrixBase<T, N>
+impl<T, N> PointSet for MatrixBase<T, N>
 where
     T: RawData<Elem = N>,
+    N: Number,
 {
+    type N = N;
     /// Returns the number of rows in the matrix
     #[inline]
     fn size(&self) -> NonZeroUsize { self.dims.rows }
@@ -226,10 +228,7 @@ where
     /// Panics on oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn coord(&self, row: usize, col: usize) -> N
-    where
-        N: Copy,
-    {
+    fn coord(&self, row: usize, col: usize) -> N {
         let idx = row + col * self.dims.rows.get();
         self.data()[idx]
     }
@@ -237,19 +236,11 @@ where
     /// Returns `None` if the coordinates are oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn try_coord(&self, row: usize, col: usize) -> Option<N>
-    where
-        N: Copy,
-    {
-        self.get((row, col))
-    }
+    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)) }
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Panics on oob.
     #[inline]
-    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N
-    where
-        N: Number,
-    {
+    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N {
         if id_a == id_b {
             return N::zero();
         }
@@ -266,10 +257,7 @@ where
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Returns `None` if any row is oob.
     #[inline]
-    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N>
-    where
-        N: Number,
-    {
+    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
         (self.exists(id_a) && self.exists(id_b)).then(|| self.sq_distance_between(id_a, id_b))
     }
 }

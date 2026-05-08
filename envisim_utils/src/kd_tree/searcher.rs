@@ -177,18 +177,18 @@ pub mod neighbour {
 }
 
 /// A trait for searching in a kd-[`Tree`]
-pub trait TreeSearcher<N> {
+pub trait TreeSearcher<N>
+where
+    N: Number,
+{
     /// Returns a reference to the searching point.
     fn point(&self) -> &[N];
     /// Returns `true` if the search does not need to visit a node.
-    fn is_satisfied(&self, distance: N) -> bool
-    where
-        N: Number;
+    fn is_satisfied(&self, distance: N) -> bool;
     /// A function called on the leafs of each visited node.
-    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
+    fn visit_leaf<P>(&mut self, data: &P, leaf_units: &[usize])
     where
-        N: Number,
-        T: PointSet<N>;
+        P: PointSet<N = N>;
 }
 
 /// The search point of the [`TreeSearcher`]
@@ -227,10 +227,10 @@ impl<N> SearchPoint<N> {
     /// Constructs a new search point from a unit id
     /// Returns `None` if the unit does not exist in the `data`.
     #[inline]
-    pub fn from_unit<T>(data: &T, unit: usize) -> Option<Self>
+    pub fn from_unit<P>(data: &P, unit: usize) -> Option<Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
     {
         Some(Self {
             point: data.to_boxed_slice(unit)?,
@@ -253,10 +253,10 @@ impl<N> SearchPoint<N> {
     /// Returns `None` if the unit does not exist in the `data`.
     #[must_use]
     #[inline]
-    pub fn set_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<()>
+    pub fn set_from_unit<P>(&mut self, data: &P, unit: usize) -> Option<()>
     where
         N: Copy,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
     {
         self.point = data.to_boxed_slice(unit)?;
         self.unit = Some(unit);
@@ -292,7 +292,7 @@ impl<N> NearestNeighbourSearcher<N> {
     pub fn new<T>(data: &T) -> Self
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         Self {
             point: SearchPoint::new(data.dim()),
@@ -305,7 +305,7 @@ impl<N> NearestNeighbourSearcher<N> {
     pub fn from_unit<T>(data: &T, unit: usize) -> Option<Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         Some(Self {
             point: SearchPoint::from_unit(data, unit)?,
@@ -332,7 +332,7 @@ impl<N> NearestNeighbourSearcher<N> {
     pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         self.point.set_from_unit(data, unit)?;
         self.neighbours.clear();
@@ -355,10 +355,10 @@ impl<N> NearestNeighbourSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<T>(&mut self, tree: &Tree<N, T>) -> Option<()>
+    pub fn search<T>(&mut self, tree: &Tree<T>) -> Option<()>
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         self.neighbours.clear();
         tree.iterate_leafs_by(self)
@@ -378,16 +378,16 @@ impl<N> NearestNeighbourSearcher<N> {
         self.neighbours.last().map(Neighbour::distance)
     }
 }
-impl<N> TreeSearcher<N> for NearestNeighbourSearcher<N> {
+impl<N> TreeSearcher<N> for NearestNeighbourSearcher<N>
+where
+    N: Number,
+{
     #[must_use]
     #[inline]
     fn point(&self) -> &[N] { self.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool
-    where
-        N: Number,
-    {
+    fn is_satisfied(&self, distance: N) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
         // !self.neighbours.is_empty() && self.max_distance() < distance.powi(2)
         self.max_distance()
@@ -396,8 +396,7 @@ impl<N> TreeSearcher<N> for NearestNeighbourSearcher<N> {
     #[inline]
     fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
     where
-        N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         let mut current_max = self.max_distance().unwrap_or(<N as Number>::max_value());
         for &id in leaf_units {
@@ -432,10 +431,10 @@ pub struct KNearestNeighbourSearcher<N> {
 impl<N> KNearestNeighbourSearcher<N> {
     /// Constructs a new, uninitialized, kNN-searcher.
     #[inline]
-    pub fn new<T>(k: NonZeroUsize, data: &T) -> Self
+    pub fn new<P>(k: NonZeroUsize, data: &P) -> Self
     where
         N: Number,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
     {
         Self {
             point: SearchPoint::new(data.dim()),
@@ -449,7 +448,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     pub fn from_unit<T>(k: NonZeroUsize, data: &T, unit: usize) -> Option<Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         Some(Self {
             point: SearchPoint::from_unit(data, unit)?,
@@ -484,7 +483,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         self.point.set_from_unit(data, unit)?;
         self.neighbours.clear();
@@ -507,10 +506,10 @@ impl<N> KNearestNeighbourSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<T>(&mut self, tree: &Tree<N, T>) -> Option<()>
+    pub fn search<P>(&mut self, tree: &Tree<P>) -> Option<()>
     where
         N: Number,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
     {
         self.neighbours.clear();
         tree.iterate_leafs_by(self)
@@ -530,16 +529,16 @@ impl<N> KNearestNeighbourSearcher<N> {
         self.neighbours.last().map(Neighbour::distance)
     }
 }
-impl<N> TreeSearcher<N> for KNearestNeighbourSearcher<N> {
+impl<N> TreeSearcher<N> for KNearestNeighbourSearcher<N>
+where
+    N: Number,
+{
     #[must_use]
     #[inline]
     fn point(&self) -> &[N] { self.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool
-    where
-        N: Number,
-    {
+    fn is_satisfied(&self, distance: N) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
         // self.neighbours.len() >= self.nominal_size.get() && self.max_distance() <
         // distance.powi(2)
@@ -551,8 +550,7 @@ impl<N> TreeSearcher<N> for KNearestNeighbourSearcher<N> {
     #[inline]
     fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
     where
-        N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         let original_len = self.neighbours.len();
 
@@ -624,7 +622,7 @@ impl<N> WeightedSearcher<N> {
     pub fn new<T>(data: &T) -> Self
     where
         N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         Self {
             point: SearchPoint::new(data.dim()),
@@ -639,7 +637,7 @@ impl<N> WeightedSearcher<N> {
     pub fn from_unit<T>(data: &T, unit: usize, weight: f64) -> Option<Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         if !(0.0 < weight && weight < 1.0) {
             return None;
@@ -673,10 +671,10 @@ impl<N> WeightedSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize, weight: f64) -> Option<&mut Self>
+    pub fn reset_from_unit<P>(&mut self, data: &P, unit: usize, weight: f64) -> Option<&mut Self>
     where
         N: Copy,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
     {
         if !(0.0 < weight && weight < 1.0) {
             return None;
@@ -709,10 +707,10 @@ impl<N> WeightedSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<T, W>(&mut self, tree: &Tree<N, T>, weights: &W) -> Option<()>
+    pub fn search<P, W>(&mut self, tree: &Tree<P>, weights: &W) -> Option<()>
     where
         N: Number,
-        T: PointSet<N>,
+        P: PointSet<N = N>,
         W: WeightCollection,
     {
         if !(0.0 < self.point_weight && self.point_weight < 1.0) {
@@ -792,6 +790,7 @@ impl<'borrow, N, W> WeightedSearcherWrapper<'borrow, N, W> {
 }
 impl<N, W> TreeSearcher<N> for WeightedSearcherWrapper<'_, N, W>
 where
+    N: Number,
     W: WeightCollection,
 {
     #[must_use]
@@ -799,10 +798,7 @@ where
     fn point(&self) -> &[N] { self.searcher.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool
-    where
-        N: Number,
-    {
+    fn is_satisfied(&self, distance: N) -> bool {
         self.searcher.total_weight >= 1.0
             && self
                 .searcher
@@ -811,8 +807,7 @@ where
     }
     fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
     where
-        N: Number,
-        T: PointSet<N>,
+        T: PointSet<N = N>,
     {
         let original_len = self.searcher.neighbours.len();
 
