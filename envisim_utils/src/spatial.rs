@@ -16,14 +16,19 @@ pub use crate::number_traits::Number;
 
 pub trait PointSet<N> {
     /// Number of points in set
+    #[must_use]
     fn size(&self) -> NonZeroUsize;
     /// Iterator over point ids
+    #[must_use]
     fn id_iter(&self) -> impl Iterator<Item = usize>;
     /// Dimensions of point
+    #[must_use]
     fn dim(&self) -> NonZeroUsize;
     /// Returns true of point id exists
+    #[must_use]
     fn exists(&self, id: usize) -> bool;
     /// Returns the dimension value of point `id`
+    #[must_use]
     #[inline]
     fn coord(&self, id: usize, dim: usize) -> N
     where
@@ -31,15 +36,21 @@ pub trait PointSet<N> {
     {
         self.try_coord(id, dim).expect("valid id and dim")
     }
+    #[must_use]
     fn try_coord(&self, id: usize, dim: usize) -> Option<N>
     where
         N: Copy;
+    #[must_use]
     #[inline]
     fn sq_distance(&self, id: usize, point: &[N]) -> N
     where
         N: Number,
     {
-        assert_eq!(point.len(), self.dim().get());
+        assert_eq!(
+            point.len(),
+            self.dim().get(),
+            "point dimensions must match set dimension"
+        );
         let mut sum = N::zero();
         for (d, &p) in point.iter().enumerate() {
             let diff = p - self.coord(id, d);
@@ -47,6 +58,7 @@ pub trait PointSet<N> {
         }
         sum
     }
+    #[must_use]
     #[inline]
     fn try_sq_distance(&self, id: usize, point: &[N]) -> Option<N>
     where
@@ -57,6 +69,7 @@ pub trait PointSet<N> {
         }
         self.sq_distance(id, point).into()
     }
+    #[must_use]
     #[inline]
     fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N
     where
@@ -69,6 +82,7 @@ pub trait PointSet<N> {
         }
         sum
     }
+    #[must_use]
     #[inline]
     fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N>
     where
@@ -79,6 +93,7 @@ pub trait PointSet<N> {
         }
         self.sq_distance_between(id_a, id_b).into()
     }
+    #[must_use]
     #[inline]
     fn to_boxed_slice(&self, id: usize) -> Option<Box<[N]>>
     where

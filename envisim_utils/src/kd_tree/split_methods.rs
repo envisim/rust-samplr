@@ -10,6 +10,10 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Split methods
+//!
+//! A split method defines a splitting strategy for a kd-tree.
+
 pub use split::{
     Split,
     SplitUnit,
@@ -19,10 +23,13 @@ use crate::number_traits::Number;
 use crate::spatial::PointSet;
 
 mod split {
+    //! Defines a split, and a split with a unit
+
     use crate::number_traits::Number;
     use crate::spatial::PointSet;
 
     /// Defines a split in a tree [`Branch`].
+    #[must_use]
     #[derive(Clone, Debug, Copy)]
     pub struct Split<N> {
         /// The dimension of the split.
@@ -34,6 +41,7 @@ mod split {
     }
     impl<N> Split<N> {
         /// Constructs a new split
+        #[inline]
         pub fn new(dimension: usize, value: N, leq: bool) -> Self {
             Self {
                 dimension,
@@ -42,6 +50,7 @@ mod split {
             }
         }
         /// Returns `true` if a value is to the left of the split.
+        #[must_use]
         #[inline]
         pub fn is_left(&self, value: N) -> bool
         where
@@ -51,6 +60,7 @@ mod split {
         }
         /// Returns `true` if a unit is left of the split.
         /// Panics if the split dimension is oob of the unit.
+        #[must_use]
         #[inline]
         pub fn unit_is_left(&self, unit: &[N]) -> bool
         where
@@ -59,6 +69,7 @@ mod split {
             self.is_left(unit[self.dimension])
         }
         /// Calculates the absolute distance to the split in the dimension of the split.
+        #[must_use]
         #[inline]
         pub fn abs_distance(&self, value: N) -> (bool, N)
         where
@@ -71,6 +82,7 @@ mod split {
             }
         }
         /// Calculates the absolute distance between a unit and the split in the dimension of the split.
+        #[must_use]
         #[inline]
         pub fn unit_abs_distance(&self, unit: &[N]) -> (bool, N)
         where
@@ -82,6 +94,7 @@ mod split {
 
     /// Defines a split, and the first unit to the right of the split.
     /// Used as the return value of the [`FindSplit`] trait.
+    #[must_use]
     pub struct SplitUnit<N> {
         /// The split.
         pub split: Split<N>,
@@ -90,6 +103,7 @@ mod split {
     }
     impl<N> SplitUnit<N> {
         /// Constructs a new split
+        #[inline]
         pub fn new(dimension: usize, value: N, leq: bool, unit: usize) -> Self {
             Self {
                 split: Split {
@@ -123,6 +137,7 @@ mod split {
         }
     }
     impl<N> From<SplitUnit<N>> for Split<N> {
+        #[inline]
         fn from(su: SplitUnit<N>) -> Self { su.split }
     }
 
@@ -160,7 +175,7 @@ mod split {
         fn test_split_unit_oob_panic() {
             let split = Split::new(5, 10.0, true);
             let unit = vec![1.0, 2.0]; // Dimension 5 is out of bounds
-            split.unit_is_left(&unit);
+            let _ = split.unit_is_left(&unit);
         }
 
         #[test]
@@ -192,6 +207,7 @@ mod split {
 }
 
 /// Represents the border of a tree window
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 struct Border<N> {
     /// The minimum (left) border
@@ -221,6 +237,7 @@ impl<N> Border<N> {
         }
     }
     /// Returns the width of the border.
+    #[must_use]
     #[inline]
     fn range(&self) -> N
     where
@@ -229,6 +246,7 @@ impl<N> Border<N> {
         self.max - self.min
     }
     /// Returns the midpoint of the border
+    #[must_use]
     #[inline]
     fn centre(&self) -> N
     where
@@ -238,6 +256,7 @@ impl<N> Border<N> {
     }
     /// Returns the centre if it is possible to place in (min, max), including some checks for
     /// seeing if max-min is large enough.
+    #[must_use]
     #[inline]
     fn valid_centre(&self) -> Option<N>
     where
@@ -285,6 +304,7 @@ impl<N> Default for Border<N>
 where
     N: Number,
 {
+    #[inline]
     fn default() -> Self {
         Self {
             min: N::zero(),
@@ -312,6 +332,7 @@ where
     Self: Sized,
     T: PointSet<N>,
 {
+    #[must_use]
     #[inline]
     fn split(mut self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<N>, Self, Self)>
     where
@@ -339,8 +360,10 @@ where
 /// Maneewongvatana, S., & Mount, D. M. (1999).
 /// It’s okay to be skinny, if your friends are fat.
 /// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct MidpointSlide<N> {
+    /// The borders for all dimensions, one is potentially to be split
     borders: Box<[Border<N>]>,
 }
 impl<N> MidpointSlide<N> {
@@ -358,6 +381,7 @@ impl<N> MidpointSlide<N> {
         }
     }
     /// Sort dims by range.
+    #[must_use]
     #[inline]
     fn order(&self) -> Box<[usize]>
     where
@@ -369,6 +393,7 @@ impl<N> MidpointSlide<N> {
         indices
     }
     /// Redraw borders for a dimension. Returns `true` if borders are not degenerate
+    #[must_use]
     #[inline]
     fn redraw<T>(&mut self, dim: usize, data: &T, units: &[usize]) -> bool
     where
@@ -391,12 +416,21 @@ impl<N> MidpointSlide<N> {
     /// Maneewongvatana, S., & Mount, D. M. (1999).
     /// It’s okay to be skinny, if your friends are fat.
     /// In Center for geometric computing 4th annual workshop on computational geometry (Vol. 2).
+    ///
+    /// # Panics
+    /// Will panic if data dimensions does not match the number of borders in the split.
+    /// This implies that the split is run on different data than for the previous split.
+    #[must_use]
     fn find_split<T>(&mut self, data: &T, units: &mut [usize]) -> Option<SplitUnit<N>>
     where
         N: Number,
         T: PointSet<N>,
     {
-        assert_eq!(data.dim().get(), self.borders.len());
+        assert_eq!(
+            data.dim().get(),
+            self.borders.len(),
+            "data dimensions must match the size of the number of borders in the split"
+        );
 
         if units.is_empty() {
             return None;
@@ -405,7 +439,7 @@ impl<N> MidpointSlide<N> {
         let mut split = SplitUnit::new(0, N::zero(), true, 0);
 
         // Sort dims by range
-        for &dim in self.order().iter() {
+        for &dim in &self.order() {
             split.split.dimension = dim;
 
             // If the current border is degenerate, we assume any subsequent borders to be degenerate as

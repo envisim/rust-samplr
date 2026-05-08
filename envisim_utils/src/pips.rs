@@ -14,6 +14,7 @@
 
 use num_traits::ToPrimitive;
 
+pub use self::error::PipsError;
 use crate::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
@@ -21,7 +22,10 @@ use crate::probabilities::{
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
+///
+/// # Errors
 /// Returns an error if any value is non-positive.
+#[inline]
 pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
@@ -45,9 +49,13 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
 
 /// Inclusion probabilities proportional to size (approximate).
 /// Given an array of positive values, returns the inclusion probabilities proportional to size.
-/// Returns an error if any value is non-positive.
 ///
 /// The caluclations are done by iteratively rescaling the inclusion probabilities.
+///
+/// # Errors
+/// Returns an error if any value is non-positive.
+#[expect(clippy::missing_panics_doc, reason = "usize to f64 conversion")]
+#[inline]
 pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
@@ -61,10 +69,10 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
         return Err(PipsError::InvalidAuxiliary);
     }
 
-    let mut n = sample_size.to_f64().unwrap();
+    let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
     let mut pips = FloatProbabilities::new_equal_f64(0.0, arr.len(), 1e-12);
-    let mut failed: bool = true;
+    let mut failed = true;
 
     while failed && n > 0.0 {
         failed = false;
@@ -96,19 +104,27 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
     Ok(pips)
 }
 
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum PipsError {
-    InvalidAuxiliary,
-    NoAuxiliaries,
-}
-impl std::error::Error for PipsError {}
-impl std::fmt::Display for PipsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use PipsError::*;
-        match *self {
-            InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
-            NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
+mod error {
+    //! Pips errors
+
+    #[non_exhaustive]
+    #[derive(Debug)]
+    pub enum PipsError {
+        InvalidAuxiliary,
+        NoAuxiliaries,
+    }
+    #[expect(clippy::absolute_paths, reason = "possible override")]
+    impl std::error::Error for PipsError {}
+    #[expect(clippy::absolute_paths, reason = "possible override")]
+    impl std::fmt::Display for PipsError {
+        #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
+        #[inline]
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            use PipsError::*;
+            match *self {
+                InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
+                NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
+            }
         }
     }
 }

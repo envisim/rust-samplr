@@ -10,7 +10,10 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Coordination options container
+
 use std::borrow::Cow;
+use std::convert::AsRef;
 use std::num::NonZeroUsize;
 
 use super::error::{
@@ -19,17 +22,21 @@ use super::error::{
 };
 use crate::random::RandomNumberGenerator;
 
+#[must_use]
 #[derive(Clone, Debug)]
-pub struct CoordinationOptions<'a> {
-    data: Option<Cow<'a, [f64]>>,
+pub struct CoordinationOptions<'bcoord> {
+    /// Random value data
+    data: Option<Cow<'bcoord, [f64]>>,
 }
 
-impl<'a> CoordinationOptions<'a> {
+impl<'bcoord> CoordinationOptions<'bcoord> {
     /// Returns the value at `id`, or `None` if no values exist, or the `id` does not exist.
+    #[must_use]
     #[inline]
     pub fn get(&self, id: usize) -> Option<f64> {
         self.data.as_ref().and_then(|dt| dt.get(id).copied())
     }
+    #[must_use]
     #[inline]
     pub fn get_or<R>(&self, id: usize, rng: &mut R) -> f64
     where
@@ -38,15 +45,18 @@ impl<'a> CoordinationOptions<'a> {
         self.get(id).unwrap_or_else(|| rng.rf64())
     }
     /// Returns the stored random values
+    #[must_use]
     #[inline]
-    pub fn data(&'a self) -> Option<&'a [f64]> { self.data.as_ref().map(|dt| dt.as_ref()) }
+    pub fn data(&'bcoord self) -> Option<&'bcoord [f64]> { self.data.as_ref().map(AsRef::as_ref) }
+    #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool { self.data.is_none() }
+    /// # Errors
     /// If the provided `len` is less than the number of values stored, returns an error.
     /// Usable for ensuring that enough random values are provided.
     #[inline]
     pub fn check(&self, len: NonZeroUsize) -> SamplingOptionsResult<()> {
-        if let Some(ref dt) = self.data {
+        if let Some(dt) = self.data.as_ref() {
             if dt.len() < len.get() {
                 return Err(SamplingOptionsError::InvalidRandomValues);
             }
@@ -55,18 +65,18 @@ impl<'a> CoordinationOptions<'a> {
     }
     /// Constructs a new random value container
     #[inline]
-    pub fn new(data: Cow<'a, [f64]>) -> Self { Self { data: Some(data) } }
+    pub fn new(data: Cow<'bcoord, [f64]>) -> Self { Self { data: Some(data) } }
     /// Constructs a new random value container
     #[inline]
     pub fn new_empty() -> Self { Self { data: None } }
 }
-impl<'a> From<Cow<'a, [f64]>> for CoordinationOptions<'a> {
+impl<'bcoord> From<Cow<'bcoord, [f64]>> for CoordinationOptions<'bcoord> {
     #[inline]
-    fn from(value: Cow<'a, [f64]>) -> Self { Self::new(value) }
+    fn from(value: Cow<'bcoord, [f64]>) -> Self { Self::new(value) }
 }
-impl<'a> From<&'a [f64]> for CoordinationOptions<'a> {
+impl<'bcoord> From<&'bcoord [f64]> for CoordinationOptions<'bcoord> {
     #[inline]
-    fn from(value: &'a [f64]) -> Self { Self::new(Cow::Borrowed(value)) }
+    fn from(value: &'bcoord [f64]) -> Self { Self::new(Cow::Borrowed(value)) }
 }
 impl From<Vec<f64>> for CoordinationOptions<'_> {
     #[inline]

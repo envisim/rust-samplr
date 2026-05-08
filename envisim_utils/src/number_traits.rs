@@ -23,23 +23,31 @@ use num_traits::{
 pub trait Number:
     Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne
 {
+    #[must_use]
     #[inline]
     fn epsilonish() -> Self { Self::ZERO }
+    #[must_use]
     fn max_value() -> Self;
 
+    #[must_use]
     #[inline]
     fn is_finite(self) -> bool { true }
+    #[must_use]
     #[inline]
     fn is_pos_finite(self) -> bool { Self::ZERO < self }
 
+    #[must_use]
     #[inline]
     fn abs(self) -> Self { self }
+    #[must_use]
     fn mid(self, other: Self) -> Self;
 
+    #[must_use]
     fn compare(&self, other: &Self) -> Ordering;
 }
 pub trait NumberFloat: Number + Float {}
 
+/// Interanal macro that implements `Number` for floats
 macro_rules! number_impl_float {
     ($t:ty) => {
         impl Number for $t {
@@ -69,6 +77,7 @@ macro_rules! number_impl_float {
         impl NumberFloat for $t {}
     };
 }
+/// Interanal macro that implements `Number` for unsigned integers
 macro_rules! number_impl_uint {
     ($t:ty) => {
         impl Number for $t {
@@ -81,6 +90,7 @@ macro_rules! number_impl_uint {
         }
     };
 }
+/// Interanal macro that implements `Number` for signed integers
 macro_rules! number_impl_sint {
     ($t:ty) => {
         impl Number for $t {

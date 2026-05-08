@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Probability specifications and/or containers
+
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
@@ -28,28 +30,45 @@ use crate::probabilities::{
 // Probability specification
 pub trait ProbabilitySpec {
     type Native: ProbabilityStore;
+    #[must_use]
     fn population_size(&self) -> NonZeroUsize;
+    #[expect(clippy::unwrap_used, reason = "usize to f64 conversion")]
+    #[must_use]
     #[inline]
     fn population_size_f64(&self) -> f64 { self.population_size().get().to_f64().unwrap() }
+    #[must_use]
     fn sample_size(&self) -> usize;
+    #[expect(clippy::unwrap_used, reason = "usize to f64 conversion")]
+    #[must_use]
     #[inline]
     fn sample_size_f64(&self) -> f64 { self.sample_size().to_f64().unwrap() }
     /// Returns probabilities as f64 slice
+    #[must_use]
     fn as_f64_slice(&self) -> Cow<'_, [f64]>;
     /// Returns probabilities as f64 slice
+    #[must_use]
     #[inline]
     fn as_equal(&self) -> Option<ProbabilitySpecEqual> { None }
 
+    #[must_use]
     fn to_native(&self, eps: f64) -> Self::Native;
     fn to_float(&self, eps: f64) -> FloatProbabilities;
 }
 
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct ProbabilitySpecEqual {
+    /// Population size
     population_size: NonZeroUsize,
+    /// Sample size
     sample_size: usize,
 }
 impl ProbabilitySpecEqual {
+    /// Constructs a new equal probability specification
+    ///
+    /// # Errors
+    /// Returns an error if population size cannot be converted into a [`NonZeroUsize`], or if the
+    /// sample size is larger than the population size.
     #[inline]
     pub fn new<NZ>(population_size: NZ, sample_size: usize) -> SamplingOptionsResult<Self>
     where
@@ -66,10 +85,10 @@ impl ProbabilitySpecEqual {
             sample_size,
         })
     }
+    #[must_use]
     #[inline]
     pub fn as_f64(&self) -> f64 { self.sample_size_f64() / self.population_size_f64() }
 }
-impl ProbabilitySpecEqual {}
 impl ProbabilitySpec for ProbabilitySpecEqual {
     type Native = ExactProbabilities;
     #[inline]
@@ -90,14 +109,18 @@ impl ProbabilitySpec for ProbabilitySpecEqual {
     }
 }
 
+#[must_use]
 #[derive(Clone, Debug)]
-pub struct ProbabilitySpecUnequal<'a> {
-    data: Cow<'a, [f64]>,
+pub struct ProbabilitySpecUnequal<'bprob> {
+    /// Probability data
+    data: Cow<'bprob, [f64]>,
 }
 impl ProbabilitySpec for ProbabilitySpecUnequal<'_> {
     type Native = FloatProbabilities;
     #[inline]
-    fn population_size(&self) -> NonZeroUsize { NonZeroUsize::new(self.data.len()).unwrap() }
+    fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.data.len()).expect("data to not be empty")
+    }
     #[inline]
     fn sample_size_f64(&self) -> f64 { self.data.iter().sum::<f64>() }
     #[inline]
@@ -116,9 +139,14 @@ impl ProbabilitySpec for ProbabilitySpecUnequal<'_> {
     #[inline]
     fn to_float(&self, eps: f64) -> FloatProbabilities { Self::to_native(self, eps) }
 }
-impl<'a> ProbabilitySpecUnequal<'a> {
+impl<'bprob> ProbabilitySpecUnequal<'bprob> {
+    /// Constructs a new unequal probability specification
+    ///
+    /// # Errors
+    /// Returns an error if the `probabilities` container was empty, or if any provided probability
+    /// was not a proper probaility (i.e. within [0.0, 1.0]).
     #[inline]
-    pub fn new(probabilities: Cow<'a, [f64]>) -> SamplingOptionsResult<Self> {
+    pub fn new(probabilities: Cow<'bprob, [f64]>) -> SamplingOptionsResult<Self> {
         let data = probabilities;
         if data.is_empty() {
             return Err(SamplingOptionsError::InvalidPopulationSize);

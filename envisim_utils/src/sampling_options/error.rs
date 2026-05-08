@@ -10,8 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::error::Error;
-use std::fmt::Display;
+//! Sampling options errors
 
 #[non_exhaustive]
 #[derive(Debug)]
@@ -31,9 +30,13 @@ pub enum SamplingOptionsError {
 }
 pub type SamplingOptionsResult<T> = Result<T, SamplingOptionsError>;
 
-impl Error for SamplingOptionsError {}
+#[expect(clippy::absolute_paths, reason = "possible override")]
+impl std::error::Error for SamplingOptionsError {}
 
-impl Display for SamplingOptionsError {
+#[expect(clippy::absolute_paths, reason = "possible override")]
+impl std::fmt::Display for SamplingOptionsError {
+    #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use SamplingOptionsError::*;
         match self {

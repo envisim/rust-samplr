@@ -19,8 +19,12 @@ use crate::sampling_options::{
     ProbabilitySpecEqual,
 };
 
+/// Contains probabilities represented as floats
+#[must_use]
 pub struct FloatProbabilities {
+    /// Internal data
     data: Vec<f64>,
+    /// An epsilon to be used when comparing probabilities
     eps: f64,
 }
 impl FloatProbabilities {
@@ -31,6 +35,11 @@ impl FloatProbabilities {
             eps,
         }
     }
+    #[expect(
+        clippy::missing_panics_doc,
+        clippy::unwrap_used,
+        reason = "usize to f64 conversion"
+    )]
     #[inline]
     pub fn new_equal(spec: ProbabilitySpecEqual, eps: f64) -> Self {
         let p =
@@ -42,16 +51,23 @@ impl FloatProbabilities {
         Self::new(vec![prob; population_size], eps)
     }
     #[inline]
-    pub fn from_iter(probabilities: impl IntoIterator<Item = f64>, eps: f64) -> Self {
+    pub fn from_iter<I>(probabilities: I, eps: f64) -> Self
+    where
+        I: IntoIterator<Item = f64>,
+    {
         Self::new(probabilities.into_iter().collect(), eps)
     }
 
+    #[must_use]
     #[inline]
     pub fn is_prob(p: f64) -> bool { (0.0..=1.0).contains(&p) }
+    #[must_use]
     #[inline]
     pub fn eps(&self) -> f64 { self.eps }
+    #[must_use]
     #[inline]
     pub fn weight(&self, idx0: usize, idx1: usize) -> f64 { self.weight_to(self.data[idx0], idx1) }
+    #[must_use]
     #[inline]
     pub fn weight_to(&self, prob: f64, idx1: usize) -> f64 {
         if prob + self.data[idx1] <= self.max() {
@@ -62,7 +78,10 @@ impl FloatProbabilities {
     }
 }
 
+/// Contains probabilities represented as integers
+#[must_use]
 pub struct ExactProbabilities {
+    /// Internal data
     data: Vec<usize>,
 }
 impl ExactProbabilities {
@@ -76,6 +95,7 @@ impl ExactProbabilities {
     pub fn new_equal(spec: ProbabilitySpecEqual) -> Self {
         Self::new(vec![spec.sample_size(); spec.population_size().get()])
     }
+    #[must_use]
     #[inline]
     pub fn is_prob(&self, p: usize) -> bool { (0..=self.max()).contains(&p) }
 }
@@ -90,14 +110,19 @@ pub trait ProbabilityStore {
     type PR: num_traits::NumAssign + Copy + PartialOrd;
     // + Default
 
+    #[must_use]
     fn data(&self) -> &[Self::PR];
+    #[must_use]
     fn data_mut(&mut self) -> &mut [Self::PR];
+    #[must_use]
     #[inline]
     fn len(&self) -> usize { self.data().len() }
+    #[must_use]
     #[inline]
     fn is_empty(&self) -> bool { self.data().is_empty() }
     fn max(&self) -> Self::PR;
 
+    #[must_use]
     #[inline]
     fn get(&self, idx: usize) -> Self::PR { self.data()[idx] }
     #[inline]
@@ -107,9 +132,13 @@ pub trait ProbabilityStore {
     #[inline]
     fn add(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] += value; }
 
+    #[must_use]
     fn is_zero(&self, idx: usize) -> bool;
+    #[must_use]
     fn is_max(&self, idx: usize) -> bool;
+    #[must_use]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool;
+    #[must_use]
     fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR;
 }
 impl ProbabilityStore for FloatProbabilities {

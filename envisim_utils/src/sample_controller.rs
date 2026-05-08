@@ -27,6 +27,7 @@ use crate::sampling_options::{
 };
 
 /// Sample container
+#[must_use]
 pub struct Sample(Vec<usize>);
 impl Sample {
     #[inline]
@@ -36,25 +37,34 @@ impl Sample {
     #[inline]
     pub fn add(&mut self, idx: usize) { self.0.push(idx); }
     #[inline]
-    pub fn sort(&mut self) -> &mut Self {
-        self.0.sort_unstable();
-        self
+    pub fn sort(&mut self) { self.0.sort_unstable(); }
+    #[must_use]
+    #[inline]
+    pub fn to_vec(&self) -> Vec<usize> { self.0.clone() }
+    #[must_use]
+    #[inline]
+    pub fn sort_to_vec(&mut self) -> Vec<usize> {
+        self.sort();
+        self.to_vec()
     }
-    #[inline]
-    pub fn to_vec(&self) -> Vec<usize> { self.0.to_vec() }
-    #[inline]
-    pub fn sort_to_vec(&mut self) -> Vec<usize> { self.sort().to_vec() }
+    #[must_use]
     #[inline]
     pub fn get(&self) -> &[usize] { &self.0 }
+    #[must_use]
     #[inline]
     pub fn len(&self) -> usize { self.0.len() }
+    #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool { self.0.is_empty() }
 }
 
 /// Decision result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(clippy::exhaustive_enums)]
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "a unit can only exists in three decision states"
+)]
+#[must_use]
 pub enum DecideUnit {
     In,
     Out,
@@ -65,8 +75,10 @@ pub trait SampleController {
     type Store: ProbabilityStore;
     fn controller(&self) -> &BasicSampleController<Self::Store>;
     fn controller_mut(&mut self) -> &mut BasicSampleController<Self::Store>;
+    #[must_use]
     #[inline]
     fn probabilities(&self) -> &Self::Store { &self.controller().probabilities }
+    #[must_use]
     #[inline]
     fn probabilities_mut(&mut self) -> &mut Self::Store { &mut self.controller_mut().probabilities }
     #[inline]
@@ -78,13 +90,17 @@ pub trait SampleController {
     #[inline]
     fn sample_mut(&mut self) -> &mut Sample { &mut self.controller_mut().sample }
 
+    #[must_use]
     #[inline]
     fn population_size(&self) -> usize { self.probabilities().len() }
+    /// # Errors
+    /// Returns an error if `ProbabilityStore` is empty
     #[inline]
     fn population_size_nz(&self) -> SamplingOptionsResult<NonZeroUsize> {
         NonZeroUsize::new(self.population_size()).ok_or(SamplingOptionsError::InvalidPopulationSize)
     }
 
+    #[must_use]
     #[inline]
     fn draw<R: RandomNumberGenerator>(
         &self,
@@ -156,9 +172,13 @@ pub trait SampleController {
 }
 
 // BasicSampleController
+#[must_use]
 pub struct BasicSampleController<ST> {
+    /// The probability store
     probabilities: ST,
+    /// The (remaining) sample indices
     indices: Indices,
+    /// The units included in the sample
     sample: Sample,
 }
 impl<ST> BasicSampleController<ST> {
@@ -173,17 +193,13 @@ impl<ST> BasicSampleController<ST> {
             indices: Indices::with_fill(population_size),
             sample: Sample::new(population_size),
         };
-        controller.init();
-        controller
-    }
-    #[inline]
-    fn init(&mut self)
-    where
-        ST: ProbabilityStore,
-    {
-        for i in 0..self.population_size() {
-            self.unit_decide(i);
+
+        // Decide all units
+        for i in 0..population_size {
+            controller.unit_decide(i);
         }
+
+        controller
     }
 }
 
@@ -211,17 +227,20 @@ where
 }
 
 // SpreadingSampleController
-pub struct SpreadingSampleController<'b, ST, N, P> {
+#[must_use]
+pub struct SpreadingSampleController<'bspread, ST, N, P> {
+    /// The basic controller
     controller: BasicSampleController<ST>,
-    tree: Tree<'b, N, P>,
+    /// The kd-tree containing the (remaining) units
+    tree: Tree<'bspread, N, P>,
 }
 
-impl<'b, ST, N, P> SpreadingSampleController<'b, ST, N, P> {
+impl<'bspread, ST, N, P> SpreadingSampleController<'bspread, ST, N, P> {
     #[inline]
     pub fn new(
         controller: BasicSampleController<ST>,
-        spreading: &'b SpreadingOptions<P>,
-    ) -> SamplingOptionsResult<Self>
+        spreading: &'bspread SpreadingOptions<P>,
+    ) -> Self
     where
         ST: ProbabilityStore,
         N: Number,
@@ -229,24 +248,19 @@ impl<'b, ST, N, P> SpreadingSampleController<'b, ST, N, P> {
     {
         let mut units = controller.indices().to_vec();
         let tree = Tree::new(spreading, &mut units);
-        Ok(Self { controller, tree })
+        Self { controller, tree }
     }
     #[inline]
-    pub fn tree(&self) -> &Tree<'b, N, P> { &self.tree }
+    pub fn tree(&self) -> &Tree<'bspread, N, P> { &self.tree }
     #[inline]
-    pub fn tree_mut(&mut self) -> &mut Tree<'b, N, P> { &mut self.tree }
+    pub fn tree_mut(&mut self) -> &mut Tree<'bspread, N, P> { &mut self.tree }
     #[inline]
-    pub fn reset_tree(
-        &mut self,
-        spreading: &'b SpreadingOptions<P>,
-        units: &mut [usize],
-    ) -> SamplingOptionsResult<()>
+    pub fn reset_tree(&mut self, spreading: &'bspread SpreadingOptions<P>, units: &mut [usize])
     where
         N: Number,
         P: PointSet<N>,
     {
         self.tree = Tree::new(spreading, units);
-        Ok(())
     }
 }
 

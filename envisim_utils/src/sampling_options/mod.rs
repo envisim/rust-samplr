@@ -41,20 +41,26 @@ use crate::sample_controller::{
 };
 use crate::spatial::PointSet;
 
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct SamplingOptions<PS, SOP = (), BOP = ()> {
+    /// Probability specification
     probabilities: PS,
+    /// Epsilon to be used in float comparisons
     eps: f64,
+    /// Maximum number of iterations to run for an algorithm
     max_iterations: NonZeroUsize,
-
+    /// Spreading options
     spreading: Option<SpreadingOptions<SOP>>,
+    /// Balancing options
     balancing: Option<BalancingOptions<BOP>>,
 }
 
+// ACCESSORS
 impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
-    // ACCESSORS
     #[inline]
     pub fn probabilities(&self) -> &PS { &self.probabilities }
+    #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize
     where
@@ -62,6 +68,7 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     {
         self.probabilities().population_size()
     }
+    #[must_use]
     #[inline]
     pub fn sample_size(&self) -> usize
     where
@@ -69,24 +76,34 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     {
         self.probabilities().sample_size()
     }
+    #[must_use]
     #[inline]
     pub fn eps(&self) -> f64 { self.eps }
+    #[must_use]
     #[inline]
     pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
+    #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
     pub fn spreading(&self) -> SamplingOptionsResult<&SpreadingOptions<SOP>> {
         self.spreading
             .as_ref()
             .ok_or(SamplingOptionsError::MissingSpreading)
     }
+    #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
     pub fn balancing(&self) -> SamplingOptionsResult<&BalancingOptions<BOP>> {
         self.balancing
             .as_ref()
             .ok_or(SamplingOptionsError::MissingBalancing)
     }
+}
 
-    // SETTERS
+// SETTERS
+impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
+    /// Sets the epsilon value, a value to be used for float comparisons.
+    ///
+    /// # Errors
+    /// Returns an error if `eps` is not contained within $[0.0, 0.001)$.
     #[inline]
     pub fn set_eps(mut self, eps: f64) -> SamplingOptionsResult<Self> {
         if !(0.0..0.001).contains(&eps) {
@@ -95,6 +112,10 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
         self.eps = eps;
         Ok(self)
     }
+    /// Sets the maximum number of iterations to be used.
+    ///
+    /// # Errors
+    /// Returns an error if `max` cannot be converted into a [`NonZeroUsize`].
     #[inline]
     pub fn set_max_iterations<NZ>(mut self, max: NZ) -> SamplingOptionsResult<Self>
     where
@@ -105,7 +126,10 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
             .map_err(|_| SamplingOptionsError::InvalidIterations)?;
         Ok(self)
     }
-
+    /// Sets the spreading options
+    ///
+    /// # Errors
+    /// Returns an error if `data.size()` does not match population size
     #[inline]
     pub fn set_spreading<NewSOP, N>(
         self,
@@ -122,10 +146,14 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
             probabilities: self.probabilities,
             eps: self.eps,
             max_iterations: self.max_iterations,
-            spreading: Some(SpreadingOptions::new(data)?),
+            spreading: Some(SpreadingOptions::new(data)),
             balancing: self.balancing,
         })
     }
+    /// Sets the spreading options
+    ///
+    /// # Errors
+    /// Returns an error if `data.size()` does not match population size
     #[inline]
     pub fn set_spreading_opts<NewSOP, N>(
         self,
@@ -146,6 +174,10 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
             balancing: self.balancing,
         })
     }
+    /// Sets the balancing options
+    ///
+    /// # Errors
+    /// Returns an error if `data.size()` does not match population size
     #[inline]
     pub fn set_balancing<NewBOP>(
         self,
@@ -163,9 +195,13 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
             eps: self.eps,
             max_iterations: self.max_iterations,
             spreading: self.spreading,
-            balancing: Some(BalancingOptions::new(data)?),
+            balancing: Some(BalancingOptions::new(data)),
         })
     }
+    /// Sets the balancing options
+    ///
+    /// # Errors
+    /// Returns an error if `data.size()` does not match population size
     #[inline]
     pub fn set_balancing_opts<NewBOP>(
         self,
@@ -186,7 +222,9 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
             balancing: Some(balancing),
         })
     }
+}
 
+impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     // BUILDERS
     #[inline]
     pub fn to_probabilities(&self) -> PS::Native
@@ -218,6 +256,7 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
         let probs = self.to_probabilities_float();
         BasicSampleController::new(probs)
     }
+    #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
     pub fn to_spreading_controller<N>(
         &self,
@@ -229,8 +268,9 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     {
         let controller = self.to_controller();
         let spreading = self.spreading()?;
-        SpreadingSampleController::new(controller, spreading)
+        Ok(SpreadingSampleController::new(controller, spreading))
     }
+    #[expect(clippy::missing_errors_doc, reason = "to be removed")]
     #[inline]
     pub fn to_spreading_controller_float<N>(
         &self,
@@ -242,32 +282,44 @@ impl<PS, SOP, BOP> SamplingOptions<PS, SOP, BOP> {
     {
         let controller = self.to_controller_float();
         let spreading = self.spreading()?;
-        SpreadingSampleController::new(controller, spreading)
+        Ok(SpreadingSampleController::new(controller, spreading))
     }
 }
 
-impl<'a> SamplingOptions<ProbabilitySpecUnequal<'a>> {
+/// Default epsilon value
+const EPS: f64 = 1e-9;
+/// Default maximum iterations value
+const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible");
+
+impl<'bprob> SamplingOptions<ProbabilitySpecUnequal<'bprob>> {
+    /// Initializes `SamplingOptions` by some probability container.
+    ///
+    /// # Errors
+    /// If `probabilities` cannot be turned into [`ProbabilitySpecUnequal`].
     #[inline]
     pub fn new(
-        probabilities: Cow<'a, [f64]>,
-    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecUnequal<'a>, (), ()>> {
-        Self::with_spec(ProbabilitySpecUnequal::new(probabilities)?)
+        probabilities: Cow<'bprob, [f64]>,
+    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecUnequal<'bprob>, (), ()>> {
+        Ok(Self::with_spec(ProbabilitySpecUnequal::new(probabilities)?))
     }
     #[inline]
     pub fn with_spec(
-        spec: ProbabilitySpecUnequal<'a>,
-    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecUnequal<'a>, (), ()>> {
-        const EPS: f64 = 1e-9;
-        Ok(SamplingOptions {
+        spec: ProbabilitySpecUnequal<'bprob>,
+    ) -> SamplingOptions<ProbabilitySpecUnequal<'bprob>, (), ()> {
+        SamplingOptions {
             probabilities: spec,
             eps: EPS,
-            max_iterations: NonZeroUsize::new(1000).unwrap(),
+            max_iterations: MAX_ITERATIONS,
             spreading: None,
             balancing: None,
-        })
+        }
     }
 }
 impl SamplingOptions<ProbabilitySpecEqual> {
+    /// Initializes `SamplingOptions` by some `population_size`, `sample_size` pair.
+    ///
+    /// # Errors
+    /// If the pair cannot be turned into [`ProbabilitySpecEqual`].
     #[inline]
     pub fn new_equal<NZ>(
         population_size: NZ,
@@ -276,18 +328,21 @@ impl SamplingOptions<ProbabilitySpecEqual> {
     where
         NZ: TryInto<NonZeroUsize>,
     {
-        Self::with_spec_equal(ProbabilitySpecEqual::new(population_size, sample_size)?)
+        Ok(Self::with_spec_equal(ProbabilitySpecEqual::new(
+            population_size,
+            sample_size,
+        )?))
     }
     #[inline]
     pub fn with_spec_equal(
         spec: ProbabilitySpecEqual,
-    ) -> SamplingOptionsResult<SamplingOptions<ProbabilitySpecEqual, (), ()>> {
-        Ok(SamplingOptions {
+    ) -> SamplingOptions<ProbabilitySpecEqual, (), ()> {
+        SamplingOptions {
             probabilities: spec,
-            eps: 1e-9,
-            max_iterations: NonZeroUsize::new(1000).unwrap(),
+            eps: EPS,
+            max_iterations: MAX_ITERATIONS,
             spreading: None,
             balancing: None,
-        })
+        }
     }
 }

@@ -21,10 +21,13 @@ use crate::random::RandomNumberGenerator;
 
 /// A struct (list) for keeping track of indices in use. The internal list keeps track, without
 /// order, of the indices.
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct Indices {
-    list: Vec<usize>,
+    /// The remaining indices mapping to their position in the list
     indices: FxHashMap<usize, usize>,
+    /// An (unordered) set of remaining indices
+    list: Vec<usize>,
 }
 
 impl Indices {
@@ -85,6 +88,7 @@ impl Indices {
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.list(), vec![0, 1, 2, 3]);
     /// ```
+    #[must_use]
     #[inline]
     pub fn list(&self) -> &[usize] { &self.list }
 
@@ -98,8 +102,9 @@ impl Indices {
     /// let v: Vec<usize> = il.to_vec();
     /// assert_eq!(il.list(), &v);
     /// ```
+    #[must_use]
     #[inline]
-    pub fn to_vec(&self) -> Vec<usize> { self.list.to_vec() }
+    pub fn to_vec(&self) -> Vec<usize> { self.list.clone() }
 
     /// Returns the index at position `k`, if any
     ///
@@ -111,6 +116,7 @@ impl Indices {
     /// assert_eq!(il.get(3).unwrap(), 3);
     /// assert_eq!(il.get(10), None);
     /// ```
+    #[must_use]
     #[inline]
     pub fn get(&self, k: usize) -> Option<usize> { self.list.get(k).copied() }
 
@@ -123,6 +129,7 @@ impl Indices {
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.first().unwrap(), 0);
     /// ```
+    #[must_use]
     #[inline]
     pub fn first(&self) -> Option<usize> { self.list.first().copied() }
 
@@ -135,6 +142,7 @@ impl Indices {
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.last().unwrap(), 3);
     /// ```
+    #[must_use]
     #[inline]
     pub fn last(&self) -> Option<usize> { self.list.last().copied() }
 
@@ -151,6 +159,7 @@ impl Indices {
     /// assert!(il.draw(&mut rng).is_some());
     /// assert!(il.draw(&mut rng).is_some());
     /// ```
+    #[must_use]
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<usize>
     where
@@ -172,6 +181,7 @@ impl Indices {
     /// il.remove(2);
     /// assert_eq!(il.seq_after(1, 4), Some(3));
     /// ```
+    #[must_use]
     #[inline]
     pub fn seq_after(&self, from: usize, max: usize) -> Option<usize> {
         ((from + 1)..max).find(|&id| self.contains(id))
@@ -187,6 +197,7 @@ impl Indices {
     /// assert!(il.contains(3));
     /// assert!(!il.contains(4));
     /// ```
+    #[must_use]
     #[inline]
     pub fn contains(&self, id: usize) -> bool { self.indices.contains_key(&id) }
 
@@ -224,6 +235,7 @@ impl Indices {
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.len(), 4);
     /// ```
+    #[must_use]
     #[inline]
     pub fn len(&self) -> usize { self.list.len() }
     /// Returns `true` if the list is empty
@@ -237,6 +249,7 @@ impl Indices {
     /// il.clear();
     /// assert!(il.is_empty());
     /// ```
+    #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
 
@@ -251,17 +264,22 @@ impl Indices {
     /// assert!(il.remove(2).is_some());
     /// assert!(il.remove(2).is_none());
     /// assert!(!il.contains(2));
+    #[expect(clippy::missing_panics_doc, reason = "infallible")]
     #[inline]
     pub fn remove(&mut self, id: usize) -> Option<usize> {
         let k = self.indices.remove(&id)?;
         self.list.swap_remove(k);
         if k != self.list.len() {
-            *self.indices.get_mut(&self.list[k]).unwrap() = k;
+            *self
+                .indices
+                .get_mut(&self.list[k])
+                .expect("indices to include the swapped unit") = k;
         }
         Some(id)
     }
 }
 
+#[must_use]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub enum Pair {
@@ -272,29 +290,40 @@ pub enum Pair {
     More(usize, usize),
 }
 impl Pair {
+    #[inline]
     pub fn new((id1, id2): (usize, usize)) -> Self { Self::More(id1, id2) }
-    pub fn is_zero(&self) -> bool { matches!(self, Self::Zero) }
-    pub fn is_one(&self) -> bool { matches!(self, Self::One(..)) }
-    pub fn is_two(&self) -> bool { matches!(self, Self::Two(..)) }
-    pub fn is_more(&self) -> bool { matches!(self, Self::More(..)) }
-    pub fn is_full(&self) -> bool { matches!(self, Self::Two(..) | Self::More(..)) }
+    #[must_use]
+    #[inline]
+    pub fn is_zero(&self) -> bool { matches!(*self, Self::Zero) }
+    #[must_use]
+    #[inline]
+    pub fn is_one(&self) -> bool { matches!(*self, Self::One(..)) }
+    #[must_use]
+    #[inline]
+    pub fn is_two(&self) -> bool { matches!(*self, Self::Two(..)) }
+    #[must_use]
+    #[inline]
+    pub fn is_more(&self) -> bool { matches!(*self, Self::More(..)) }
+    #[must_use]
+    #[inline]
+    pub fn is_full(&self) -> bool { matches!(*self, Self::Two(..) | Self::More(..)) }
 }
 impl From<&Indices> for Pair {
+    #[inline]
     fn from(indices: &Indices) -> Self {
-        use Pair::*;
         let len = indices.len();
         if len == 0 {
-            return Zero;
+            return Pair::Zero;
         }
         let id1 = indices.list()[0];
         if len == 1 {
-            return One(id1);
+            return Pair::One(id1);
         }
         let id2 = indices.list()[1];
         if len == 2 {
-            return Two(id1, id2);
+            return Pair::Two(id1, id2);
         }
-        More(id1, id2)
+        Pair::More(id1, id2)
     }
 }
 

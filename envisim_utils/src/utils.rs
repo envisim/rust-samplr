@@ -16,13 +16,25 @@ use num_traits::ToPrimitive;
 
 /// Calculates the mean of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].
-/// Returns [`f64::NAN`]` if any element is `NaN`.
+/// Returns [`f64::NAN`] if any element is `NaN`.
+#[expect(
+    clippy::missing_panics_doc,
+    clippy::unwrap_used,
+    reason = "usize to f64 conversion"
+)]
+#[must_use]
 #[inline]
 pub fn mean(vec: &[f64]) -> f64 { vec.iter().sum::<f64>() / vec.len().to_f64().unwrap() }
 
 /// Calculates the variance of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].
-/// Returns [`f64::NAN`]` if any element is `NaN`.
+/// Returns [`f64::NAN`] if any element is `NaN`.
+#[expect(
+    clippy::missing_panics_doc,
+    clippy::unwrap_used,
+    reason = "usize to f64 conversion"
+)]
+#[must_use]
 #[inline]
 pub fn variance(vec: &[f64]) -> f64 {
     if vec.len() == 1 {
@@ -35,6 +47,7 @@ pub fn variance(vec: &[f64]) -> f64 {
 
 /// Calculates the standard deviance of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].
-/// Returns [`f64::NAN`]` if any element is `NaN`.
+/// Returns [`f64::NAN`] if any element is `NaN`.
+#[must_use]
 #[inline]
 pub fn standard_deviance(vec: &[f64]) -> f64 { variance(vec).sqrt() }

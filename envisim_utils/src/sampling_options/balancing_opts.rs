@@ -10,15 +10,17 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::SamplingOptionsResult;
+//! Balancing options container
 
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct BalancingOptions<P> {
+    /// Balancing data
     data: P,
 }
 impl<P> BalancingOptions<P> {
     #[inline]
     pub fn data(&self) -> &P { &self.data }
     #[inline]
-    pub fn new(data: P) -> SamplingOptionsResult<Self> { Ok(Self { data }) }
+    pub fn new(data: P) -> Self { Self { data } }
 }

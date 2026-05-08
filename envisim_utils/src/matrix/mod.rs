@@ -18,7 +18,10 @@
 mod dims;
 
 use std::num::NonZeroUsize;
-use std::ops::Index;
+use std::ops::{
+    Index,
+    IndexMut,
+};
 
 pub use dims::{
     Dimensions,
@@ -35,10 +38,12 @@ pub use crate::spatial::PointSet;
 /// Data container trait
 pub trait RawData: Sized {
     type Elem;
+    #[must_use]
     fn data(&self) -> &[Self::Elem];
 }
 
 /// Base matrix representation
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct MatrixBase<T, N = <T as RawData>::Elem>
 where
@@ -53,7 +58,7 @@ where
 /// Owned matrix representation
 pub type Matrix<N> = MatrixBase<OwnedMatrixData<N>>;
 /// Borrowed matrix representation
-pub type MatrixRef<'a, N> = MatrixBase<BorrowedMatrixData<'a, N>>;
+pub type MatrixRef<'bdata, N> = MatrixBase<BorrowedMatrixData<'bdata, N>>;
 
 impl<T, N> MatrixBase<T, N>
 where
@@ -79,10 +84,12 @@ where
         }
     }
     /// Returns a reference to the underlying data as a slice.
+    #[must_use]
     #[inline]
     pub fn data(&self) -> &[N] { self.data.data() }
     /// Returns the element at a specific coordinate.
     /// Returns `None`  if the coordinates are invalid.
+    #[must_use]
     #[inline]
     pub fn get<C>(&self, coord: C) -> Option<N>
     where
@@ -94,15 +101,22 @@ where
     }
     /// Returns an iterator of the elements in a row.
     /// Returns `None` if the row is invalid.
+    #[must_use]
     #[inline]
-    pub fn row_iter(&self, row: usize) -> Option<RowIterator<'_, N>> { RowIterator::new(self, row) }
+    pub fn row_iter(&self, row: usize) -> Option<MatrixIterator<'_, T, N>> {
+        MatrixIterator::new(self, row, false)
+    }
     /// Returns an iterator of the elements in a column.
     /// Returns `None` if the column is invalid.
+    #[must_use]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> Option<ColIterator<'_, N>> { ColIterator::new(self, col) }
+    pub fn col_iter(&self, col: usize) -> Option<MatrixIterator<'_, T, N>> {
+        MatrixIterator::new(self, col, true)
+    }
     /// Multiplies the matrix by a column vector.
     /// Returns `None` if the column vector length does not match the number of columns in the
     /// matrix.
+    #[must_use]
     #[inline]
     pub fn mul_vec(&self, rhs: &[N]) -> Option<Matrix<N>>
     where
@@ -113,8 +127,8 @@ where
         }
         let mut product = vec![N::zero(); self.nrow().get()];
         let mut index = 0;
-        for mul in rhs.iter() {
-            for pr in product.iter_mut() {
+        for mul in rhs {
+            for pr in &mut product {
                 *pr += *mul * self.data()[index];
                 index += 1;
             }
@@ -124,6 +138,7 @@ where
     /// Multiplies the matrix by another matrix.
     /// Returns `None` if the number of columns in self does not match the number of rows in the
     /// other matrix.
+    #[must_use]
     #[inline]
     pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2, N>) -> Option<Matrix<N>>
     where
@@ -135,10 +150,13 @@ where
         }
         let mut product = Vec::<N>::with_capacity(self.nrow().get() * rhs.ncol().get());
         let mut index = 0;
+        // Multiply self by each column in rhs
         for _ in 0..rhs.ncol().get() {
+            // Take rhs column
             let rhs_col = &rhs.data()[index..(index + rhs.nrow().get())];
-            let res_col = self.mul_vec(rhs_col)?;
-            product.extend_from_slice(res_col.data());
+            // Result
+            let temp_column_res = self.mul_vec(rhs_col)?;
+            product.extend_from_slice(temp_column_res.data());
             index += rhs.nrow().get();
         }
         Matrix::new(product, self.nrow())
@@ -159,9 +177,15 @@ where
     I: Into<MatrixCoord>,
 {
     type Output = T::Elem;
+    /// # Panics
+    /// If index is out of bounds.
+    #[must_use]
     #[inline]
-    fn index(&self, idx: I) -> &Self::Output {
-        let index = idx.into().to_linear(self.dims).unwrap();
+    fn index(&self, index: I) -> &Self::Output {
+        let index = index
+            .into()
+            .to_linear(self.dims)
+            .expect("index to be valid for the matrix");
         &self.data()[index]
     }
 }
@@ -173,12 +197,12 @@ where
     #[inline]
     fn from(matrix: &MatrixBase<T, N>) -> Self { matrix.to_matrix() }
 }
-impl<'b, T, N> From<&'b MatrixBase<T, N>> for MatrixRef<'b, N>
+impl<'bdata, T, N> From<&'bdata MatrixBase<T, N>> for MatrixRef<'bdata, N>
 where
     T: RawData<Elem = N>,
 {
     #[inline]
-    fn from(matrix: &'b MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
+    fn from(matrix: &'bdata MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
 }
 
 impl<T, N> PointSet<N> for MatrixBase<T, N>
@@ -195,10 +219,12 @@ where
     #[inline]
     fn dim(&self) -> NonZeroUsize { self.dims.cols }
     /// Returns true if `id` is contained within the matrix.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
     fn exists(&self, row: usize) -> bool { row < self.dims.rows.get() }
     /// Returns the element at coordinates `(row, col)`.
     /// Panics on oob.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
     fn coord(&self, row: usize, col: usize) -> N
     where
@@ -209,6 +235,7 @@ where
     }
     /// Returns the element at coordinates `(row, col)`.
     /// Returns `None` if the coordinates are oob.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
     fn try_coord(&self, row: usize, col: usize) -> Option<N>
     where
@@ -247,95 +274,78 @@ where
     }
 }
 
-pub struct RowIterator<'a, N> {
-    data: MatrixRef<'a, N>,
+/// An iterator over a row in a matrix
+#[must_use]
+pub struct MatrixIterator<'bmat, T, N = <T as RawData>::Elem>
+where
+    T: RawData<Elem = N>,
+{
+    /// A reference to the matrix
+    data: &'bmat MatrixBase<T, N>,
+    /// The current coordinates of the iterator
     coord: MatrixCoord,
+    /// If `true`, the iterator is a column iterator
+    is_column_iter: bool,
 }
-impl<'a, N> RowIterator<'a, N> {
+impl<'bmat, T, N> MatrixIterator<'bmat, T, N>
+where
+    T: RawData<Elem = N>,
+{
+    /// Constructs a new matrix iterator
     #[inline]
-    fn new<T>(matrix: &'a MatrixBase<T, N>, row: usize) -> Option<Self>
-    where
-        T: RawData<Elem = N>,
-    {
-        if !matrix.dims().contains_row(row) {
-            return None;
+    fn new(matrix: &'bmat MatrixBase<T, N>, start: usize, iterate_column: bool) -> Option<Self> {
+        if iterate_column {
+            if !matrix.dims().contains_col(start) {
+                return None;
+            }
+            Some(Self {
+                data: matrix,
+                coord: (0, start).into(),
+                is_column_iter: true,
+            })
+        } else {
+            if !matrix.dims().contains_row(start) {
+                return None;
+            }
+            Some(Self {
+                data: matrix,
+                coord: (start, 0).into(),
+                is_column_iter: false,
+            })
         }
-        let matrix = MatrixRef {
-            data: matrix.data().into(),
-            dims: matrix.dims(),
-        };
-        Self {
-            data: matrix,
-            coord: (row, 0).into(),
-        }
-        .into()
     }
 }
-impl<N> Iterator for RowIterator<'_, N>
+impl<T, N> Iterator for MatrixIterator<'_, T, N>
 where
+    T: RawData<Elem = N>,
     N: Copy,
 {
     type Item = N;
     #[inline]
     fn next(&mut self) -> Option<N> {
         let val = self.data.get(self.coord);
-        self.coord.col += 1;
+        if self.is_column_iter {
+            self.coord.row += 1;
+        } else {
+            self.coord.col += 1;
+        }
         val
     }
 }
-impl<N> ExactSizeIterator for RowIterator<'_, N>
+impl<T, N> ExactSizeIterator for MatrixIterator<'_, T, N>
 where
+    T: RawData<Elem = N>,
     N: Copy,
 {
     #[inline]
-    fn len(&self) -> usize { self.data.ncol().get() - self.coord.col }
-}
-
-pub struct ColIterator<'a, N> {
-    data: MatrixRef<'a, N>,
-    coord: MatrixCoord,
-}
-impl<'a, N> ColIterator<'a, N> {
-    #[inline]
-    fn new<T>(matrix: &'a MatrixBase<T, N>, col: usize) -> Option<Self>
-    where
-        T: RawData<Elem = N>,
-    {
-        if !matrix.dims().contains_col(col) {
-            return None;
+    fn len(&self) -> usize {
+        if self.is_column_iter {
+            self.data.nrow().get() - self.coord.row
+        } else {
+            self.data.ncol().get() - self.coord.col
         }
-        let matrix = MatrixRef {
-            data: matrix.data().into(),
-            dims: matrix.dims(),
-        };
-        Self {
-            data: matrix,
-            coord: (0, col).into(),
-        }
-        .into()
     }
 }
-impl<N> Iterator for ColIterator<'_, N>
-where
-    N: Copy,
-{
-    type Item = N;
-    #[inline]
-    fn next(&mut self) -> Option<N> {
-        let val = self.data.get(self.coord);
-        self.coord.row += 1;
-        val
-    }
-}
-impl<N> ExactSizeIterator for ColIterator<'_, N>
-where
-    N: Copy,
-{
-    #[inline]
-    fn len(&self) -> usize { self.data.nrow().get() - self.coord.row }
-}
-
-use std::ops::IndexMut;
 
 impl<N> Matrix<N> {
     /// Constructs a new owned matrix representation from some data vector.
@@ -379,6 +389,7 @@ impl<N> Matrix<N> {
         self.dims = dims;
     }
     /// Calculates the reduced row echelon form of the matrix, in place.
+    #[inline]
     pub fn reduced_row_echelon_form(&mut self)
     where
         N: NumberFloat,
@@ -423,15 +434,17 @@ impl<N> Matrix<N> {
             }
 
             // Divide ROW by lead, assuming all is 0 before lead
-            let mut index_row = index(row, lead);
-            let lead_value = data[index_row];
-            if lead_value != N::one() {
-                data[index_row] = N::one();
-                index_row += dims.rows.get();
-
-                for _ in (lead + 1)..dims.cols.get() {
-                    data[index_row] /= lead_value;
+            {
+                let mut index_row = index(row, lead);
+                let lead_value = data[index_row];
+                if lead_value != N::one() {
+                    data[index_row] = N::one();
                     index_row += dims.rows.get();
+
+                    for _ in (lead + 1)..dims.cols.get() {
+                        data[index_row] /= lead_value;
+                        index_row += dims.rows.get();
+                    }
                 }
             }
 
@@ -465,9 +478,9 @@ impl<N> Matrix<N> {
     }
 }
 
-impl<'a, N> MatrixRef<'a, N> {
+impl<'bdata, N> MatrixRef<'bdata, N> {
     #[inline]
-    pub fn new<NZ>(data: &'a [N], rows: NZ) -> Option<Self>
+    pub fn new<NZ>(data: &'bdata [N], rows: NZ) -> Option<Self>
     where
         NZ: TryInto<NonZeroUsize>,
     {
@@ -483,17 +496,23 @@ where
     I: Into<MatrixCoord>,
 {
     #[inline]
-    fn index_mut(&mut self, idx: I) -> &mut Self::Output {
-        let index = idx.into().to_linear(self.dims()).unwrap();
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        let index = index
+            .into()
+            .to_linear(self.dims())
+            .expect("index to be valid for the matrix");
         &mut self.data.data[index]
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct OwnedMatrixData<N> {
+    /// Internal data vector
     data: Vec<N>,
 }
 impl<N> OwnedMatrixData<N> {
+    /// Constructs a new owned matrix data
     #[inline]
     pub fn new(data: Vec<N>) -> Self { Self { data } }
 }
@@ -522,15 +541,16 @@ impl<N> From<Vec<N>> for OwnedMatrixData<N> {
     fn from(data: Vec<N>) -> Self { Self::new(data) }
 }
 
+#[must_use]
 #[derive(Debug, Clone, Copy)]
-pub struct BorrowedMatrixData<'a, N> {
-    data: &'a [N],
+pub struct BorrowedMatrixData<'bdata, N> {
+    /// Internal data reference
+    data: &'bdata [N],
 }
-impl<'a, N> BorrowedMatrixData<'a, N> {
+impl<'bdata, N> BorrowedMatrixData<'bdata, N> {
+    /// Constructs a new borrowed matrix data
     #[inline]
-    pub fn new(data: &'a [N]) -> Self { Self { data } }
-    #[inline]
-    pub fn data(&self) -> &'a [N] { self.data }
+    pub fn new(data: &'bdata [N]) -> Self { Self { data } }
 }
 
 impl<N> RawData for BorrowedMatrixData<'_, N> {
@@ -538,13 +558,13 @@ impl<N> RawData for BorrowedMatrixData<'_, N> {
     #[inline]
     fn data(&self) -> &[Self::Elem] { self.data }
 }
-impl<'b, N> From<&'b OwnedMatrixData<N>> for BorrowedMatrixData<'b, N> {
+impl<'borrow, N> From<&'borrow OwnedMatrixData<N>> for BorrowedMatrixData<'borrow, N> {
     #[inline]
-    fn from(data: &'b OwnedMatrixData<N>) -> Self { Self::new(data.data()) }
+    fn from(data: &'borrow OwnedMatrixData<N>) -> Self { Self::new(data.data()) }
 }
-impl<'b, N> From<&'b [N]> for BorrowedMatrixData<'b, N> {
+impl<'bdata, N> From<&'bdata [N]> for BorrowedMatrixData<'bdata, N> {
     #[inline]
-    fn from(data: &'b [N]) -> Self { Self::new(data) }
+    fn from(data: &'bdata [N]) -> Self { Self::new(data) }
 }
 
 #[cfg(test)]

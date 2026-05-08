@@ -15,6 +15,7 @@
 use std::num::NonZeroUsize;
 
 /// Dimensions of a matrix
+#[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MatrixDims {
     /// The number of rows
@@ -27,6 +28,7 @@ impl MatrixDims {
     #[inline]
     pub fn new(rows: NonZeroUsize, cols: NonZeroUsize) -> Self { Self { rows, cols } }
     /// Constructs a new dimension if the rows/cols are non-zero
+    #[must_use]
     #[inline]
     pub fn try_new(rows: usize, cols: usize) -> Option<Self> {
         let rows = NonZeroUsize::new(rows)?;
@@ -35,6 +37,7 @@ impl MatrixDims {
     }
     /// Infer dimensions from some data length and row count.
     /// Returns `None` if rows doesn't divide `len` evenly.
+    #[must_use]
     #[inline]
     pub fn from_row_count(len: usize, rows: NonZeroUsize) -> Option<Self> {
         if len % rows != 0 {
@@ -45,6 +48,7 @@ impl MatrixDims {
         Self::new(rows, cols).into()
     }
     /// Returns the total number of elements
+    #[must_use]
     #[inline]
     pub fn len(&self) -> NonZeroUsize { self.rows.saturating_mul(self.cols) }
     /// Transposes the dimension
@@ -56,12 +60,15 @@ impl MatrixDims {
         }
     }
     /// Returns `true` if `row` would be contained within the dimensions.
+    #[must_use]
     #[inline]
     pub fn contains_row(&self, row: usize) -> bool { row < self.rows.get() }
     /// Returns `true` if `col` would be contained within the dimensions.
+    #[must_use]
     #[inline]
     pub fn contains_col(&self, col: usize) -> bool { col < self.cols.get() }
     /// Returns `true` if `coord` would be contained within the dimensions.
+    #[must_use]
     #[inline]
     pub fn contains(&self, coord: MatrixCoord) -> bool {
         self.contains_row(coord.row) && self.contains_col(coord.col)
@@ -87,9 +94,11 @@ pub trait Dimensions {
     /// Returns the dimensions of the object
     fn dims(&self) -> MatrixDims;
     /// Returns the number of rows of the object
+    #[must_use]
     #[inline]
     fn nrow(&self) -> NonZeroUsize { self.dims().rows }
     /// Returns the number of columns of the object
+    #[must_use]
     #[inline]
     fn ncol(&self) -> NonZeroUsize { self.dims().cols }
 }
@@ -106,6 +115,7 @@ where
 }
 
 /// A zero-indexed position within a matrix: (`row`, `col`)
+#[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MatrixCoord {
     /// Row index
@@ -119,6 +129,7 @@ impl MatrixCoord {
     pub fn new(row: usize, col: usize) -> Self { Self { row, col } }
     /// Convert to a linear index in column-major order.
     /// Returns `None` if the coordinate is out of bounds with respect to the shape.
+    #[must_use]
     #[inline]
     pub fn to_linear(&self, shape: MatrixDims) -> Option<usize> {
         shape
@@ -128,6 +139,7 @@ impl MatrixCoord {
 
     /// Convert from a linear index in column-major order.
     /// Returns `None` if `index` cannot be contained in `shape`.
+    #[must_use]
     #[inline]
     pub fn from_linear(index: usize, shape: MatrixDims) -> Option<Self> {
         // Rem<NonZeroUsize> is in rust since 1.51
