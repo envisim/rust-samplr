@@ -572,7 +572,7 @@ where
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.cps(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -600,7 +600,7 @@ where
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let rv: Vec<f64> = vec![0.2; 10];
     /// let s = SamplingOptions::new(p.into())?.cps_coord(&mut rng, rv)?;
@@ -639,7 +639,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.scps(&mut rng);
@@ -669,7 +669,7 @@ where
     /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let rv: Vec<f64> = vec![0.2; 10];
@@ -704,7 +704,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.lcps(&mut rng);

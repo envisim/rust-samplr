@@ -38,7 +38,7 @@ impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let s = SamplingOptions::new_equal(10, 5)?.srs(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -74,7 +74,7 @@ impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let s = SamplingOptions::new_equal(10, 5)?.srs_with_replacement(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -107,7 +107,7 @@ impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```

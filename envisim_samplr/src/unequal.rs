@@ -90,7 +90,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.1; 10];
     /// let s = SamplingOptions::new(p.into())?.with_replacement(&mut rng, 5)?;
     /// assert_eq!(s.len(), 5);
@@ -159,7 +159,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.sampford(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -217,7 +217,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.pareto(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -281,7 +281,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.brewer(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -360,7 +360,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
     /// # Ok::<(), SamplingError>(())
@@ -381,7 +381,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
     /// # Ok::<(), SamplingError>(())

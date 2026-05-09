@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 - MSRV: 1.85.1
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
+- Bumped optional dependency [`rand`](https://crates.io/crates/rand) to 0.10.1.
 
 ### Added
 - Added feature `"test-utils"`, which replaces `envisim_test_utils` private module, containing helpers for tests.
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added neighbour-representations `Neighbour` and `WeightedNeighbour` used in tree-searchers.
 - Added search point representation `SearchPoint`.
 - Added trait `FindSplit`, implemented for `MidpointSlide`.
+- Added `try_sys_rng` for `SmallRng`, which returns a random number generator using `rand::rngs::SysRng`.
 
 ### Changed
 - Made `Matrix` generic over `Number`. `Matrix` is now a type alias for `MatrixBase`, and represents an owned matrix. The type alias for a reference matrix is `MatrixRef`.

@@ -168,10 +168,17 @@ mod small_rng {
     //! Implements the [`RandomNumberGenerator`] for [`rand::rngs::SmallRng`] if the feature
     //! `"rand"` is activated.
 
-    use rand::Rng;
     pub use rand::SeedableRng;
-    use rand::rngs::SmallRng as SRNG;
+    use rand::rngs::{
+        SmallRng as SRNG,
+        SysRng,
+    };
+    use rand::{
+        RngExt,
+        TryRng,
+    };
 
+    /// let rng = StdRng::try_from_rng(&mut OsRng).unwrap();
     use super::RandomNumberGenerator;
 
     #[must_use]
@@ -183,6 +190,11 @@ mod small_rng {
         fn from_seed(seed: Self::Seed) -> Self { SmallRng(SRNG::from_seed(seed)) }
         #[inline]
         fn seed_from_u64(state: u64) -> Self { SmallRng(SRNG::seed_from_u64(state)) }
+    }
+    impl SmallRng {
+        pub fn try_sys_rng() -> Result<Self, <SysRng as TryRng>::Error> {
+            SRNG::try_from_rng(&mut SysRng).map(|rng| SmallRng(rng))
+        }
     }
 
     impl RandomNumberGenerator for SmallRng {

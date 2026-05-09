@@ -95,7 +95,7 @@ where
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.systematic(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -121,7 +121,7 @@ where
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::from_os_rng();
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.systematic_random_order(&mut rng);
     /// assert_eq!(s.len(), 5);

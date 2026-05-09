@@ -324,7 +324,7 @@ where
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::*;
-/// let mut rng = SmallRng::from_os_rng();
+/// let mut rng = SmallRng::try_sys_rng().unwrap();
 /// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -378,7 +378,7 @@ where
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let mut rng = SmallRng::from_os_rng();
+/// let mut rng = SmallRng::try_sys_rng().unwrap();
 /// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
