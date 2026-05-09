@@ -6,8 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- MSRV: 1.85.1
+- Added dependency [`num-traits`](https://crates.io/crates/num-traits).
+- Bumped dependency `envisim_utils`.
+
 - Fixed bug in `brewer` unequal probability sampling.
-- Removed `usize_to_f64` and `f64_to_usize` from utils, in favour of `num_traits`.
+- Fixed bug in `cube`.
+- Refactored sampling methods to use new `SamplingOptions` and `SampleController`. Infallible methods are now infallible.
+- As coordination is removed from `SamplingOptions`, `cps_coord` and `scps_coord` dedicated methods now accept random values for coordination.
+
 
 ## [0.5.0] - 2026-03-27
 - Bump `envisim_utils`.
@@ -17,8 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix a bug in cube null space
 - Added Distributionally balanced designs
 
+
 ## [0.4.1] - 2026-02-26
 - Fix a bug in cube null space
+
 
 ## [0.4.0] - 2025-08-22
 ### Changed
@@ -26,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - `rand` dependency.
+
 
 ## [0.3.0] - 2025-08-15
 ### Changed
@@ -38,20 +48,6 @@ Breaking changes:
 - Refactored sampling methods to use variant structs.
 - `conditional_poisson` early return for sample size 0.
 
-## [0.2.0] - 2024-09-24
-### Added
-- moved `SamplingError`, previously available from `envisim_utils`.
-- re-exports `SamplingError` from sub modules
-
-### Changed
-- `SamplingError` does not depend on `thiserror`
-- maximum iterations is now of type `NonZeroUsize`.
-- maximum iterations now set through `SampleOptions`.
-- `SamplingError::MaxIterations` changed to `SamplingError::MaxIterations(NonZeroUsize)`.
-- `InputError`and `Probabilities` no longer exported from `poisson` module
-
-### Removed
-- removed unused `SamplingError::General`.
 
 ## [0.2.0] - 2024-09-24
 ### Added
@@ -67,6 +63,23 @@ Breaking changes:
 
 ### Removed
 - removed unused `SamplingError::General`.
+
+
+## [0.2.0] - 2024-09-24
+### Added
+- moved `SamplingError`, previously available from `envisim_utils`.
+- re-exports `SamplingError` from sub modules
+
+### Changed
+- `SamplingError` does not depend on `thiserror`
+- maximum iterations is now of type `NonZeroUsize`.
+- maximum iterations now set through `SampleOptions`.
+- `SamplingError::MaxIterations` changed to `SamplingError::MaxIterations(NonZeroUsize)`.
+- `InputError`and `Probabilities` no longer exported from `poisson` module
+
+### Removed
+- removed unused `SamplingError::General`.
+
 
 ## [0.1.0] - 2024-09-19
 Initial release.
