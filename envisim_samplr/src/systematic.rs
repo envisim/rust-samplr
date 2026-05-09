@@ -13,10 +13,10 @@
 //! Systematic sampling designs
 
 use envisim_utils::random::RandomNumberGenerator;
+pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
     ProbabilitySpecEqual,
-    SamplingOptions,
 };
 use num_traits::ToPrimitive;
 

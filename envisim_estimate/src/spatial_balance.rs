@@ -21,9 +21,9 @@ use envisim_utils::matrix::{
     MatrixRef,
     PointSet,
 };
+pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
-    SamplingOptions,
     SamplingOptionsError,
     SpreadingOptions,
 };
@@ -33,27 +33,21 @@ use rustc_hash::{
     FxHashMap,
 };
 
-use crate::error::{
-    EstimationError,
-    EstimationResult,
-};
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
 
 /// Voronoi measure of spatial balance.
 ///
 /// # Examples
 /// ```
 /// # use envisim_estimate::spatial_balance::*;
-/// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(
-///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-///     std::num::NonZeroUsize::new(10).unwrap(),
-/// ).unwrap();
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = voronoi(&s, &options).unwrap();
-/// # Ok::<(), SamplingOptionsError>(())
+/// let sb = voronoi(&s, &options)?;
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # References
@@ -147,17 +141,13 @@ where
 /// # Examples
 /// ```
 /// # use envisim_estimate::spatial_balance::*;
-/// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(
-///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-///     std::num::NonZeroUsize::new(10).unwrap(),
-/// ).unwrap();
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = local(&s, &options, true).unwrap();
-/// # Ok::<(), SamplingOptionsError>(())
+/// let sb = local(&s, &options, true)?;
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # References
@@ -314,17 +304,13 @@ where
 /// # Examples
 /// ```
 /// # use envisim_estimate::spatial_balance::*;
-/// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(
-///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-///     std::num::NonZeroUsize::new(10).unwrap(),
-/// ).unwrap();
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = energy_distance(&s, &options).unwrap();
-/// # Ok::<(), SamplingOptionsError>(())
+/// let sb = energy_distance(&s, &options);
+/// # Ok::<(), EstimationError>(())
 /// ```
 #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
 #[must_use]

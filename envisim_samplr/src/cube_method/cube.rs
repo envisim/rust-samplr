@@ -38,9 +38,9 @@ use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
-use envisim_utils::sampling_options::ProbabilitySpec;
-pub use envisim_utils::sampling_options::{
+use envisim_utils::sampling_options::{
     BalancingOptions,
+    ProbabilitySpec,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -498,7 +498,7 @@ where
     /// ], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
     ///     .set_balancing(m)?
-    ///     .cube(&mut rng)?;
+    ///     .cube(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -543,7 +543,7 @@ where
     /// let s = SamplingOptions::new(p.into())?
     ///     .set_balancing(bal)?
     ///     .set_spreading(spr)?
-    ///     .local_cube(&mut rng)?;
+    ///     .local_cube(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```

@@ -24,14 +24,11 @@ pub use cube::{
     LocalCubeSampling,
     LocalCubeStrategy,
 };
-pub use envisim_utils::sampling_options::{
-    SamplingOptions,
-    SamplingOptionsError,
-    SamplingOptionsResult,
-    SpreadingOptions,
-};
+pub use envisim_utils::sampling_options::SamplingOptions;
 pub use stratified::{
     CubeStratifiedRunner,
     cube_stratified,
     local_cube_stratified,
 };
+
+pub use crate::error::SamplingError;

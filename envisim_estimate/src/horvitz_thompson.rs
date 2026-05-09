@@ -29,22 +29,19 @@ use envisim_utils::sampling_options::{
 };
 use num_traits::ToPrimitive;
 
-use crate::error::{
-    EstimationError,
-    EstimationResult,
-};
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
 use crate::utils::ypi_iter_to_vec;
 
 /// Horvitz-Thompson estimator of a total
 ///
 /// # Examples
 /// ```
-/// use envisim_estimate::horvitz_thompson::estimate;
-///
-/// let y = [0.0, 0.1, 0.2, 0.3, 0.4];
-/// let pi = [0.2; 5];
-///
+/// # use envisim_estimate::horvitz_thompson::*;
+/// let y: Vec<f64> = vec![0.0, 0.1, 0.2, 0.3, 0.4];
+/// let pi: Vec<f64> = vec![0.2; 5];
 /// estimate(&y, &pi).unwrap(); // Should be about 5.0
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors

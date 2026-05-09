@@ -17,19 +17,19 @@ fn test_rpm() {
 #[test]
 fn test_lpm1() {
     let options = Data10::options_u();
-    test_wor(|rng| options.lpm_1(rng).unwrap(), &options, 0.015, 10000);
+    test_wor(|rng| options.lpm_1(rng), &options, 0.015, 10000);
 }
 
 #[test]
 fn test_lpm1s() {
     let options = Data10::options_u();
-    test_wor(|rng| options.lpm_1s(rng).unwrap(), &options, 0.015, 10000);
+    test_wor(|rng| options.lpm_1s(rng), &options, 0.015, 10000);
 }
 
 #[test]
 fn test_lpm2() {
     let options = Data10::options_u();
-    test_wor(|rng| options.lpm_2(rng).unwrap(), &options, 0.015, 10000);
+    test_wor(|rng| options.lpm_2(rng), &options, 0.015, 10000);
 }
 
 #[test]

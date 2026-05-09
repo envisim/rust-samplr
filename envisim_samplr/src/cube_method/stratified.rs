@@ -31,9 +31,9 @@ use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
-use envisim_utils::sampling_options::ProbabilitySpec;
-pub use envisim_utils::sampling_options::{
+use envisim_utils::sampling_options::{
     BalancingOptions,
+    ProbabilitySpec,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -413,7 +413,7 @@ where
     reason = "safe to assume balancing dims is not pushing the usize limit"
 )]
 #[inline]
-pub fn local_cube_stratified<R, PS, AUX, P, T, STRATA>(
+pub fn local_cube_stratified<R, PS, P, T, STRATA>(
     rng: &mut R,
     options: &SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
     strata: &[STRATA],

@@ -18,10 +18,8 @@ use envisim_utils::matrix::{
     RawData,
 };
 
-use crate::error::{
-    EstimationError,
-    EstimationResult,
-};
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
 use crate::utils::{
     ymui_iter_to_vec,
     zip3,
@@ -48,13 +46,12 @@ fn to_ymui_iter<'borrow>(
 ///
 /// # Examples
 /// ```
-/// use envisim_estimate::hansen_hurwitz::estimate;
-///
-/// let y = [0.0, 0.1, 0.2, 0.3, 0.4];
-/// let mu = [0.2; 5];
-/// let inc = [4.0, 3.0, 2.0, 1.0, 1.0];
-///
-/// estimate(&y, &mu, &inc).unwrap(); // Should be about 7.0
+/// # use envisim_estimate::hansen_hurwitz::*;
+/// let y: Vec<f64> = vec![0.0, 0.1, 0.2, 0.3, 0.4];
+/// let mu: Vec<f64> = vec![0.2; 5];
+/// let inc: Vec<f64> = vec![4.0, 3.0, 2.0, 1.0, 1.0];
+/// estimate(&y, &mu, &inc)?; // Should be about 7.0
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors
@@ -118,12 +115,12 @@ mod test {
     const MU_VALS: [f64; 6] = [1.0, 0.5, 0.5, 0.2, 0.2, 0.6];
 
     #[test]
-    fn test_hh() {
+    fn test_hh() -> EstimationResult<()> {
         let indices: Vec<usize> = vec![1, 3, 5];
         let y: Vec<f64> = indices.iter().map(|&id| Y_VALS[id]).collect();
         let mu: Vec<f64> = indices.iter().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![1.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions), Some(205.0));
+        assert_eq!(estimate(&y, &mu, &inclusions)?, 205.0);
 
         let indices: Vec<usize> = vec![0, 0, 2, 5];
         let mut indices_unique = indices.clone();
@@ -131,6 +128,7 @@ mod test {
         let y: Vec<f64> = indices_unique.iter().map(|&id| Y_VALS[id]).collect();
         let mu: Vec<f64> = indices_unique.iter().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![2.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions), Some(78.0));
+        assert_eq!(estimate(&y, &mu, &inclusions)?, 78.0);
+        Ok(())
     }
 }

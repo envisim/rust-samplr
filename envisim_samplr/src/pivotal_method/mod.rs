@@ -21,6 +21,7 @@ pub use base::{
     RandomStrategy,
     SequentialStrategy,
 };
+pub use envisim_utils::sampling_options::SamplingOptions;
 pub use runner::{
     PivotalRunner,
     PivotalStrategy,
@@ -32,3 +33,5 @@ pub use spatial::{
     LocalStrategy2,
     hierarchical_lpm_2,
 };
+
+pub use crate::error::SamplingError;

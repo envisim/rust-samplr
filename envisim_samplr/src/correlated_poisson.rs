@@ -24,12 +24,10 @@ use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
-use envisim_utils::sampling_options::ProbabilitySpec;
-pub use envisim_utils::sampling_options::{
+pub use envisim_utils::sampling_options::SamplingOptions;
+use envisim_utils::sampling_options::{
     CoordinationOptions,
-    SamplingOptions,
-    SamplingOptionsError,
-    SamplingOptionsResult,
+    ProbabilitySpec,
     SpreadingOptions,
 };
 use envisim_utils::spatial::{
@@ -576,7 +574,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = SmallRng::from_os_rng();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.cps(&mut rng)?;
+    /// let s = SamplingOptions::new(p.into())?.cps(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -644,7 +642,7 @@ where
     /// let mut rng = SmallRng::from_os_rng();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.scps(&mut rng)?;
+    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.scps(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -709,7 +707,7 @@ where
     /// let mut rng = SmallRng::from_os_rng();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.lcps(&mut rng)?;
+    /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.lcps(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -733,10 +731,7 @@ mod tests {
     use std::borrow::Cow;
 
     use envisim_utils::random::*;
-    use envisim_utils::sampling_options::{
-        CoordinationOptions,
-        SamplingOptionsError,
-    };
+    use envisim_utils::sampling_options::CoordinationOptions;
     use envisim_utils::test_utils::*;
 
     use super::*;
@@ -748,7 +743,7 @@ mod tests {
     fn coord_1() -> CoordinationOptions<'static> { Cow::from(&RV_1).into() }
 
     #[test]
-    fn cps_sampler() -> Result<(), SamplingOptionsError> {
+    fn cps_sampler() -> SamplingResult<()> {
         let mut rng = SmallRng::seed_from_u64(42);
 
         let options = Data10::options_e();

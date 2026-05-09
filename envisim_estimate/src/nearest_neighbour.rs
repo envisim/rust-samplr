@@ -24,10 +24,8 @@ use rustc_hash::{
     FxHashMap,
 };
 
-use crate::error::{
-    EstimationError,
-    EstimationResult,
-};
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
 
 /// Nearest neighbour estimator of total.
 /// Is not an design-unbiased estimator of the total.

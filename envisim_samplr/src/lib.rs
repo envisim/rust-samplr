@@ -28,7 +28,7 @@ pub mod correlated_poisson;
 pub mod cube_method;
 pub mod dbd;
 pub mod equal;
-mod error;
+pub mod error;
 pub mod pivotal_method;
 pub mod systematic;
 pub mod unequal;

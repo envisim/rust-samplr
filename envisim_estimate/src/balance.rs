@@ -12,18 +12,16 @@
 
 //! Balance deviation
 
+pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
     ProbabilitySpec,
-    SamplingOptions,
     SpreadingOptions,
 };
 use envisim_utils::spatial::PointSet;
 
-use crate::error::{
-    EstimationError,
-    EstimationResult,
-};
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
 use crate::utils::ypi_quotient;
 
 /// Returns the balance deviations per dimension
@@ -68,17 +66,13 @@ where
 /// # Examples
 /// ```
 /// # use envisim_estimate::balance::*;
-/// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(
-///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-///     std::num::NonZeroUsize::new(10).unwrap(),
-/// ).unwrap();
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_spreading(&s, &options).unwrap();
-/// # Ok::<(), SamplingOptionsError>(())
+/// let sb = balance_deviation_spreading(&s, &options)?;
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors
@@ -104,17 +98,13 @@ where
 /// # Examples
 /// ```
 /// # use envisim_estimate::balance::*;
-/// # use envisim_utils::sampling_options::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let p = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-/// let m = Matrix::new(
-///     vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-///     std::num::NonZeroUsize::new(10).unwrap(),
-/// ).unwrap();
+/// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+/// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_balancing(&s, &options).unwrap();
-/// # Ok::<(), SamplingOptionsError>(())
+/// let sb = balance_deviation_balancing(&s, &options)?;
+/// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors

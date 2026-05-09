@@ -6,24 +6,18 @@ use test_utils::*;
 fn test_cube() {
     let (spec, bmat) = matrix_big_balanced();
     let options = SamplingOptions::with_spec(spec)
-        .unwrap()
         .set_balancing(bmat)
         .unwrap();
-    test_wor_fixed_n(|rng| options.cube(rng).unwrap(), &options, 100);
+    test_wor_fixed_n(|rng| options.cube(rng), &options, 100);
 
     let options = Data10::options_u();
-    test_wor(|rng| options.cube(rng).unwrap(), &options, 1e-2, 100000);
+    test_wor(|rng| options.cube(rng), &options, 1e-2, 100000);
 }
 
 #[test]
 fn test_lcube() {
     let options = Data10::options_u();
-    test_wor(
-        |rng| options.local_cube(rng).unwrap(),
-        &options,
-        1e-2,
-        100000,
-    );
+    test_wor(|rng| options.local_cube(rng), &options, 1e-2, 100000);
 }
 
 #[test]

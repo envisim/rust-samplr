@@ -14,18 +14,16 @@
 
 use envisim_utils::indices::Indices;
 use envisim_utils::random::RandomNumberGenerator;
+pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
     ProbabilitySpecUnequal,
-    SamplingOptions,
     SamplingOptionsError,
 };
 use num_traits::ToPrimitive;
 
-pub use crate::error::{
-    SamplingError,
-    SamplingResult,
-};
+pub use crate::error::SamplingError;
+use crate::error::SamplingResult;
 use crate::utils::poisson_internal;
 
 /// Draws a single unit using pps

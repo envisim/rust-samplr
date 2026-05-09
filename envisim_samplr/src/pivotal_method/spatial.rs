@@ -382,7 +382,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
     ///     .set_spreading(m)?
-    ///     .lpm_1(&mut rng)?;
+    ///     .lpm_1(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -412,7 +412,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
     ///     .set_spreading(m)?
-    ///     .lpm_1s(&mut rng)?;
+    ///     .lpm_1s(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -442,7 +442,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
     ///     .set_spreading(m)?
-    ///     .lpm_2(&mut rng)?;
+    ///     .lpm_2(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```

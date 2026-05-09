@@ -15,10 +15,10 @@
 use std::iter::repeat_with;
 
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::{
-    ProbabilitySpecEqual,
-    SamplingOptions,
-};
+use envisim_utils::sampling_options::ProbabilitySpecEqual;
+pub use envisim_utils::sampling_options::SamplingOptions;
+
+pub use crate::error::SamplingError;
 
 pub trait EqualProbabilitySampling {
     fn srs<R>(&self, rng: &mut R) -> Vec<usize>
