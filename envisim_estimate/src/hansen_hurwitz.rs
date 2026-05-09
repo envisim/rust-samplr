@@ -18,27 +18,30 @@ use envisim_utils::matrix::{
     RawData,
 };
 
-fn quotient(ys: &[f64], ms: &[f64], incs: &[f64]) -> Option<Vec<f64>> {
-    let sample_size = ys.len();
-    if sample_size != ms.len() || sample_size != incs.len() {
-        return None;
-    }
+use crate::error::{
+    EstimationError,
+    EstimationResult,
+};
+use crate::utils::{
+    ymui_iter_to_vec,
+    zip3,
+};
 
-    let mut v = Vec::<f64>::with_capacity(ys.len());
-    for i in 0..sample_size {
-        let y = ys[i];
-        let m = ms[i];
-        let inc = incs[i];
-
-        if m < 0.0 || inc < 0.0 {
-            return None;
-        } else if m == 0.0 {
-            v.push(f64::NAN);
-        } else {
-            v.push(y / m * inc);
-        }
+/// Calculates the y / mu * s quotient
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match
+#[inline]
+fn to_ymui_iter<'borrow>(
+    y_values: &'borrow [f64],
+    expected: &'borrow [f64],
+    inclusions: &'borrow [f64],
+) -> EstimationResult<impl Iterator<Item = (&'borrow f64, &'borrow f64, &'borrow f64)>> {
+    let sample_size = y_values.len();
+    if sample_size != expected.len() || sample_size != inclusions.len() {
+        return Err(EstimationError::InvalidSample);
     }
-    Some(v)
+    Ok(zip3(y_values, expected, inclusions))
 }
 
 /// Hansen-Hurwitz estimator of a total
@@ -53,17 +56,27 @@ fn quotient(ys: &[f64], ms: &[f64], incs: &[f64]) -> Option<Vec<f64>> {
 ///
 /// estimate(&y, &mu, &inc).unwrap(); // Should be about 7.0
 /// ```
-pub fn estimate(y_values: &[f64], expected: &[f64], inclusions: &[f64]) -> Option<f64> {
-    quotient(y_values, expected, inclusions).map(|q| q.iter().sum::<f64>())
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
+#[inline]
+pub fn estimate(y_values: &[f64], expected: &[f64], inclusions: &[f64]) -> EstimationResult<f64> {
+    to_ymui_iter(y_values, expected, inclusions)
+        .and_then(ymui_iter_to_vec)
+        .map(|q_vec| q_vec.iter().sum())
 }
 
 /// Hansen-Hurwitz estimator of variance of total estimate
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
+#[inline]
 pub fn variance<T>(
     y_values: &[f64],
     expected: &[f64],
     inclusions: &[f64],
     expected_second_order: &MatrixBase<T>,
-) -> Option<f64>
+) -> EstimationResult<f64>
 where
     T: RawData<Elem = f64>,
 {
@@ -72,17 +85,17 @@ where
     if sample_size != expected_second_order.nrow().get()
         || sample_size != expected_second_order.ncol().get()
     {
-        return None;
+        return Err(EstimationError::InvalidSample);
     } else if sample_size == 0 {
-        return Some(0.0);
+        return Ok(0.0);
     }
 
-    let ypi = quotient(y_values, expected, inclusions)?;
+    let ypi = to_ymui_iter(y_values, expected, inclusions).and_then(ymui_iter_to_vec)?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
         if ypi[i].is_nan() {
-            return Some(f64::NAN);
+            return Ok(f64::NAN);
         }
         variance += ypi[i].powi(2) * (1.0 - expected[i].powi(2) / expected_second_order[(i, i)]);
 
@@ -94,7 +107,7 @@ where
         }
     }
 
-    Some(variance)
+    Ok(variance)
 }
 
 #[cfg(test)]

@@ -10,11 +10,17 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Standard cube methods
+
 use std::num::NonZeroUsize;
 
 use envisim_utils::kd_tree::searcher::{
     KNearestNeighbourSearcher,
     NeighbourSlice,
+};
+use envisim_utils::kd_tree::{
+    PointSet,
+    Tree,
 };
 use envisim_utils::matrix::{
     Dimensions,
@@ -29,18 +35,14 @@ use envisim_utils::probabilities::{
 };
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sample_controller::{
-    BasicSampleController,
     SampleController,
-    SpreadingSampleController,
+    UnitRemoving,
 };
 use envisim_utils::sampling_options::ProbabilitySpec;
 pub use envisim_utils::sampling_options::{
+    BalancingOptions,
     SamplingOptions,
     SpreadingOptions,
-};
-use envisim_utils::spatial::{
-    Number,
-    PointSet,
 };
 
 use super::utils::{
@@ -48,14 +50,12 @@ use super::utils::{
     set_candidates_from_indices,
 };
 use crate::EqualProbabilitySampling;
-use crate::error::SamplingResult;
 
-pub trait CubeStrategy {
-    type Controller;
+pub trait CubeStrategy<TREE> {
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, TREE>,
         rng: &mut R,
         n_units: usize,
     ) where
@@ -63,31 +63,46 @@ pub trait CubeStrategy {
     // Used for stratified
     fn reset_to_ids(
         &mut self,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, TREE>,
         ids: &mut [usize],
         n_neighbours: usize,
     );
 }
 
-pub struct CubeRunner<C, S> {
-    pub(super) controller: C,
+#[expect(
+    clippy::field_scoped_visibility_modifiers,
+    reason = "super is ok, needed for stratified cube"
+)]
+#[must_use]
+pub struct CubeRunner<S, TREE> {
+    /// Sample controller
+    pub(super) controller: SampleController<FloatProbabilities, TREE>,
+    /// Sample strategy
     pub(super) strategy: S,
+    /// Candidates for balancing
     pub(super) candidates: Vec<usize>,
+    /// Probability-adjusted balancing data
     pub(super) adjusted_data: Matrix<f64>,
+    /// Balancing data for candidates
     pub(super) candidate_data: Matrix<f64>,
 }
-impl<C, S> CubeRunner<C, S>
+impl<S, TREE> CubeRunner<S, TREE>
 where
-    C: SampleController<Store = FloatProbabilities>,
-    S: CubeStrategy<Controller = C>,
+    S: CubeStrategy<TREE>,
+    SampleController<FloatProbabilities, TREE>: UnitRemoving,
 {
+    /// Runs the simulation and returns a sorted sample
+    #[must_use]
+    #[inline]
     pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
     {
         self.run(rng);
-        self.controller.sample_mut().sort_to_vec()
+        self.controller.sample_vec()
     }
+    /// Runs the sampling algorithm
+    #[inline]
     pub fn run<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
@@ -95,12 +110,22 @@ where
         self.run_flight(rng);
         self.run_landing(rng);
     }
+    /// Runs the flight phase of the cube method
+    ///
+    /// # Panics
+    /// Panics if the width of `adjusted_data` does not match the `candidate_data` size (nrows), as
+    /// this is a sign that all flight preparations were not done correctly.
+    #[inline]
     pub fn run_flight<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
     {
         let b_cols = self.adjusted_data.ncol().get();
-        assert_eq!(b_cols, self.candidate_data.nrow().get());
+        assert_eq!(
+            b_cols,
+            self.candidate_data.nrow().get(),
+            "flight phase not setup properly"
+        );
 
         while self.controller.indices().len() > b_cols {
             self.strategy
@@ -109,6 +134,12 @@ where
             self.update_probabilities(rng);
         }
     }
+    /// Runs the landing phase of the cube method
+    ///
+    /// # Panics
+    /// Crashes if the landing phase is started too early, i.e. if the width of the `adjusted_data`
+    /// is lower than the number of remaining units.
+    #[inline]
     pub fn run_landing<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
@@ -123,23 +154,29 @@ where
         while self.controller.indices().len() > 1 {
             set_candidates_from_indices(&mut self.candidates, self.controller.indices(), 0);
             self.set_candidate_data();
-            self.update_probabilities(rng)
+            self.update_probabilities(rng);
         }
 
         self.controller
             .unit_decide_last(rng)
             .expect("last unit to be decided");
     }
-    pub fn new<PS, SOP, T>(
-        options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
-        controller: C,
+    /// Constructs a new cube runner
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "safe to assume balancing dims is not pushing the usize limit"
+    )]
+    #[inline]
+    pub fn new<PS, AUX, T>(
+        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+        controller: SampleController<FloatProbabilities, TREE>,
         strategy: S,
-    ) -> SamplingResult<Self>
+    ) -> Self
     where
         PS: ProbabilitySpec,
         T: RawData<Elem = f64>,
     {
-        let balancing_data = options.balancing()?.data();
+        let balancing_data = options.balancing().data();
         let b_dims = balancing_data.dims();
         let mut adjusted_data = balancing_data.to_matrix();
 
@@ -159,17 +196,25 @@ where
         );
         let candidate_data = Matrix::from_value(0.0, c_dims);
 
-        Ok(Self {
+        Self {
             controller,
             strategy,
             candidates: Vec::<usize>::with_capacity(20),
             adjusted_data,
             candidate_data,
-        })
+        }
     }
+    /// Sets the candidate data according to the candidates
+    ///
+    /// # Panics
+    /// Panics if the number of candidates are too few, many or too few.
+    #[inline]
     fn set_candidate_data(&mut self) {
         let n_candidates = self.candidates.len();
-        assert!(n_candidates <= self.adjusted_data.ncol().get() + 1);
+        assert!(
+            n_candidates <= self.adjusted_data.ncol().get() + 1,
+            "number of candidates needs to be at most one more than the width of adj data"
+        );
         let dims = MatrixDims::try_new(n_candidates - 1, n_candidates).expect("n_candidates > 1");
         self.candidate_data.resize(dims);
 
@@ -179,6 +224,8 @@ where
             }
         }
     }
+    /// Updates the probabilities of the candidates
+    #[inline]
     fn update_probabilities<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
@@ -203,7 +250,10 @@ where
             }
         }
 
-        let lambda = if rng.one_of_f64(lambdas.0, lambdas.1).unwrap() {
+        let lambda = if rng
+            .one_of_f64(lambdas.0, lambdas.1)
+            .expect("both lambdas to be non-negative, with at least one positive")
+        {
             lambdas.0
         } else {
             -lambdas.1
@@ -217,11 +267,14 @@ where
     }
 }
 
+#[must_use]
 pub struct BasicCubeStrategy();
 impl BasicCubeStrategy {
-    pub fn new<PS, SOP, T>(
-        options: &SamplingOptions<PS, SOP, MatrixBase<T>>,
-    ) -> SamplingResult<CubeRunner<BasicSampleController<FloatProbabilities>, Self>>
+    /// Constructs a new cube runner using the cube strategy
+    #[inline]
+    pub fn new<PS, AUX, T>(
+        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    ) -> CubeRunner<Self, ()>
     where
         PS: ProbabilitySpec,
         T: RawData<Elem = f64>,
@@ -230,79 +283,103 @@ impl BasicCubeStrategy {
         CubeRunner::new(options, controller, BasicCubeStrategy())
     }
 }
-impl CubeStrategy for BasicCubeStrategy {
-    type Controller = BasicSampleController<FloatProbabilities>;
+impl CubeStrategy<()> for BasicCubeStrategy {
+    #[inline]
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, ()>,
         _rng: &mut R,
         n_units: usize,
     ) where
         R: RandomNumberGenerator,
     {
-        set_candidates_from_indices(candidates, controller.indices(), n_units)
+        set_candidates_from_indices(candidates, controller.indices(), n_units);
     }
+    /// # Panics
+    /// If the id alread exists in the collection. This implies that the provided `ids` contains
+    /// duplicates.
+    #[inline]
     fn reset_to_ids(
         &mut self,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, ()>,
         ids: &mut [usize],
         _n_neighbours: usize,
     ) {
         controller.indices_mut().clear();
         for &id in ids.iter() {
-            controller.indices_mut().insert(id).unwrap();
+            controller
+                .indices_mut()
+                .insert(id)
+                .expect("id to not already exist in the collection");
         }
     }
 }
 
-pub struct LocalCubeStrategy<'a, P, N> {
-    pub(super) spreading_options: &'a SpreadingOptions<P>,
-    pub(super) searcher: KNearestNeighbourSearcher<N>,
+#[expect(
+    clippy::field_scoped_visibility_modifiers,
+    reason = "super is ok, needed for stratified cube"
+)]
+#[must_use]
+pub struct LocalCubeStrategy<'btree, P>
+where
+    P: PointSet,
+{
+    /// The spreading options, needed in order to reset the tree (used in stratified cube)
+    pub(super) spreading_options: &'btree SpreadingOptions<P>,
+    /// Searcher, used in tree
+    pub(super) searcher: KNearestNeighbourSearcher<P::N>,
 }
-impl<'a, SOP, N> LocalCubeStrategy<'a, SOP, N> {
+impl<'btree, P> LocalCubeStrategy<'btree, P>
+where
+    P: PointSet,
+{
+    /// Constructs a new cube runner using the local cube strategy
+    #[inline]
     pub fn new<PS, T>(
-        options: &'a SamplingOptions<PS, SOP, MatrixBase<T>>,
-    ) -> SamplingResult<CubeRunner<SpreadingSampleController<'a, FloatProbabilities, N, SOP>, Self>>
+        options: &'btree SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
+    ) -> CubeRunner<Self, Tree<'btree, P>>
     where
-        SOP: PointSet<N>,
-        N: Number,
         PS: ProbabilitySpec,
         T: RawData<Elem = f64>,
     {
-        let controller = options.to_spreading_controller_float()?;
+        let controller = options.to_spreading_controller_float();
         let searcher = KNearestNeighbourSearcher::new(
-            options.balancing()?.data().ncol(),
+            options.balancing().data().ncol(),
             controller.tree().data(),
         );
         CubeRunner::new(
             options,
             controller,
             Self {
-                spreading_options: options.spreading()?,
+                spreading_options: options.spreading(),
                 searcher,
             },
         )
     }
 }
-impl<'a, P, N> CubeStrategy for LocalCubeStrategy<'a, P, N>
+impl<'btree, P> CubeStrategy<Tree<'btree, P>> for LocalCubeStrategy<'btree, P>
 where
-    P: PointSet<N>,
-    N: Number,
+    P: PointSet,
 {
-    type Controller = SpreadingSampleController<'a, FloatProbabilities, N, P>;
+    /// # Panics
+    /// Panics if only one unit is wanted, or if more units is wanted than remains.
+    #[inline]
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, Tree<'btree, P>>,
         rng: &mut R,
         n_units: usize,
     ) where
         R: RandomNumberGenerator,
     {
-        assert!(n_units > 1);
+        assert!(
+            n_units > 1,
+            "only one unit wanted, should have entered landing phase"
+        );
         let len = controller.indices().len();
-        assert!(len >= n_units);
+        assert!(len >= n_units, "too many units wanted");
 
         if len == n_units {
             return set_candidates_from_indices(candidates, controller.indices(), n_units);
@@ -311,7 +388,10 @@ where
         candidates.clear();
 
         // Draw the first unit at random
-        let id1 = controller.indices().draw(rng).unwrap();
+        let id1 = controller
+            .indices()
+            .draw(rng)
+            .expect("we have already concluded that more that one unit remains");
         candidates.push(id1);
 
         // Find the neighbours of this first unit
@@ -347,16 +427,21 @@ where
                 .expect("more than one unit to remain on the border");
         // the number left to fill amongst the candidates
         let n_open_spots = n_units - candidates.len();
-        let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots).unwrap();
+        let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots)
+            .expect("n_remaining_units to be larger than n_open_spots");
 
         let s = opts.srs(rng);
         for k in s {
             candidates.push(self.searcher.neighbours()[guaranteed_units + k].id());
         }
     }
+    /// # Panics
+    /// If the id alread exists in the collection. This implies that the provided `ids` contains
+    /// duplicates.
+    #[inline]
     fn reset_to_ids(
         &mut self,
-        controller: &mut Self::Controller,
+        controller: &mut SampleController<FloatProbabilities, Tree<'btree, P>>,
         ids: &mut [usize],
         n_neighbours: usize,
     ) {
@@ -365,31 +450,33 @@ where
         );
 
         controller.indices_mut().clear();
-        controller
-            .reset_tree(self.spreading_options, ids)
-            .expect("tree should be resettable");
+        controller.reset_tree(self.spreading_options, ids);
 
         for id in ids.iter() {
-            controller.indices_mut().insert(*id).unwrap();
+            controller
+                .indices_mut()
+                .insert(*id)
+                .expect("id to not already exist in the collection");
         }
     }
 }
 
 pub trait CubeSampling {
-    fn cube<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    #[must_use]
+    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator;
 }
-pub trait LocalCubeSampling<P, N>
+pub trait LocalCubeSampling<P>
 where
-    P: PointSet<N>,
-    N: Number,
+    P: PointSet,
 {
-    fn local_cube<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    #[must_use]
+    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator;
 }
-impl<PS, SOP, T> CubeSampling for SamplingOptions<PS, SOP, MatrixBase<T>>
+impl<PS, AUX, T> CubeSampling for SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>
 where
     PS: ProbabilitySpec,
     T: RawData<Elem = f64>,
@@ -421,18 +508,19 @@ where
     /// Efficient balanced sampling: the cube method.
     /// Biometrika, 91(4), 893-912.
     /// <https://doi.org/10.1093/biomet/91.4.893>
-    fn cube<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    #[inline]
+    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
     {
-        Ok(BasicCubeStrategy::new(self)?.sample(rng))
+        BasicCubeStrategy::new(self).sample(rng)
     }
 }
-impl<PS, SOP, N, T> LocalCubeSampling<SOP, N> for SamplingOptions<PS, SOP, MatrixBase<T>>
+impl<PS, P, T> LocalCubeSampling<P>
+    for SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<N>,
-    N: Number,
+    P: PointSet,
     T: RawData<Elem = f64>,
 {
     /// Draw a sample using the local cube method.
@@ -470,10 +558,11 @@ where
     /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
     /// Environmetrics, 24(2), 120-131.
     /// <https://doi.org/10.1002/env.2194>
-    fn local_cube<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    #[inline]
+    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
     {
-        Ok(LocalCubeStrategy::new(self)?.sample(rng))
+        LocalCubeStrategy::new(self).sample(rng)
     }
 }

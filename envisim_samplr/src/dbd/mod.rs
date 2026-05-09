@@ -18,7 +18,6 @@ mod dbd_options;
 mod dbd_tc;
 mod energy_distance;
 mod tc_parameters;
-mod utils;
 
 use std::num::NonZeroUsize;
 
@@ -32,6 +31,7 @@ use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sampling_options::{
     ProbabilitySpecEqual,
     SamplingOptions,
+    SpreadingOptions,
 };
 use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
@@ -46,6 +46,53 @@ use crate::{
 };
 
 pub trait DistributionalDesigns {
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    fn dbd_circular<R>(
+        &self,
+        rng: &mut R,
+        dbs_options: DistributionalDesignOptions,
+    ) -> SamplingResult<CircularConfiguration>
+    where
+        R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    fn dbd_tc<R>(
+        &self,
+        rng: &mut R,
+        dbs_options: DistributionalDesignOptions,
+    ) -> SamplingResult<TacticalConfiguration>
+    where
+        R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    fn dbd_circular_iterations<R>(
+        &self,
+        rng: &mut R,
+        dbs_options: DistributionalDesignOptions,
+        to: NonZeroUsize,
+        by: NonZeroUsize,
+    ) -> SamplingResult<Vec<f64>>
+    where
+        R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    fn dbd_tc_iterations<R>(
+        &self,
+        rng: &mut R,
+        dbs_options: DistributionalDesignOptions,
+        to: NonZeroUsize,
+        by: NonZeroUsize,
+    ) -> SamplingResult<Vec<f64>>
+    where
+        R: RandomNumberGenerator;
+}
+
+impl<P, BAL> DistributionalDesigns
+    for SamplingOptions<ProbabilitySpecEqual, SpreadingOptions<P>, BAL>
+where
+    P: PointSet<N = f64>,
+{
     /// Construct a distributionally balanced design in a circular configuration
     ///
     /// # Examples
@@ -68,13 +115,32 @@ pub trait DistributionalDesigns {
     /// Distributionally balanced sampling designs.
     /// arXiv preprint arXiv:2603.11916.
     /// <https://doi.org/10.48550/arXiv.2603.11916>
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    #[inline]
     fn dbd_circular<R>(
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
     ) -> SamplingResult<CircularConfiguration>
     where
-        R: RandomNumberGenerator;
+        R: RandomNumberGenerator,
+    {
+        let sample_size =
+            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let max_iter = self.max_iterations();
+        let eps = self.eps();
+        let spreading_data = self.spreading().data();
+
+        let mut v = match DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) {
+            Ok(v) => v,
+            Err(c) => return Ok(c),
+        };
+        v.run(rng, max_iter);
+
+        Ok(v.into_optimal_configuration())
+    }
     /// Construct a distributionally balanced design in a circular configuration
     ///
     /// # Examples
@@ -97,61 +163,10 @@ pub trait DistributionalDesigns {
     /// Distributionally balanced sampling designs via minimum tactical configurations.
     /// arXiv preprint arXiv:2603.24439.
     /// <https://doi.org/10.48550/arXiv.2603.24439>
-    fn dbd_tc<R>(
-        &self,
-        rng: &mut R,
-        dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<TacticalConfiguration>
-    where
-        R: RandomNumberGenerator;
-    /// Calculate mean and sd for the dbd circular design at specific iteration intervals
-    fn dbd_circular_iterations<R>(
-        &self,
-        rng: &mut R,
-        dbs_options: DistributionalDesignOptions,
-        to: usize,
-        by: usize,
-    ) -> SamplingResult<Vec<f64>>
-    where
-        R: RandomNumberGenerator;
-    /// Calculate mean and sd for the dbd tc design at specific iteration intervals
-    fn dbd_tc_iterations<R>(
-        &self,
-        rng: &mut R,
-        dbs_options: DistributionalDesignOptions,
-        to: usize,
-        by: usize,
-    ) -> SamplingResult<Vec<f64>>
-    where
-        R: RandomNumberGenerator;
-}
-
-impl<SOP, BOP> DistributionalDesigns for SamplingOptions<ProbabilitySpecEqual, SOP, BOP>
-where
-    SOP: PointSet<f64>,
-{
-    fn dbd_circular<R>(
-        &self,
-        rng: &mut R,
-        dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<CircularConfiguration>
-    where
-        R: RandomNumberGenerator,
-    {
-        let sample_size =
-            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-        let max_iter = self.max_iterations();
-        let eps = self.eps();
-        let spreading_data = self.spreading()?.data();
-
-        let mut v = match DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) {
-            Ok(v) => v,
-            Err(c) => return Ok(c),
-        };
-        v.run(rng, max_iter);
-
-        Ok(v.into_optimal_configuration())
-    }
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    #[inline]
     fn dbd_tc<R>(
         &self,
         rng: &mut R,
@@ -164,7 +179,7 @@ where
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
         let max_iter = self.max_iterations();
         let eps = self.eps();
-        let spreading_data = self.spreading()?.data();
+        let spreading_data = self.spreading().data();
 
         let mut v = match DbdTacticalConfiguration::new(
             rng,
@@ -180,42 +195,43 @@ where
 
         Ok(v.into_optimal_configuration())
     }
-
+    /// Runs the circular dbd until `to`, reporting the energy in `by` intervals.
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    #[inline]
     fn dbd_circular_iterations<R>(
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-        to: usize,
-        by: usize,
+        to: NonZeroUsize,
+        by: NonZeroUsize,
     ) -> SamplingResult<Vec<f64>>
     where
         R: RandomNumberGenerator,
     {
-        if to < by || by == 0 {
-            return Err(SamplingError::MaxIterations(unsafe {
-                NonZeroUsize::new_unchecked(1)
-            }));
+        if to < by {
+            return Err(SamplingError::MaxIterations(to));
         }
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-        let sample_size_float = sample_size.get().to_f64().unwrap();
+        let sample_size_float = sample_size
+            .get()
+            .to_f64()
+            .expect("sample_size to convert to f64");
         let eps = self.eps();
-        let spreading_data = self.spreading()?.data();
+        let spreading_data = self.spreading().data();
 
-        let mut v = match DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) {
-            Ok(v) => v,
-            Err(_) => {
-                return Ok(vec![0.0; to / by * 2]);
-            }
+        let Ok(mut v) = DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) else {
+            return Ok(vec![0.0; to.get() / by * 2]);
         };
 
-        let mut res: Vec<f64> = Vec::with_capacity(to / by * 2);
-        let by_nz = unsafe { NonZeroUsize::new_unchecked(by) };
+        let mut res: Vec<f64> = Vec::with_capacity(to.get() / by * 2);
 
-        let mut iters = by;
-        while iters <= to {
-            v.run(rng, by_nz);
+        let mut iters = by.get();
+        while iters <= to.get() {
+            v.run(rng, by);
 
             let optimal_conf = v.optimal_configuration();
             let mean = optimal_conf.average_energy();
@@ -226,56 +242,66 @@ where
                 sd += (energy - mean).powi(2);
             }
 
-            sd = (sd / optimal_conf.tcp().n_samples().get().to_f64().unwrap()).sqrt();
+            sd = (sd
+                / optimal_conf
+                    .tcp()
+                    .n_samples()
+                    .get()
+                    .to_f64()
+                    .expect("n_samples to convert to f64"))
+            .sqrt();
             res.push(mean);
             res.push(sd);
-            iters += by;
+            iters += by.get();
         }
 
         Ok(res)
     }
+    /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is 0.
+    #[inline]
     fn dbd_tc_iterations<R>(
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-        to: usize,
-        by: usize,
+        to: NonZeroUsize,
+        by: NonZeroUsize,
     ) -> SamplingResult<Vec<f64>>
     where
         R: RandomNumberGenerator,
     {
-        if to < by || by == 0 {
-            return Err(SamplingError::MaxIterations(unsafe {
-                NonZeroUsize::new_unchecked(1)
-            }));
+        if to < by {
+            return Err(SamplingError::MaxIterations(to));
         }
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-        let sample_size_float = sample_size.get().to_f64().unwrap();
+        let sample_size_float = sample_size
+            .get()
+            .to_f64()
+            .expect("sample_size to convert to f64");
         let eps = self.eps();
-        let spreading_data = self.spreading()?.data();
+        let spreading_data = self.spreading().data();
 
-        let mut v = match DbdTacticalConfiguration::new(
-            rng,
-            &dbs_options,
-            spreading_data,
-            sample_size,
-            eps,
-        ) {
-            Ok(v) => v,
-            Err(_) => {
-                return Ok(vec![0.0; to / by * 2]);
-            }
+        let Ok(mut v) =
+            DbdTacticalConfiguration::new(rng, &dbs_options, spreading_data, sample_size, eps)
+        else {
+            return Ok(vec![0.0; to.get() / by * 2]);
         };
 
-        let mut res: Vec<f64> = Vec::with_capacity(to / by * 2);
-        let n_buckets_float = v.tcp().n_samples().get().to_f64().unwrap();
-        let by_nz = unsafe { NonZeroUsize::new_unchecked(by) };
+        let mut res: Vec<f64> = Vec::with_capacity(to.get() / by * 2);
+        let n_buckets_float = v
+            .tcp()
+            .n_samples()
+            .get()
+            .to_f64()
+            .expect("n_samples to convert to f64");
 
-        let mut iters = by;
-        while iters <= to {
-            v.run(rng, by_nz);
+        let mut iters = by.get();
+        while iters <= to.get() {
+            v.run(rng, by);
 
             let optimal_conf = v.optimal_configuration();
             let mean = optimal_conf.average_energy();
@@ -289,7 +315,7 @@ where
             sd = (sd / n_buckets_float).sqrt();
             res.push(mean);
             res.push(sd);
-            iters += by;
+            iters += by.get();
         }
 
         Ok(res)

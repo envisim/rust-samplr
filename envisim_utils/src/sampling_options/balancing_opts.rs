@@ -18,6 +18,12 @@ pub struct BalancingOptions<P> {
     /// Balancing data
     data: P,
 }
+
+impl<P> From<P> for BalancingOptions<P> {
+    #[inline]
+    fn from(value: P) -> Self { Self::new(value) }
+}
+
 impl<P> BalancingOptions<P> {
     #[inline]
     pub fn data(&self) -> &P { &self.data }

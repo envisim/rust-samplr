@@ -12,6 +12,8 @@
 
 //! List of indices
 
+use std::ops::Index;
+
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -279,9 +281,19 @@ impl Indices {
     }
 }
 
+impl Index<usize> for Indices {
+    type Output = usize;
+    #[must_use]
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output { &self.list[index] }
+}
+
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "additional pair variants is a breaking change"
+)]
 #[must_use]
 #[derive(Clone, Debug, Default)]
-#[non_exhaustive]
 pub enum Pair {
     #[default]
     Zero,

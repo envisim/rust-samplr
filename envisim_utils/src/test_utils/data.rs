@@ -1,10 +1,11 @@
-use super::nz;
 pub use crate::matrix::Dimensions;
 use crate::matrix::MatrixRef;
 use crate::sampling_options::{
+    BalancingOptions,
     ProbabilitySpecEqual,
     ProbabilitySpecUnequal,
     SamplingOptions,
+    SpreadingOptions,
 };
 
 // DISTS:
@@ -57,39 +58,34 @@ impl Data10 {
         ProbabilitySpecUnequal::new((&Self::PROB_U).into()).unwrap()
     }
     #[inline]
-    pub fn prob_e() -> ProbabilitySpecEqual { ProbabilitySpecEqual::new(nz(10), 2).unwrap() }
+    pub fn prob_e() -> ProbabilitySpecEqual { ProbabilitySpecEqual::new(10, 2).unwrap() }
     #[inline]
-    pub fn matrix() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::DATA_2, nz(10)).unwrap() }
+    pub fn matrix() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::DATA_2, 10).unwrap() }
     #[inline]
-    pub fn bmatrix_no_p() -> MatrixRef<'static, f64> {
-        MatrixRef::new(&Self::BDATA_1, nz(10)).unwrap()
-    }
+    pub fn bmatrix_no_p() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_1, 10).unwrap() }
     #[inline]
-    pub fn bmatrix_up() -> MatrixRef<'static, f64> {
-        MatrixRef::new(&Self::BDATA_UP1, nz(10)).unwrap()
-    }
+    pub fn bmatrix_up() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_UP1, 10).unwrap() }
     #[inline]
-    pub fn bmatrix_ep() -> MatrixRef<'static, f64> {
-        MatrixRef::new(&Self::BDATA_EP1, nz(10)).unwrap()
-    }
+    pub fn bmatrix_ep() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_EP1, 10).unwrap() }
     #[inline]
     pub fn options_u() -> SamplingOptions<
         ProbabilitySpecUnequal<'static>,
-        MatrixRef<'static, f64>,
-        MatrixRef<'static, f64>,
+        SpreadingOptions<MatrixRef<'static, f64>>,
+        BalancingOptions<MatrixRef<'static, f64>>,
     > {
         SamplingOptions::with_spec(Self::prob_u())
-            .unwrap()
             .set_spreading(Self::matrix())
             .unwrap()
             .set_balancing(Self::bmatrix_up())
             .unwrap()
     }
     #[inline]
-    pub fn options_e()
-    -> SamplingOptions<ProbabilitySpecEqual, MatrixRef<'static, f64>, MatrixRef<'static, f64>> {
+    pub fn options_e() -> SamplingOptions<
+        ProbabilitySpecEqual,
+        SpreadingOptions<MatrixRef<'static, f64>>,
+        BalancingOptions<MatrixRef<'static, f64>>,
+    > {
         SamplingOptions::with_spec_equal(Data10::prob_e())
-            .unwrap()
             .set_spreading(Data10::matrix())
             .unwrap()
             .set_balancing(Data10::bmatrix_ep())

@@ -89,6 +89,14 @@ impl<P> SpreadingOptions<P> {
     }
 }
 
+impl<P> From<P> for SpreadingOptions<P>
+where
+    P: PointSet,
+{
+    #[inline]
+    fn from(value: P) -> Self { Self::new(value) }
+}
+
 impl<P> TreeConfig for SpreadingOptions<P>
 where
     P: PointSet,

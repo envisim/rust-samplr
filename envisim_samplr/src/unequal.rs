@@ -26,8 +26,12 @@ pub use crate::error::{
     SamplingError,
     SamplingResult,
 };
+use crate::utils::poisson_internal;
 
-// Assumes probabilites sum to 1.0
+/// Draws a single unit using pps
+/// Assumes probabilites sum to 1.0
+#[must_use]
+#[inline]
 fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
 where
     R: RandomNumberGenerator,
@@ -47,39 +51,39 @@ where
     population_size - 1
 }
 
-pub(crate) fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
-where
-    R: RandomNumberGenerator,
-{
-    probabilities
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &p)| rng.rbern(p).and_then(|b| b.then_some(i)))
-        .collect()
-}
-
 pub trait UnequalProbabilitySampling {
+    /// # Errors
+    /// Returns an error if probabilities does not sum to 1.0.
     fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
     fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
     fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
     fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator;
+    #[must_use]
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator;
+    /// # Errors
+    /// Returns an error if `sample_size` is larger than the population size.
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator;
 }
-impl<SOP, BOP> UnequalProbabilitySampling
-    for SamplingOptions<ProbabilitySpecUnequal<'_>, SOP, BOP>
+impl<AUX, BAL> UnequalProbabilitySampling
+    for SamplingOptions<ProbabilitySpecUnequal<'_>, AUX, BAL>
 {
     /// Draw a with replacment sample according to draw probabilities
     /// Probabilities must sum to 1.0.
@@ -94,14 +98,16 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to 1.0.
+    #[inline]
     fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
     {
         let probabilities = self.probabilities().as_f64_slice();
-        let psum = self.probabilities().sample_size_f64();
-
-        if (psum - 1.0).abs() > self.eps() {
+        if (self.probabilities().sample_size_f64() - 1.0).abs() > self.eps() {
             return Err(SamplingError::IncorrectDrawProbabilities);
         }
 
@@ -115,12 +121,12 @@ impl<SOP, BOP> UnequalProbabilitySampling
             rvs.push(rng.rf64());
         }
 
-        rvs.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        rvs.sort_unstable_by(|a, b| a.partial_cmp(b).expect("rvs to not be NaN"));
 
         let mut sample = Vec::<usize>::with_capacity(n);
         let mut psum: f64 = 0.0;
         let mut rv_iter = rvs.iter();
-        let mut rv = *rv_iter.next().unwrap();
+        let mut rv = *rv_iter.next().expect("at least one rv to exist");
 
         // Add units for which rv is in [psum, psum+p)
         // Go up one p when psum+p < rv
@@ -161,6 +167,10 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    #[inline]
     fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
@@ -169,7 +179,8 @@ impl<SOP, BOP> UnequalProbabilitySampling
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
         let sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            psum.to_usize().unwrap()
+            psum.to_usize()
+                .expect("probability sum to convert to usize")
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
@@ -219,6 +230,10 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// Rosén, B. (2000).
     /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
     /// Stockholm: Statistiska Centralbyrån.
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    #[inline]
     fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
@@ -227,7 +242,8 @@ impl<SOP, BOP> UnequalProbabilitySampling
         let eps = self.eps();
         let psum = self.probabilities().sample_size_f64();
         let sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            psum.to_usize().unwrap()
+            psum.to_usize()
+                .expect("probability sum to convert to usize")
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
@@ -252,7 +268,11 @@ impl<SOP, BOP> UnequalProbabilitySampling
             .collect();
 
         let mut sample: Vec<usize> = (0..probabilities.len()).collect();
-        sample.sort_by(|&a, &b| q_values[a].partial_cmp(&q_values[b]).unwrap());
+        sample.sort_by(|&a, &b| {
+            q_values[a]
+                .partial_cmp(&q_values[b])
+                .expect("q_value to not be NaN")
+        });
         sample.truncate(sample_size);
         Ok(sample)
     }
@@ -269,27 +289,34 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    #[expect(clippy::panic_in_result_fn, reason = "panic implies bug")]
+    #[inline]
     fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
     {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
-        let psum = self.probabilities().sample_size_f64();
-        let mut sample_size: usize = if (psum - psum.round()).abs() <= eps {
-            psum.to_usize().unwrap()
+        let initial_psum = self.probabilities().sample_size_f64();
+        let mut sample_size: usize = if (initial_psum - initial_psum.round()).abs() <= eps {
+            initial_psum
+                .to_usize()
+                .expect("probability sum to convert to usize")
         } else {
             return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
         };
-        let mut n_d = psum;
+        let mut n_d = initial_psum;
         let mut indices = Indices::with_fill(probabilities.len());
         let mut sample = Vec::<usize>::with_capacity(sample_size);
 
         for (id, &p) in probabilities.iter().enumerate() {
             if p <= eps {
-                indices.remove(id).unwrap();
+                indices.remove(id).expect("id to exist in indices");
             } else if 1.0 - eps <= p {
-                indices.remove(id).unwrap();
+                indices.remove(id).expect("id to exist in indices");
                 sample.push(id);
                 n_d -= 1.0;
                 sample_size -= 1;
@@ -302,7 +329,9 @@ impl<SOP, BOP> UnequalProbabilitySampling
             let mut psum = 0.0;
             for &id in indices.list() {
                 let p = probabilities[id];
-                let remaining_draws = (sample_size - i).to_f64().unwrap();
+                let remaining_draws = (sample_size - i)
+                    .to_f64()
+                    .expect("sample_size to convert to f64");
                 q_probs[id] = p * (n_d - p) / (n_d - p * remaining_draws);
                 psum += q_probs[id];
             }
@@ -318,7 +347,7 @@ impl<SOP, BOP> UnequalProbabilitySampling
             }
 
             let a_unit = draw(rng, &q_probs);
-            indices.remove(a_unit).unwrap();
+            indices.remove(a_unit).expect("a_unit to exist in indices");
             sample.push(a_unit);
             q_probs[a_unit] = 0.0;
             n_d -= probabilities[a_unit];
@@ -338,6 +367,7 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    #[inline]
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
@@ -358,6 +388,10 @@ impl<SOP, BOP> UnequalProbabilitySampling
     /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
     /// # Ok::<(), SamplingError>(())
     /// ```
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is larger than the population size.
+    #[inline]
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,

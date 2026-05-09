@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Circular distributionally balanced designs
+
 use std::num::NonZeroUsize;
 
 pub use config::*;
@@ -25,6 +27,8 @@ use super::annealing::{
 use super::energy_distance::EnergyDistance;
 
 mod config {
+    //! Circular DBD config
+
     use std::num::NonZeroUsize;
 
     use envisim_utils::spatial::PointSet;
@@ -36,6 +40,7 @@ mod config {
     };
 
     /// Stores a circular design configuration
+    #[must_use]
     #[derive(Clone, Debug)]
     pub struct CircularConfiguration {
         /// Internal storage of sequence
@@ -47,13 +52,17 @@ mod config {
     }
     impl CircularConfiguration {
         /// Construct a new circular configuration from a sequence
+        ///
+        /// # Panics
+        /// Panics if the sequence is empty.
+        #[inline]
         pub fn new<P>(
             sequence: Vec<usize>,
             sample_size: NonZeroUsize,
             ed: &EnergyDistance<P>,
         ) -> Self
         where
-            P: PointSet<f64>,
+            P: PointSet<N = f64>,
         {
             let population_size =
                 NonZeroUsize::new(sequence.len()).expect("sequence to be non-empty");
@@ -74,22 +83,31 @@ mod config {
             cc
         }
         /// Returns a reference to the sequence store
+        #[must_use]
+        #[inline]
         pub fn sequence(&self) -> &[usize] { &self.sequence }
         /// Consumes `self` and returns the internal storage
+        #[must_use]
+        #[inline]
         pub fn into_sequence(self) -> Vec<usize> { self.sequence }
         /// Returns a mutable reference to the sequence store
+        #[must_use]
+        #[inline]
         pub fn sequence_mut(&mut self) -> &mut [usize] { &mut self.sequence }
         /// Returns an element from the sequence store
-        pub fn sequence_get(&self, k: usize) -> Option<usize> { self.sequence.get(k).cloned() }
+        #[must_use]
+        #[inline]
+        pub fn sequence_get(&self, k: usize) -> Option<usize> { self.sequence.get(k).copied() }
         /// Add a delta to the nenergy
         pub(crate) fn add_nenergy_delta(&mut self, delta: f64) -> f64 {
             self.total_nenergy += delta;
             self.total_nenergy
         }
         /// Reset the total nenergy
+        #[inline]
         fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
         where
-            P: PointSet<f64>,
+            P: PointSet<N = f64>,
         {
             self.total_nenergy = 0.0;
             for i in 0..self.tcp.n_samples().get() {
@@ -99,45 +117,69 @@ mod config {
         }
     }
     impl DbdConfiguration for CircularConfiguration {
+        #[inline]
         fn tcp(&self) -> &TacticalConfigurationParameters { &self.tcp }
+        #[inline]
         fn total_nenergy(&self) -> f64 { self.total_nenergy }
+        #[inline]
         fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_ {
             let sample_id = sample_id % self.tcp.n_samples();
             self.sequence[sample_id..]
                 .iter()
                 .chain(self.sequence[..sample_id].iter())
                 .take(self.tcp.sample_size().get())
-                .cloned()
+                .copied()
         }
     }
 }
 
+/// The circular DBD container
+#[must_use]
 pub struct DbdCircular<P> {
+    /// Annealing temperature tracker
     temperature: AnnealingTemperature,
+    /// Energy distance engine
     ed: EnergyDistance<P>,
 
+    /// Main circular config
     configuration: CircularConfiguration,
+    /// Best cicular config, if better than main
     configuration_best: Option<CircularConfiguration>,
 
+    /// The switch-candidates to evaluate
     pair: (usize, usize), // k-index
+    /// The switch-candidates energy-delta
     total_nenergy_delta: f64,
 }
 impl<P> DbdCircular<P> {
+    /// Returns the optimal configuration
+    #[inline]
     pub fn optimal_configuration(&self) -> &CircularConfiguration {
         self.configuration_best
             .as_ref()
             .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
             .unwrap_or(&self.configuration)
     }
+    /// Converts self into the optimal configuration
+    #[inline]
     pub fn into_optimal_configuration(self) -> CircularConfiguration {
         self.configuration_best
             .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
             .unwrap_or(self.configuration)
     }
+    /// Returns a reference to the energy distance engine
+    #[inline]
     pub fn ed(&self) -> &EnergyDistance<P> { &self.ed }
+    /// Returns a reference to the tactical configuration parameters
+    #[inline]
     pub fn tcp(&self) -> &TacticalConfigurationParameters { self.configuration.tcp() }
 
     // CONSTRUCTORS
+    /// Constructs a new circular DBD
+    ///
+    /// # Errors
+    /// Returns the full configuration in case of `sample_size` equaling the population size.
+    #[inline]
     pub fn new(
         dbs_options: &DistributionalDesignOptions,
         matrix: P,
@@ -145,7 +187,7 @@ impl<P> DbdCircular<P> {
         eps: f64,
     ) -> Result<Self, CircularConfiguration>
     where
-        P: PointSet<f64>,
+        P: PointSet<N = f64>,
     {
         let sequence: Vec<usize> = matrix.id_iter().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
@@ -173,11 +215,14 @@ impl<P> DbdCircular<P> {
 
 impl<P> AnnealingDistributionalDesign for DbdCircular<P>
 where
-    P: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
+    #[inline]
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }
+    #[inline]
     fn temperature_mut(&mut self) -> &mut AnnealingTemperature { &mut self.temperature }
 
+    #[inline]
     fn draw_units<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
@@ -187,6 +232,7 @@ where
         let b = rng.rusize_to(n - 1);
         self.pair = if a == b { (a, n - 1) } else { (a, b) };
     }
+    #[inline]
     fn evaluate_switch(&mut self) -> Option<f64> {
         self.total_nenergy_delta = 0.0;
 
@@ -198,10 +244,19 @@ where
 
         let population_size = self.tcp().population_size().get();
         let sample_size = self.tcp().sample_size().get();
+        let sample_size_f64 = sample_size
+            .to_f64()
+            .expect("sample_size should be far below f64 max");
         let d = population_size - sample_size + 1;
 
-        let id1 = self.configuration.sequence_get(k1).unwrap();
-        let id2 = self.configuration.sequence_get(k2).unwrap();
+        let id1 = self
+            .configuration
+            .sequence_get(k1)
+            .expect("index k1 to exist in the sequence");
+        let id2 = self
+            .configuration
+            .sequence_get(k2)
+            .expect("index k2 to exist in the sequence");
 
         // Units definetly in the overlap should not be counted
         // Other units should be counted relative to their distance to the moving unit
@@ -212,31 +267,43 @@ where
                 continue;
             }
 
-            let abs_dist = k1.abs_diff(k);
-            let dist = abs_dist.min(population_size - abs_dist);
-            let m1: i64 = if dist < sample_size {
-                i64::try_from(sample_size - dist).unwrap()
-                // (sample_size - dist) as i64
-            } else {
-                0
+            let m1: i64 = {
+                let abs_dist = k1.abs_diff(k);
+                let dist = abs_dist.min(population_size - abs_dist);
+                if dist < sample_size {
+                    (sample_size - dist)
+                        .to_i64()
+                        .expect("sample_size - dist to be far below the i64 max")
+                } else {
+                    0
+                }
             };
 
-            let abs_dist = k2.abs_diff(k);
-            let dist = abs_dist.min(population_size - abs_dist);
-            let m2: i64 = if dist < sample_size {
-                i64::try_from(sample_size - dist).unwrap()
-                // (sample_size - dist) as i64
-            } else {
-                0
+            let m2: i64 = {
+                let abs_dist = k2.abs_diff(k);
+                let dist = abs_dist.min(population_size - abs_dist);
+                if dist < sample_size {
+                    (sample_size - dist)
+                        .to_i64()
+                        .expect("sample_size - dist to be far below the i64 max")
+                } else {
+                    0
+                }
             };
 
             if m1 == m2 {
                 continue;
             }
 
-            let m_f64 = ((2 * (m1 - m2)) as f64) / sample_size.to_f64().unwrap();
+            let m_f64 = (2 * (m1 - m2))
+                .to_f64()
+                .expect("limited by 2 * sample_size, which should be far below f64 max")
+                / sample_size_f64;
 
-            let id = self.configuration.sequence_get(k).unwrap();
+            let id = self
+                .configuration
+                .sequence_get(k)
+                .expect("k is guaranteed to exist after k % pop_size in beginning of loop");
             let delta = self.ed.relative_distance(id, id1, id2);
             self.total_nenergy_delta += delta * m_f64;
         }
@@ -247,34 +314,48 @@ where
                 continue;
             }
 
-            // Skip every unit close to k1, as these has already been handled
-            let abs_dist = k1.abs_diff(k);
-            let dist = abs_dist.min(population_size - abs_dist);
-            if dist < sample_size {
-                continue;
+            {
+                // Skip every unit close to k1, as these has already been handled
+                let abs_dist = k1.abs_diff(k);
+                let dist = abs_dist.min(population_size - abs_dist);
+                if dist < sample_size {
+                    continue;
+                }
             }
 
-            let abs_dist = k2.abs_diff(k);
-            let dist = abs_dist.min(population_size - abs_dist);
-            let m_f64: f64 = if dist < sample_size {
-                (2 * (sample_size - dist)).to_f64().unwrap() / sample_size.to_f64().unwrap()
-            } else {
-                continue;
+            let m_f64: f64 = {
+                let abs_dist = k2.abs_diff(k);
+                let dist = abs_dist.min(population_size - abs_dist);
+                if dist < sample_size {
+                    // (2* (sample_size - dist)) / sample_size
+                    2.0 * (1.0
+                        - dist
+                            .to_f64()
+                            .expect("limited by sample_size, which should be far below f64 max")
+                            / sample_size_f64)
+                } else {
+                    continue;
+                }
             };
 
-            let id = self.configuration.sequence_get(k).unwrap();
+            let id = self
+                .configuration
+                .sequence_get(k)
+                .expect("k is guaranteed to exist after k % pop_size in beginning of loop");
             let delta = self.ed.relative_distance(id, id2, id1);
             self.total_nenergy_delta += delta * m_f64;
         }
 
         Some(self.total_nenergy_delta)
     }
+    #[inline]
     fn switch(&mut self) {
         let (k1, k2) = self.pair;
         self.configuration.sequence_mut().swap(k1, k2);
         self.configuration
             .add_nenergy_delta(self.total_nenergy_delta);
     }
+    #[inline]
     fn set_optimal_configuration(&mut self) {
         // Only replace if conf_best is None, or if we're better than conf_best
         self.configuration_best = match &self.configuration_best {

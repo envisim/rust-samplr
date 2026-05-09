@@ -10,18 +10,17 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Utility functions for cube
+
 use envisim_utils::indices::Indices;
 use envisim_utils::matrix::{
     Dimensions,
     Matrix,
 };
-use envisim_utils::probabilities::FloatProbabilities;
-use envisim_utils::sample_controller::SampleController;
 
-pub fn set_candidates_from_indices<C>(candidates: &mut Vec<usize>, indices: &Indices, len: usize)
-where
-    C: SampleController<Store = FloatProbabilities>,
-{
+/// Set candidates from the indices list, i.e. a basic fallback
+#[inline]
+pub fn set_candidates_from_indices(candidates: &mut Vec<usize>, indices: &Indices, len: usize) {
     let number_of_remaining_units = indices.len();
     let len = if len == 0 || len > number_of_remaining_units {
         number_of_remaining_units
@@ -34,10 +33,19 @@ where
     candidates.extend_from_slice(&indices.list()[0..len]);
 }
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
+///
+/// # Panics
+/// Panics if the matrix is not n-1 x n.
+#[expect(
+    clippy::float_cmp,
+    reason = "reduced_row_echelon_form will have set some elements to 0/1 exactly"
+)]
+#[must_use]
+#[inline]
 pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
     let nrow = mat.nrow().get();
     let ncol = mat.ncol().get();
-    assert!(nrow == ncol - 1);
+    assert!(nrow == ncol - 1, "the matrix must be n-1 x n");
 
     mat.reduced_row_echelon_form();
     let mut v = vec![1.0; ncol];
@@ -73,11 +81,12 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
     // Basic vars (pivot cols) computet to satisfy Ax = 0
 
     // Set free variables
-    let mut free_idx = 0;
+    let mut free_idx = true;
     for col in 0..ncol {
         if !is_pivot[col] {
-            v[col] = if free_idx % 2 == 0 { 1.0 } else { -1.0 };
-            free_idx += 1;
+            // set every other
+            v[col] = if free_idx { 1.0 } else { -1.0 };
+            free_idx = !free_idx;
         }
     }
 

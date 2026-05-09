@@ -10,13 +10,12 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Basic pivotal methods
+
 use envisim_utils::indices::Pair;
 use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sample_controller::{
-    BasicSampleController,
-    SampleController,
-};
+use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
     SamplingOptions,
@@ -27,13 +26,17 @@ use super::runner::{
     PivotalStrategy,
 };
 
+#[must_use]
 pub struct SequentialStrategy {
+    /// The selected units
     pair: (usize, usize),
 }
 impl SequentialStrategy {
-    pub fn new<PS, SOP, BOP>(
-        options: &SamplingOptions<PS, SOP, BOP>,
-    ) -> PivotalRunner<BasicSampleController<PS::Native>, Self>
+    /// Constructs a new [`PivotalRunner`] using the sequential strategy
+    #[inline]
+    pub fn new<PS, AUX, BAL>(
+        options: &SamplingOptions<PS, AUX, BAL>,
+    ) -> PivotalRunner<Self, PS::Native, ()>
     where
         PS: ProbabilitySpec,
     {
@@ -44,12 +47,12 @@ impl SequentialStrategy {
         }
     }
 }
-impl<C, ST> PivotalStrategy<C> for SequentialStrategy
+impl<PST> PivotalStrategy<PST, ()> for SequentialStrategy
 where
-    C: SampleController<Store = ST>,
-    ST: ProbabilityStore,
+    PST: ProbabilityStore,
 {
-    fn select_pair<R>(&mut self, controller: &mut C, _rng: &mut R) -> Pair
+    #[inline]
+    fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, _rng: &mut R) -> Pair
     where
         R: RandomNumberGenerator,
     {
@@ -84,9 +87,11 @@ where
 
 pub struct RandomStrategy();
 impl RandomStrategy {
-    pub fn new<PS, SOP, BOP>(
-        options: &SamplingOptions<PS, SOP, BOP>,
-    ) -> PivotalRunner<BasicSampleController<PS::Native>, Self>
+    /// Constructs a new [`PivotalRunner`] using the random strategy
+    #[inline]
+    pub fn new<PS, AUX, BAL>(
+        options: &SamplingOptions<PS, AUX, BAL>,
+    ) -> PivotalRunner<Self, PS::Native, ()>
     where
         PS: ProbabilitySpec,
     {
@@ -97,12 +102,12 @@ impl RandomStrategy {
         }
     }
 }
-impl<C, ST> PivotalStrategy<C> for RandomStrategy
+impl<PST> PivotalStrategy<PST, ()> for RandomStrategy
 where
-    C: SampleController<Store = ST>,
-    ST: ProbabilityStore,
+    PST: ProbabilityStore,
 {
-    fn select_pair<R>(&mut self, controller: &mut C, rng: &mut R) -> Pair
+    #[inline]
+    fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, rng: &mut R) -> Pair
     where
         R: RandomNumberGenerator,
     {
@@ -112,12 +117,18 @@ where
         }
 
         let len = controller.indices().len();
-        let id1 = controller.indices().draw(rng).unwrap();
+        let id1 = controller
+            .indices()
+            .draw(rng)
+            .expect("indices to contain units");
         let k = rng.rusize_to(len - 1);
-        let mut id2 = controller.indices().get(k).unwrap();
+        let mut id2 = controller.indices()[k];
 
         if id1 == id2 {
-            id2 = controller.indices().last().unwrap();
+            id2 = controller
+                .indices()
+                .last()
+                .expect("indices to contain units");
         }
 
         Pair::More(id1, id2)
@@ -133,7 +144,7 @@ pub trait PivotalSampling {
         R: RandomNumberGenerator;
 }
 
-impl<PS, SOP, BOP> PivotalSampling for SamplingOptions<PS, SOP, BOP>
+impl<PS, AUX, BAL> PivotalSampling for SamplingOptions<PS, AUX, BAL>
 where
     PS: ProbabilitySpec,
 {
@@ -157,6 +168,7 @@ where
     /// Unequal probability sampling without replacement through a splitting method.
     /// Biometrika, 85(1), 89-101.
     /// <https://doi.org/10.1093/biomet/85.1.89>
+    #[inline]
     fn spm<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
@@ -183,6 +195,7 @@ where
     /// Unequal probability sampling without replacement through a splitting method.
     /// Biometrika, 85(1), 89-101.
     /// <https://doi.org/10.1093/biomet/85.1.89>
+    #[inline]
     fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,

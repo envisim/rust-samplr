@@ -12,6 +12,8 @@
 
 //! Simple random sampling
 
+use std::iter::repeat_with;
+
 use envisim_utils::random::RandomNumberGenerator;
 use envisim_utils::sampling_options::{
     ProbabilitySpecEqual,
@@ -29,7 +31,7 @@ pub trait EqualProbabilitySampling {
     where
         R: RandomNumberGenerator;
 }
-impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual, SOP, BOP> {
+impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual, AUX, BAL> {
     /// Draw a simple random sample without replacement
     ///
     /// # Examples
@@ -41,6 +43,8 @@ impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
+    #[must_use]
+    #[inline]
     fn srs<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
@@ -51,7 +55,7 @@ impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
         if sample_size == 0 {
             return vec![];
         } else if sample_size == population_size.get() {
-            return (0usize..population_size.get()).collect();
+            return (0..population_size.get()).collect();
         }
 
         let mut sample = Vec::<usize>::with_capacity(sample_size);
@@ -75,6 +79,8 @@ impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
+    #[must_use]
+    #[inline]
     fn srs_with_replacement<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
@@ -85,11 +91,11 @@ impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
         if sample_size == 0 {
             return vec![];
         } else if sample_size == population_size.get() {
-            return (0usize..population_size.get()).collect();
+            return (0..population_size.get()).collect();
         }
 
-        let mut sample: Vec<usize> = (0..sample_size)
-            .map(|_| rng.rusize_to(population_size.get()))
+        let mut sample: Vec<usize> = repeat_with(|| rng.rusize_to(population_size.get()))
+            .take(sample_size)
             .collect();
 
         sample.sort_unstable();
@@ -105,6 +111,8 @@ impl<SOP, BOP> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
+    #[must_use]
+    #[inline]
     fn bernoulli<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,

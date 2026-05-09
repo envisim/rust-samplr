@@ -13,32 +13,54 @@
 //! Balance deviation
 
 use envisim_utils::sampling_options::{
+    BalancingOptions,
     ProbabilitySpec,
     SamplingOptions,
+    SpreadingOptions,
 };
 use envisim_utils::spatial::PointSet;
 
-fn balance_deviation<P>(sample: &[usize], probabilities: &[f64], data: &P) -> Vec<f64>
+use crate::error::{
+    EstimationError,
+    EstimationResult,
+};
+use crate::utils::ypi_quotient;
+
+/// Returns the balance deviations per dimension
+///
+/// # Errors
+/// Returns an error if a sample unit is oob with respect to the provided data.
+#[inline]
+fn balance_deviation<P>(
+    sample: &[usize],
+    probabilities: &[f64],
+    data: &P,
+) -> EstimationResult<Vec<f64>>
 where
-    P: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
     let population_size = probabilities.len();
-    let mut deviation = vec![0.0; data.dim().get()];
 
-    for i in 0..population_size {
-        for (j, d) in deviation.iter_mut().enumerate() {
-            *d += data.coord(i, j);
-        }
-    }
-
-    for &i in sample.iter() {
-        let p = probabilities[i];
-        for (j, d) in deviation.iter_mut().enumerate() {
-            *d -= data.coord(i, j) / p;
-        }
-    }
-
-    deviation
+    (0..data.dim().get())
+        .map(|j| {
+            // Calculate the dimension total for the population
+            let pop_sum: f64 = (0..population_size)
+                .map(|i| data.try_coord(i, j))
+                .sum::<Option<f64>>()
+                .ok_or(EstimationError::InvalidSample)?;
+            // Calculate the dimension HT-estimator
+            let sample_sum: f64 = sample
+                .iter()
+                .map(|&i| {
+                    data.try_coord(i, j)
+                        .zip(probabilities.get(i))
+                        .ok_or(EstimationError::InvalidSample)
+                        .and_then(ypi_quotient)
+                })
+                .sum::<EstimationResult<f64>>()?;
+            Ok(pop_sum - sample_sum)
+        })
+        .collect::<EstimationResult<Vec<f64>>>()
 }
 
 /// Calculates the deviation from the spreading matrix.
@@ -58,26 +80,23 @@ where
 /// let sb = balance_deviation_spreading(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_spreading<PS, SOP, BOP>(
+///
+/// # Errors
+/// Returns an error if any sample unit is oob, or the sample is empty.
+#[inline]
+pub fn balance_deviation_spreading<PS, P, BAL>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SOP, BOP>,
-) -> Option<Vec<f64>>
+    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+) -> EstimationResult<Vec<f64>>
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
-    let population_size = options.population_size().get();
-
-    if !sample.iter().all(|s| (0..population_size).contains(s)) {
-        return None;
-    }
-
-    let spreading = options.spreading().ok()?;
-    Some(balance_deviation(
+    balance_deviation(
         sample,
         &options.probabilities().as_f64_slice(),
-        spreading.data(),
-    ))
+        options.spreading().data(),
+    )
 }
 
 /// Calculates the deviation from the balancing matrix.
@@ -97,26 +116,23 @@ where
 /// let sb = balance_deviation_balancing(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-pub fn balance_deviation_balancing<PS, SOP, BOP>(
+///
+/// # Errors
+/// Returns an error if any sample unit is oob, or the sample is empty.
+#[inline]
+pub fn balance_deviation_balancing<PS, AUX, P>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SOP, BOP>,
-) -> Option<Vec<f64>>
+    options: &SamplingOptions<PS, AUX, BalancingOptions<P>>,
+) -> EstimationResult<Vec<f64>>
 where
     PS: ProbabilitySpec,
-    BOP: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
-    let population_size = options.population_size().get();
-
-    if !sample.iter().all(|s| (0..population_size).contains(s)) {
-        return None;
-    }
-
-    let balancing = options.balancing().ok()?;
-    Some(balance_deviation(
+    balance_deviation(
         sample,
         &options.probabilities().as_f64_slice(),
-        balancing.data(),
-    ))
+        options.balancing().data(),
+    )
 }
 
 #[cfg(test)]
@@ -132,7 +148,6 @@ mod tests {
         let spec = Data10::prob_e();
         let p = spec.as_f64();
         let options = SamplingOptions::with_spec_equal(spec)
-            .unwrap()
             .set_spreading(&data)
             .unwrap();
 

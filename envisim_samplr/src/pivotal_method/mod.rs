@@ -10,8 +10,9 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Sampling algorithms based on the pivotal method
+
 mod base;
-mod hierarchical;
 mod runner;
 mod spatial;
 
@@ -20,7 +21,6 @@ pub use base::{
     RandomStrategy,
     SequentialStrategy,
 };
-pub use hierarchical::hierarchical_lpm_2;
 pub use runner::{
     PivotalRunner,
     PivotalStrategy,
@@ -30,4 +30,5 @@ pub use spatial::{
     LocalStrategy1,
     LocalStrategy1S,
     LocalStrategy2,
+    hierarchical_lpm_2,
 };

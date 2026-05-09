@@ -12,8 +12,6 @@
 
 //! Spatial balance measures
 
-use std::num::NonZeroUsize;
-
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
@@ -27,11 +25,17 @@ use envisim_utils::sampling_options::{
     ProbabilitySpec,
     SamplingOptions,
     SamplingOptionsError,
+    SpreadingOptions,
 };
 use num_traits::ToPrimitive;
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
+};
+
+use crate::error::{
+    EstimationError,
+    EstimationResult,
 };
 
 /// Voronoi measure of spatial balance.
@@ -57,27 +61,32 @@ use rustc_hash::{
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn voronoi<PS, SOP, M>(
+///
+/// # Errors
+/// If `sample` contains duplicate ids
+#[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+#[inline]
+pub fn voronoi<PS, P, BAL>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SOP, M>,
-) -> Result<f64, SamplingOptionsError>
+    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+) -> EstimationResult<f64>
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
     let sample_size = sample.len();
     if sample_size == 0 {
         return Ok(f64::NAN);
     }
 
-    let tree = Tree::new(options.spreading()?, &mut sample.to_vec());
+    let tree = Tree::new(options.spreading(), &mut sample.to_vec());
     let mut searcher = NearestNeighbourSearcher::new(&tree.data());
 
     let mut voronoi_pi =
         FxHashMap::<usize, f64>::with_capacity_and_hasher(sample.len(), FxBuildHasher);
-    for &id in sample.iter() {
+    for &id in sample {
         if voronoi_pi.insert(id, 0.0).is_some() {
-            return Err(SamplingOptionsError::InvalidSample);
+            return Err(EstimationError::InvalidSample);
         }
     }
 
@@ -85,21 +94,43 @@ where
         let population_size = spec.population_size().get();
         let p = spec.as_f64();
         for i in 0..population_size {
-            searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
-            searcher.search(&tree).unwrap();
-            let partial_prob = p / searcher.neighbours().len().to_f64().unwrap();
-            for n in searcher.neighbours().iter() {
-                *voronoi_pi.get_mut(&n.id()).unwrap() += partial_prob;
+            searcher.reset_from_slice(
+                &tree
+                    .data()
+                    .to_boxed_slice(i)
+                    .ok_or(SamplingOptionsError::InvalidSpreading)?,
+            );
+            searcher.search(&tree).expect("search to be possible");
+            let partial_prob = p / searcher
+                .neighbours()
+                .len()
+                .to_f64()
+                .expect("limited by pop size, which should convert to f64");
+            for n in searcher.neighbours() {
+                *voronoi_pi
+                    .get_mut(&n.id())
+                    .expect("neighbour to exist in voronoi store") += partial_prob;
             }
         }
     } else {
         let values = options.probabilities().as_f64_slice();
         for (i, &p) in values.iter().enumerate() {
-            searcher.reset_from_slice(&tree.data().to_boxed_slice(i).unwrap());
-            searcher.search(&tree).unwrap();
-            let partial_prob = p / searcher.neighbours().len().to_f64().unwrap();
-            for n in searcher.neighbours().iter() {
-                *voronoi_pi.get_mut(&n.id()).unwrap() += partial_prob;
+            searcher.reset_from_slice(
+                &tree
+                    .data()
+                    .to_boxed_slice(i)
+                    .ok_or(SamplingOptionsError::InvalidSpreading)?,
+            );
+            searcher.search(&tree).expect("search to be possible");
+            let partial_prob = p / searcher
+                .neighbours()
+                .len()
+                .to_f64()
+                .expect("limited by pop size, which should convert to f64");
+            for n in searcher.neighbours() {
+                *voronoi_pi
+                    .get_mut(&n.id())
+                    .expect("neighbour to exist in voronoi store") += partial_prob;
             }
         }
     }
@@ -108,7 +139,7 @@ where
         .iter()
         .fold(0.0, |acc, (_, &pi)| acc + (pi - 1.0).powi(2));
 
-    Ok(result / sample.len().to_f64().unwrap())
+    Ok(result / sample.len().to_f64().expect("sample len to convert to f64"))
 }
 
 /// Local measure of spatial balance.
@@ -134,31 +165,37 @@ where
 /// How to find the best sampling design: A new measure of spatial balance.
 /// Environmetrics, e2878.
 /// <https://doi.org/10.1002/env.2878>
-pub fn local<PS, SOP, M>(
+///
+/// # Errors
+/// If `sample` contains duplicate ids
+#[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+#[inline]
+pub fn local<PS, P, BAL>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SOP, M>,
+    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
     balance_probabilities: bool,
-) -> Result<f64, SamplingOptionsError>
+) -> EstimationResult<f64>
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
     if sample.is_empty() {
         return Ok(f64::NAN);
     }
 
-    let tree = Tree::new(options.spreading()?, &mut sample.to_vec());
+    let tree = Tree::new(options.spreading(), &mut sample.to_vec());
     let mut searcher = NearestNeighbourSearcher::new(&tree.data());
 
     let population_size = options.population_size().get();
 
     // One extra column for inclusion probabilities
-    let cols = tree.data().dim().get() + if balance_probabilities { 1 } else { 0 };
+    let cols = tree.data().dim().get() + usize::from(balance_probabilities);
     let mut voronoi_means =
         FxHashMap::<usize, Vec<f64>>::with_capacity_and_hasher(sample.len(), FxBuildHasher);
 
     // The gram matrix
-    let mut norm_matrix = Matrix::from_value(0.0, MatrixDims::try_new(cols, cols * 2).unwrap());
+    let mut norm_matrix =
+        Matrix::from_value(0.0, MatrixDims::try_new(cols, cols * 2).expect("cols > 0"));
 
     for i in 0..cols {
         norm_matrix[(i, i + cols)] = 1.0;
@@ -167,7 +204,7 @@ where
     if let Some(spec) = options.probabilities().as_equal() {
         let p = spec.as_f64();
         let p_factor = (1.0 - p) / p;
-        for &id in sample.iter() {
+        for &id in sample {
             // Weird p_factor so we can skip tree search later
             let mut mean = vec![p_factor; cols];
 
@@ -176,12 +213,12 @@ where
             }
 
             if voronoi_means.insert(id, mean).is_some() {
-                return Err(SamplingOptionsError::InvalidSample);
+                return Err(EstimationError::InvalidSample);
             }
         }
     } else {
         let values = options.probabilities().as_f64_slice();
-        for &id in sample.iter() {
+        for &id in sample {
             // Weird p_factor so we can skip tree search later
             let p_factor = (1.0 - values[id]) / values[id];
             let mut mean = vec![p_factor; cols];
@@ -191,7 +228,7 @@ where
             }
 
             if voronoi_means.insert(id, mean).is_some() {
-                return Err(SamplingOptionsError::InvalidSample);
+                return Err(EstimationError::InvalidSample);
             }
         }
     }
@@ -220,12 +257,23 @@ where
             continue;
         }
 
-        searcher.reset_from_slice(&tree.data().to_boxed_slice(id).unwrap());
-        searcher.search(&tree);
+        searcher.reset_from_slice(
+            &tree
+                .data()
+                .to_boxed_slice(id)
+                .ok_or(SamplingOptionsError::InvalidSpreading)?,
+        );
+        searcher.search(&tree).expect("search to find a unit");
 
-        let share = searcher.neighbours().len().to_f64().unwrap();
-        for &n in searcher.neighbours().iter() {
-            let mean = voronoi_means.get_mut(&n.id()).unwrap();
+        let share = searcher
+            .neighbours()
+            .len()
+            .to_f64()
+            .expect("limited by pop size, which should convert to f64");
+        for &n in searcher.neighbours() {
+            let mean = voronoi_means
+                .get_mut(&n.id())
+                .expect("neighbours to exist amongst means");
 
             for (j, m) in mean.iter_mut().enumerate().take(tree.data().dim().get()) {
                 *m -= tree.data().coord(id, j) / share;
@@ -237,27 +285,28 @@ where
         }
     }
 
-    println!("{:?}", norm_matrix);
-    println!("{:?}", voronoi_means);
-
     norm_matrix.reduced_row_echelon_form();
     let inv_matrix = Matrix::new(
         norm_matrix.data()[norm_matrix.nrow().get().pow(2)..].to_vec(),
         norm_matrix.nrow(),
     )
-    .unwrap();
+    .expect("dimenions to be correct");
 
     let result = voronoi_means.iter().fold(0.0, |acc, (_, vec)| {
-        acc + MatrixRef::new(vec, NonZeroUsize::new(1).unwrap())
-            .unwrap()
+        acc + MatrixRef::new(vec, 1)
+            .expect("1 > 0")
             .mul_mat(&inv_matrix)
-            .unwrap()
-            .mul_mat(&MatrixRef::new(vec, NonZeroUsize::new(cols).unwrap()).unwrap())
-            .unwrap()
+            .expect("dimensions to match")
+            .mul_mat(&MatrixRef::new(vec, cols).expect("cols = vec.len"))
+            .expect("dimensions to match")
             .data()[0]
     });
 
-    Ok((result / population_size.to_f64().unwrap()).sqrt())
+    Ok((result
+        / population_size
+            .to_f64()
+            .expect("population size to convert to f64"))
+    .sqrt())
 }
 
 /// Energy distance between sample distribution and population.
@@ -277,38 +326,43 @@ where
 /// let sb = energy_distance(&s, &options).unwrap();
 /// # Ok::<(), SamplingOptionsError>(())
 /// ```
-///
-pub fn energy_distance<PS, SOP, M>(
+#[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+#[must_use]
+#[inline]
+pub fn energy_distance<PS, P, BAL>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SOP, M>,
-) -> Result<f64, SamplingOptionsError>
+    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+) -> f64
 where
     PS: ProbabilitySpec,
-    SOP: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
-    let matrix = options.spreading()?.data();
+    let matrix = options.spreading().data();
 
     let (phi, u_spread) = if options.probabilities().as_equal().is_some() {
         energy_distance_phi_equal(matrix)
     } else {
         let values = options.probabilities().as_f64_slice();
-        let s_size = sample.len().to_f64().unwrap();
+        let s_size = sample
+            .len()
+            .to_f64()
+            .expect("sample size to convert to f64");
         energy_distance_phi_unequal(matrix, &values, s_size)
     };
 
     let edi = energy_distance_internal(sample, matrix, &phi);
-    let distance = edi - u_spread;
-
-    Ok(distance)
+    edi - u_spread
 }
 
 /// Returns (phi-vec, phi-sumish)
-pub(crate) fn energy_distance_phi_equal<P>(matrix: &P) -> (Vec<f64>, f64)
+#[must_use]
+#[inline]
+fn energy_distance_phi_equal<P>(matrix: &P) -> (Vec<f64>, f64)
 where
-    P: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
     let size = matrix.size().get();
-    let u_size = size.to_f64().unwrap();
+    let u_size = size.to_f64().expect("matrix dims to convert to f64");
     let mut phi = vec![0.0; size];
     let mut u_spread = 0.0;
 
@@ -324,13 +378,11 @@ where
     (phi, u_spread / u_size)
 }
 /// Returns (phi-vec, phi-sumish)
-pub(crate) fn energy_distance_phi_unequal<P>(
-    matrix: P,
-    probabilities: &[f64],
-    s_size: f64,
-) -> (Vec<f64>, f64)
+#[must_use]
+#[inline]
+fn energy_distance_phi_unequal<P>(matrix: P, probabilities: &[f64], s_size: f64) -> (Vec<f64>, f64)
 where
-    P: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
     let size = matrix.size().get();
     let mut phi = vec![0.0; size];
@@ -348,11 +400,13 @@ where
 }
 
 /// Returns 2 E||X-Z|| - E||X-X'||
-pub(crate) fn energy_distance_internal<P>(sample: &[usize], matrix: P, phi: &[f64]) -> f64
+#[must_use]
+#[inline]
+fn energy_distance_internal<P>(sample: &[usize], matrix: P, phi: &[f64]) -> f64
 where
-    P: PointSet<f64>,
+    P: PointSet<N = f64>,
 {
-    let s_size = sample.len().to_f64().unwrap();
+    let s_size = sample.len().to_f64().expect("sample.len to convert to f64");
     let mut s_spread: f64 = 0.0;
     let mut inter_spread: f64 = 0.0;
 
@@ -403,22 +457,14 @@ mod test {
 
     #[test]
     fn test_voronoi() {
-        let options = SamplingOptions::with_spec_equal(Data10::prob_e())
-            .unwrap()
-            .set_spreading(Data10::matrix())
-            .unwrap();
-
+        let options = Data10::options_e();
         let sb = voronoi(&[0], &options).unwrap();
         assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2));
     }
 
     #[test]
     fn test_local() {
-        let options = SamplingOptions::with_spec_equal(Data10::prob_e())
-            .unwrap()
-            .set_spreading(Data10::matrix())
-            .unwrap();
-
+        let options = Data10::options_e();
         let sb = local(&[0], &options, false).unwrap();
         assert_delta!(sb, 0.7515302, 1e-7);
 

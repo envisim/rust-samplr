@@ -63,7 +63,6 @@ impl Sample {
     clippy::exhaustive_enums,
     reason = "a unit can only exists in three decision states"
 )]
-#[must_use]
 pub enum DecideUnit {
     In,
     Out,
@@ -86,17 +85,22 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     #[must_use]
     #[inline]
     pub fn probabilities(&self) -> &PROB { &self.probabilities }
-    //    #[must_use]
-    //    #[inline]
-    // pub    fn probabilities_mut(&mut self) -> &mut PROB { &mut self.probabilities }
+    #[must_use]
+    #[inline]
+    pub fn probabilities_mut(&mut self) -> &mut PROB { &mut self.probabilities }
     #[inline]
     pub fn indices(&self) -> &Indices { &self.indices }
-    //    #[inline]
-    // pub    fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
-    //    #[inline]
-    // pub    fn sample(&self) -> &Sample { &self.sample }
-    //    #[inline]
-    // pub    fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
+    #[inline]
+    pub fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
+    #[inline]
+    pub fn sample(&self) -> &Sample { &self.sample }
+    #[inline]
+    pub fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
+
+    #[must_use]
+    #[inline]
+    pub fn sample_vec(&mut self) -> Vec<usize> { self.sample.sort_to_vec() }
+
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> usize

@@ -23,6 +23,9 @@ use num_traits::ToPrimitive;
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;
 
+/// Draws a systematic sample from the provided order using equal probabilities
+#[must_use]
+#[inline]
 fn from_order_equal<R>(rng: &mut R, spec: ProbabilitySpecEqual, order: &[usize]) -> Vec<usize>
 where
     R: RandomNumberGenerator,
@@ -31,7 +34,7 @@ where
     let mut r = rng.rusize_to(spec.population_size().get());
     let mut psum: usize = 0;
 
-    for &id in order.iter() {
+    for &id in order {
         let pnext = psum + spec.sample_size();
         if psum <= r && r < pnext {
             sample.push(id);
@@ -43,16 +46,25 @@ where
     sample
 }
 
+/// Draws a systematic sample from the provided order using unequal probabilities
+#[must_use]
+#[inline]
 fn from_order<R>(rng: &mut R, probabilities: &[f64], order: &[usize]) -> Vec<usize>
 where
     R: RandomNumberGenerator,
 {
-    let mut sample =
-        Vec::<usize>::with_capacity(probabilities.iter().sum::<f64>().ceil().to_usize().unwrap());
+    let mut sample = Vec::<usize>::with_capacity(
+        probabilities
+            .iter()
+            .sum::<f64>()
+            .ceil()
+            .to_usize()
+            .expect("probability sum to be contained in usize"),
+    );
     let mut r = rng.rf64();
     let mut psum: f64 = 0.0;
 
-    for &id in order.iter() {
+    for &id in order {
         let pnext = psum + probabilities[id];
         if psum <= r && r < pnext {
             sample.push(id);
@@ -73,7 +85,7 @@ pub trait SystematicSampling {
     where
         R: RandomNumberGenerator;
 }
-impl<PS, SOP, BOP> SystematicSampling for SamplingOptions<PS, SOP, BOP>
+impl<PS, AUX, BAL> SystematicSampling for SamplingOptions<PS, AUX, BAL>
 where
     PS: ProbabilitySpec,
 {
@@ -89,6 +101,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    #[inline]
     fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
@@ -114,6 +127,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    #[inline]
     fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator,
