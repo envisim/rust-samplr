@@ -1,19 +1,45 @@
-library("ggplot2");
-library("tibble");
-library("dplyr");
+##
+## README
+##
+## This script constructs the figures and tables available in the manuscript for
+## Distributionally balanced sampling designs.
+## Anton Grafström and Wilmer Prentius.
+##
+## Required R packages:
+##   PACKAGE   VERSION
+##   rsamplr     0.2.0
+##   dplyr       1.2.1
+##   ggplot2     4.0.3
+##   tibble      3.3.1
+##
+## The file can be run interactivly, or as a script in terminal:
+## $ Rscript dbd_sim_260109.R
+##
+## Note: The Meuse data example downloads the data from gstat repository, and store it as a
+## temporary file.
+
+if (!require("rsamplr")) stop("rsamplr not installed");
+if (!require("dplyr")) stop("dplyr not installed");
+if (!require("ggplot2")) stop("ggplot2 not installed");
+if (!require("tibble")) stop("tibble not installed");
+
+if (!interactive()) pdf(NULL); # Supress Rplot.pdf if running as Rscript
 
 ##
-## Compile pkg
+## Alternatively, if run from the rsamplr package directory, compile the R package
 ##
-savvy::savvy_update();
+## savvy::savvy_update();
 ## devtools::document();
-pkgbuild::compile_dll(debug = FALSE, force = TRUE);
-devtools::document(roclets = NULL);
+## pkgbuild::compile_dll(debug = FALSE, force = TRUE);
+## devtools::document(roclets = NULL);
 
 ##
-## Helpers
+## Helper functions:
+##   fround       formatting numbers
+##   cbb_palette  colorblind palette
+##   gg_defaults  ggplot default elements
 ##
-fround = \(x, d = 2L, w = d * 2L + 1L) format(round(x, d), nsmall = d, width = w);
+fround = \(x, d = 2L, w = d * 2L + 1L) format(round(x, d), nsmall = d, width = w, scientific = FALSE);
 cbb_palette = c(
   "#000000",
   "#E69F00",
@@ -36,21 +62,22 @@ gg_defaults = list(
 ## Setup population
 ##
 set.seed(251226);
-pop_size = 1000L;
-sample_size = 50L;
-p_cols_max = 20L;
-p_cols = 5L;
-prob = rep(sample_size / pop_size, pop_size);
-xs_base = matrix(runif(pop_size * p_cols_max), ncol = p_cols_max);
-xs = xs_base[, 1:p_cols];
+pop_size = 1000L;                                                  # population size
+sample_size = 50L;                                                 # sample size
+p_cols_max = 20L;                                                  # number of aux. to generate
+prob = rep(sample_size / pop_size, pop_size);                      # probability vector (equal p)
+xs_base = matrix(runif(pop_size * p_cols_max), ncol = p_cols_max); # matrix of auxiliaries
 
 ##
-## Graph iterations: Example 1
+## Graph iterations: Example 1 (fig. 2a)
 ## Run the algorithm and store energy at iteration intervals
 ##
-iterations_to = 2000000L;
-iterations_by = 50000L;
+iterations_to = 2000000L;  # max number of iterations to run
+iterations_by = 50000L;    # reporting interval
+p_cols = 5L;               # number of aux. to use
+xs = xs_base[, 1:p_cols];  # aux. matrix
 set.seed(26010901);
+# the reporting algorithm (< 5 sec)
 iterations_res = dbd_circular_iter(
     sample_size,
     xs,
@@ -58,13 +85,15 @@ iterations_res = dbd_circular_iter(
     annealing_cooling = 0.999,
     max_iter          = iterations_to,
     iter_by           = iterations_by
-)
+);
+# store in frame
 iterations_data = data.frame(
   iterations = seq(iterations_by, iterations_to, iterations_by),
   mean = iterations_res[, 1],
   sd = iterations_res[, 2]
 );
 
+# print plot
 ggplot(iterations_data, aes(x = iterations, y = mean, color = "", fill = "")) +
   geom_ribbon(aes(ymin = mean - 2 * sd, ymax = mean + 2 * sd), alpha = 0.2, linewidth = 0.3) +
   geom_line() +
@@ -76,17 +105,22 @@ ggplot(iterations_data, aes(x = iterations, y = mean, color = "", fill = "")) +
     breaks = seq(0.004, 0.014, 0.002),
     limits = c(0.004, 0.014)
   ) +
-  gg_defaults
-ggsave("papers/dbd/dbs-iterations.pdf", width = 6, height = 4)
+  gg_defaults;
+ggsave("papers/dbd/dbs-iterations.pdf", width = 6, height = 4, create.dir = TRUE);
 
-# Compare w/ LPM
-# Run lpm 10k and store energies
+##
+## Example 1 (fig. 2b)
+## Run LPM (10k times) and compare energy distribution
+## Here, we want to evaluate the design space of LPM
+##
 set.seed(26010902);
-runs = 10000L;
-lpm_samples = matrix(0L, sample_size, runs);
+runs = 10000L;       # Monte Carlo runs
+lpm_samples = matrix(0L, sample_size, runs); # store for the 10000 drawn LPM samples
 for (r in seq_len(runs)) {
+  # Draw 10000 samples (< 10 sec)
   lpm_samples[, r] = lpm_2(prob, xs);
 }
+# Calculate the energy for each sample (< 5 sec)
 lpm_energy = apply(
   lpm_samples,
   2,
@@ -102,35 +136,41 @@ ggplot(data.frame(y = lpm_energy, x = 0), aes(y = y, x = 0, color = "", fill = "
     breaks = seq(0.004, 0.014, 0.002),
     limits = c(0.004, 0.014)
   ) +
-  gg_defaults
-ggsave("papers/dbd/lpm-energy-boxplot.pdf", width = 3, height = 4)
+  gg_defaults;
+ggsave("papers/dbd/lpm-energy-boxplot.pdf", width = 3, height = 4, create.dir = TRUE);
 
-ggplot(iterations_data, aes(x = iterations, y = mean, color = "", fill = "")) +
-  geom_ribbon(aes(ymin = mean - 2 * sd, ymax = mean + 2 * sd), alpha = 0.2, linewidth = 0.6,
-  linetype = 2) +
-  geom_line(linewidth = 1) +
-  geom_hline(yintercept = lpm_energy_ci[2], color = cbb_palette[2], linewidth = 1.0, linetype = 1) +
-  geom_hline(yintercept = lpm_energy_ci[1], color = cbb_palette[2], linewidth = 0.6, linetype = 2) +
-  geom_hline(yintercept = lpm_energy_ci[3], color = cbb_palette[2], linewidth = 0.6, linetype = 2) +
-  scale_x_continuous(
-    breaks = seq(0, iterations_to, length.out = 11),
-    labels = paste0(seq(0, iterations_to, length.out = 11) / 1000, "k")
-  ) +
-  scale_y_continuous(
-    breaks = seq(0.004, 0.009, 0.001),
-    limits = c(0.004, 0.009)
-  ) +
-  gg_defaults
+
+# fig. 2a with lpm mean-lines +- 2 sd
+# ggplot(iterations_data, aes(x = iterations, y = mean, color = "", fill = "")) +
+#   geom_ribbon(aes(ymin = mean - 2 * sd, ymax = mean + 2 * sd), alpha = 0.2, linewidth = 0.6,
+#   linetype = 2) +
+#   geom_line(linewidth = 1) +
+#   geom_hline(yintercept = lpm_energy_ci[2], color = cbb_palette[2], linewidth = 1.0, linetype = 1) +
+#   geom_hline(yintercept = lpm_energy_ci[1], color = cbb_palette[2], linewidth = 0.6, linetype = 2) +
+#   geom_hline(yintercept = lpm_energy_ci[3], color = cbb_palette[2], linewidth = 0.6, linetype = 2) +
+#   scale_x_continuous(
+#     breaks = seq(0, iterations_to, length.out = 11),
+#     labels = paste0(seq(0, iterations_to, length.out = 11) / 1000, "k")
+#   ) +
+#   scale_y_continuous(
+#     breaks = seq(0.004, 0.009, 0.001),
+#     limits = c(0.004, 0.009)
+#   ) +
+#   gg_defaults
 
 ##
-## Compare designs using different aux sizes: Example 2
+## Example 2 (fig. 3, tab. 1)
+## Compare designs using different aux sizes
 ## Compare spatial balance measure(s) of different designs for different aux sizes
+## Comparing with SRS, LPM, and LCUBE
+## LCUBE uses all aux for both balancing and spreading
+## Run DBD once per aux size
 ##
 set.seed(26010903);
-p_cols_vec = c(2L, 5L, 10L, 20L);
-runs = 10000L;
+p_cols_vec = c(2L, 5L, 10L, 20L); # number of auxiliaries to evaluate force
+runs = 10000L;                    # MC runs for SRS, LPM, LCUBE
 
-# Helper fun
+# Helper fun for measures
 design_comp_fn = \(s, prob, data) {
   c(
     spatial_balance_all_equal(s, data)[c(4, 2, 1)],
@@ -138,6 +178,7 @@ design_comp_fn = \(s, prob, data) {
   )
 }
 
+# Store for results
 design_comp_res = list(
   srs = tibble(
     p = rep(p_cols_vec, each = runs),
@@ -169,20 +210,19 @@ design_comp_res = list(
   )
 );
 
+# (< 20 min)
 for (p_k in seq_along(p_cols_vec)) {
   cat("p: ", p_cols_vec[p_k], "\n");
-  # Setup aux mats
-  xs_p = xs_base[, 1:p_cols_vec[p_k]];
-  xb_p = cbind(prob, xs_p);
+  xs_p = xs_base[, 1:p_cols_vec[p_k]]; # spreading aux matrix
+  xb_p = cbind(prob, xs_p);            # balancing aux matrix
   offset = runs * (p_k - 1);
 
-  # Run dbd for current size (only once)
+  # Run dbd for current size (only once, < 90 sec)
   s = dbd_circular(
     sample_size,
     xs_p,
     annealing_temp = 0.1,
     annealing_cooling = 0.999,
-    full_design = TRUE,
     max_iter = 1e7
   );
 
@@ -190,7 +230,7 @@ for (p_k in seq_along(p_cols_vec)) {
   design_comp_res$dbd[1:pop_size + (p_k - 1) * pop_size, 2:5] = vapply(
     1:pop_size,
     \(i) {
-      ss = sequence_to_sample(s, i, sample_size);
+      ss = draw(s, i);
       design_comp_fn(ss, prob, xs_p)
     },
     rep(0.0, 4L)
@@ -216,22 +256,25 @@ design_comp_combined = bind_rows(design_comp_res, .id = "type") |>
       c(energy, lb, sb, bal),
       names_to = "measure",
       values_to = "val"
-  )
+  );
 
-design_comp_combined |> filter(type != "srs") |>
-  ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
-  geom_density(alpha = 0.2) +
-  facet_wrap(measure ~ p_fac, scales = "free") +
-  gg_defaults
+# Combined plot
+## design_comp_combined |> filter(type != "srs") |>
+##   ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
+##   geom_density(alpha = 0.2) +
+##   facet_wrap(measure ~ p_fac, scales = "free") +
+##   gg_defaults
 
+# Print the different measures. One plot per measure, within each plot all 4 different sizes.
+# Filter out SRS, as SRS is too off cmp. other designs
 design_comp_combined |> filter(measure == "energy", type != "srs") |>
   ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
   geom_density(alpha = 0.2) +
   facet_wrap( ~ p_fac, scales = "free", nrow = 1) +
   scale_x_continuous(n.breaks = 4) +
   gg_defaults +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
-ggsave("papers/dbd/simulation-comp-energy.pdf", width = 9, height = 3)
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank());
+ggsave("papers/dbd/simulation-comp-energy.pdf", width = 9, height = 3, create.dir = TRUE);
 
 design_comp_combined |> filter(measure == "lb", type != "srs") |>
   ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
@@ -239,8 +282,8 @@ design_comp_combined |> filter(measure == "lb", type != "srs") |>
   facet_wrap( ~ p_fac, scales = "free", nrow = 1) +
   scale_x_continuous(n.breaks = 4) +
   gg_defaults +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
-ggsave("papers/dbd/simulation-comp-lb.pdf", width = 9, height = 3)
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank());
+ggsave("papers/dbd/simulation-comp-lb.pdf", width = 9, height = 3, create.dir = TRUE);
 
 design_comp_combined |> filter(measure == "sb", type != "srs") |>
   ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
@@ -248,8 +291,8 @@ design_comp_combined |> filter(measure == "sb", type != "srs") |>
   facet_wrap( ~ p_fac, scales = "free", nrow = 1) +
   scale_x_continuous(n.breaks = 4) +
   gg_defaults +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
-ggsave("papers/dbd/simulation-comp-sb.pdf", width = 9, height = 3)
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank());
+ggsave("papers/dbd/simulation-comp-sb.pdf", width = 9, height = 3, create.dir = TRUE);
 
 design_comp_combined |> filter(measure == "bal", type != "srs") |>
   ggplot(aes(x = val, color = type, fill = type, linetype = type)) +
@@ -257,8 +300,8 @@ design_comp_combined |> filter(measure == "bal", type != "srs") |>
   facet_wrap( ~ p_fac, scales = "free", nrow = 1) +
   scale_x_continuous(n.breaks = 4) +
   gg_defaults +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
-ggsave("papers/dbd/simulation-comp-bal.pdf", width = 9, height = 3)
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank());
+ggsave("papers/dbd/simulation-comp-bal.pdf", width = 9, height = 3, create.dir = TRUE);
 
 # Print Table 1
 design_comp_combined_fn = \(type, p, measure) {
@@ -274,41 +317,47 @@ design_comp_combined_fn = \(type, p, measure) {
 cat("\\toprule Dims & Method & $\\mathcal{E}$ &  SB &  LB & MSE \\\\\n");
 for (p in p_cols_vec) {
   cat(
-    p, " & SRS   & ",
-    design_comp_combined_fn("srs", p, "energy"), " & ",
-    design_comp_combined_fn("srs", p, "sb"), " & ",
-    design_comp_combined_fn("srs", p, "lb"), " & ",
-    design_comp_combined_fn("srs", p, "bal"), " \\\\\n",
+    format(p, width = 2, justify = "right"),
+    "& SRS   &",
+    design_comp_combined_fn("srs", p, "energy"), "&",
+    design_comp_combined_fn("srs", p, "sb"), "&",
+    design_comp_combined_fn("srs", p, "lb"), "&",
+    design_comp_combined_fn("srs", p, "bal"), "\\\\\n",
     "  & LPM   &",
-    design_comp_combined_fn("lpm", p, "energy"), " & ",
-    design_comp_combined_fn("lpm", p, "sb"), " & ",
-    design_comp_combined_fn("lpm", p, "lb"), " & ",
-    design_comp_combined_fn("lpm", p, "bal"), " \\\\\n",
+    design_comp_combined_fn("lpm", p, "energy"), "&",
+    design_comp_combined_fn("lpm", p, "sb"), "&",
+    design_comp_combined_fn("lpm", p, "lb"), "&",
+    design_comp_combined_fn("lpm", p, "bal"), "\\\\\n",
     "  & LCUBE &",
-    design_comp_combined_fn("lcube", p, "energy"), " & ",
-    design_comp_combined_fn("lcube", p, "sb"), " & ",
-    design_comp_combined_fn("lcube", p, "lb"), " & ",
-    design_comp_combined_fn("lcube", p, "bal"), " \\\\\n",
+    design_comp_combined_fn("lcube", p, "energy"), "&",
+    design_comp_combined_fn("lcube", p, "sb"), "&",
+    design_comp_combined_fn("lcube", p, "lb"), "&",
+    design_comp_combined_fn("lcube", p, "bal"), "\\\\\n",
     "  & DBD   &",
-    design_comp_combined_fn("dbd", p, "energy"), " & ",
-    design_comp_combined_fn("dbd", p, "sb"), " & ",
-    design_comp_combined_fn("dbd", p, "lb"), " & ",
-    design_comp_combined_fn("dbd", p, "bal"), " \\\\\n"
+    design_comp_combined_fn("dbd", p, "energy"), "&",
+    design_comp_combined_fn("dbd", p, "sb"), "&",
+    design_comp_combined_fn("dbd", p, "lb"), "&",
+    design_comp_combined_fn("dbd", p, "bal"), "\\\\\n"
   );
 }
 
 
 ##
-## Compare designs of different sizes: Example 3
-## Compare spatial balance measure(s) of different designs and sample sizees
+## Example 2 (tab. 2)
+## Compare designs using different sample sizes
+## Compare spatial balance measure(s) of different designs for different sample sizes
+## Comparing with SRS, LPM, and LCUBE
+## LCUBE uses all aux for both balancing and spreading
+## Run DBD once
 ## Aux size 5
 ##
-p_cols = 5L;
 set.seed(26010904);
-sample_size_vec = c(100L, 200L);
-xs_p = xs_base[, 1:p_cols]
-runs = 10000L;
+p_cols = 5L;                     # number of aux to use
+sample_size_vec = c(100L, 200L); # sample sizes to evaluate
+xs_p = xs_base[, 1:p_cols]       # aux. matrix
+runs = 10000L;                   # MC runs
 
+# Store for results
 design_comp_res_n = list(
   srs = tibble(
     n = rep(sample_size_vec, each = runs),
@@ -344,13 +393,15 @@ design_comp_res_n = list(
   )
 );
 
+# (< 10 min)
 for (n_k in seq_along(sample_size_vec)) {
-  nn_k = sample_size_vec[n_k];
+  nn_k = sample_size_vec[n_k];           # sample size to eval
   cat("n: ", nn_k, "\n");
-  prob = rep(nn_k / pop_size, pop_size);
-  xb_p = cbind(prob, xs_p);
+  prob = rep(nn_k / pop_size, pop_size); # probability vector
+  xb_p = cbind(prob, xs_p);              # balancing matrix
   offset = runs * (n_k - 1);
 
+  # reuse from previous, if possible
   if (nn_k == sample_size) {
     design_comp_res_n$dbd[1:pop_size + (n_k - 1) * pop_size, 3:6] = design_comp_res$dbd |>
       filter(p == p_cols) |>
@@ -373,13 +424,12 @@ for (n_k in seq_along(sample_size_vec)) {
     xs_p,
     annealing_temp = 0.1,
     annealing_cooling = 0.999,
-    full_design = TRUE,
     max_iter = 1e7
   );
   design_comp_res_n$dbd[1:pop_size + (n_k - 1) * pop_size, 3:6] = vapply(
     1:pop_size,
     \(i) {
-      ss = sequence_to_sample(s, i, nn_k);
+      ss = draw(s, i);
       design_comp_fn(ss, prob, xs_p)
     },
     rep(0.0, 4L)
@@ -412,35 +462,51 @@ design_comp_res_n_fn = \(type, n, measure) {
 cat("\\toprule Size & Method & $\\mathcal{E}$ &  SB &  LB & MSE \\\\\n");
 for (p in sample_size_vec) {
   cat(
-    p, " & SRS   & ",
-    design_comp_res_n_fn("srs", p, "energy"), " & ",
-    design_comp_res_n_fn("srs", p, "sb"), " & ",
-    design_comp_res_n_fn("srs", p, "lb"), " & ",
-    design_comp_res_n_fn("srs", p, "bal"), " \\\\\n",
-    "  & LPM   &",
-    design_comp_res_n_fn("lpm", p, "energy"), " & ",
-    design_comp_res_n_fn("lpm", p, "sb"), " & ",
-    design_comp_res_n_fn("lpm", p, "lb"), " & ",
-    design_comp_res_n_fn("lpm", p, "bal"), " \\\\\n",
-    "  & LCUBE &",
-    design_comp_res_n_fn("lcube", p, "energy"), " & ",
-    design_comp_res_n_fn("lcube", p, "sb"), " & ",
-    design_comp_res_n_fn("lcube", p, "lb"), " & ",
-    design_comp_res_n_fn("lcube", p, "bal"), " \\\\\n",
-    "  & DBD   &",
-    design_comp_res_n_fn("dbd", p, "energy"), " & ",
-    design_comp_res_n_fn("dbd", p, "sb"), " & ",
-    design_comp_res_n_fn("dbd", p, "lb"), " & ",
-    design_comp_res_n_fn("dbd", p, "bal"), " \\\\\n"
+    format(p, width = 3, justify = "right"),
+    "& SRS   &",
+    design_comp_res_n_fn("srs", p, "energy"), "&",
+    design_comp_res_n_fn("srs", p, "sb"), "&",
+    design_comp_res_n_fn("srs", p, "lb"), "&",
+    design_comp_res_n_fn("srs", p, "bal"), "\\\\\n",
+    "   & LPM   &",
+    design_comp_res_n_fn("lpm", p, "energy"), "&",
+    design_comp_res_n_fn("lpm", p, "sb"), "&",
+    design_comp_res_n_fn("lpm", p, "lb"), "&",
+    design_comp_res_n_fn("lpm", p, "bal"), "\\\\\n",
+    "   & LCUBE &",
+    design_comp_res_n_fn("lcube", p, "energy"), "&",
+    design_comp_res_n_fn("lcube", p, "sb"), "&",
+    design_comp_res_n_fn("lcube", p, "lb"), "&",
+    design_comp_res_n_fn("lcube", p, "bal"), "\\\\\n",
+    "   & DBD   &",
+    design_comp_res_n_fn("dbd", p, "energy"), "&",
+    design_comp_res_n_fn("dbd", p, "sb"), "&",
+    design_comp_res_n_fn("dbd", p, "lb"), "&",
+    design_comp_res_n_fn("dbd", p, "bal"), "\\\\\n"
   );
 }
 
 ##
-## MEUSE DATA: Example 3
+## Example 3 (tab. 3)
+## Evaluate using the meuse data (downloaded from gstat)
+## Auxiliaries are standardized, but MSEs are calculated on estimates from original data.
 ##
-set.seed(26010905);
 # Download meuse data from gstat
 # Standardize aux variables, keep y-values for eval
+#
+# meuse_data obj consists of the auxiliaries (1:5), and the variables of interest (6:11):
+# NAME       DESC
+# x          x coord (standardized)
+# y          y coord (standardized)
+# elev       elevation (standardized)
+# om         organic matter (standardized)
+# copper     topsoil copper (standardized)
+# y_zinc     topsoil zinc
+# y_lead     topsoil lead
+# y_cadmium  topsoil cadmium
+# y_copper   topsoil copper
+# y_elev     elevation
+# y_om       organic matter
 meuse_data = {
   temp_file = tempfile();
   meuse_url = "https://github.com/cran/gstat/raw/master/data/meuse.all.rda";
@@ -463,14 +529,16 @@ meuse_data = {
     elev = as.vector(scale(elev)),
     om = as.vector(scale(om)),
     copper = as.vector(scale(copper))
-  )
+  );
 
-meuse_n = 20L;
-meuse_p = rep(meuse_n / nrow(meuse_data), nrow(meuse_data));
-meuse_xs = meuse_data[, 1:5] |> as.matrix();
-meuse_xb = cbind(meuse_p, meuse_xs);
-meuse_param = meuse_data[, 6:11] |> colSums() |> as.list()
+set.seed(26010905);
+meuse_n = 20L;                                                # sample size
+meuse_p = rep(meuse_n / nrow(meuse_data), nrow(meuse_data));  # probability vector (equal p)
+meuse_xs = meuse_data[, 1:5] |> as.matrix();                  # aux matrix (spreading)
+meuse_xb = cbind(meuse_p, meuse_xs);                          # aux matrix (balancing)
+meuse_param = meuse_data[, 6:11] |> colSums() |> as.list();   # store totals
 
+# Store for results
 meuse_res = tibble(
   type = rep("", runs * 3 + nrow(meuse_data)),
   zinc = 0.0,
@@ -488,7 +556,9 @@ meuse_res = tibble(
   energy = 0.0,
   sb = 0.0,
   lb = 0.0
-)
+);
+
+# helper functions for summarizing results
 meuse_hv = \(y, xmat, p, param, srs = FALSE, pop = 1) {
   hat = sum(y) / p[1];
 
@@ -527,26 +597,25 @@ meuse_res_fn2 = \(s) {
   )
 }
 
-# Run dbd
+# Run dbd (< 10 sec)
 meuse_dbd = dbd_circular(
   meuse_n,
   meuse_xs,
   annealing_temp = 0.1,
   annealing_cooling = 0.999,
-  full_design = TRUE,
   max_iter = 1e7
 );
 meuse_res$type[seq_len(nrow(meuse_data))] = "dbd";
 meuse_res[seq_len(nrow(meuse_data)), -1] = vapply(
   seq_len(nrow(meuse_data)),
   \(x) {
-    ss = sequence_to_sample(meuse_dbd, x, meuse_n);
+    ss = draw(meuse_dbd, x);
     meuse_res_fn(ss)
   },
   rep(0.0, 15)
 ) |> t()
 
-# Run other designs
+# Run other designs (< 1 min)
 meuse_r = nrow(meuse_data);
 while (meuse_r < nrow(meuse_res)) {
   meuse_r = meuse_r + 1;
