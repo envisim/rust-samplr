@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug in `cube`.
 - Refactored sampling methods to use new `SamplingOptions` and `SampleController`. Infallible methods are now infallible.
 - As coordination is removed from `SamplingOptions`, `cps_coord` and `scps_coord` dedicated methods now accept random values for coordination.
-- Added `sequential_cube`, which determines units in the provided order. `cube`, on the other hand, determines units in a random order, and uses random windows in the flight phase.
+- Added `sequential_cube`, which determines units in the provided order. `cube`, on the other hand, determines units in a random order, and uses random windows in the flight phase. (#28)
 
 ## [0.5.0] - 2026-03-27
 - Bump `envisim_utils`.
