@@ -3,10 +3,13 @@
 \name{Balanced sampling}
 \alias{Balanced sampling}
 \alias{cube}
+\alias{sequential_cube}
 \alias{cube_stratified}
 \title{Balanced sampling}
 \usage{
 cube(probabilities, balance_mat, ...)
+
+sequential_cube(probabilities, balance_mat, ...)
 
 cube_stratified(probabilities, balance_mat, strata, ...)
 }
@@ -38,6 +41,8 @@ automatically.
 \itemize{
 \item \code{cube()}: The cube method
 
+\item \code{sequential_cube()}: The cube method
+
 \item \code{cube_stratified()}: The stratified cube method
 
 }}
@@ -50,6 +55,9 @@ xb = matrix(c(prob, runif(N * 2)), ncol = 3);
 strata = c(rep(1L, 100), rep(2L, 200), rep(3L, 300), rep(4L, 400));
 
 s = cube(prob, xb);
+plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+
+s = sequential_cube(prob, xb);
 plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 
 s = cube_stratified(prob, xb[, -1], strata);
