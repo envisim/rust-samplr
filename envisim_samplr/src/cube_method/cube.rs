@@ -276,6 +276,7 @@ where
     }
 }
 
+/// Sequential cube strategy
 #[must_use]
 pub struct SequentialCubeStrategy();
 impl SequentialCubeStrategy {
@@ -325,6 +326,7 @@ impl CubeStrategy<()> for SequentialCubeStrategy {
     }
 }
 
+/// Random cube strategy
 #[must_use]
 pub struct RandomCubeStrategy();
 impl RandomCubeStrategy {
@@ -616,7 +618,7 @@ where
     where
         R: RandomNumberGenerator,
     {
-        RandomCubeStrategy::new(self).sample(rng)
+        SequentialCubeStrategy::new(self).sample(rng)
     }
 }
 impl<PS, P, T> LocalCubeSampling<P>

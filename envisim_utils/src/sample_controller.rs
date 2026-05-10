@@ -30,6 +30,7 @@ use crate::sampling_options::{
 
 /// Sample container
 #[must_use]
+#[derive(Debug, Clone)]
 pub struct Sample(Vec<usize>);
 impl Sample {
     #[inline]
@@ -61,6 +62,7 @@ impl Sample {
 }
 
 #[must_use]
+#[derive(Debug, Clone)]
 pub struct SampleController<PROB, TREE = ()> {
     /// The probability store
     probabilities: PROB,

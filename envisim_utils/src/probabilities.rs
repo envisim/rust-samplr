@@ -33,6 +33,7 @@ pub enum UnitDecisionStatus {
 
 /// Contains probabilities represented as floats
 #[must_use]
+#[derive(Debug, Clone)]
 pub struct FloatProbabilities {
     /// Internal data
     data: Vec<f64>,
@@ -92,6 +93,7 @@ impl FloatProbabilities {
 
 /// Contains probabilities represented as integers
 #[must_use]
+#[derive(Debug, Clone)]
 pub struct ExactProbabilities {
     /// Internal data
     data: Vec<usize>,

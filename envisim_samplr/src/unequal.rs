@@ -12,8 +12,11 @@
 
 //! Unequal probability sampling designs
 
+use std::cmp::Ordering;
+
 use envisim_utils::indices::Indices;
 use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::sample_controller::Sample;
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
@@ -296,46 +299,57 @@ impl<AUX, BAL> UnequalProbabilitySampling
     where
         R: RandomNumberGenerator,
     {
+        let population_size = self.population_size().get();
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
-        let initial_psum = self.probabilities().sample_size_f64();
-        let mut sample_size: usize = if (initial_psum - initial_psum.round()).abs() <= eps {
-            initial_psum
-                .to_usize()
-                .expect("probability sum to convert to usize")
-        } else {
-            return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
-        };
-        let mut n_d = initial_psum;
-        let mut indices = Indices::with_fill(probabilities.len());
-        let mut sample = Vec::<usize>::with_capacity(sample_size);
+        let mut indices = Indices::new(population_size);
+        let mut sample = Sample::new(population_size);
 
-        for (id, &p) in probabilities.iter().enumerate() {
-            if p <= eps {
-                indices.remove(id).expect("id to exist in indices");
-            } else if 1.0 - eps <= p {
-                indices.remove(id).expect("id to exist in indices");
-                sample.push(id);
-                n_d -= 1.0;
-                sample_size -= 1;
+        let mut psum = 0.0;
+        for i in (0..population_size).rev() {
+            if probabilities[i] <= eps {
+            } else if 1.0 - eps <= probabilities[i] {
+                sample.add(i);
+            } else {
+                indices.insert(i);
+                psum += probabilities[i];
             }
         }
 
+        if indices.is_empty() {
+            return Ok(sample.sort_to_vec());
+        }
+
+        match (psum - psum.round()).abs().partial_cmp(&eps) {
+            Some(Ordering::Less | Ordering::Equal) => {}
+            _ => {
+                return Err(SamplingError::IncorrectProbabilitiesIntegerSum);
+            }
+        };
+
+        let mut rem_sample_size = psum
+            .to_usize()
+            .expect("probability sum to convert to usize");
+
         let mut q_probs: Vec<f64> = vec![0.0; probabilities.len()];
 
-        for i in 0..sample_size {
-            let mut psum = 0.0;
+        while 0 < rem_sample_size {
+            let mut qsum = 0.0;
+            let rem_sample_size_f64 = rem_sample_size
+                .to_f64()
+                .expect("sample_size to convert to f64");
+
+            // Set q_probs
             for &id in indices.list() {
                 let p = probabilities[id];
-                let remaining_draws = (sample_size - i)
-                    .to_f64()
-                    .expect("sample_size to convert to f64");
-                q_probs[id] = p * (n_d - p) / (n_d - p * remaining_draws);
-                psum += q_probs[id];
+                let q = p * (psum - p) / (psum - p * rem_sample_size_f64);
+                q_probs[id] = q;
+                qsum += q;
             }
 
+            // Normalize q_probs
             for &id in indices.list() {
-                q_probs[id] /= psum;
+                q_probs[id] /= qsum;
                 assert!(
                     (0.0..=1.0).contains(&q_probs[id]),
                     "invalid q_probs {} for {}",
@@ -344,15 +358,16 @@ impl<AUX, BAL> UnequalProbabilitySampling
                 );
             }
 
+            // Select unit through pps
             let a_unit = draw(rng, &q_probs);
             indices.remove(a_unit).expect("a_unit to exist in indices");
-            sample.push(a_unit);
+            sample.add(a_unit);
             q_probs[a_unit] = 0.0;
-            n_d -= probabilities[a_unit];
+            psum -= probabilities[a_unit];
+            rem_sample_size -= 1;
         }
 
-        sample.sort_unstable();
-        Ok(sample)
+        Ok(sample.sort_to_vec())
     }
     /// Draw a sample using a poisson design.
     ///

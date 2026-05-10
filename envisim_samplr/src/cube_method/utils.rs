@@ -37,7 +37,7 @@ pub fn set_candidates_from_indices_randomly<R>(
 
     if indices.len() < len.get() {
         // Few units remaining, select everything
-        candidates.extend_from_slice(&indices.list());
+        candidates.extend_from_slice(indices.list());
         return;
     }
 
@@ -62,7 +62,7 @@ pub fn set_candidates_from_indices_sequentially(
 
     if indices.len() < len.get() {
         // Few units remaining, select everything
-        candidates.extend_from_slice(&indices.list());
+        candidates.extend_from_slice(indices.list());
         return;
     }
 
