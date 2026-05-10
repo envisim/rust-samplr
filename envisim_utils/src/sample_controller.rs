@@ -17,7 +17,10 @@ use crate::kd_tree::{
     PointSet,
     Tree,
 };
-use crate::probabilities::ProbabilityStore;
+use crate::probabilities::{
+    ProbabilityStore,
+    UnitDecisionStatus,
+};
 use crate::random::RandomNumberGenerator;
 use crate::sampling_options::{
     SamplingOptionsError,
@@ -55,18 +58,6 @@ impl Sample {
     #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool { self.0.is_empty() }
-}
-
-/// Decision result
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[expect(
-    clippy::exhaustive_enums,
-    reason = "a unit can only exists in three decision states"
-)]
-pub enum DecideUnit {
-    In,
-    Out,
-    Undecided,
 }
 
 #[must_use]
@@ -133,27 +124,30 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.probabilities.draw(rng, max)
     }
     #[inline]
-    pub fn unit_decide(&mut self, idx: usize) -> Option<DecideUnit>
+    pub fn unit_decide(&mut self, idx: usize) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
     {
-        if self.probabilities.is_max(idx) {
-            self.sample.add(idx);
-            self.unit_remove(idx)?;
-            return Some(DecideUnit::In);
-        } else if self.probabilities.is_zero(idx) {
-            self.unit_remove(idx)?;
-            return Some(DecideUnit::Out);
+        match self.probabilities.unit_status(idx) {
+            UnitDecisionStatus::In => {
+                self.sample.add(idx);
+                self.unit_remove(idx)?;
+                Some(UnitDecisionStatus::In)
+            }
+            UnitDecisionStatus::Out => {
+                self.unit_remove(idx)?;
+                Some(UnitDecisionStatus::Out)
+            }
+            UnitDecisionStatus::Undecided => Some(UnitDecisionStatus::Undecided),
         }
-        Some(DecideUnit::Undecided)
     }
     #[inline]
     pub fn unit_set_and_decide(
         &mut self,
         idx: usize,
         prob: <PROB as ProbabilityStore>::PR,
-    ) -> Option<DecideUnit>
+    ) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -162,7 +156,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_set_max(&mut self, idx: usize) -> Option<DecideUnit>
+    pub fn unit_set_max(&mut self, idx: usize) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -170,24 +164,24 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.probabilities.set_max(idx);
         self.sample.add(idx);
         self.unit_remove(idx)?;
-        Some(DecideUnit::In)
+        Some(UnitDecisionStatus::In)
     }
     #[inline]
-    pub fn unit_set_zero(&mut self, idx: usize) -> Option<DecideUnit>
+    pub fn unit_set_zero(&mut self, idx: usize) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
     {
         self.probabilities.set_zero(idx);
         self.unit_remove(idx)?;
-        Some(DecideUnit::Out)
+        Some(UnitDecisionStatus::Out)
     }
     #[inline]
     pub fn unit_add_and_decide(
         &mut self,
         idx: usize,
         prob: <PROB as ProbabilityStore>::PR,
-    ) -> Option<DecideUnit>
+    ) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -196,13 +190,16 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_decide_last<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<DecideUnit>
+    pub fn unit_decide_last<R: RandomNumberGenerator>(
+        &mut self,
+        rng: &mut R,
+    ) -> Option<UnitDecisionStatus>
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
     {
         let Some(id) = self.indices.last() else {
-            return Some(DecideUnit::Undecided);
+            return Some(UnitDecisionStatus::Undecided);
         };
         let prob = self.probabilities.get(id);
         let max = self.probabilities.max();
@@ -222,19 +219,29 @@ impl<PROB> SampleController<PROB, ()> {
         PROB: ProbabilityStore,
     {
         let population_size = probabilities.len();
-        let mut controller = Self {
-            probabilities,
-            indices: Indices::with_fill(population_size),
-            sample: Sample::new(population_size),
-            tree: (),
-        };
+        let mut indices = Indices::new(population_size);
+        let mut sample = Sample::new(population_size);
 
-        // Decide all units
-        for i in 0..population_size {
-            controller.unit_decide(i);
+        // Reverse order guarantees units can be drawn from the back in order, see comment in
+        // Indices::with_fill.
+        for i in (0..population_size).rev() {
+            match probabilities.unit_status(i) {
+                UnitDecisionStatus::In => {
+                    sample.add(i);
+                }
+                UnitDecisionStatus::Out => {}
+                UnitDecisionStatus::Undecided => {
+                    indices.insert(i);
+                }
+            };
         }
 
-        controller
+        Self {
+            probabilities,
+            indices,
+            sample,
+            tree: (),
+        }
     }
     #[inline]
     pub fn unit_remove(&mut self, idx: usize) -> Option<usize> {

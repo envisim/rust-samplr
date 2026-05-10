@@ -15,6 +15,18 @@ fn test_cube() {
 }
 
 #[test]
+fn test_sequential_cube() {
+    let (spec, bmat) = matrix_big_balanced();
+    let options = SamplingOptions::with_spec(spec)
+        .set_balancing(bmat)
+        .unwrap();
+    test_wor_fixed_n(|rng| options.sequential_cube(rng), &options, 100);
+
+    let options = Data10::options_u();
+    test_wor(|rng| options.sequential_cube(rng), &options, 1e-2, 100000);
+}
+
+#[test]
 fn test_lcube() {
     let options = Data10::options_u();
     test_wor(|rng| options.local_cube(rng), &options, 1e-2, 100000);

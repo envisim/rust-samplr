@@ -17,12 +17,12 @@ mod stratified;
 mod utils;
 
 pub use cube::{
-    BasicCubeStrategy,
     CubeRunner,
     CubeSampling,
     CubeStrategy,
     LocalCubeSampling,
     LocalCubeStrategy,
+    RandomCubeStrategy,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 pub use stratified::{

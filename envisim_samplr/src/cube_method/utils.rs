@@ -12,26 +12,64 @@
 
 //! Utility functions for cube
 
+use std::num::NonZeroUsize;
+
 use envisim_utils::indices::Indices;
 use envisim_utils::matrix::{
     Dimensions,
     Matrix,
 };
+use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::sampling_options::SamplingOptions;
 
-/// Set candidates from the indices list, i.e. a basic fallback
+/// Set candidates by drawing randomly from the indices list, i.e. a basic fallback
 #[inline]
-pub fn set_candidates_from_indices(candidates: &mut Vec<usize>, indices: &Indices, len: usize) {
-    let number_of_remaining_units = indices.len();
-    let len = if len == 0 || len > number_of_remaining_units {
-        number_of_remaining_units
-    } else {
-        len
-    };
-
-    // Set candidates
+pub fn set_candidates_from_indices_randomly<R>(
+    rng: &mut R,
+    candidates: &mut Vec<usize>,
+    indices: &Indices,
+    len: NonZeroUsize,
+) where
+    R: RandomNumberGenerator,
+{
+    use crate::EqualProbabilitySampling;
     candidates.clear();
-    candidates.extend_from_slice(&indices.list()[0..len]);
+
+    if indices.len() < len.get() {
+        // Few units remaining, select everything
+        candidates.extend_from_slice(&indices.list());
+        return;
+    }
+
+    // Draw an srs
+    candidates.extend(
+        SamplingOptions::new_equal(indices.len(), len.get())
+            .expect("indices.len > 0")
+            .srs(rng)
+            .iter()
+            .map(|&k| indices[k]),
+    );
 }
+
+/// Set candidates by drawing randomly from the indices list, i.e. a basic fallback
+#[inline]
+pub fn set_candidates_from_indices_sequentially(
+    candidates: &mut Vec<usize>,
+    indices: &Indices,
+    len: NonZeroUsize,
+) {
+    candidates.clear();
+
+    if indices.len() < len.get() {
+        // Few units remaining, select everything
+        candidates.extend_from_slice(&indices.list());
+        return;
+    }
+
+    // Take last units of indices
+    candidates.extend_from_slice(&indices.list()[(indices.len() - len.get())..]);
+}
+
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
 ///
 /// # Panics

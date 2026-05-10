@@ -37,8 +37,9 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::new(10);
+    /// assert!(il.is_empty());
     /// ```
     #[inline]
     pub fn new(capacity: usize) -> Self {
@@ -48,18 +49,24 @@ impl Indices {
         }
     }
 
-    /// Constructs a new `Indices`, filled with (0..length)
+    /// Constructs a new `Indices`, filled with units `(0..length)`
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(10);
+    /// assert_eq!(il.first(), Some(9));
+    /// assert_eq!(il.last(), Some(0));
     /// ```
     #[inline]
     pub fn with_fill(length: usize) -> Self {
+        // By storing the list in reverse order, algos that need to be able to draw in order can
+        // always draw from the end, and a swap remove will guarantee that the selected units are
+        // stable, without incurring a higher cost needed in order to keep order in start of list.
         Indices {
-            list: (0..length).collect::<Vec<usize>>(),
+            list: (0..length).rev().collect::<Vec<usize>>(),
             indices: (0..length)
+                .rev()
                 .map(|v| (v, v))
                 .collect::<FxHashMap<usize, usize>>(),
         }
@@ -69,11 +76,11 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(10);
+    /// assert_eq!(il.len(), 10);
     /// il.clear();
-    /// assert_eq!(il.len(), 0);
+    /// assert!(il.is_empty());
     /// ```
     #[inline]
     pub fn clear(&mut self) {
@@ -85,10 +92,9 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.list(), vec![0, 1, 2, 3]);
+    /// assert_eq!(il.list(), vec![3, 2, 1, 0]);
     /// ```
     #[must_use]
     #[inline]
@@ -98,11 +104,10 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// let v: Vec<usize> = il.to_vec();
-    /// assert_eq!(il.list(), &v);
+    /// assert_eq!(v, vec![3, 2, 1, 0]);
     /// ```
     #[must_use]
     #[inline]
@@ -112,10 +117,9 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.get(3).unwrap(), 3);
+    /// assert_eq!(il.get(3), Some(0));
     /// assert_eq!(il.get(10), None);
     /// ```
     #[must_use]
@@ -126,10 +130,11 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
-    /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.first().unwrap(), 0);
+    /// # use envisim_utils::indices::*;
+    /// let mut il = Indices::with_fill(4);
+    /// assert_eq!(il.first(), Some(3));
+    /// il.clear();
+    /// assert_eq!(il.first(), None);
     /// ```
     #[must_use]
     #[inline]
@@ -139,10 +144,11 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
-    /// let il = Indices::with_fill(4);
-    /// assert_eq!(il.last().unwrap(), 3);
+    /// # use envisim_utils::indices::*;
+    /// let mut il = Indices::with_fill(4);
+    /// assert_eq!(il.last(), Some(0));
+    /// il.clear();
+    /// assert_eq!(il.last(), None);
     /// ```
     #[must_use]
     #[inline]
@@ -152,9 +158,8 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// # use envisim_utils::indices::*;
     /// use envisim_utils::random::*;
-    ///
     /// let il = Indices::with_fill(4);
     /// let mut rng = SmallRng::seed_from_u64(4242);
     /// assert!(il.draw(&mut rng).is_some());
@@ -170,31 +175,11 @@ impl Indices {
         rng.relement(&self.list).copied()
     }
 
-    /// Returns the next sequential unit after `from`, not including itself, if it exists.
-    ///
-    /// # Examples
-    /// ```
-    /// use envisim_utils::indices::Indices;
-    /// use envisim_utils::random::*;
-    ///
-    /// let mut il = Indices::with_fill(4);
-    /// assert_eq!(il.seq_after(0, 4), Some(1));
-    /// assert_eq!(il.seq_after(3, 4), None);
-    /// il.remove(2);
-    /// assert_eq!(il.seq_after(1, 4), Some(3));
-    /// ```
-    #[must_use]
-    #[inline]
-    pub fn seq_after(&self, from: usize, max: usize) -> Option<usize> {
-        ((from + 1)..max).find(|&id| self.contains(id))
-    }
-
     /// Checks if the list contains an index
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert!(il.contains(3));
     /// assert!(!il.contains(4));
@@ -207,8 +192,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.contains(42));
     /// assert!(il.insert(42).is_some());
@@ -232,8 +216,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.len(), 4);
     /// ```
@@ -244,8 +227,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.is_empty());
     /// il.clear();
@@ -259,8 +241,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(il.contains(2));
     /// assert!(il.remove(2).is_some());
@@ -323,19 +304,13 @@ impl Pair {
 impl From<&Indices> for Pair {
     #[inline]
     fn from(indices: &Indices) -> Self {
-        let len = indices.len();
-        if len == 0 {
-            return Pair::Zero;
+        match indices.list() {
+            [b, a] => Pair::Two(*a, *b),
+            // Matches at least two
+            [.., b, a] => Pair::More(*a, *b),
+            [a] => Pair::One(*a),
+            [] => Pair::Zero,
         }
-        let id1 = indices.list()[0];
-        if len == 1 {
-            return Pair::One(id1);
-        }
-        let id2 = indices.list()[1];
-        if len == 2 {
-            return Pair::Two(id1, id2);
-        }
-        Pair::More(id1, id2)
     }
 }
 
@@ -353,6 +328,6 @@ mod tests {
     #[test]
     fn with_fill() {
         let il = Indices::with_fill(4);
-        assert_eq!(il.list(), vec![0, 1, 2, 3]);
+        assert_eq!(il.list(), vec![3, 2, 1, 0]);
     }
 }

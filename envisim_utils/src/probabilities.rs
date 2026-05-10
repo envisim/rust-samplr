@@ -19,6 +19,18 @@ use crate::sampling_options::{
     ProbabilitySpecEqual,
 };
 
+/// Decision result
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "a unit can only exists in three decision states"
+)]
+pub enum UnitDecisionStatus {
+    In,
+    Out,
+    Undecided,
+}
+
 /// Contains probabilities represented as floats
 #[must_use]
 pub struct FloatProbabilities {
@@ -132,10 +144,13 @@ pub trait ProbabilityStore {
     #[inline]
     fn add(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] += value; }
 
+    fn unit_status(&self, idx: usize) -> UnitDecisionStatus;
     #[must_use]
-    fn is_zero(&self, idx: usize) -> bool;
+    #[inline]
+    fn is_zero(&self, idx: usize) -> bool { self.unit_status(idx) == UnitDecisionStatus::Out }
     #[must_use]
-    fn is_max(&self, idx: usize) -> bool;
+    #[inline]
+    fn is_max(&self, idx: usize) -> bool { self.unit_status(idx) == UnitDecisionStatus::In }
     #[must_use]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool;
     #[must_use]
@@ -156,9 +171,15 @@ impl ProbabilityStore for FloatProbabilities {
     fn set_max(&mut self, idx: usize) { self.data[idx] = 1.0; }
 
     #[inline]
-    fn is_zero(&self, idx: usize) -> bool { self.data[idx] <= self.eps }
-    #[inline]
-    fn is_max(&self, idx: usize) -> bool { self.data[idx] >= 1.0 - self.eps }
+    fn unit_status(&self, idx: usize) -> UnitDecisionStatus {
+        if self.data[idx] <= self.eps {
+            UnitDecisionStatus::Out
+        } else if self.data[idx] >= 1.0 - self.eps {
+            UnitDecisionStatus::In
+        } else {
+            UnitDecisionStatus::Undecided
+        }
+    }
     #[inline]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool { (a - b).abs() <= self.eps }
     #[inline]
@@ -181,9 +202,15 @@ impl ProbabilityStore for ExactProbabilities {
     fn set_max(&mut self, idx: usize) { self.data[idx] = self.max(); }
 
     #[inline]
-    fn is_zero(&self, idx: usize) -> bool { self.data[idx] == 0 }
-    #[inline]
-    fn is_max(&self, idx: usize) -> bool { self.data[idx] == self.max() }
+    fn unit_status(&self, idx: usize) -> UnitDecisionStatus {
+        if self.data[idx] == 0 {
+            UnitDecisionStatus::Out
+        } else if self.data[idx] == self.max() {
+            UnitDecisionStatus::In
+        } else {
+            UnitDecisionStatus::Undecided
+        }
+    }
     #[inline]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool { a == b }
     #[inline]

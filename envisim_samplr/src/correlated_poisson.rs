@@ -123,8 +123,6 @@ where
 pub struct SequentialStrategy<'bcoord> {
     /// Random values to be used
     random_values: CoordinationOptions<'bcoord>,
-    /// Selected unit, used to control the decision order if random values were provided
-    unit: usize,
 }
 impl<'bcoord> SequentialStrategy<'bcoord> {
     /// Constructs a new CPS runner using the sequential strategy
@@ -140,7 +138,6 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
             controller,
             strategy: Self {
                 random_values: CoordinationOptions::new_empty(),
-                unit: 0,
             },
         }
     }
@@ -162,10 +159,7 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         random_values.check(controller.population_size_nz()?)?;
         Ok(CorrelatedPoissonRunner {
             controller,
-            strategy: Self {
-                random_values,
-                unit: 0,
-            },
+            strategy: Self { random_values },
         })
     }
 }
@@ -186,27 +180,13 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     where
         R: RandomNumberGenerator,
     {
-        if controller.indices().is_empty() {
-            return None;
-        } else if self.unit == 0 && controller.indices().contains(0) {
-            // Special case for 0, as it is set 0 at construction
-            return Some(0);
-        }
-
-        let pop_size = controller.population_size();
-        let unit = controller.indices().seq_after(self.unit, pop_size);
-
-        if let Some(id) = unit {
-            self.unit = id;
-        }
-
-        unit
+        controller.indices().last()
     }
     #[inline]
     fn update_probabilities(
         &mut self,
         controller: &mut SampleController<FloatProbabilities, ()>,
-        id: usize,
+        _id: usize,
         probability: f64,
         quota: f64,
     ) {
@@ -216,18 +196,16 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
 
         let mut remaining_weight: f64 = 1.0;
 
-        let pop_size = controller.population_size();
-        let mut id_n: usize = id;
-        while remaining_weight > 0.0 {
-            id_n = match controller.indices().seq_after(id_n, pop_size) {
-                Some(v) => v,
-                None => return,
-            };
-
+        // Traverse indices in reverse order, in order to preserve sequential order
+        for k in (0..controller.indices().len()).rev() {
+            let id_n = controller.indices()[k];
             let possible_weight = controller.probabilities().weight_to(probability, id_n);
             let weight = possible_weight.min(remaining_weight);
             controller.unit_add_and_decide(id_n, weight * quota);
             remaining_weight -= possible_weight;
+            if remaining_weight <= 0.0 {
+                break;
+            }
         }
     }
 }
