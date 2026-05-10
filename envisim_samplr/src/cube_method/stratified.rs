@@ -336,16 +336,6 @@ where
 /// # Ok::<(), SamplingError>(())
 /// ```
 ///
-/// # References
-/// Chauvet, G. (2009).
-/// Stratified balanced sampling.
-/// Survey Methodology, 35(1), 115-119.
-///
-/// Deville, J. C., & Tillé, Y. (2004).
-/// Efficient balanced sampling: the cube method.
-/// Biometrika, 91(4), 893-912.
-/// <https://doi.org/10.1093/biomet/91.4.893>
-///
 /// # Errors
 /// Returns an error if the length of `strata` does not match the population size.
 #[inline]
@@ -377,7 +367,7 @@ where
 /// # use envisim_samplr::*;
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
-/// # use envisim_utils::matrix::Matrix;
+/// # use envisim_utils::matrix::*;
 /// let mut rng = SmallRng::try_sys_rng().unwrap();
 /// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
@@ -390,21 +380,6 @@ where
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
-///
-/// # References
-/// Chauvet, G. (2009).
-/// Stratified balanced sampling.
-/// Survey Methodology, 35(1), 115-119.
-///
-/// Deville, J. C., & Tillé, Y. (2004).
-/// Efficient balanced sampling: the cube method.
-/// Biometrika, 91(4), 893-912.
-/// <https://doi.org/10.1093/biomet/91.4.893>
-///
-/// Grafström, A., & Tillé, Y. (2013).
-/// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
-/// Environmetrics, 24(2), 120-131.
-/// <https://doi.org/10.1002/env.2194>
 ///
 /// # Errors
 /// Returns an error if the length of `strata` does not match the population size.

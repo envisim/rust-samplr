@@ -26,6 +26,7 @@ use envisim_samplr::cube_method::{
     cube_stratified,
     local_cube_stratified,
 };
+use envisim_samplr::dbd::DistributionalDesignEvaluators;
 use envisim_samplr::pivotal_method::hierarchical_lpm_2;
 use envisim_samplr::*;
 use envisim_utils::pips::pips_from_slice;
@@ -475,9 +476,9 @@ fn rust_distributionally_balanced_design_iter(
     let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
 
     let s = match r_method {
-        "dbd_tc" => options.dbd_tc_iterations(&mut rng, dbs_options, iter_to, iter_by),
+        "dbd_tc" => options.dbd_tc_evaluator(&mut rng, dbs_options, iter_to, iter_by),
         "dbd_circular" | &_ => {
-            options.dbd_circular_iterations(&mut rng, dbs_options, iter_to, iter_by)
+            options.dbd_circular_evaluator(&mut rng, dbs_options, iter_to, iter_by)
         }
     }?;
 

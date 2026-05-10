@@ -462,25 +462,6 @@ where
 }
 
 pub trait CubeSampling {
-    #[must_use]
-    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-pub trait LocalCubeSampling<P>
-where
-    P: PointSet,
-{
-    #[must_use]
-    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-impl<PS, AUX, T> CubeSampling for SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>
-where
-    PS: ProbabilitySpec,
-    T: RawData<Elem = f64>,
-{
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
@@ -489,7 +470,7 @@ where
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// # use envisim_utils::matrix::Matrix;
+    /// # use envisim_utils::matrix::*;
     /// let mut rng = SmallRng::try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![
@@ -502,12 +483,49 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    #[must_use]
+    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+pub trait LocalCubeSampling<P>
+where
+    P: PointSet,
+{
+    /// Draw a sample using the local cube method.
+    /// The sample is balanced on the provided auxilliary variables in `balancing`.
+    /// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
+    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
     ///
-    /// # References
-    /// Deville, J. C., & Tillé, Y. (2004).
-    /// Efficient balanced sampling: the cube method.
-    /// Biometrika, 91(4), 893-912.
-    /// <https://doi.org/10.1093/biomet/91.4.893>
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.9];
+    /// let bal = Matrix::new(vec![
+    ///     0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90,
+    ///     0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90,
+    /// ], 10).unwrap();
+    /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p.into())?
+    ///     .set_balancing(bal)?
+    ///     .set_spreading(spr)?
+    ///     .local_cube(&mut rng);
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    #[must_use]
+    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+impl<PS, AUX, T> CubeSampling for SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>
+where
+    PS: ProbabilitySpec,
+    T: RawData<Elem = f64>,
+{
     #[inline]
     fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
@@ -523,41 +541,6 @@ where
     P: PointSet,
     T: RawData<Elem = f64>,
 {
-    /// Draw a sample using the local cube method.
-    /// The sample is balanced on the provided auxilliary variables in `balancing`.
-    /// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
-    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.9];
-    /// let bal = Matrix::new(vec![
-    ///     0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90,
-    ///     0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90,
-    /// ], 10).unwrap();
-    /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
-    ///     .set_balancing(bal)?
-    ///     .set_spreading(spr)?
-    ///     .local_cube(&mut rng);
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
-    /// ```
-    ///
-    /// # References
-    /// Deville, J. C., & Tillé, Y. (2004).
-    /// Efficient balanced sampling: the cube method.
-    /// Biometrika, 91(4), 893-912.
-    /// <https://doi.org/10.1093/biomet/91.4.893>
-    ///
-    /// Grafström, A., & Tillé, Y. (2013).
-    /// Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
-    /// Environmetrics, 24(2), 120-131.
-    /// <https://doi.org/10.1002/env.2194>
     #[inline]
     fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where

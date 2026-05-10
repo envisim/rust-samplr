@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug in `cube`.
 - Refactored sampling methods to use new `SamplingOptions` and `SampleController`. Infallible methods are now infallible.
 - As coordination is removed from `SamplingOptions`, `cps_coord` and `scps_coord` dedicated methods now accept random values for coordination.
+- Moved dbd evaluating methods to its own trait, and renamed the methods.
 
 
 ## [0.5.0] - 2026-03-27

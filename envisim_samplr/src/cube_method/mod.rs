@@ -11,6 +11,23 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Cube methods
+//!
+//! Implements [`CubeSampling`] for [`SamplingOptions`].
+//!
+//! # References
+//! Chauvet, G. (2009).
+//! Stratified balanced sampling.
+//! Survey Methodology, 35(1), 115-119.
+//!
+//! Deville, J. C., & Tillé, Y. (2004).
+//! Efficient balanced sampling: the cube method.
+//! Biometrika, 91(4), 893-912.
+//! <https://doi.org/10.1093/biomet/91.4.893>
+//!
+//! Grafström, A., & Tillé, Y. (2013).
+//! Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
+//! Environmetrics, 24(2), 120-131.
+//! <https://doi.org/10.1002/env.2194>
 
 mod cube;
 mod stratified;
