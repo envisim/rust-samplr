@@ -53,6 +53,8 @@ pub fn matrix_big_balanced() -> (ProbabilitySpecUnequal<'static>, Matrix<f64>) {
     (spec, mat)
 }
 
+#[allow(dead_code)]
+#[inline]
 pub fn test_wor<F, PS, SOP, BOP>(
     mut sampler: F,
     options: &SamplingOptions<PS, SOP, BOP>,
@@ -63,10 +65,19 @@ pub fn test_wor<F, PS, SOP, BOP>(
     PS: ProbabilitySpec,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
+    let sample_size = options.sample_size();
 
     let mut rng = rng();
     for _ in 0..runs {
-        sampler(&mut rng).iter().for_each(|&id| sel[id] += 1);
+        let s = sampler(&mut rng);
+        assert_eq!(
+            s.len(),
+            sample_size,
+            "expected sample size of {}, got {}",
+            sample_size,
+            s.len()
+        );
+        s.iter().for_each(|&id| sel[id] += 1);
     }
 
     let prob_emp: Vec<f64> = sel
@@ -91,25 +102,41 @@ pub fn test_wor<F, PS, SOP, BOP>(
 }
 
 #[allow(dead_code)]
-pub fn test_wor_fixed_n<F, PS, SOP, BOP>(
+#[inline]
+pub fn test_wor_random_n<F, PS, SOP, BOP>(
     mut sampler: F,
     options: &SamplingOptions<PS, SOP, BOP>,
+    eps: f64,
     runs: usize,
 ) where
     F: FnMut(&mut SmallRng) -> Vec<usize>,
     PS: ProbabilitySpec,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
-    let expected_n = options.probabilities().sample_size();
 
     let mut rng = rng();
-    for r in 0..runs {
+    for _ in 0..runs {
         let s = sampler(&mut rng);
-        let s_len = s.len();
-        assert_eq!(
-            s_len, expected_n,
-            "sample size {s_len} should be {expected_n} (run {r})"
-        );
-        sampler(&mut rng).iter().for_each(|&id| sel[id] += 1);
+        s.iter().for_each(|&id| sel[id] += 1);
+    }
+
+    let prob_emp: Vec<f64> = sel
+        .iter()
+        .map(|&s| s.to_f64().unwrap() / runs.to_f64().unwrap())
+        .collect();
+    let diff: Vec<f64> = options
+        .probabilities()
+        .as_f64_slice()
+        .iter()
+        .zip(prob_emp.iter())
+        .map(|(p, p_emp)| p - p_emp)
+        .collect();
+
+    println!("{:?}, {:?}", sel, sel.iter().sum::<usize>());
+
+    if !diff.iter().all(|&x| x.abs() < eps) {
+        let psum = options.probabilities().sample_size_f64();
+        let psum_emp = prob_emp.iter().sum::<f64>();
+        panic!("{diff:?} >= {eps}\n(sums: {psum} vs. {psum_emp})",);
     }
 }

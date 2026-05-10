@@ -8,7 +8,7 @@ fn test_cube() {
     let options = SamplingOptions::with_spec(spec)
         .set_balancing(bmat)
         .unwrap();
-    test_wor_fixed_n(|rng| options.cube(rng), &options, 100);
+    test_wor(|rng| options.cube(rng), &options, 1e-0, 100);
 
     let options = Data10::options_u();
     test_wor(|rng| options.cube(rng), &options, 1e-2, 100000);
