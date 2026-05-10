@@ -33,6 +33,10 @@
 #' Stratified balanced sampling.
 #' Survey Methodology, 35, 115-119.
 #'
+#' Leuenberger, M., Eustache, E., Jauslin, R., & Tillé, Y. (2022).
+#' Balancing a sample almost perfectly.
+#' Statistics & Probability Letters, 180, 109229.
+#'
 #' @examples
 #' set.seed(12345);
 #' N = 1000;

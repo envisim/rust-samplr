@@ -613,6 +613,11 @@ where
     /// Efficient balanced sampling: the cube method.
     /// Biometrika, 91(4), 893-912.
     /// <https://doi.org/10.1093/biomet/91.4.893>
+    ///
+    /// Leuenberger, M., Eustache, E., Jauslin, R., & Tillé, Y. (2022).
+    /// Balancing a sample almost perfectly.
+    /// Statistics & Probability Letters, 180, 109229.
+    /// <https://doi.org/10.1016/j.spl.2021.109229>
     #[inline]
     fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where

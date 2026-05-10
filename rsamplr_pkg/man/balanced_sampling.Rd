@@ -97,4 +97,8 @@ Computational Statistics, 21(1), 53-62.
 Chauvet, G. (2009).
 Stratified balanced sampling.
 Survey Methodology, 35, 115-119.
+
+Leuenberger, M., Eustache, E., Jauslin, R., & Tillé, Y. (2022).
+Balancing a sample almost perfectly.
+Statistics & Probability Letters, 180, 109229.
 }
