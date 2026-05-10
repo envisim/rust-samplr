@@ -41,6 +41,9 @@
 #' s = cube(prob, xb);
 #' plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
+#' s = sequential_cube(prob, xb);
+#' plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
 #' s = cube_stratified(prob, xb[, -1], strata);
 #' plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
@@ -78,6 +81,12 @@ NULL
 #' @export
 cube = function(probabilities, balance_mat, ...) {
   .balanced_wrapper("cube", probabilities, balance_mat, ...)
+}
+
+#' @describeIn balanced_sampling The cube method
+#' @export
+sequential_cube = function(probabilities, balance_mat, ...) {
+  .balanced_wrapper("sequential_cube", probabilities, balance_mat, ...)
 }
 
 #' @describeIn balanced_sampling The stratified cube method
