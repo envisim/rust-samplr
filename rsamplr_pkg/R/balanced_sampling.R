@@ -6,9 +6,12 @@
 #' Selects balanced samples with prescribed inclusion probabilities from finite populations.
 #'
 #' @details
-#' For the `cube` method, a fixed sized sample is obtained if the first column of `balance_mat` is
-#' the inclusion probabilities. For `cube_stratified`, the inclusion probabilities are inserted
-#' automatically.
+#' For the `cube` and `sequential_cube` methods, a fixed sized sample is obtained if the first
+#' column of `balance_mat` is the inclusion probabilities.
+#' For `cube_stratified`, the inclusion probabilities are inserted automatically.
+#'
+#' The `sequential_cube` determines units in the provided order, i.e. includes units by order into
+#' the solution window of the flight phase. `cube` determines units in a random order.
 #'
 #' @param probabilities A vector of inclusion probabilities.
 #' @param balance_mat A matrix of balancing covariates.

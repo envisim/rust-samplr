@@ -33,9 +33,12 @@ A vector of sample indices.
 Selects balanced samples with prescribed inclusion probabilities from finite populations.
 }
 \details{
-For the \code{cube} method, a fixed sized sample is obtained if the first column of \code{balance_mat} is
-the inclusion probabilities. For \code{cube_stratified}, the inclusion probabilities are inserted
-automatically.
+For the \code{cube} and \code{sequential_cube} methods, a fixed sized sample is obtained if the first
+column of \code{balance_mat} is the inclusion probabilities.
+For \code{cube_stratified}, the inclusion probabilities are inserted automatically.
+
+The \code{sequential_cube} determines units in the provided order, i.e. includes units by order into
+the solution window of the flight phase. \code{cube} determines units in a random order.
 }
 \section{Functions}{
 \itemize{
