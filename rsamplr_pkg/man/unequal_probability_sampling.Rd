@@ -38,7 +38,7 @@ sampford(probabilities, ...)
 \item{probabilities}{A vector of inclusion probabilities.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
+  Arguments passed on to \code{\link{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
     \item{\code{max_iter}}{The maximum number of iterations used in iterative algorithms.}
