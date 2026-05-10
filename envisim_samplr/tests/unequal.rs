@@ -23,7 +23,7 @@ fn test_brewer() {
 #[test]
 fn test_poisson() {
     let options = Data10::options_u();
-    test_wor(|rng| options.poisson(rng), &options, 1e-2, 100000);
+    test_wor_random_n(|rng| options.poisson(rng), &options, 1e-2, 100000);
 }
 
 // So inefficient...

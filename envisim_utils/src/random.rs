@@ -178,7 +178,6 @@ mod small_rng {
         TryRng,
     };
 
-    /// let rng = StdRng::try_from_rng(&mut OsRng).unwrap();
     use super::RandomNumberGenerator;
 
     #[must_use]
@@ -192,8 +191,14 @@ mod small_rng {
         fn seed_from_u64(state: u64) -> Self { SmallRng(SRNG::seed_from_u64(state)) }
     }
     impl SmallRng {
+        /// Tries to construct a [`SmallRng`] using [`SysRng`].
+        ///
+        /// # Errors
+        /// Returns an error if rng cannot be constructed from [`SysRng`], see
+        /// [`rand::rngs::SmallRng::try_from_rng`]
+        #[inline]
         pub fn try_sys_rng() -> Result<Self, <SysRng as TryRng>::Error> {
-            SRNG::try_from_rng(&mut SysRng).map(|rng| SmallRng(rng))
+            SRNG::try_from_rng(&mut SysRng).map(SmallRng)
         }
     }
 
