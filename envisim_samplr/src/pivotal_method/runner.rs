@@ -54,18 +54,13 @@ where
         self.controller.sample_vec()
     }
     /// Runs the sampling algorithm
-    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
     pub fn run<R>(&mut self, rng: &mut R)
     where
         R: RandomNumberGenerator,
     {
         while self.update_probabilities(rng) {}
-
-        let _last = self
-            .controller
-            .unit_decide_last(rng)
-            .expect("last unit to be decided");
+        let _last = self.controller.unit_decide_last(rng);
     }
     /// Updates the probabilities according to the pivotal mehtod
     #[must_use]
@@ -90,11 +85,11 @@ where
 
         if psum == max {
             if self.controller.draw(rng, max) < p1 {
-                self.controller.unit_set_max(id1).expect("id1 to update");
-                self.controller.unit_set_zero(id2).expect("id2 to update");
+                self.controller.unit_set_max(id1);
+                self.controller.unit_set_zero(id2);
             } else {
-                self.controller.unit_set_zero(id1).expect("id1 to update");
-                self.controller.unit_set_max(id2).expect("id2 to update");
+                self.controller.unit_set_zero(id1);
+                self.controller.unit_set_max(id2);
             }
 
             return cont;
@@ -102,30 +97,22 @@ where
 
         if max < psum {
             if self.controller.draw(rng, max + max - psum) < max - p2 {
-                self.controller.unit_set_max(id1).expect("id1 to update");
-                self.controller
-                    .unit_set_and_decide(id2, psum - max)
-                    .expect("id2 to update");
+                self.controller.unit_set_max(id1);
+                self.controller.unit_set_and_decide(id2, psum - max);
             } else {
-                self.controller
-                    .unit_set_and_decide(id1, psum - max)
-                    .expect("id1 to update");
-                self.controller.unit_set_max(id2).expect("id2 to update");
+                self.controller.unit_set_and_decide(id1, psum - max);
+                self.controller.unit_set_max(id2);
             }
             return cont;
         }
 
         // psum < one
         if self.controller.probabilities().draw(rng, psum) < p1 {
-            self.controller
-                .unit_set_and_decide(id1, psum)
-                .expect("id1 to update");
-            self.controller.unit_set_zero(id2).expect("id2 to update");
+            self.controller.unit_set_and_decide(id1, psum);
+            self.controller.unit_set_zero(id2);
         } else {
-            self.controller.unit_set_zero(id1).expect("id1 to update");
-            self.controller
-                .unit_set_and_decide(id2, psum)
-                .expect("id2 to update");
+            self.controller.unit_set_zero(id1);
+            self.controller.unit_set_and_decide(id2, psum);
         }
 
         cont

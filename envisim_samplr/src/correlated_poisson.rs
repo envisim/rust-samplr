@@ -345,9 +345,7 @@ fn spatial_update_probabilities<P>(
         .partition_point(|n| n.distance() < max_distance);
 
     for n in &searcher.neighbours()[0..guaranteed_units] {
-        controller
-            .unit_add_and_decide(n.id(), n.weight() * quota)
-            .expect("probability to be updated");
+        controller.unit_add_and_decide(n.id(), n.weight() * quota);
         remaining_weight -= n.weight();
     }
 
@@ -360,9 +358,7 @@ fn spatial_update_probabilities<P>(
     if sum_of_tie_weights == remaining_weight {
         // Add everything left, if it's exactly solved (unlikely)
         for n in &searcher.neighbours()[guaranteed_units..] {
-            controller
-                .unit_add_and_decide(n.id(), n.weight() * quota)
-                .expect("probability to be updated");
+            controller.unit_add_and_decide(n.id(), n.weight() * quota);
             // remaining_weight -= n.weight();
         }
         return;
@@ -380,9 +376,7 @@ fn spatial_update_probabilities<P>(
         .unwrap();
     for n in &searcher.neighbours()[guaranteed_units..] {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
-        controller
-            .unit_add_and_decide(n.id(), remaining_weight * quota)
-            .expect("probability to be updated");
+        controller.unit_add_and_decide(n.id(), remaining_weight * quota);
         remaining_weight -= removable_weight;
         number_of_shares -= 1.0;
     }

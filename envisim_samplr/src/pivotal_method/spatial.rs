@@ -537,10 +537,7 @@ where
         for id in 0..pm.controller.population_size() {
             if main_sample.contains(&id) {
                 pm.controller.probabilities_mut().set(id, prob);
-                pm.controller
-                    .indices_mut()
-                    .insert(id)
-                    .expect("id not to already have been inserted into indices");
+                pm.controller.indices_mut().insert(id);
                 pm.controller
                     .tree_mut()
                     .insert_unit(id)

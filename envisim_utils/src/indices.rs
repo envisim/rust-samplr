@@ -12,6 +12,7 @@
 
 //! List of indices
 
+use std::num::NonZeroUsize;
 use std::ops::Index;
 
 use rustc_hash::{
@@ -37,7 +38,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::new(10);
     /// ```
     #[inline]
@@ -52,14 +53,20 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(10);
     /// ```
     #[inline]
-    pub fn with_fill(length: usize) -> Self {
+    pub fn with_fill<NZ>(length: NZ) -> Self
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let Ok(nz) = length.try_into() else {
+            return Self::new(0);
+        };
         Indices {
-            list: (0..length).collect::<Vec<usize>>(),
-            indices: (0..length)
+            list: (0..nz.get()).collect::<Vec<usize>>(),
+            indices: (0..nz.get())
                 .map(|v| (v, v))
                 .collect::<FxHashMap<usize, usize>>(),
         }
@@ -69,8 +76,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(10);
     /// il.clear();
     /// assert_eq!(il.len(), 0);
@@ -85,8 +91,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.list(), vec![0, 1, 2, 3]);
     /// ```
@@ -98,8 +103,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// let v: Vec<usize> = il.to_vec();
     /// assert_eq!(il.list(), &v);
@@ -112,8 +116,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.get(3).unwrap(), 3);
     /// assert_eq!(il.get(10), None);
@@ -126,8 +129,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.first().unwrap(), 0);
     /// ```
@@ -139,8 +141,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.last().unwrap(), 3);
     /// ```
@@ -152,9 +153,8 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_utils::indices::*;
+    /// # use envisim_utils::random::*;
     /// let il = Indices::with_fill(4);
     /// let mut rng = SmallRng::seed_from_u64(4242);
     /// assert!(il.draw(&mut rng).is_some());
@@ -174,9 +174,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    /// use envisim_utils::random::*;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert_eq!(il.seq_after(0, 4), Some(1));
     /// assert_eq!(il.seq_after(3, 4), None);
@@ -193,8 +191,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert!(il.contains(3));
     /// assert!(!il.contains(4));
@@ -203,37 +200,35 @@ impl Indices {
     #[inline]
     pub fn contains(&self, id: usize) -> bool { self.indices.contains_key(&id) }
 
-    /// Inserts an index. Returns `None` if the index already exists
+    /// Inserts an index. Returns `false` if the index already exists
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.contains(42));
-    /// assert!(il.insert(42).is_some());
+    /// assert!(il.insert(42));
     /// assert!(il.contains(42));
-    /// assert!(il.insert(42).is_none());
+    /// assert!(!il.insert(42));
     /// assert!(il.contains(42));
     /// ```
     #[inline]
-    pub fn insert(&mut self, id: usize) -> Option<usize> {
+    pub fn insert(&mut self, id: usize) -> bool {
         if self.contains(id) {
-            return None;
+            return false;
         }
 
         self.list.push(id);
         let k = self.list.len() - 1;
         self.indices.insert(id, k);
-        Some(k)
+        true
     }
 
     /// Returns the number of indices
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let il = Indices::with_fill(4);
     /// assert_eq!(il.len(), 4);
     /// ```
@@ -244,8 +239,7 @@ impl Indices {
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.is_empty());
     /// il.clear();
@@ -255,21 +249,22 @@ impl Indices {
     #[inline]
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
 
-    /// Removes an index. Returns `None` if the index does not exist
+    /// Removes an index. Returns `false` if the index does not exist
     ///
     /// # Examples
     /// ```
-    /// use envisim_utils::indices::Indices;
-    ///
+    /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(il.contains(2));
-    /// assert!(il.remove(2).is_some());
-    /// assert!(il.remove(2).is_none());
+    /// assert!(il.remove(2));
+    /// assert!(!il.remove(2));
     /// assert!(!il.contains(2));
     #[expect(clippy::missing_panics_doc, reason = "infallible")]
     #[inline]
-    pub fn remove(&mut self, id: usize) -> Option<usize> {
-        let k = self.indices.remove(&id)?;
+    pub fn remove(&mut self, id: usize) -> bool {
+        let Some(k) = self.indices.remove(&id) else {
+            return false;
+        };
         self.list.swap_remove(k);
         if k != self.list.len() {
             *self
@@ -277,7 +272,7 @@ impl Indices {
                 .get_mut(&self.list[k])
                 .expect("indices to include the swapped unit") = k;
         }
-        Some(id)
+        true
     }
 }
 
@@ -323,19 +318,13 @@ impl Pair {
 impl From<&Indices> for Pair {
     #[inline]
     fn from(indices: &Indices) -> Self {
-        let len = indices.len();
-        if len == 0 {
-            return Pair::Zero;
+        match indices.list() {
+            [b, a] => Pair::Two(*a, *b),
+            // Matches at least two
+            [.., b, a] => Pair::More(*a, *b),
+            [a] => Pair::One(*a),
+            [] => Pair::Zero,
         }
-        let id1 = indices.list()[0];
-        if len == 1 {
-            return Pair::One(id1);
-        }
-        let id2 = indices.list()[1];
-        if len == 2 {
-            return Pair::Two(id1, id2);
-        }
-        Pair::More(id1, id2)
     }
 }
 

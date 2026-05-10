@@ -157,9 +157,7 @@ where
             self.update_probabilities(rng);
         }
 
-        self.controller
-            .unit_decide_last(rng)
-            .expect("last unit to be decided");
+        self.controller.unit_decide_last(rng);
     }
     /// Constructs a new cube runner
     #[expect(
@@ -260,9 +258,7 @@ where
         };
 
         for (i, &id) in self.candidates.iter().enumerate() {
-            self.controller
-                .unit_add_and_decide(id, lambda * uvec[i])
-                .expect("id to update");
+            self.controller.unit_add_and_decide(id, lambda * uvec[i]);
         }
     }
 }
@@ -308,10 +304,7 @@ impl CubeStrategy<()> for BasicCubeStrategy {
     ) {
         controller.indices_mut().clear();
         for &id in ids.iter() {
-            controller
-                .indices_mut()
-                .insert(id)
-                .expect("id to not already exist in the collection");
+            controller.indices_mut().insert(id);
         }
     }
 }
@@ -453,10 +446,7 @@ where
         controller.reset_tree(self.spreading_options, ids);
 
         for id in ids.iter() {
-            controller
-                .indices_mut()
-                .insert(*id)
-                .expect("id to not already exist in the collection");
+            controller.indices_mut().insert(*id);
         }
     }
 }
