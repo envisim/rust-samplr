@@ -12,15 +12,20 @@
 
 //! Functions for calculating probabilities proportional to size
 
+use num_traits::ToPrimitive;
+
+pub use self::error::PipsError;
 use crate::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
 };
-use crate::utils::usize_to_f64;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
+///
+/// # Errors
 /// Returns an error if any value is non-positive.
+#[inline]
 pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
@@ -29,7 +34,8 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
     let mut sum: f64 = 0.0;
 
     for x in arr {
-        if !x.is_normal() || (..0.0).contains(x) {
+        // x is finite and positive
+        if !x.is_finite() || (..=0.0).contains(x) {
             return Err(PipsError::InvalidAuxiliary);
         }
         sum += *x;
@@ -43,9 +49,13 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
 
 /// Inclusion probabilities proportional to size (approximate).
 /// Given an array of positive values, returns the inclusion probabilities proportional to size.
-/// Returns an error if any value is non-positive.
 ///
 /// The caluclations are done by iteratively rescaling the inclusion probabilities.
+///
+/// # Errors
+/// Returns an error if any value is non-positive.
+#[expect(clippy::missing_panics_doc, reason = "usize to f64 conversion")]
+#[inline]
 pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabilities, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
@@ -59,10 +69,10 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
         return Err(PipsError::InvalidAuxiliary);
     }
 
-    let mut n = usize_to_f64(sample_size);
+    let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
     let mut pips = FloatProbabilities::new_equal_f64(0.0, arr.len(), 1e-12);
-    let mut failed: bool = true;
+    let mut failed = true;
 
     while failed && n > 0.0 {
         failed = false;
@@ -94,19 +104,63 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
     Ok(pips)
 }
 
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum PipsError {
-    InvalidAuxiliary,
-    NoAuxiliaries,
-}
-impl std::error::Error for PipsError {}
-impl std::fmt::Display for PipsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use PipsError::*;
-        match *self {
-            InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
-            NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
+mod error {
+    //! Pips errors
+
+    #[non_exhaustive]
+    #[derive(Debug)]
+    pub enum PipsError {
+        InvalidAuxiliary,
+        NoAuxiliaries,
+    }
+    #[expect(clippy::absolute_paths, reason = "possible override")]
+    impl std::error::Error for PipsError {}
+    #[expect(clippy::absolute_paths, reason = "possible override")]
+    impl std::fmt::Display for PipsError {
+        #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
+        #[inline]
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            use PipsError::*;
+            match *self {
+                InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
+                NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+
+    #[test]
+    fn pps() {
+        let dt1 = vec![1.0f64, 2.0, 3.0, 4.0];
+        let dt2 = vec![-1.0f64, 2.0, 3.0, 4.0];
+
+        assert_fvec(
+            pps_from_slice(&dt1).unwrap().data(),
+            &vec![0.1, 0.2, 0.3, 0.4],
+        );
+
+        assert!(pps_from_slice(&dt2).is_err());
+    }
+
+    #[test]
+    fn pips() {
+        let dt1 = vec![1.0f64, 2.0, 3.0, 4.0];
+        let dt2 = vec![-1.0f64, 2.0, 3.0, 4.0];
+        let dt3 = vec![1.0f64, 1.0, 1.0, 7.0];
+
+        let pips1 = pips_from_slice(&dt1, 2).unwrap();
+        assert_fvec(pips1.data(), &vec![0.2, 0.4, 0.6, 0.8]);
+
+        assert!(pips_from_slice(&dt2, 2).is_err());
+
+        assert_fvec(
+            pips_from_slice(&dt3, 2).unwrap().data(),
+            &vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0],
+        );
     }
 }

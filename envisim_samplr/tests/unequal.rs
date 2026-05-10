@@ -4,44 +4,34 @@ use test_utils::*;
 
 #[test]
 fn test_sampford() {
-    let mut rng = rng();
-    let options = options_unequal();
-    test_wor(
-        || options.sampford(&mut rng).unwrap(),
-        &options,
-        1e-2,
-        10000,
-    );
+    let options = Data10::options_u();
+    test_wor(|rng| options.sampford(rng).unwrap(), &options, 1e-2, 10000);
 }
 
 #[test]
 fn test_pareto() {
-    let mut rng = rng();
-    let options = options_unequal();
-    test_wor(|| options.pareto(&mut rng).unwrap(), &options, 1e-2, 100000);
+    let options = Data10::options_u();
+    test_wor(|rng| options.pareto(rng).unwrap(), &options, 1e-2, 100000);
 }
 
 #[test]
 fn test_brewer() {
-    let mut rng = rng();
-    let options = options_unequal_e();
-    test_wor(|| options.brewer(&mut rng).unwrap(), &options, 1e-2, 100000);
+    let options = Data10::options_u();
+    test_wor(|rng| options.brewer(rng).unwrap(), &options, 1e-2, 100000);
 }
 
 #[test]
 fn test_poisson() {
-    let mut rng = rng();
-    let options = options_unequal();
-    test_wor(|| options.poisson(&mut rng), &options, 1e-2, 100000);
+    let options = Data10::options_u();
+    test_wor_random_n(|rng| options.poisson(rng), &options, 1e-2, 100000);
 }
 
 // So inefficient...
 #[test]
 fn test_conditional_poisson() {
-    let mut rng = rng();
-    let options = options_unequal();
+    let options = Data10::options_u();
     test_wor(
-        || options.conditional_poisson(&mut rng, 5).unwrap(),
+        |rng| options.conditional_poisson(rng, 5).unwrap(),
         &options,
         1e-1,
         100000,

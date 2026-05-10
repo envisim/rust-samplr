@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius, Anton Grafström.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,78 +14,91 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::kd_tree::{
-    Searcher,
-    TreeBuilder,
+use envisim_utils::kd_tree::PointSet;
+use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
+use envisim_utils::matrix::{
+    Dimensions,
+    MatrixBase,
+    RawData,
 };
-use envisim_utils::matrix::Matrix;
 use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
     SamplingOptions,
-    SamplingOptionsError,
+    SpreadingOptions,
 };
-use envisim_utils::utils::usize_to_f64;
+use num_traits::ToPrimitive;
+
+pub use crate::error::EstimationError;
+use crate::error::EstimationResult;
+use crate::utils::ypi_iter_to_vec;
 
 /// Horvitz-Thompson estimator of a total
 ///
 /// # Examples
 /// ```
-/// use envisim_estimate::horvitz_thompson::estimate;
-///
-/// let y = [0.0, 0.1, 0.2, 0.3, 0.4];
-/// let pi = [0.2; 5];
-///
+/// # use envisim_estimate::horvitz_thompson::*;
+/// let y: Vec<f64> = vec![0.0, 0.1, 0.2, 0.3, 0.4];
+/// let pi: Vec<f64> = vec![0.2; 5];
 /// estimate(&y, &pi).unwrap(); // Should be about 5.0
+/// # Ok::<(), EstimationError>(())
 /// ```
-pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> Option<f64> {
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid
+#[inline]
+pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> EstimationResult<f64> {
     if y_values.len() != probabilities.len() {
-        return None;
+        return Err(EstimationError::InvalidSample);
     }
-
-    let mut est = 0.0;
-    for (i, &y) in y_values.iter().enumerate() {
-        let p = probabilities[i];
-        if !FloatProbabilities::is_prob(p) {
-            return None;
-        } else if p == 0.0 {
-            return Some(f64::NAN);
-        }
-        est += y / p;
-    }
-    Some(est)
+    ypi_iter_to_vec(y_values.iter().zip(probabilities)).map(|q_vec| q_vec.iter().sum())
 }
 
 /// Ratio estimator of total, using auxilliary variable `x_values`.
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+/// Also returns an error if the xes are not positive.
+#[inline]
 pub fn ratio(
     y_values: &[f64],
     x_values: &[f64],
     probabilities: &[f64],
     x_total: f64,
-) -> Option<f64> {
+) -> EstimationResult<f64> {
     if !x_values.iter().all(|x| (0.0..).contains(x)) {
-        return None;
+        return Err(EstimationError::InvalidAuxiliaries);
     }
-    Some(estimate(y_values, probabilities)? / estimate(x_values, probabilities)? * x_total)
+    let y_hat = estimate(y_values, probabilities)?;
+    let x_hat = estimate(x_values, probabilities)?;
+
+    Ok(y_hat / x_hat * x_total)
 }
 
 /// Horvitz-Thompson estimator of variance of total estimate
-pub fn variance(
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+#[inline]
+pub fn variance<T>(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &Matrix,
-) -> Option<f64> {
+    probabilities_second_order: &MatrixBase<T>,
+) -> EstimationResult<f64>
+where
+    T: RawData<Elem = f64>,
+{
     let sample_size = y_values.len();
 
-    if sample_size != probabilities_second_order.nrow()
-        || sample_size != probabilities_second_order.ncol()
+    if sample_size != probabilities_second_order.nrow().get()
+        || sample_size != probabilities_second_order.ncol().get()
     {
-        return None;
+        return Err(EstimationError::InvalidSample);
     } else if sample_size == 0 {
-        return Some(0.0);
+        return Ok(0.0);
     }
 
-    let yp = quotient(y_values, probabilities)?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
 
     // Do first unit first
     let mut variance: f64 = 0.0;
@@ -93,66 +106,77 @@ pub fn variance(
     for i in 0..sample_size {
         let p_i = probabilities[i];
         if yp[i].is_nan() {
-            return Some(f64::NAN);
+            return Ok(f64::NAN);
         }
         variance += yp[i].powi(2) * (1.0 - p_i);
 
         for j in 0..i {
             let p_ij = probabilities_second_order[(i, j)];
             if !FloatProbabilities::is_prob(p_ij) {
-                return None;
+                return Err(EstimationError::InvalidProbability);
             } else if p_ij == 0.0 {
-                return Some(f64::NAN);
+                return Ok(f64::NAN);
             }
             variance += 2.0 * yp[i] * yp[j] * (1.0 - p_i * probabilities[j] / p_ij);
         }
     }
 
-    Some(variance)
+    Ok(variance)
 }
 
 /// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample
-pub fn syg_variance(
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+#[inline]
+pub fn syg_variance<T>(
     y_values: &[f64],
     probabilities: &[f64],
-    probabilities_second_order: &Matrix,
-) -> Option<f64> {
+    probabilities_second_order: &MatrixBase<T>,
+) -> EstimationResult<f64>
+where
+    T: RawData<Elem = f64>,
+{
     let sample_size = y_values.len();
 
-    if sample_size != probabilities_second_order.nrow()
-        || sample_size != probabilities_second_order.ncol()
+    if sample_size != probabilities_second_order.nrow().get()
+        || sample_size != probabilities_second_order.ncol().get()
     {
-        return None;
+        return Err(EstimationError::InvalidSample);
     } else if sample_size == 0 {
-        return Some(0.0);
+        return Ok(0.0);
     }
 
-    let yp = quotient(y_values, probabilities)?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
     let mut variance: f64 = 0.0;
 
     for i in 1..sample_size {
         let p_i = probabilities[i];
         if yp[i].is_nan() {
-            return Some(f64::NAN);
+            return Ok(f64::NAN);
         }
 
         for j in 0..i {
             let p_ij = probabilities_second_order[(i, j)];
             if !FloatProbabilities::is_prob(p_ij) {
-                return None;
+                return Err(EstimationError::InvalidProbability);
             } else if p_ij == 0.0 {
-                return Some(f64::NAN);
+                return Ok(f64::NAN);
             }
             variance -= (yp[i] - yp[j]).powi(2) * (1.0 - p_i * probabilities[j] / p_ij);
         }
     }
 
-    Some(variance)
+    Ok(variance)
 }
 
 /// Deville estimator of variance of total estimate
-pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Option<f64> {
-    let yp = quotient(y_values, probabilities)?;
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+#[inline]
+pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> EstimationResult<f64> {
+    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
 
     let q: Vec<f64> = probabilities.iter().map(|&p| 1.0 - p).collect();
 
@@ -169,7 +193,7 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Option<f64> 
         .zip(q.iter())
         .fold(0.0, |acc, (&a, &b)| acc + (a - s1mp_del).powi(2) * b);
 
-    Some(1.0 / (1.0 - sak2) * dsum)
+    Ok(1.0 / (1.0 - sak2) * dsum)
 }
 
 /// Local mean estimator of variance of total estimate.
@@ -179,11 +203,22 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> Option<f64> 
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
 /// <https://doi.org/10.1111/sjos.12016>
-pub fn local_mean_variance<PS: ProbabilitySpec>(
+///
+/// # Errors
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+///
+/// # Panics
+/// Panics if `P` does not contains units `0..sample_size`.
+#[inline]
+pub fn local_mean_variance<PS, P, BAL>(
     y_values: &[f64],
-    options: &SamplingOptions<PS>,
+    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
     n_neighbours: NonZeroUsize,
-) -> Result<f64, SamplingOptionsError> {
+) -> EstimationResult<f64>
+where
+    PS: ProbabilitySpec,
+    P: PointSet<N = f64>,
+{
     let sample_size = y_values.len();
 
     if sample_size == 0 {
@@ -191,13 +226,16 @@ pub fn local_mean_variance<PS: ProbabilitySpec>(
     }
 
     let probabilities = options.probabilities().as_f64_slice();
-    let tree = options
-        .get_spreading()?
-        .build(&mut (0..sample_size).collect::<Vec<usize>>())?;
-    let mut searcher = Searcher::new(&tree, n_neighbours);
+    let tree = options.spreading().to_tree();
+    // +1 since we search for self also
+    let mut searcher = KNearestNeighbourSearcher::new(
+        n_neighbours
+            .checked_add(1)
+            .expect("n_neibhours to be able to add 1"),
+        tree.data(),
+    );
 
-    let yp =
-        quotient(y_values, probabilities.as_ref()).ok_or(SamplingOptionsError::InvalidSample)?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities.iter()))?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
@@ -205,9 +243,26 @@ pub fn local_mean_variance<PS: ProbabilitySpec>(
             return Ok(f64::NAN);
         }
 
-        searcher.find_neighbours_of_id(&tree, i).unwrap();
-        let number_of_neighbours: f64 = usize_to_f64(searcher.neighbours().len()) + 1.0;
-        let local_mean: f64 = (yp[i] + searcher.neighbours().iter().map(|&id| yp[id]).sum::<f64>())
+        searcher
+            .reset_from_slice(
+                &tree
+                    .data()
+                    .to_boxed_slice(i)
+                    .expect("i to exist in aux data"),
+            )
+            .expect("tree data to be searchable")
+            .search(&tree)
+            .expect("search to be possible");
+        let number_of_neighbours: f64 = searcher
+            .neighbours()
+            .len()
+            .to_f64()
+            .expect("neighbour len to convert to f64");
+        let local_mean: f64 = searcher
+            .neighbours()
+            .iter()
+            .map(|n| yp[n.id()])
+            .sum::<f64>()
             / number_of_neighbours;
         variance +=
             number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
@@ -216,27 +271,9 @@ pub fn local_mean_variance<PS: ProbabilitySpec>(
     Ok(variance)
 }
 
-fn quotient(ys: &[f64], ps: &[f64]) -> Option<Vec<f64>> {
-    if ys.len() != ps.len() {
-        return None;
-    }
-
-    let mut v = Vec::<f64>::with_capacity(ys.len());
-    for (&y, &p) in ys.iter().zip(ps.iter()) {
-        if !FloatProbabilities::is_prob(p) {
-            return None;
-        } else if p == 0.0 {
-            v.push(f64::NAN);
-        } else {
-            v.push(y / p);
-        }
-    }
-    Some(v)
-}
-
 #[cfg(test)]
 mod test {
-    use envisim_test_utils::*;
+    use envisim_utils::test_utils::*;
 
     use super::*;
 

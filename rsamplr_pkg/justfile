@@ -3,6 +3,7 @@ manifest := rust_src + '/Cargo.toml'
 cargo_lock := rust_src + '/Cargo.lock'
 r_source := 'R/*'
 rust_source := rust_src + '/src/**/*.rs'
+build_path := 'build'
 
 # Default to just --list
 default:
@@ -14,11 +15,18 @@ clean-all:
 
 # Performs sanity check on code
 sanity-check: ## Perform code sanity checks if needed
-	R -e 'devtools::spell_check()'
+	R -e 'devtools::spell_check("{{build_path}}")'
+
+# Do a dev build
+build-dev: build-wrappers document
+    mkdir -p {{build_path}}
+    R -e 'devtools::build(path = "{{build_path}}")'
 
 # Build the package source
 build: build-wrappers build-vendor document-vendor document
-	R -e 'devtools::build()'
+    mkdir -p {{build_path}}
+    R -e 'devtools::build(path = "{{build_path}}")'
+    R -e 'devtools::build_manual("{{build_path}}", "{{build_path}}")'
 
 # Vendor the rust sources
 build-vendor:
@@ -36,3 +44,7 @@ document:
 document-vendor:
   Rscript dev/vendor-authors.R -m {{manifest}} -o ./inst --verbose
   Rscript dev/vendor-license-note.R
+
+# Check a build
+check: build
+    R -e 'devtools::check_built("{{build_path}}", cran = TRUE)'

@@ -16,7 +16,7 @@ cube_stratified(probabilities, balance_mat, strata, ...)
 \item{balance_mat}{A matrix of balancing covariates.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
+  Arguments passed on to \code{\link{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
   }}

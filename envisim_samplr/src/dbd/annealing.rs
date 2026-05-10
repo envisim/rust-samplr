@@ -10,10 +10,14 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Methods for annelaing based dbd
+
 use std::num::NonZeroUsize;
 
 use envisim_utils::random::RandomNumberGenerator;
 
+/// Contains the annealing temperature tracker
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct AnnealingTemperature {
     /// Annealing temperature
@@ -27,6 +31,7 @@ pub struct AnnealingTemperature {
 }
 impl AnnealingTemperature {
     /// Constructor
+    #[inline]
     pub fn new(temperature: f64, cooling_rate: f64, eps: f64) -> Self {
         assert!(temperature > 0.0, "temperature must be positive");
         assert!(
@@ -44,12 +49,18 @@ impl AnnealingTemperature {
     }
     // fn temperature(&self) -> f64 { self.temperature }
     /// Cools the temperature according to the cooling rate
+    #[inline]
     fn cool(&mut self) { self.temperature *= self.cooling_rate }
     /// Adds to the divergence counter
+    #[inline]
     pub fn increment_divergence(&mut self) { self.divergence_count += 1; }
     /// Returns `true` if temperature is above epsilon
+    #[must_use]
+    #[inline]
     fn is_positive(&self) -> bool { self.temperature > self.eps }
     /// Returns `true` according to the probabilistic annealing decision
+    #[must_use]
+    #[inline]
     fn accept_change<R>(&self, rng: &mut R, change: f64) -> bool
     where
         R: RandomNumberGenerator,
@@ -63,6 +74,7 @@ impl AnnealingTemperature {
     }
 }
 impl Default for AnnealingTemperature {
+    #[inline]
     fn default() -> Self {
         Self {
             temperature: 0.1,
@@ -73,22 +85,30 @@ impl Default for AnnealingTemperature {
     }
 }
 
+/// Defines an annealing-based dbd
 pub trait AnnealingDistributionalDesign {
     /// Returns a reference to the `AnnealingTemperature` object
     fn temperature(&self) -> &AnnealingTemperature;
     /// Returns a mutable reference to the `AnnealingTemperature` object
     fn temperature_mut(&mut self) -> &mut AnnealingTemperature;
     /// Draws the random units
-    fn draw_units<R: RandomNumberGenerator>(&mut self, rng: &mut R);
+    fn draw_units<R>(&mut self, rng: &mut R)
+    where
+        R: RandomNumberGenerator;
     /// Evaluate the effect of a switch
+    #[must_use]
     fn evaluate_switch(&mut self) -> Option<f64>;
-    // Perform a switch
+    /// Perform a switch
     fn switch(&mut self);
     /// Sets the optimal configuration to the
     fn set_optimal_configuration(&mut self);
     /// Run the optimiziation algorithm for a set number of iterations
-    fn run<R: RandomNumberGenerator>(&mut self, rng: &mut R, iterations: NonZeroUsize) {
-        for _ in 0usize..iterations.into() {
+    #[inline]
+    fn run<R>(&mut self, rng: &mut R, iterations: NonZeroUsize)
+    where
+        R: RandomNumberGenerator,
+    {
+        for _ in 0..iterations.get() {
             self.draw_units(rng);
             let Some(delta) = self.evaluate_switch() else {
                 continue;

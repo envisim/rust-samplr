@@ -10,44 +10,70 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Tactical configuration parameters
+
+use std::num::NonZeroUsize;
+
 use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::utils::usize_to_f64;
+use envisim_utils::spatial::PointSet;
+use num_traits::ToPrimitive;
 
 use super::energy_distance::EnergyDistance;
-use crate::dbd::utils::gcd;
+use crate::utils::gcd;
 
+#[must_use]
 #[derive(Clone, Debug)]
 /// Tactical configuration design parameters
 pub struct TacticalConfigurationParameters {
     /// Population size of config
-    population_size: usize,
+    population_size: NonZeroUsize,
     /// Sample size of config
-    sample_size: usize,
+    sample_size: NonZeroUsize,
     /// Number of samples (width) of config
-    n_samples: usize,
+    n_samples: NonZeroUsize,
     /// Number of times a unit exists in the config
-    n_repeats: usize,
-    // common_divisor: usize,
+    n_repeats: NonZeroUsize,
+    // common_divisor: NonZeroUsize,
 }
 impl TacticalConfigurationParameters {
     /// Returns the population size
-    pub fn population_size(&self) -> usize { self.population_size }
+    #[must_use]
+    #[inline]
+    pub fn population_size(&self) -> NonZeroUsize { self.population_size }
     /// Returns the sample size
-    pub fn sample_size(&self) -> usize { self.sample_size }
+    #[must_use]
+    #[inline]
+    pub fn sample_size(&self) -> NonZeroUsize { self.sample_size }
     /// Returns the number of samples (width)
-    pub fn n_samples(&self) -> usize { self.n_samples }
+    #[must_use]
+    #[inline]
+    pub fn n_samples(&self) -> NonZeroUsize { self.n_samples }
     /// Returns the multiplicity of the units
-    pub fn n_repeats(&self) -> usize { self.n_repeats }
+    #[must_use]
+    #[inline]
+    pub fn n_repeats(&self) -> NonZeroUsize { self.n_repeats }
 
     /// Constructs a new config with given parameters
+    ///
+    /// # Panics
+    /// Panics if `sample_size` is not lower than `population_size`, or if
+    /// `population_size * n_repeats` does not equal `sample_size * n_samples`
+    #[inline]
     pub fn new(
-        population_size: usize,
-        sample_size: usize,
-        n_samples: usize,
-        n_repeats: usize,
+        population_size: NonZeroUsize,
+        sample_size: NonZeroUsize,
+        n_samples: NonZeroUsize,
+        n_repeats: NonZeroUsize,
     ) -> Self {
-        assert!(sample_size < population_size);
-        assert_eq!(population_size * n_repeats, sample_size * n_samples);
+        assert!(
+            sample_size < population_size,
+            "sample_size need to be lower than population_size"
+        );
+        assert_eq!(
+            population_size.get() * n_repeats.get(),
+            sample_size.get() * n_samples.get(),
+            "invalid tc params"
+        );
         Self {
             population_size,
             sample_size,
@@ -56,10 +82,15 @@ impl TacticalConfigurationParameters {
         }
     }
     /// Constructs a new minimum tactical configuration
-    pub fn new_minimal(population_size: usize, sample_size: usize) -> Self {
-        let common_divisor = gcd(population_size, sample_size);
-        let n_samples = population_size / common_divisor;
-        let n_repeats = sample_size / common_divisor;
+    #[expect(clippy::missing_panics_doc, reason = "a panic implies a bug in gcd")]
+    #[inline]
+    pub fn new_minimal(population_size: NonZeroUsize, sample_size: NonZeroUsize) -> Self {
+        let common_divisor = NonZeroUsize::new(gcd(population_size.get(), sample_size.get()))
+            .expect("common divisor to be positive");
+        let n_samples = NonZeroUsize::new(population_size.get() / common_divisor)
+            .expect("pop size to be divisable by cd");
+        let n_repeats = NonZeroUsize::new(sample_size.get() / common_divisor)
+            .expect("sample size to be divisable by cd");
 
         Self {
             population_size,
@@ -75,24 +106,53 @@ pub trait DbdConfiguration {
     /// Returns a reference to the tactical configuration parameters
     fn tcp(&self) -> &TacticalConfigurationParameters;
     /// Returns the total energy of all samples multiplied by the sample size
+    #[must_use]
     fn total_nenergy(&self) -> f64;
     /// Returns the total energy of all samples
-    fn total_energy(&self) -> f64 { self.total_nenergy() / usize_to_f64(self.tcp().sample_size()) }
+    #[must_use]
+    #[inline]
+    fn total_energy(&self) -> f64 {
+        self.total_nenergy()
+            / self
+                .tcp()
+                .sample_size()
+                .get()
+                .to_f64()
+                .expect("sample_size to convert to f64")
+    }
     /// Returns the average energy of all samples
-    fn average_energy(&self) -> f64 { self.total_energy() / usize_to_f64(self.tcp().n_samples()) }
+    #[must_use]
+    #[inline]
+    fn average_energy(&self) -> f64 {
+        self.total_energy()
+            / self
+                .tcp()
+                .n_samples()
+                .get()
+                .to_f64()
+                .expect("sample_size to convert to f64")
+    }
     /// Returns an iterator over a specific sample
+    #[must_use]
     fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_;
     /// Returns an iterator over a random sample
-    fn draw<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-    ) -> impl Iterator<Item = usize> + Clone + '_ {
-        let n_samples = self.tcp().n_samples();
+    #[must_use]
+    #[inline]
+    fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = usize> + Clone + '_
+    where
+        R: RandomNumberGenerator,
+    {
+        let n_samples = self.tcp().n_samples().get();
         let sample_id = rng.rusize_to(n_samples);
         self.sample(sample_id)
     }
     /// Returns the energy of a specific sample multiplied by the sample size
-    fn nenergy_of_sample(&self, ed: &EnergyDistance, sample_id: usize) -> f64 {
+    #[must_use]
+    #[inline]
+    fn nenergy_of_sample<P>(&self, ed: &EnergyDistance<P>, sample_id: usize) -> f64
+    where
+        P: PointSet<N = f64>,
+    {
         ed.total(self.sample(sample_id))
     }
 }

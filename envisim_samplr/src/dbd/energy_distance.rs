@@ -10,27 +10,42 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use envisim_utils::matrix::Matrix;
-use envisim_utils::utils::usize_to_f64;
+//! Energy distance utils
 
-/// Energy distance cointainer (or n-energy distance)
+use std::num::NonZeroUsize;
+
+use envisim_utils::spatial::PointSet;
+use num_traits::ToPrimitive;
+
+/// Energy distance engine (or n-energy distance)
+#[must_use]
 #[derive(Clone, Debug)]
-pub struct EnergyDistance<'a> {
-    matrix: &'a Matrix<'a>,
+pub struct EnergyDistance<P> {
+    /// Distribution matrix
+    matrix: P,
+    /// Geometric potentials
     phi: Vec<f64>,
+    /// Population total spread
     u_spread: f64,
-    sample_size: usize,
+    /// Sample size
+    sample_size: NonZeroUsize,
 }
 
-impl<'a> EnergyDistance<'a> {
-    pub fn new(matrix: &'a Matrix<'a>, sample_size: usize) -> Self {
-        let u_size = usize_to_f64(matrix.nrow());
-        let mut phi = vec![0.0; matrix.nrow()];
-        let mut u_spread: f64 = 0.0;
+impl<P> EnergyDistance<P> {
+    /// Constructs a new energy distance engine
+    #[inline]
+    pub fn new(matrix: P, sample_size: NonZeroUsize) -> Self
+    where
+        P: PointSet<N = f64>,
+    {
+        let size = matrix.size().get();
+        let u_size = size.to_f64().expect("matrix size to convert to f64");
+        let mut phi = vec![0.0; size];
+        let mut u_spread = 0.0;
 
-        for id1 in 0..matrix.nrow() {
-            for id2 in (id1 + 1)..matrix.nrow() {
-                let dist = matrix.distance_between_rows(id1, id2).unwrap().sqrt();
+        for id1 in matrix.id_iter() {
+            for id2 in matrix.id_iter().skip(id1 + 1) {
+                let dist = matrix.sq_distance_between(id1, id2).sqrt();
                 phi[id1] += dist;
                 phi[id2] += dist;
             }
@@ -38,7 +53,11 @@ impl<'a> EnergyDistance<'a> {
             u_spread += phi[id1];
         }
 
-        u_spread *= usize_to_f64(sample_size) / u_size;
+        u_spread *= sample_size
+            .get()
+            .to_f64()
+            .expect("sample_size to convert to f64")
+            / u_size;
 
         Self {
             matrix,
@@ -47,22 +66,42 @@ impl<'a> EnergyDistance<'a> {
             sample_size,
         }
     }
+    /// Returns the geometric potential of `id`
+    #[must_use]
+    #[inline]
     fn geometric_potential(&self, id: usize) -> f64 { self.phi[id] }
-    fn s_energy_between(&self, id1: usize, id2: usize) -> f64 {
-        self.matrix.distance_between_rows(id1, id2).unwrap().sqrt()
+    /// Returns the energy between `id1` and `id2`
+    #[must_use]
+    #[inline]
+    fn s_energy_between(&self, id1: usize, id2: usize) -> f64
+    where
+        P: PointSet<N = f64>,
+    {
+        self.matrix.sq_distance_between(id1, id2).sqrt()
     }
-    pub fn relative_distance(&self, unit: usize, a: usize, b: usize) -> f64 {
-        self.matrix.distance_between_rows(unit, a).unwrap().sqrt()
-            - self.matrix.distance_between_rows(unit, b).unwrap().sqrt()
+    /// Returns the relative distance between `unit` -- `a` and `unit` -- `b`
+    #[must_use]
+    #[inline]
+    pub fn relative_distance(&self, unit: usize, a: usize, b: usize) -> f64
+    where
+        P: PointSet<N = f64>,
+    {
+        self.matrix.sq_distance_between(unit, a).sqrt()
+            - self.matrix.sq_distance_between(unit, b).sqrt()
     }
+    /// The total energy of all samples
+    #[must_use]
+    #[inline]
     pub fn total<I>(&self, sample_iter: I) -> f64
     where
+        P: PointSet<N = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         let mut s_spread: f64 = 0.0;
         let mut inter_spread: f64 = 0.0;
 
-        let mut outer = sample_iter.clone();
+        // let mut outer = sample_iter.clone();
+        let mut outer = sample_iter;
 
         while let Some(id1) = outer.next() {
             inter_spread += self.phi[id1];
@@ -75,9 +114,17 @@ impl<'a> EnergyDistance<'a> {
         }
 
         inter_spread *= 2.0;
-        s_spread *= 2.0 / usize_to_f64(self.sample_size);
+        s_spread *= 2.0
+            / self
+                .sample_size
+                .get()
+                .to_f64()
+                .expect("sample_size to convert to f64");
         inter_spread - s_spread - self.u_spread
     }
+    /// Returns the inter-energy delta
+    #[must_use]
+    #[inline]
     fn i_delta(&self, add: usize, rem: usize) -> Option<f64> {
         if add == rem {
             return None;
@@ -85,8 +132,12 @@ impl<'a> EnergyDistance<'a> {
         let inter_spread = (self.geometric_potential(add) - self.geometric_potential(rem)) * 2.0;
         Some(inter_spread)
     }
+    /// Returns the sample-energy delta
+    #[must_use]
+    #[inline]
     fn s_delta<I>(&self, sample: I, add: usize, rem: usize) -> Option<f64>
     where
+        P: PointSet<N = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         if add == rem {
@@ -105,11 +156,20 @@ impl<'a> EnergyDistance<'a> {
             s_spread += self.relative_distance(id, rem, add);
         }
 
-        s_spread *= 2.0 / usize_to_f64(self.sample_size);
+        s_spread *= 2.0
+            / self
+                .sample_size
+                .get()
+                .to_f64()
+                .expect("sample_size to convert to f64");
         Some(s_spread)
     }
+    /// Returns the energy delta
+    #[must_use]
+    #[inline]
     pub fn delta<I>(&self, sample: I, add: usize, rem: usize) -> Option<f64>
     where
+        P: PointSet<N = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         let inter_spread = self.i_delta(add, rem)?;

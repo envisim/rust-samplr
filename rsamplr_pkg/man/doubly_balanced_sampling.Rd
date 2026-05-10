@@ -18,7 +18,7 @@ local_cube_stratified(probabilities, spread_mat, balance_mat, strata, ...)
 \item{balance_mat}{A matrix of balancing covariates.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
+  Arguments passed on to \code{\link{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower

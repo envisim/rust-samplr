@@ -13,7 +13,9 @@
 //! Design-based estimators for with or without replacement designs.
 
 pub mod balance;
+pub mod error;
 pub mod hansen_hurwitz;
 pub mod horvitz_thompson;
 pub mod nearest_neighbour;
 pub mod spatial_balance;
+mod utils;

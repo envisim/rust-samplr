@@ -1,407 +1,1008 @@
 // Copyright (C) 2026 Wilmer Prentius.
-//
+
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
-//
+
 // This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
 // even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 // Affero General Public License for more details.
-//
+
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::cmp::Ordering;
+//! kd-tree searchers
+//!
+//! Searchers are used to traverse a kd-tree, looking for the node of a search unit or point.
+
 use std::num::NonZeroUsize;
 
-use super::Node;
-use crate::matrix::Matrix;
-use crate::probabilities::{
-    FloatProbabilities,
-    ProbabilityStore,
+pub use neighbour::NeighbourSlice;
+use neighbour::{
+    Neighbour,
+    WeightedNeighbour,
 };
 
-pub(super) trait TreeSearcher {
-    fn unit(&self) -> &[f64];
-    fn max_distance(&self) -> Option<f64>;
-    fn is_satisfied(&self) -> bool;
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix);
-}
+use super::Tree;
+use crate::number_traits::Number;
+use crate::spatial::PointSet;
 
-/// A struct used for searching the nearest neighbour of a unit.
-pub struct Searcher {
-    unit_id: usize,
-    unit: Vec<f64>,
-    neighbours: Vec<usize>,
-    distances: Vec<f64>,
-    n_neighbours: NonZeroUsize,
-}
+pub mod neighbour {
+    use std::cmp::Ordering;
 
-impl TreeSearcher for Searcher {
-    fn unit(&self) -> &[f64] { &self.unit }
-    fn max_distance(&self) -> Option<f64> { self.neighbours.last().map(|&id| self.distances[id]) }
-    fn is_satisfied(&self) -> bool { self.neighbours.len() >= self.n_neighbours.get() }
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix) {
-        if ids.is_empty() {
-            return;
+    use crate::number_traits::Number;
+
+    /// A neighbouring unit, some squared euclidean distance away
+    ///
+    /// A neighbour is equal to another if their distances are the same.
+    #[derive(Copy, Clone, Debug)]
+    pub struct Neighbour<N> {
+        /// Id of unit
+        id: usize,
+        /// Squared euclidean distance
+        distance: N,
+    }
+    impl<N> Neighbour<N> {
+        /// Returns the neighbour id.
+        #[inline]
+        pub fn id(&self) -> usize { self.id }
+        /// Returns the squared euclidean distance to the neighbour
+        #[inline]
+        pub fn distance(&self) -> N
+        where
+            N: Copy,
+        {
+            self.distance
         }
+        /// Constructs a new neighbour
+        #[inline]
+        pub fn new(id: usize, distance: N) -> Self { Self { id, distance } }
+    }
 
-        if self.n_neighbours.get() == 1 {
-            self.assess_units_1(ids, data);
-            return;
+    impl<N> Ord for Neighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn cmp(&self, other: &Self) -> Ordering { N::compare(&self.distance, &other.distance) }
+    }
+    impl<N> PartialOrd for Neighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    }
+    impl<N> PartialEq for Neighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
+    }
+    impl<N> Eq for Neighbour<N> where N: Number {}
+
+    /// A weighted neighbouring unit, some squared euclidean distance away
+    ///
+    /// A weighted neighbour is equal to another if their distances and weights are the same.
+    /// A weighted neighbour is sorted before another if its distance is smaller, or its distance is
+    /// equal but its weight is smaller.
+    #[derive(Copy, Clone, Debug)]
+    pub struct WeightedNeighbour<N> {
+        /// The neighbour
+        neighbour: Neighbour<N>,
+        /// The weight
+        weight: f64,
+    }
+
+    impl<N> WeightedNeighbour<N> {
+        /// Returns the id of the neighbour.
+        #[inline]
+        pub fn id(&self) -> usize { self.neighbour.id }
+        /// Returns the squared euclidean distance to the neighbour
+        #[inline]
+        pub fn distance(&self) -> N
+        where
+            N: Copy,
+        {
+            self.neighbour.distance
         }
-
-        let original_length = self.neighbours.len();
-        self.assess_units(ids, data);
-
-        // If store size hasn't changed, we haven't added any new units
-        if self.neighbours.len() == original_length {
-            return;
+        /// Returns the weight of the neighbour.
+        #[inline]
+        pub fn weight(&self) -> f64 { self.weight }
+        /// Constructs a new weighted neighbour
+        #[inline]
+        pub fn new(id: usize, distance: N, weight: f64) -> Self {
+            let neighbour = Neighbour::new(id, distance);
+            Self { neighbour, weight }
         }
+    }
+    impl<N> Ord for WeightedNeighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.neighbour
+                .cmp(&other.neighbour)
+                .then(self.weight().total_cmp(&other.weight()))
+        }
+    }
+    impl<N> PartialOrd for WeightedNeighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    }
+    impl<N> PartialEq for WeightedNeighbour<N>
+    where
+        N: Number,
+    {
+        #[inline]
+        fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
+    }
+    impl<N> Eq for WeightedNeighbour<N> where N: Number {}
 
-        self.sort_neighbours();
-        self.truncate_neighbours();
+    pub trait NeighbourSlice {
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize>;
+        #[inline]
+        fn to_neighbour_ids(&self) -> Box<[usize]> {
+            self.to_neighbour_id_iter()
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        }
+        #[inline]
+        fn contains_id(&self, id: usize) -> bool {
+            self.to_neighbour_id_iter().any(|nid| nid == id)
+        }
+    }
+    impl<N> NeighbourSlice for [Neighbour<N>]
+    where
+        N: Copy,
+    {
+        #[inline]
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+            self.iter().map(Neighbour::id)
+        }
+    }
+    impl<N> NeighbourSlice for [WeightedNeighbour<N>]
+    where
+        N: Copy,
+    {
+        #[inline]
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+            self.iter().map(WeightedNeighbour::id)
+        }
     }
 }
 
-impl Searcher {
-    /// Constructs a new k-d tree searcher, for finding `n_neighbours` number of neighbours
-    pub fn new(node: &Node, n_neighbours: NonZeroUsize) -> Searcher {
-        let data = node.data();
+/// A trait for searching in a kd-[`Tree`]
+pub trait TreeSearcher<N>
+where
+    N: Number,
+{
+    /// Returns a reference to the searching point.
+    fn point(&self) -> &[N];
+    /// Returns `true` if the search does not need to visit a node.
+    fn is_satisfied(&self, distance: N) -> bool;
+    /// A function called on the leafs of each visited node.
+    fn visit_leaf<P>(&mut self, data: &P, leaf_units: &[usize])
+    where
+        P: PointSet<N = N>;
+}
 
+/// The search point of the [`TreeSearcher`]
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct SearchPoint<N> {
+    /// Search point
+    point: Box<[N]>,
+    /// Potential id of the point
+    unit: Option<usize>,
+}
+impl<N> SearchPoint<N> {
+    /// Returns the search point
+    #[must_use]
+    #[inline]
+    pub fn point(&self) -> &[N] { &self.point }
+    /// Returns the potential id of the search point
+    #[must_use]
+    #[inline]
+    pub fn unit(&self) -> Option<usize> { self.unit }
+    /// Returns `true` if the id of `other` matches the potential id of the search point.
+    #[must_use]
+    #[inline]
+    pub fn is_unit(&self, other: usize) -> bool { self.unit.is_some_and(|u| u == other) }
+    /// Constructs a new, uninitialized search point
+    #[inline]
+    pub fn new(dim: NonZeroUsize) -> Self
+    where
+        N: Number,
+    {
         Self {
-            unit_id: usize::MAX,
-            unit: vec![0.0f64; data.ncol()],
-            neighbours: Vec::<usize>::with_capacity(data.nrow()),
-            distances: vec![0.0f64; data.nrow()],
-            n_neighbours,
+            point: vec![N::zero(); dim.get()].into_boxed_slice(),
+            unit: None,
         }
     }
-    /// Constructs a new k-d tree searcher, for finding closest neighbour
-    pub fn new_1(node: &Node) -> Searcher {
-        Self::new(node, unsafe { NonZeroUsize::new_unchecked(1) })
-    }
-    /// Finds the neighbours of a unit positioned at `unit`
-    pub fn find_neighbours(&mut self, node: &Node, unit: &[f64]) -> Result<(), NodeSearcherError> {
-        self.set_unit_from_iter(unit.iter(), usize::MAX)?;
-        node.find_neighbours(self);
-        Ok(())
-    }
-    /// Finds the neighbours of a unit in the data matrix
-    pub fn find_neighbours_of_id(
-        &mut self,
-        node: &Node,
-        idx: usize,
-    ) -> Result<(), NodeSearcherError> {
-        self.set_unit_from_iter(node.data().row_iter(idx), idx)?;
-        node.find_neighbours(self);
-        Ok(())
-    }
-    /// Finds the neighbours of a unit positioned at the vector constructed by the iterator
-    pub fn find_neighbours_of_iter<'a, I>(
-        &mut self,
-        node: &Node,
-        iter: I,
-    ) -> Result<(), NodeSearcherError>
+    /// Constructs a new search point from a unit id
+    /// Returns `None` if the unit does not exist in the `data`.
+    #[inline]
+    pub fn from_unit<P>(data: &P, unit: usize) -> Option<Self>
     where
-        I: ExactSizeIterator<Item = &'a f64>,
+        N: Copy,
+        P: PointSet<N = N>,
     {
-        self.set_unit_from_iter(iter, usize::MAX)?;
-        node.find_neighbours(self);
-        Ok(())
+        Some(Self {
+            point: data.to_boxed_slice(unit)?,
+            unit: unit.into(),
+        })
     }
-    fn set_unit_from_iter<'a, I>(&mut self, iter: I, idx: usize) -> Result<(), NodeSearcherError>
+    /// Constructs a new search point from a point slice
+    /// Returns `None` if the point is empty.
+    #[inline]
+    pub fn from_slice(point: &[N]) -> Option<Self>
     where
-        I: ExactSizeIterator<Item = &'a f64>,
+        N: Copy,
     {
-        if iter.len() != self.unit.len() {
-            return Err(NodeSearcherError::InvalidSearchUnit);
+        (!point.is_empty()).then(|| Self {
+            point: point.into(),
+            unit: None,
+        })
+    }
+    /// Sets the search point according to the `unit` from `data`.
+    /// Returns `None` if the unit does not exist in the `data`.
+    #[must_use]
+    #[inline]
+    pub fn set_from_unit<P>(&mut self, data: &P, unit: usize) -> Option<()>
+    where
+        N: Copy,
+        P: PointSet<N = N>,
+    {
+        self.point = data.to_boxed_slice(unit)?;
+        self.unit = Some(unit);
+        Some(())
+    }
+    /// Sets the search point from a point slice.
+    /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
+    #[must_use]
+    #[inline]
+    pub fn set_from_slice(&mut self, point: &[N]) -> Option<()>
+    where
+        N: Copy,
+    {
+        (self.point.len() == point.len()).then(|| {
+            self.point = point.into();
+            self.unit = None;
+        })
+    }
+}
+
+/// Searching the nearest neighbour of a unit.
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct NearestNeighbourSearcher<N> {
+    /// Search point
+    point: SearchPoint<N>,
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
+    neighbours: Vec<Neighbour<N>>,
+}
+impl<N> NearestNeighbourSearcher<N> {
+    /// Constructs a new, uninitialized, 1NN-searcher.
+    #[inline]
+    pub fn new<T>(data: &T) -> Self
+    where
+        N: Number,
+        T: PointSet<N = N>,
+    {
+        Self {
+            point: SearchPoint::new(data.dim()),
+            neighbours: Vec::with_capacity(6),
         }
-
-        self.unit_id = idx;
-        self.unit.iter_mut().zip(iter).for_each(|(a, b)| *a = *b);
-        self.reset();
-        Ok(())
     }
-    /// Set the number of neighbours to search for.
-    pub fn set_n_neighbours(&mut self, n: NonZeroUsize) { self.n_neighbours = n; }
-
-    /// Get the list of found neighbours
-    pub fn neighbours(&self) -> &[usize] { &self.neighbours }
-
-    /// Reset the list of found neighbours
-    pub fn reset(&mut self) { self.neighbours.clear(); }
-    fn add(&mut self, idx: usize, distance: f64) {
-        self.neighbours.push(idx);
-        self.distances[idx] = distance;
+    /// Constructs a new 1NN-searcher from a `unit` according to `data`.
+    /// Returns `None` if the unit does not exist in `data`.
+    #[inline]
+    pub fn from_unit<T>(data: &T, unit: usize) -> Option<Self>
+    where
+        N: Copy,
+        T: PointSet<N = N>,
+    {
+        Some(Self {
+            point: SearchPoint::from_unit(data, unit)?,
+            neighbours: Vec::with_capacity(6),
+        })
     }
-    fn assess_units_1(&mut self, ids: &[usize], data: &Matrix) {
-        let mut current_max = self.max_distance().unwrap_or(f64::INFINITY);
-
-        ids.iter().for_each(|&id| {
-            if self.unit_id == id {
-                return;
+    /// Constructs a new 1NN-searcher from a point.
+    /// Returns `None` if the point is empty.
+    #[inline]
+    pub fn from_slice(point: &[N]) -> Option<Self>
+    where
+        N: Copy,
+    {
+        Some(Self {
+            point: SearchPoint::from_slice(point)?,
+            neighbours: Vec::with_capacity(6),
+        })
+    }
+    /// Sets the search point according to the `unit` from `data`.
+    /// Returns `None` if the unit does not exist in the `data`.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
+    where
+        N: Copy,
+        T: PointSet<N = N>,
+    {
+        self.point.set_from_unit(data, unit)?;
+        self.neighbours.clear();
+        Some(self)
+    }
+    /// Sets the search point from a point slice.
+    /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_slice(&mut self, point: &[N]) -> Option<&mut Self>
+    where
+        N: Copy,
+    {
+        self.point.set_from_slice(point)?;
+        self.neighbours.clear();
+        Some(self)
+    }
+    /// Finds the 1NN of the search point.
+    /// In cases of ties, all nearest neighbours are added.
+    #[must_use]
+    #[inline]
+    pub fn search<T>(&mut self, tree: &Tree<T>) -> Option<()>
+    where
+        N: Number,
+        T: PointSet<N = N>,
+    {
+        self.neighbours.clear();
+        tree.iterate_leafs_by(self)
+    }
+    /// Returns the neighbours of the latest search.
+    #[must_use]
+    #[inline]
+    pub fn neighbours(&self) -> &[Neighbour<N>] { &self.neighbours }
+    /// Returns the maximum squared euclidean distance of the neighbours in the latest search.
+    /// Returns `None` if no neighbours were found.
+    #[must_use]
+    #[inline]
+    pub fn max_distance(&self) -> Option<N>
+    where
+        N: Copy,
+    {
+        self.neighbours.last().map(Neighbour::distance)
+    }
+}
+impl<N> TreeSearcher<N> for NearestNeighbourSearcher<N>
+where
+    N: Number,
+{
+    #[must_use]
+    #[inline]
+    fn point(&self) -> &[N] { self.point.point() }
+    #[must_use]
+    #[inline]
+    fn is_satisfied(&self, distance: N) -> bool {
+        // Satisfied only if enough units AND a potential unit is not further away
+        // !self.neighbours.is_empty() && self.max_distance() < distance.powi(2)
+        self.max_distance()
+            .is_some_and(|md| md < distance * distance)
+    }
+    #[inline]
+    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
+    where
+        T: PointSet<N = N>,
+    {
+        let mut current_max = self.max_distance().unwrap_or(<N as Number>::max_value());
+        for &id in leaf_units {
+            if Some(id) == self.point.unit {
+                continue;
             }
 
-            let distance = data.distance_to_row(id, &self.unit).unwrap();
-
+            let distance = data.sq_distance(id, self.point());
             if distance < current_max {
-                self.reset();
-                self.add(id, distance);
+                self.neighbours.clear();
+                self.neighbours.push(Neighbour::new(id, distance));
                 current_max = distance;
             } else if distance == current_max {
-                self.add(id, distance);
+                self.neighbours.push(Neighbour::new(id, distance));
             }
-        });
-    }
-    fn assess_units(&mut self, ids: &[usize], data: &Matrix) {
-        // The case of when the store isn't filled yet
-        // node_max will store the max _added_ distance from the node
-        let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
-
-        ids.iter().for_each(|&id| {
-            if self.unit_id == id {
-                return;
-            }
-
-            let distance = data.distance_to_row(id, &self.unit).unwrap();
-
-            // We should add a unit only in two circumstances:
-            // - if the unit is closer than the current largest dist
-            // - if the store still has room
-
-            if distance <= node_max {
-                self.add(id, distance);
-            } else if self.neighbours.len() < self.n_neighbours.get() {
-                self.add(id, distance);
-                node_max = distance;
-            }
-        });
-    }
-    /// Get the squared euclidean distance to the `k`th neighbour
-    pub fn distance_k(&self, k: usize) -> f64 { self.distances[self.neighbours[k]] }
-    fn sort_neighbours(&mut self) {
-        self.neighbours
-            .sort_unstable_by(|a, b| self.distances[*a].partial_cmp(&self.distances[*b]).unwrap());
-    }
-    fn truncate_neighbours(&mut self) {
-        let mut i: usize = 1;
-        let len: usize = self.neighbours.len();
-
-        while i < len {
-            if i >= self.n_neighbours.get() && self.distance_k(i - 1) < self.distance_k(i) {
-                break;
-            }
-
-            i += 1;
         }
-
-        self.neighbours.truncate(i);
     }
 }
 
-pub struct SearcherWeighted {
-    searcher: Searcher,
-    weights: Vec<f64>,
+/// Searching the k nearest neighbour of a unit.
+/// If `k == 1`, use [`NearestNeighbourSearcher`] instead.
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct KNearestNeighbourSearcher<N> {
+    /// Search point
+    point: SearchPoint<N>,
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
+    neighbours: Vec<Neighbour<N>>,
+    /// The `k` number of neighbours to search for.
+    nominal_size: NonZeroUsize,
 }
-
-impl SearcherWeighted {
-    /// Constructs a new k-d tree searcher, for finding a (probability) weighted number of
-    /// neighbours.
-    pub fn new(node: &Node) -> Self {
-        Self {
-            searcher: Searcher::new(node, unsafe { NonZeroUsize::new_unchecked(1) }),
-            weights: vec![0.0f64; node.data().nrow()],
-        }
-    }
-    /// Finds the neighbours of a unit positioned at `unit`, with a specified probability
-    pub fn find_neighbours(
-        &mut self,
-        node: &Node,
-        probabilities: &FloatProbabilities,
-        unit: &[f64],
-        prob: f64,
-    ) -> Result<(), NodeSearcherError> {
-        self.searcher.set_unit_from_iter(unit.iter(), usize::MAX)?;
-        let mut tree_searcher = TreeSearcherWeighted {
-            searcher: self,
-            probabilities,
-            total_weight: 0.0,
-            unit_prob: prob,
-        };
-        node.find_neighbours(&mut tree_searcher);
-        Ok(())
-    }
-    /// Finds the neighbours of a unit in the data matrix
-    pub fn find_neighbours_of_id(
-        &mut self,
-        node: &Node,
-        probabilities: &FloatProbabilities,
-        idx: usize,
-    ) -> Result<(), NodeSearcherError> {
-        self.searcher
-            .set_unit_from_iter(node.data().row_iter(idx), idx)?;
-        let mut tree_searcher = TreeSearcherWeighted {
-            searcher: self,
-            probabilities,
-            total_weight: 0.0,
-            unit_prob: probabilities.get(idx),
-        };
-        node.find_neighbours(&mut tree_searcher);
-        Ok(())
-    }
-    /// Finds the neighbours of a unit positioned at the vector constructed by the iterator
-    pub fn find_neighbours_of_iter<'a, I>(
-        &mut self,
-        node: &Node,
-        probabilities: &FloatProbabilities,
-        iter: I,
-        prob: f64,
-    ) -> Result<(), NodeSearcherError>
+impl<N> KNearestNeighbourSearcher<N> {
+    /// Constructs a new, uninitialized, kNN-searcher.
+    #[inline]
+    pub fn new<P>(k: NonZeroUsize, data: &P) -> Self
     where
-        I: ExactSizeIterator<Item = &'a f64>,
+        N: Number,
+        P: PointSet<N = N>,
     {
-        self.searcher.set_unit_from_iter(iter, usize::MAX)?;
-        let mut tree_searcher = TreeSearcherWeighted {
-            searcher: self,
-            probabilities,
-            total_weight: 0.0,
-            unit_prob: prob,
-        };
-        node.find_neighbours(&mut tree_searcher);
-        Ok(())
+        Self {
+            point: SearchPoint::new(data.dim()),
+            neighbours: Vec::with_capacity(k.get() + 6),
+            nominal_size: k,
+        }
     }
+    /// Constructs a new kNN-searcher from a `unit` according to `data`.
+    /// Returns `None` if the unit does not exist in `data`.
+    #[inline]
+    pub fn from_unit<T>(k: NonZeroUsize, data: &T, unit: usize) -> Option<Self>
+    where
+        N: Copy,
+        T: PointSet<N = N>,
+    {
+        Some(Self {
+            point: SearchPoint::from_unit(data, unit)?,
+            neighbours: Vec::with_capacity(k.get() + 6),
+            nominal_size: k,
+        })
+    }
+    /// Constructs a new kNN-searcher from a point.
+    /// Returns `None` if the point is empty.
+    #[inline]
+    pub fn from_slice(k: NonZeroUsize, point: &[N]) -> Option<Self>
+    where
+        N: Copy,
+    {
+        Some(Self {
+            point: SearchPoint::from_slice(point)?,
+            neighbours: Vec::with_capacity(k.get() + 6),
+            nominal_size: k,
+        })
+    }
+    /// Sets the `k`, the number of nearest neighbours to search for.
+    #[inline]
+    pub fn set_nominal_size(&mut self, k: NonZeroUsize) -> &mut Self {
+        self.nominal_size = k;
+        self
+    }
+    /// Sets the search point according to the `unit` from `data`.
+    /// Returns `None` if the unit does not exist in the `data`.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
+    where
+        N: Copy,
+        T: PointSet<N = N>,
+    {
+        self.point.set_from_unit(data, unit)?;
+        self.neighbours.clear();
+        Some(self)
+    }
+    /// Sets the search point from a point slice.
+    /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_slice(&mut self, point: &[N]) -> Option<&mut Self>
+    where
+        N: Copy,
+    {
+        self.point.set_from_slice(point)?;
+        self.neighbours.clear();
+        Some(self)
+    }
+    /// Finds the kNN of the search point.
+    /// In cases of ties, all nearest neighbours are added.
+    #[must_use]
+    #[inline]
+    pub fn search<P>(&mut self, tree: &Tree<P>) -> Option<()>
+    where
+        N: Number,
+        P: PointSet<N = N>,
+    {
+        self.neighbours.clear();
+        tree.iterate_leafs_by(self)
+    }
+    /// Returns the neighbours of the latest search.
+    #[must_use]
+    #[inline]
+    pub fn neighbours(&self) -> &[Neighbour<N>] { &self.neighbours }
+    /// Returns the maximum squared euclidean distance of the neighbours in the latest search.
+    /// Returns `None` if no neighbours were found.
+    #[must_use]
+    #[inline]
+    pub fn max_distance(&self) -> Option<N>
+    where
+        N: Copy,
+    {
+        self.neighbours.last().map(Neighbour::distance)
+    }
+}
+impl<N> TreeSearcher<N> for KNearestNeighbourSearcher<N>
+where
+    N: Number,
+{
+    #[must_use]
+    #[inline]
+    fn point(&self) -> &[N] { self.point.point() }
+    #[must_use]
+    #[inline]
+    fn is_satisfied(&self, distance: N) -> bool {
+        // Satisfied only if enough units AND a potential unit is not further away
+        // self.neighbours.len() >= self.nominal_size.get() && self.max_distance() <
+        // distance.powi(2)
+        self.neighbours.len() >= self.nominal_size.get()
+            && self
+                .max_distance()
+                .is_some_and(|md| md < distance * distance)
+    }
+    #[inline]
+    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
+    where
+        T: PointSet<N = N>,
+    {
+        let original_len = self.neighbours.len();
 
-    /// Get the list of found neighbours
-    pub fn neighbours(&self) -> &[usize] { &self.searcher.neighbours }
-
-    /// Reset the list of found neighbours
-    pub fn reset(&mut self) { self.searcher.neighbours.clear(); }
-
-    /// Get the squared euclidean distance to the `k`th neighbour
-    pub fn distance_k(&self, k: usize) -> f64 { self.searcher.distance_k(k) }
-    /// Get the assigned weight of the `k`th neighbour
-    pub fn weight_k(&self, k: usize) -> f64 { self.weights[self.searcher.neighbours[k]] }
-    /// Sort a section of the neighbours by distance and weight
-    pub fn sort_by_weight(&mut self, from: usize, to: usize) {
-        self.searcher.neighbours[from..to].sort_unstable_by(|&a, &b| {
-            if self.searcher.distances[a] < self.searcher.distances[b] {
-                return Ordering::Less;
-            } else if self.searcher.distances[a] > self.searcher.distances[b] {
-                return Ordering::Greater;
+        // Default to 0.0 b/c trick below.
+        // self.neighbours is assumed to be sorted by distance.
+        let mut current_max = self.max_distance().unwrap_or(<N as Number>::max_value());
+        for &id in leaf_units {
+            if Some(id) == self.point.unit {
+                continue;
             }
 
-            if self.weights[a] < self.weights[b] {
-                return Ordering::Less;
-            } else if self.weights[a] > self.weights[b] {
-                return Ordering::Greater;
+            // The slightly weird logic below guarantees that current_max is always the value of the
+            // currently largest added unit. We will add all units that are smaller than this to the
+            // potential units
+            let distance = data.sq_distance(id, self.point());
+            if distance <= current_max {
+                self.neighbours.push(Neighbour::new(id, distance));
+            } else if self.neighbours.len() < self.nominal_size.get() {
+                self.neighbours.push(Neighbour::new(id, distance));
+                // Remember: we are only here because the unit is BOTH further away from current max
+                // AND we haven't filled up the number of units yet
+                current_max = distance;
             }
+        }
 
-            Ordering::Equal
-        });
+        let new_len = self.neighbours.len();
+        if new_len == original_len {
+            // Since store size has not changed, we have not added any units -- no need to sort
+            return;
+        }
+
+        self.neighbours.sort_unstable();
+        // Set current max to the max value according to the sort, at the kth unit
+
+        if new_len <= self.nominal_size.get() {
+            // Store contains no additional units
+            return;
+        }
+
+        // Find units to cut off. Every unit w/ equal distance as the kth unit should be kept
+        let last_idx = self.nominal_size.get() - 1; // Guaranteed > 0
+        current_max = self.neighbours[last_idx].distance();
+        // Get the partition point of all units equal to this (lower units should be sorted before)
+        let partition_point = self.neighbours[self.nominal_size.get()..]
+            .partition_point(|x| x.distance() <= current_max)
+            + self.nominal_size.get();
+        // Truncate the vector
+        self.neighbours.truncate(partition_point);
     }
 }
 
-pub(super) struct TreeSearcherWeighted<'a> {
-    searcher: &'a mut SearcherWeighted,
-    probabilities: &'a FloatProbabilities,
+/// Searching the nearest neighbour of a unit, until the total weight of the neighbours sum to 1.0.
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct WeightedSearcher<N> {
+    /// Search point
+    point: SearchPoint<N>,
+    /// The weight of the search point
+    point_weight: f64,
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`], where lower weights are
+    /// sorted before higher weights in case of ties.
+    neighbours: Vec<WeightedNeighbour<N>>,
+    /// The total weight of the neighbours
     total_weight: f64,
-    unit_prob: f64,
 }
-
-impl<'a> TreeSearcherWeighted<'a> {
-    fn base(&self) -> &Searcher { &self.searcher.searcher }
-    fn base_mut(&mut self) -> &mut Searcher { &mut self.searcher.searcher }
-
-    fn add(&mut self, idx: usize, distance: f64) -> f64 {
-        self.base_mut().add(idx, distance);
-        let weight = self.probabilities.weight_to(self.unit_prob, idx);
-        self.searcher.weights[idx] = weight;
-        weight
+impl<N> WeightedSearcher<N> {
+    /// Constructs a new, uninitialized, wNN-searcher.
+    #[inline]
+    pub fn new<T>(data: &T) -> Self
+    where
+        N: Number,
+        T: PointSet<N = N>,
+    {
+        Self {
+            point: SearchPoint::new(data.dim()),
+            point_weight: 0.5,
+            neighbours: Vec::with_capacity(6),
+            total_weight: 0.0,
+        }
     }
-
-    fn assess_units(&mut self, ids: &[usize], data: &Matrix) {
-        // The case of when the store isn't filled yet
-        // node_max will store the max _added_ distance from the node
-        let mut node_max: f64 = self.max_distance().unwrap_or(0.0);
-
-        ids.iter().for_each(|&id| {
-            if self.base().unit_id == id {
-                return;
-            }
-
-            let distance = data.distance_to_row(id, &self.base().unit).unwrap();
-
-            // We should add a unit only in two circumstances:
-            // - if the unit is closer than the current largest dist
-            // - if the store still has room
-
-            if distance <= node_max {
-                self.total_weight += self.add(id, distance);
-            } else if self.total_weight < 1.0 {
-                self.total_weight += self.add(id, distance);
-                node_max = distance;
-            }
-        });
+    /// Constructs a new wNN-searcher from a `unit` according to `data`.
+    /// Returns `None` if the unit does not exist in `data`.
+    #[inline]
+    pub fn from_unit<T>(data: &T, unit: usize, weight: f64) -> Option<Self>
+    where
+        N: Copy,
+        T: PointSet<N = N>,
+    {
+        if !(0.0 < weight && weight < 1.0) {
+            return None;
+        }
+        Some(Self {
+            point: SearchPoint::from_unit(data, unit)?,
+            point_weight: weight,
+            neighbours: Vec::with_capacity(6),
+            total_weight: 0.0,
+        })
     }
-    fn truncate_neighbours(&mut self) {
-        let len: usize = self.base().neighbours.len();
-
-        if len == 0 {
-            self.total_weight = 0.0;
-            return;
+    /// Constructs a new wNN-searcher from a point.
+    /// Returns `None` if the point is empty.
+    #[inline]
+    pub fn from_slice(point: &[N], weight: f64) -> Option<Self>
+    where
+        N: Copy,
+    {
+        if !(0.0 < weight && weight < 1.0) {
+            return None;
+        }
+        Some(Self {
+            point: SearchPoint::from_slice(point)?,
+            point_weight: weight,
+            neighbours: Vec::with_capacity(6),
+            total_weight: 0.0,
+        })
+    }
+    /// Sets the search point according to the `unit` from `data`.
+    /// Returns `None` if the unit does not exist in the `data`.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_unit<P>(&mut self, data: &P, unit: usize, weight: f64) -> Option<&mut Self>
+    where
+        N: Copy,
+        P: PointSet<N = N>,
+    {
+        if !(0.0 < weight && weight < 1.0) {
+            return None;
+        }
+        self.point.set_from_unit(data, unit)?;
+        self.point_weight = weight;
+        self.neighbours.clear();
+        self.total_weight = 0.0;
+        Some(self)
+    }
+    /// Sets the search point from a point slice.
+    /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
+    ///
+    /// Clears the previous search.
+    #[inline]
+    pub fn reset_from_slice(&mut self, point: &[N], weight: f64) -> Option<&mut Self>
+    where
+        N: Copy,
+    {
+        if !(0.0 < weight && weight < 1.0) {
+            return None;
+        }
+        self.point.set_from_slice(point)?;
+        self.point_weight = weight;
+        self.neighbours.clear();
+        self.total_weight = 0.0;
+        Some(self)
+    }
+    /// Finds the wNN of the search point.
+    /// In cases of ties, all nearest neighbours are added.
+    #[must_use]
+    #[inline]
+    pub fn search<P, W>(&mut self, tree: &Tree<P>, weights: &W) -> Option<()>
+    where
+        N: Number,
+        P: PointSet<N = N>,
+        W: WeightCollection,
+    {
+        if !(0.0 < self.point_weight && self.point_weight < 1.0) {
+            return None;
+        }
+        self.neighbours.clear();
+        self.total_weight = 0.0;
+        let mut searcher = WeightedSearcherWrapper::new(self, weights);
+        tree.iterate_leafs_by(&mut searcher)
+    }
+    /// Returns the neighbours of the latest search.
+    #[must_use]
+    #[inline]
+    pub fn neighbours(&self) -> &[WeightedNeighbour<N>] { &self.neighbours }
+    /// Returns the sum of the weight of the neighbours
+    #[must_use]
+    #[inline]
+    pub fn total_weight(&self) -> f64 { self.total_weight }
+    /// Returns the weight of the search point
+    #[must_use]
+    #[inline]
+    pub fn point_weight(&self) -> f64 { self.point_weight }
+    /// Returns the maximum squared euclidean distance of the neighbours in the latest search.
+    /// Returns `None` if no neighbours were found.
+    #[must_use]
+    #[inline]
+    pub fn max_distance(&self) -> Option<N>
+    where
+        N: Copy,
+    {
+        self.neighbours.last().map(WeightedNeighbour::distance)
+    }
+    /// Helper for calculating the potential weight, where other is assumed to be a probability.
+    #[must_use]
+    #[inline]
+    fn calculate_weight(&self, other: f64) -> f64 {
+        if !(0.0 < other && other < 1.0) {
+            0.0
+        } else if self.point_weight + other <= 1.0 {
+            other / (1.0 - self.point_weight)
         } else {
-            self.total_weight = self.searcher.weight_k(0);
+            (1.0 - other) / self.point_weight
         }
+    }
+}
 
-        let mut i: usize = 1;
+pub trait WeightCollection {
+    #[must_use]
+    fn try_get_weight(&self, id: usize) -> Option<f64>;
+    #[must_use]
+    #[inline]
+    fn get_weight(&self, id: usize) -> f64 { self.try_get_weight(id).expect("id to exist") }
+}
+impl WeightCollection for &[f64] {
+    #[inline]
+    fn try_get_weight(&self, id: usize) -> Option<f64> { self.get(id).copied() }
+    #[inline]
+    fn get_weight(&self, id: usize) -> f64 { self[id] }
+}
 
-        while i < len {
-            if self.total_weight >= 1.0 && self.base().distance_k(i - 1) < self.base().distance_k(i)
-            {
-                break;
+/// Wrapper for the [`WeightedSearcher`]
+/// Needed as weights cannot be borrowed in [`WeightedSearcher`], as they will be mutated in between
+/// searches.
+#[must_use]
+#[derive(Debug)]
+struct WeightedSearcherWrapper<'borrow, N, W> {
+    /// The (public) searcher
+    searcher: &'borrow mut WeightedSearcher<N>,
+    /// The weights used
+    weights: &'borrow W,
+}
+impl<'borrow, N, W> WeightedSearcherWrapper<'borrow, N, W> {
+    /// Constructs a new wrapper around weigthed searcher
+    fn new(searcher: &'borrow mut WeightedSearcher<N>, weights: &'borrow W) -> Self {
+        Self { searcher, weights }
+    }
+}
+impl<N, W> TreeSearcher<N> for WeightedSearcherWrapper<'_, N, W>
+where
+    N: Number,
+    W: WeightCollection,
+{
+    #[must_use]
+    #[inline]
+    fn point(&self) -> &[N] { self.searcher.point.point() }
+    #[must_use]
+    #[inline]
+    fn is_satisfied(&self, distance: N) -> bool {
+        self.searcher.total_weight >= 1.0
+            && self
+                .searcher
+                .max_distance()
+                .is_some_and(|md| md < distance * distance)
+    }
+    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
+    where
+        T: PointSet<N = N>,
+    {
+        let original_len = self.searcher.neighbours.len();
+
+        // Default to 0.0 b/c trick below
+        let mut current_max = self.searcher.max_distance().unwrap_or(N::zero());
+        for &id in leaf_units {
+            if Some(id) == self.searcher.point.unit {
+                continue;
             }
 
-            self.total_weight += self.searcher.weight_k(i);
-            i += 1;
+            // The slightly weird logic below guarantees that current_max is always the value of the
+            // currently largest added unit. We will add all units that are smaller than this to the
+            // potential units
+            let distance = data.sq_distance(id, self.point());
+            if distance <= current_max {
+                let weight = self.searcher.calculate_weight(self.weights.get_weight(id));
+                self.searcher
+                    .neighbours
+                    .push(WeightedNeighbour::new(id, distance, weight));
+            } else if self.searcher.total_weight < 1.0 {
+                let weight = self.searcher.calculate_weight(self.weights.get_weight(id));
+                self.searcher
+                    .neighbours
+                    .push(WeightedNeighbour::new(id, distance, weight));
+                // Remember: we are only here because the unit is BOTH further away from current max
+                // AND we haven't filled up the number of units yet
+                current_max = distance;
+            }
         }
 
-        self.base_mut().neighbours.truncate(i);
-    }
-}
-
-impl<'a> TreeSearcher for TreeSearcherWeighted<'a> {
-    fn unit(&self) -> &[f64] { self.base().unit() }
-    fn max_distance(&self) -> Option<f64> { self.base().max_distance() }
-    fn is_satisfied(&self) -> bool { self.total_weight >= 1.0 }
-    fn add_neighbours_from_node(&mut self, ids: &[usize], data: &Matrix) {
-        if ids.is_empty() {
+        let new_len = self.searcher.neighbours.len();
+        if new_len == original_len {
+            // Since store size has not changed, we have not added any units -- no need to sort
             return;
         }
 
-        let original_length = self.base().neighbours.len();
-        self.assess_units(ids, data);
+        // Sorts by distance, then by weight, so lower weight is before higher weights
+        self.searcher.neighbours.sort_unstable();
 
-        // If store size hasn't changed, we haven't added any new units
-        if self.base().neighbours.len() == original_length {
+        // TRUNCATE
+        let mut w_sum = 0.0;
+        // Gives the units that are guaranteed to be included b/c weight is not full
+        let last_idx = self
+            .searcher
+            .neighbours
+            .iter()
+            .position(|n| {
+                w_sum += n.weight();
+                w_sum >= 1.0
+            })
+            .unwrap_or(new_len);
+        // Move one passed, so all good units are in the first partition
+
+        let mut partition_point = last_idx + 1;
+        if new_len <= partition_point {
+            // If we have not filled up the total weight, we do not need to truncate
+            self.searcher.total_weight = w_sum;
             return;
         }
 
-        self.base_mut().sort_neighbours();
-        self.truncate_neighbours();
+        // Find units to cut off. Every unit w/ equal distance as the kth unit should be kept
+        // Set current max to the max value according to the current partition point
+        current_max = self.searcher.neighbours[last_idx].distance();
+        // Now we need to find units on the same distance as the last unit in safe_idx
+        // If below is None, then all remaining units are on the same distance as last_idx, and
+        // should all be kept.
+        if let Some(sub_partition_point) = self.searcher.neighbours[partition_point..]
+            .iter()
+            .position(|n| {
+                if n.distance() > current_max {
+                    return true;
+                }
+                w_sum += n.weight();
+                false
+            })
+        {
+            partition_point += sub_partition_point;
+            // Truncate the vector
+            self.searcher.neighbours.truncate(partition_point);
+        }
+
+        self.searcher.total_weight = w_sum;
     }
 }
 
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum NodeSearcherError {
-    InvalidSearchUnit,
-}
-impl std::error::Error for NodeSearcherError {}
-impl std::fmt::Display for NodeSearcherError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use NodeSearcherError::*;
-        match *self {
-            InvalidSearchUnit => write!(f, "search unit is invalid"),
-        }
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::matrix::Matrix;
+    use crate::test_utils::*;
+
+    // Helper to create a 2D Matrix PointSet
+    fn setup_matrix() -> Matrix<f64> {
+        // Points: (0,0), (1,0), (0,1), (1,1)
+        let data = vec![
+            0.0, 1.0, 0.0, 1.0, // Dim 0
+            0.0, 0.0, 1.0, 1.0, // Dim 1
+        ];
+        Matrix::new(data, nz(4)).unwrap()
+    }
+
+    // --- NearestNeighbourSearcher Tests ---
+
+    #[test]
+    fn test_nn_search_basic() {
+        let mat = setup_matrix();
+        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.1, 0.1]).unwrap();
+
+        // Mock visit to all units
+        searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        let neighbours = searcher.neighbours();
+        assert_eq!(neighbours.len(), 1);
+        assert_eq!(neighbours[0].id(), 0); // (0,0) is closest to (0.1, 0.1)
+    }
+
+    #[test]
+    fn test_nn_tie_handling() {
+        let mat = setup_matrix();
+        // Search from center (0.5, 0.5)
+        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.5, 0.5]).unwrap();
+
+        searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        // All 4 points are equidistant (dist_sq = 0.5)
+        let neighbours = searcher.neighbours();
+        assert_eq!(neighbours.len(), 4);
+    }
+
+    // --- KNearestNeighbourSearcher Tests ---
+
+    #[test]
+    fn test_knn_basic_limit() {
+        let mat = setup_matrix();
+        let k = nz(2);
+        let mut searcher = KNearestNeighbourSearcher::from_slice(k, &[0.4, 0.0]).unwrap();
+
+        searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        let neighbours = searcher.neighbours();
+        // Should find exactly 2 neighbours
+        assert_eq!(neighbours.len(), 2);
+        assert_eq!(neighbours[0].id(), 0); // dist 0.4
+        assert_eq!(neighbours[1].id(), 1); // dist 0.6
+    }
+
+    #[test]
+    fn test_knn_tie_at_boundary() {
+        let mat = setup_matrix();
+        let k = nz(1); // Ask for 1
+        // Search from (0.5, 0.0). Units (0,0) and (1,0) are both dist_sq 0.25
+        let mut searcher = KNearestNeighbourSearcher::from_slice(k, &[0.5, 0.0]).unwrap();
+
+        searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        let neighbours = searcher.neighbours();
+        // Should keep both because they tie for the k-th position
+        assert_eq!(neighbours.len(), 2);
+    }
+
+    // --- WeightedSearcher Tests ---
+
+    #[test]
+    fn test_weighted_search_accumulation() {
+        let mat = setup_matrix();
+        // Weights for units 0, 1, 2, 3
+        let weights: &[f64] = &[0.2, 0.2, 0.2, 0.2];
+
+        // Search point weight = 0.5
+        // calculate_weight for 0.2: 0.2 / (1.0 - 0.5) = 0.4
+        let mut searcher = WeightedSearcher::from_slice(&[0.0, 0.0], 0.5).unwrap();
+        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
+
+        wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        // Total weight needed is 1.0. Each unit provides 0.4.
+        // Needs 3 units (0.4 * 3 = 1.2) to satisfy >= 1.0
+        assert!(searcher.total_weight() >= 1.0);
+        assert_eq!(searcher.neighbours().len(), 3);
+    }
+
+    #[test]
+    fn test_weighted_search_tie_behavior() {
+        let mat = setup_matrix();
+        let weights: &[f64] = &[0.1, 0.1, 0.1, 0.1];
+
+        // Search from (0.5, 0.5) where all points tie for distance
+        let mut searcher = WeightedSearcher::from_slice(&[0.5, 0.5], 0.8).unwrap();
+        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
+
+        wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
+
+        // Because they all have the same distance, even if the weight
+        // threshold is met early, all equidistant points must be kept
+        assert_eq!(searcher.neighbours().len(), 4);
     }
 }

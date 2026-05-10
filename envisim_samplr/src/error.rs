@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Errors for sampling algorithms
+
 use std::num::NonZeroUsize;
 
 use envisim_utils::sampling_options::SamplingOptionsError;
@@ -26,23 +28,30 @@ pub enum SamplingError {
     IncorrectProbabilitiesIntegerSum,
     IncorrectAnnealingTemperature,
     IncorrectAnnealingRate,
+    ZeroSampleSize,
 }
 pub type SamplingResult<T> = Result<T, SamplingError>;
 
+#[expect(clippy::absolute_paths, reason = "possible override")]
 impl std::error::Error for SamplingError {
+    #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match *self {
-            SamplingError::Options(ref err) => Some(err),
+        #[expect(clippy::wildcard_enum_match_arm, reason = "Options is a special case")]
+        match self {
+            SamplingError::Options(err) => Some(err),
             _ => None,
         }
     }
 }
 
+#[expect(clippy::absolute_paths, reason = "possible override")]
 impl std::fmt::Display for SamplingError {
+    #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use SamplingError::*;
-        match *self {
-            Options(ref err) => err.fmt(f),
+        match self {
+            Options(err) => err.fmt(f),
             MaxIterations(max_iter) => {
                 write!(f, "max iterations ({max_iter}) reached")
             }
@@ -64,10 +73,14 @@ impl std::fmt::Display for SamplingError {
                     "annealing temperature cooling rate must be in (0.0, 1.0)"
                 )
             }
+            ZeroSampleSize => {
+                write!(f, "sample size must be positive")
+            }
         }
     }
 }
 
 impl From<SamplingOptionsError> for SamplingError {
-    fn from(err: SamplingOptionsError) -> SamplingError { SamplingError::Options(err) }
+    #[inline]
+    fn from(err: SamplingOptionsError) -> Self { SamplingError::Options(err) }
 }
