@@ -28,7 +28,7 @@ lpm_2_hierarchical(probabilities, spread_mat, sizes, ...)
 \item{spread_mat}{A matrix of spreading covariates.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.sampling_defaults]{.sampling_defaults}}
+  Arguments passed on to \code{\link{.sampling_defaults}}
   \describe{
     \item{\code{eps}}{A small value used when comparing floats.}
     \item{\code{bucket_size}}{The maximum size of the k-d-tree nodes. A higher value gives a slower

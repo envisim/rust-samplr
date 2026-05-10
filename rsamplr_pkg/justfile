@@ -18,7 +18,7 @@ sanity-check: ## Perform code sanity checks if needed
 	R -e 'devtools::spell_check("{{build_path}}")'
 
 # Do a dev build
-build-dev: build-wrappers
+build-dev: build-wrappers document
     mkdir -p {{build_path}}
     R -e 'devtools::build(path = "{{build_path}}")'
 
