@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `SamplingOptions` to follow the typestate pattern (again). The types are concrete members of the options object, and unset members are represented by `()`. In addition to the probability specification, spreading and balancing are represented in this pattern. Coordination is now not set through `SamplingOptions`, but still provided as a helper through `CoordinationOptions`.
 - `ProbabilityStore` associated type now requires `num_traits::NumAssign`.
 - Refactored `SampleController`. Instead of being a trait, it is now a generic struct using the typestate pattern, implementing special methods for when a kd-tree is present. When a tree is present, removing a unit requires it to be removed from the tree aswell. This is ensured through the trait `UnitRemoving`.
+- Methods on `Indices` returns `bool` instead of `Option` where applicable.
 - `Indices` initialises its store in reversed order.
 - `DecideUnit` renamed to `UnitDecisionStatus` and is now provided through the `probabilities` module.
 

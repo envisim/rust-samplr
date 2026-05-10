@@ -126,7 +126,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.probabilities.draw(rng, max)
     }
     #[inline]
-    pub fn unit_decide(&mut self, idx: usize) -> Option<UnitDecisionStatus>
+    pub fn unit_decide(&mut self, idx: usize) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -134,14 +134,14 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         match self.probabilities.unit_status(idx) {
             UnitDecisionStatus::In => {
                 self.sample.add(idx);
-                self.unit_remove(idx)?;
-                Some(UnitDecisionStatus::In)
+                self.unit_remove(idx);
+                UnitDecisionStatus::In
             }
             UnitDecisionStatus::Out => {
-                self.unit_remove(idx)?;
-                Some(UnitDecisionStatus::Out)
+                self.unit_remove(idx);
+                UnitDecisionStatus::Out
             }
-            UnitDecisionStatus::Undecided => Some(UnitDecisionStatus::Undecided),
+            UnitDecisionStatus::Undecided => UnitDecisionStatus::Undecided,
         }
     }
     #[inline]
@@ -149,7 +149,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         &mut self,
         idx: usize,
         prob: <PROB as ProbabilityStore>::PR,
-    ) -> Option<UnitDecisionStatus>
+    ) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -158,32 +158,32 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_set_max(&mut self, idx: usize) -> Option<UnitDecisionStatus>
+    pub fn unit_set_max(&mut self, idx: usize) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
     {
         self.probabilities.set_max(idx);
         self.sample.add(idx);
-        self.unit_remove(idx)?;
-        Some(UnitDecisionStatus::In)
+        self.unit_remove(idx);
+        UnitDecisionStatus::In
     }
     #[inline]
-    pub fn unit_set_zero(&mut self, idx: usize) -> Option<UnitDecisionStatus>
+    pub fn unit_set_zero(&mut self, idx: usize) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
     {
         self.probabilities.set_zero(idx);
-        self.unit_remove(idx)?;
-        Some(UnitDecisionStatus::Out)
+        self.unit_remove(idx);
+        UnitDecisionStatus::Out
     }
     #[inline]
     pub fn unit_add_and_decide(
         &mut self,
         idx: usize,
         prob: <PROB as ProbabilityStore>::PR,
-    ) -> Option<UnitDecisionStatus>
+    ) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
@@ -192,16 +192,14 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_decide_last<R: RandomNumberGenerator>(
-        &mut self,
-        rng: &mut R,
-    ) -> Option<UnitDecisionStatus>
+    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> UnitDecisionStatus
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
+        R: RandomNumberGenerator,
     {
         let Some(id) = self.indices.last() else {
-            return Some(UnitDecisionStatus::Undecided);
+            return UnitDecisionStatus::Undecided;
         };
         let prob = self.probabilities.get(id);
         let max = self.probabilities.max();
@@ -215,6 +213,8 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
 }
 
 impl<PROB> SampleController<PROB, ()> {
+    /// Constructs a new `SampleController` without a tree.
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
     pub fn new(probabilities: PROB) -> Self
     where
@@ -233,7 +233,10 @@ impl<PROB> SampleController<PROB, ()> {
                 }
                 UnitDecisionStatus::Out => {}
                 UnitDecisionStatus::Undecided => {
-                    indices.insert(i);
+                    assert!(
+                        indices.insert(i),
+                        "unit {i} should not already be in indices {indices:?}"
+                    );
                 }
             };
         }
@@ -246,9 +249,7 @@ impl<PROB> SampleController<PROB, ()> {
         }
     }
     #[inline]
-    pub fn unit_remove(&mut self, idx: usize) -> Option<usize> {
-        UnitRemoving::unit_remove(self, idx)
-    }
+    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
 }
 
 impl<'bspread, PROB, P> SampleController<PROB, Tree<'bspread, P>>
@@ -279,25 +280,24 @@ where
         self.tree = Tree::new(spreading, units);
     }
     #[inline]
-    pub fn unit_remove(&mut self, idx: usize) -> Option<usize> {
-        UnitRemoving::unit_remove(self, idx)
-    }
+    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
 }
 
 pub trait UnitRemoving {
-    fn unit_remove(&mut self, idx: usize) -> Option<usize>;
+    /// Returns `true` if `idx` was present and removed, `false` if `idx` wasn't found.
+    fn unit_remove(&mut self, idx: usize) -> bool;
 }
 impl<PROB> UnitRemoving for SampleController<PROB, ()> {
     #[inline]
-    fn unit_remove(&mut self, idx: usize) -> Option<usize> { self.indices.remove(idx) }
+    fn unit_remove(&mut self, idx: usize) -> bool { self.indices.remove(idx) }
 }
 impl<PROB, P> UnitRemoving for SampleController<PROB, Tree<'_, P>>
 where
     P: PointSet,
 {
     #[inline]
-    fn unit_remove(&mut self, idx: usize) -> Option<usize> {
-        self.tree.remove_unit(idx)?;
+    fn unit_remove(&mut self, idx: usize) -> bool {
+        self.tree.remove_unit(idx);
         self.indices.remove(idx)
     }
 }

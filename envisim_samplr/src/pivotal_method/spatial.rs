@@ -354,21 +354,6 @@ pub trait LocalPivotalSampling<P>
 where
     P: PointSet,
 {
-    fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-impl<PS, P, BAL> LocalPivotalSampling<P> for SamplingOptions<PS, SpreadingOptions<P>, BAL>
-where
-    PS: ProbabilitySpec,
-    P: PointSet,
-{
     /// Draw a sample using the local pivotal method 1.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -386,19 +371,9 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
-    /// Spatially balanced sampling through the pivotal method.
-    /// Biometrics, 68(2), 514-520.
-    /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-    #[inline]
     fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
-    {
-        LocalStrategy1::new(self).sample(rng)
-    }
+        R: RandomNumberGenerator;
     /// Draw a sample using the local pivotal method 1.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -416,19 +391,9 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
-    /// Spatially balanced sampling through the pivotal method.
-    /// Biometrics, 68(2), 514-520.
-    /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
-    #[inline]
     fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
-    {
-        LocalStrategy1S::new(self).sample(rng)
-    }
+        R: RandomNumberGenerator;
     /// Draw a sample using the local pivotal method 2.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -446,12 +411,29 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
-    /// Spatially balanced sampling through the pivotal method.
-    /// Biometrics, 68(2), 514-520.
-    /// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+    fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+impl<PS, P, BAL> LocalPivotalSampling<P> for SamplingOptions<PS, SpreadingOptions<P>, BAL>
+where
+    PS: ProbabilitySpec,
+    P: PointSet,
+{
+    #[inline]
+    fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        LocalStrategy1::new(self).sample(rng)
+    }
+    #[inline]
+    fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        LocalStrategy1S::new(self).sample(rng)
+    }
     #[inline]
     fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
     where
@@ -555,10 +537,7 @@ where
         for id in 0..pm.controller.population_size() {
             if main_sample.contains(&id) {
                 pm.controller.probabilities_mut().set(id, prob);
-                pm.controller
-                    .indices_mut()
-                    .insert(id)
-                    .expect("id not to already have been inserted into indices");
+                pm.controller.indices_mut().insert(id);
                 pm.controller
                     .tree_mut()
                     .insert_unit(id)

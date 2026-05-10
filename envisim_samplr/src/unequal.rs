@@ -11,6 +11,13 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Unequal probability sampling designs
+//!
+//! Implements [`UnequalProbabilitySampling`] for [`SamplingOptions`].
+//!
+//! # References
+//! Rosén, B. (2000).
+//! A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
+//! Stockholm: Statistiska Centralbyrån.
 
 use std::cmp::Ordering;
 
@@ -53,39 +60,6 @@ where
 }
 
 pub trait UnequalProbabilitySampling {
-    /// # Errors
-    /// Returns an error if probabilities does not sum to 1.0.
-    fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
-    fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
-    fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
-    fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-    #[must_use]
-    fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if `sample_size` is larger than the population size.
-    fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator;
-}
-impl<AUX, BAL> UnequalProbabilitySampling
-    for SamplingOptions<ProbabilitySpecUnequal<'_>, AUX, BAL>
-{
     /// Draw a with replacment sample according to draw probabilities
     /// Probabilities must sum to 1.0.
     ///
@@ -102,6 +76,104 @@ impl<AUX, BAL> UnequalProbabilitySampling
     ///
     /// # Errors
     /// Returns an error if probabilities does not sum to 1.0.
+    fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    /// Draw a sample using a sampford design.
+    /// Probabilities must sum to an integer.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.sampford(&mut rng)?;
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    /// Draw a sample using a pareto design.
+    /// Probabilities must sum to an integer.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.pareto(&mut rng)?;
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    /// Draw a sample using a brewer design.
+    /// Probabilities must sum to an integer.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.brewer(&mut rng)?;
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Returns an error if probabilities does not sum to an integer.
+    fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+    /// Draw a sample using a poisson design.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    #[must_use]
+    fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+    /// Draw a sample using a conditional poisson design.
+    /// Redraws a poisson sample until the fixed sample size is achieved.
+    /// May terminate after `max_iterations`.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
+    /// # Ok::<(), SamplingError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Returns an error if `sample_size` is larger than the population size.
+    fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator;
+}
+impl<AUX, BAL> UnequalProbabilitySampling
+    for SamplingOptions<ProbabilitySpecUnequal<'_>, AUX, BAL>
+{
     #[inline]
     fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
     where
@@ -155,22 +227,6 @@ impl<AUX, BAL> UnequalProbabilitySampling
 
         Ok(sample)
     }
-    /// Draw a sample using a sampford design.
-    /// Probabilities must sum to an integer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.sampford(&mut rng)?;
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
-    /// ```
-    ///
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
     #[inline]
     fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
@@ -213,27 +269,6 @@ impl<AUX, BAL> UnequalProbabilitySampling
 
         Err(SamplingError::MaxIterations(self.max_iterations()))
     }
-    /// Draw a sample using a pareto design.
-    /// Probabilities must sum to an integer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.pareto(&mut rng)?;
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
-    /// ```
-    ///
-    /// # References
-    /// Rosén, B. (2000).
-    /// A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
-    /// Stockholm: Statistiska Centralbyrån.
-    ///
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
     #[inline]
     fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
@@ -277,22 +312,6 @@ impl<AUX, BAL> UnequalProbabilitySampling
         sample.truncate(sample_size);
         Ok(sample)
     }
-    /// Draw a sample using a brewer design.
-    /// Probabilities must sum to an integer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.brewer(&mut rng)?;
-    /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
-    /// ```
-    ///
-    /// # Errors
-    /// Returns an error if probabilities does not sum to an integer.
     #[expect(clippy::panic_in_result_fn, reason = "panic implies bug")]
     #[inline]
     fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
@@ -360,7 +379,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
 
             // Select unit through pps
             let a_unit = draw(rng, &q_probs);
-            indices.remove(a_unit).expect("a_unit to exist in indices");
+            indices.remove(a_unit);
             sample.add(a_unit);
             q_probs[a_unit] = 0.0;
             psum -= probabilities[a_unit];
@@ -369,17 +388,6 @@ impl<AUX, BAL> UnequalProbabilitySampling
 
         Ok(sample.sort_to_vec())
     }
-    /// Draw a sample using a poisson design.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
-    /// # Ok::<(), SamplingError>(())
-    /// ```
     #[inline]
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
     where
@@ -388,22 +396,6 @@ impl<AUX, BAL> UnequalProbabilitySampling
         let probabilities = self.probabilities().as_f64_slice();
         poisson_internal(rng, probabilities.as_ref())
     }
-    /// Draw a sample using a conditional poisson design.
-    /// Redraws a poisson sample until the fixed sample size is achieved.
-    /// May terminate after `max_iterations`.
-    ///
-    /// # Examples
-    /// ```
-    /// # use envisim_samplr::*;
-    /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
-    /// # Ok::<(), SamplingError>(())
-    /// ```
-    ///
-    /// # Errors
-    /// Returns an error if `sample_size` is larger than the population size.
     #[inline]
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
     where

@@ -110,18 +110,6 @@ where
 }
 
 pub trait PivotalSampling {
-    fn spm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-
-impl<PS, AUX, BAL> PivotalSampling for SamplingOptions<PS, AUX, BAL>
-where
-    PS: ProbabilitySpec,
-{
     /// Draw a sample using the sequential pivotal method.
     /// A variant of the pivotal method where unit competes in order.
     ///
@@ -136,19 +124,9 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    ///
-    /// # References
-    /// Deville, J. C., & Tille, Y. (1998).
-    /// Unequal probability sampling without replacement through a splitting method.
-    /// Biometrika, 85(1), 89-101.
-    /// <https://doi.org/10.1093/biomet/85.1.89>
-    #[inline]
     fn spm<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
-    {
-        SequentialStrategy::new(self).sample(rng)
-    }
+        R: RandomNumberGenerator;
     /// Draw a sample using the random pivotal method.
     /// A variant of the pivotal method where unit competes in a random order.
     ///
@@ -163,12 +141,22 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    ///
-    /// # References
-    /// Deville, J. C., & Tille, Y. (1998).
-    /// Unequal probability sampling without replacement through a splitting method.
-    /// Biometrika, 85(1), 89-101.
-    /// <https://doi.org/10.1093/biomet/85.1.89>
+    fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+
+impl<PS, AUX, BAL> PivotalSampling for SamplingOptions<PS, AUX, BAL>
+where
+    PS: ProbabilitySpec,
+{
+    #[inline]
+    fn spm<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        SequentialStrategy::new(self).sample(rng)
+    }
     #[inline]
     fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
     where

@@ -12,6 +12,7 @@
 
 //! List of indices
 
+use std::num::NonZeroUsize;
 use std::ops::Index;
 
 use rustc_hash::{
@@ -59,13 +60,19 @@ impl Indices {
     /// assert_eq!(il.last(), Some(0));
     /// ```
     #[inline]
-    pub fn with_fill(length: usize) -> Self {
+    pub fn with_fill<NZ>(length: NZ) -> Self
+    where
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let Ok(nz) = length.try_into() else {
+            return Self::new(0);
+        };
         // By storing the list in reverse order, algos that need to be able to draw in order can
         // always draw from the end, and a swap remove will guarantee that the selected units are
         // stable, without incurring a higher cost needed in order to keep order in start of list.
         Indices {
-            list: (0..length).rev().collect::<Vec<usize>>(),
-            indices: (0..length)
+            list: (0..nz.get()).rev().collect::<Vec<usize>>(),
+            indices: (0..nz.get())
                 .rev()
                 .map(|v| (v, v))
                 .collect::<FxHashMap<usize, usize>>(),
@@ -188,28 +195,28 @@ impl Indices {
     #[inline]
     pub fn contains(&self, id: usize) -> bool { self.indices.contains_key(&id) }
 
-    /// Inserts an index. Returns `None` if the index already exists
+    /// Inserts an index. Returns `false` if the index already exists
     ///
     /// # Examples
     /// ```
     /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(!il.contains(42));
-    /// assert!(il.insert(42).is_some());
+    /// assert!(il.insert(42));
     /// assert!(il.contains(42));
-    /// assert!(il.insert(42).is_none());
+    /// assert!(!il.insert(42));
     /// assert!(il.contains(42));
     /// ```
     #[inline]
-    pub fn insert(&mut self, id: usize) -> Option<usize> {
+    pub fn insert(&mut self, id: usize) -> bool {
         if self.contains(id) {
-            return None;
+            return false;
         }
 
         self.list.push(id);
         let k = self.list.len() - 1;
         self.indices.insert(id, k);
-        Some(k)
+        true
     }
 
     /// Returns the number of indices
@@ -237,20 +244,22 @@ impl Indices {
     #[inline]
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
 
-    /// Removes an index. Returns `None` if the index does not exist
+    /// Removes an index. Returns `false` if the index does not exist
     ///
     /// # Examples
     /// ```
     /// # use envisim_utils::indices::*;
     /// let mut il = Indices::with_fill(4);
     /// assert!(il.contains(2));
-    /// assert!(il.remove(2).is_some());
-    /// assert!(il.remove(2).is_none());
+    /// assert!(il.remove(2));
+    /// assert!(!il.remove(2));
     /// assert!(!il.contains(2));
     #[expect(clippy::missing_panics_doc, reason = "infallible")]
     #[inline]
-    pub fn remove(&mut self, id: usize) -> Option<usize> {
-        let k = self.indices.remove(&id)?;
+    pub fn remove(&mut self, id: usize) -> bool {
+        let Some(k) = self.indices.remove(&id) else {
+            return false;
+        };
         self.list.swap_remove(k);
         if k != self.list.len() {
             *self
@@ -258,7 +267,7 @@ impl Indices {
                 .get_mut(&self.list[k])
                 .expect("indices to include the swapped unit") = k;
         }
-        Some(id)
+        true
     }
 }
 

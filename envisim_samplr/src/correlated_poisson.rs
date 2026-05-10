@@ -11,6 +11,25 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Correlated poisson designs
+//!
+//! Implements [`CorrelatedPoissonSampling`] and [`SpatialCorrelatedPoissonSampling`] for
+//! [`SamplingOptions`].
+//!
+//! # References
+//! Bondesson, L., & Thorburn, D. (2008).
+//! A list sequential sampling method suitable for real‐time sampling.
+//! Scandinavian Journal of Statistics, 35(3), 466-483.
+//! <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
+//!
+//! Grafström, A. (2012).
+//! Spatially correlated Poisson sampling.
+//! Journal of Statistical Planning and Inference, 142(1), 139-147.
+//! <https://doi.org/10.1016/j.jspi.2011.07.003>
+//!
+//! Prentius, W. (2024).
+//! Locally correlated Poisson sampling.
+//! Environmetrics, 35(2), e2832.
+//! <https://doi.org/10.1002/env.2832>
 
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::WeightedSearcher;
@@ -320,9 +339,7 @@ fn spatial_update_probabilities<P>(
         .partition_point(|n| n.distance() < max_distance);
 
     for n in &searcher.neighbours()[0..guaranteed_units] {
-        controller
-            .unit_add_and_decide(n.id(), n.weight() * quota)
-            .expect("probability to be updated");
+        controller.unit_add_and_decide(n.id(), n.weight() * quota);
         remaining_weight -= n.weight();
     }
 
@@ -335,9 +352,7 @@ fn spatial_update_probabilities<P>(
     if sum_of_tie_weights == remaining_weight {
         // Add everything left, if it's exactly solved (unlikely)
         for n in &searcher.neighbours()[guaranteed_units..] {
-            controller
-                .unit_add_and_decide(n.id(), n.weight() * quota)
-                .expect("probability to be updated");
+            controller.unit_add_and_decide(n.id(), n.weight() * quota);
             // remaining_weight -= n.weight();
         }
         return;
@@ -355,9 +370,7 @@ fn spatial_update_probabilities<P>(
         .unwrap();
     for n in &searcher.neighbours()[guaranteed_units..] {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
-        controller
-            .unit_add_and_decide(n.id(), remaining_weight * quota)
-            .expect("probability to be updated");
+        controller.unit_add_and_decide(n.id(), remaining_weight * quota);
         remaining_weight -= removable_weight;
         number_of_shares -= 1.0;
     }
@@ -523,44 +536,6 @@ where
 }
 
 pub trait CorrelatedPoissonSampling {
-    #[must_use]
-    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if fewer than `population_size` random values is provided.
-    fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator,
-        C: Into<CoordinationOptions<'bcoord>>;
-}
-pub trait SpatiallyCorrelatedPoissonSampling<P>
-where
-    P: PointSet,
-{
-    #[must_use]
-    fn scps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-    /// # Errors
-    /// Returns an error if fewer than `population_size` random values is provided.
-    fn scps_coord<'bcoord, R, C>(
-        &self,
-        rng: &mut R,
-        random_values: C,
-    ) -> SamplingResult<Vec<usize>>
-    where
-        R: RandomNumberGenerator,
-        C: Into<CoordinationOptions<'bcoord>>;
-    #[must_use]
-    fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandomNumberGenerator;
-}
-impl<PS, AUX, BAL> CorrelatedPoissonSampling for SamplingOptions<PS, AUX, BAL>
-where
-    PS: ProbabilitySpec,
-{
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -574,19 +549,10 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Bondesson, L., & Thorburn, D. (2008).
-    /// A list sequential sampling method suitable for real‐time sampling.
-    /// Scandinavian Journal of Statistics, 35(3), 466-483.
-    /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
-    #[inline]
+    #[must_use]
     fn cps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
-    {
-        SequentialStrategy::new(self).sample(rng)
-    }
+        R: RandomNumberGenerator;
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -604,27 +570,17 @@ where
     /// # Ok::<(), SamplingError>(())
     /// ```
     ///
-    /// # References
-    /// Bondesson, L., & Thorburn, D. (2008).
-    /// A list sequential sampling method suitable for real‐time sampling.
-    /// Scandinavian Journal of Statistics, 35(3), 466-483.
-    /// <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
-    ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    #[inline]
+    /// # Errors
+    /// Returns an error if fewer than `population_size` random values is provided.
     fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
-        C: Into<CoordinationOptions<'bcoord>>,
-    {
-        Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
-    }
+        C: Into<CoordinationOptions<'bcoord>>;
 }
-impl<PS, P, BAL> SpatiallyCorrelatedPoissonSampling<P>
-    for SamplingOptions<PS, SpreadingOptions<P>, BAL>
+pub trait SpatiallyCorrelatedPoissonSampling<P>
 where
-    PS: ProbabilitySpec,
     P: PointSet,
 {
     /// Draw a sample using the spatially correlated poisson sampling method.
@@ -642,19 +598,10 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Grafström, A. (2012).
-    /// Spatially correlated Poisson sampling.
-    /// Journal of Statistical Planning and Inference, 142(1), 139-147.
-    /// <https://doi.org/10.1016/j.jspi.2011.07.003>
-    #[inline]
+    #[must_use]
     fn scps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
-    {
-        SpatialStrategy::new(self).sample(rng)
-    }
+        R: RandomNumberGenerator;
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -676,22 +623,16 @@ where
     /// # Ok::<(), SamplingError>(())
     /// ```
     ///
-    /// # References
-    /// Grafström, A. (2012).
-    /// Spatially correlated Poisson sampling.
-    /// Journal of Statistical Planning and Inference, 142(1), 139-147.
-    /// <https://doi.org/10.1016/j.jspi.2011.07.003>
-    ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    #[inline]
-    fn scps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn scps_coord<'bcoord, R, C>(
+        &self,
+        rng: &mut R,
+        random_values: C,
+    ) -> SamplingResult<Vec<usize>>
     where
         R: RandomNumberGenerator,
-        C: Into<CoordinationOptions<'bcoord>>,
-    {
-        Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
-    }
+        C: Into<CoordinationOptions<'bcoord>>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -707,12 +648,52 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    ///
-    /// # References
-    /// Prentius, W. (2024).
-    /// Locally correlated Poisson sampling.
-    /// Environmetrics, 35(2), e2832.
-    /// <https://doi.org/10.1002/env.2832>
+    #[must_use]
+    fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+impl<PS, AUX, BAL> CorrelatedPoissonSampling for SamplingOptions<PS, AUX, BAL>
+where
+    PS: ProbabilitySpec,
+{
+    #[inline]
+    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        SequentialStrategy::new(self).sample(rng)
+    }
+    #[inline]
+    fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'bcoord>>,
+    {
+        Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
+    }
+}
+impl<PS, P, BAL> SpatiallyCorrelatedPoissonSampling<P>
+    for SamplingOptions<PS, SpreadingOptions<P>, BAL>
+where
+    PS: ProbabilitySpec,
+    P: PointSet,
+{
+    #[inline]
+    fn scps<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        SpatialStrategy::new(self).sample(rng)
+    }
+    #[inline]
+    fn scps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    where
+        R: RandomNumberGenerator,
+        C: Into<CoordinationOptions<'bcoord>>,
+    {
+        Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
+    }
     #[inline]
     fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
     where
