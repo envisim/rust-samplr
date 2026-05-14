@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Made `Matrix` generic over `Number`. `Matrix` is now a type alias for `MatrixBase`, and represents an owned matrix. The type alias for a reference matrix is `MatrixRef`.
-- Refactored `MatrixIterator`.
+- Removed `MatrixIterator` in favour of slice implementation.
 - Removed `Node`'s dependency on data, and transformed it into an enum, replacing `NodeKind`.
 - Changed `TreeSearcher` trait
 - Refactored `SamplingOptions` to follow the typestate pattern (again). The types are concrete members of the options object, and unset members are represented by `()`. In addition to the probability specification, spreading and balancing are represented in this pattern. Coordination is now not set through `SamplingOptions`, but still provided as a helper through `CoordinationOptions`.

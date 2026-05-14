@@ -20,6 +20,7 @@ use envisim_utils::matrix::{
     MatrixDims,
     MatrixRef,
     PointSet,
+    RawData,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -277,7 +278,7 @@ where
 
     norm_matrix.reduced_row_echelon_form();
     let inv_matrix = Matrix::new(
-        norm_matrix.data()[norm_matrix.nrow().get().pow(2)..].to_vec(),
+        norm_matrix.data().data()[norm_matrix.nrow().get().pow(2)..].to_vec(),
         norm_matrix.nrow(),
     )
     .expect("dimenions to be correct");
@@ -288,8 +289,7 @@ where
             .mul_mat(&inv_matrix)
             .expect("dimensions to match")
             .mul_mat(&MatrixRef::new(vec, cols).expect("cols = vec.len"))
-            .expect("dimensions to match")
-            .data()[0]
+            .expect("dimensions to match")[(0, 0)]
     });
 
     Ok((result
