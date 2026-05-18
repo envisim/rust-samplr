@@ -40,6 +40,8 @@ pub trait Number:
     #[inline]
     fn abs(self) -> Self { self }
     #[must_use]
+    fn abs_difference(self, other: Self) -> Self;
+    #[must_use]
     fn mid(self, other: Self) -> Self;
 
     #[must_use]
@@ -47,24 +49,42 @@ pub trait Number:
 }
 pub trait NumberFloat: Number + Float {}
 
+#[cfg(any(test, feature = "test-utils"))]
+pub trait NumberTest: Number + std::fmt::Display {
+    const TEST_EPS: Self;
+    #[must_use]
+    #[inline]
+    fn test_eps(&self) -> Self { Self::TEST_EPS }
+    #[must_use]
+    #[inline]
+    fn approx_eq(self, other: Self) -> bool { Number::abs(self - other) <= Self::TEST_EPS }
+    #[must_use]
+    #[inline]
+    fn approx_eq_eps(self, other: Self, eps: Self) -> bool {
+        Number::abs_difference(self, other) <= eps
+    }
+}
+
 /// Interanal macro that implements `Number` for floats
 macro_rules! number_impl_float {
     ($t:ty) => {
         impl Number for $t {
             #[inline]
-            fn epsilonish() -> $t { <$t>::EPSILON }
+            fn epsilonish() -> Self { <$t>::EPSILON }
             #[inline]
-            fn max_value() -> $t { <$t>::MAX }
+            fn max_value() -> Self { <$t>::MAX }
             #[inline]
             fn is_finite(self) -> bool { <$t>::is_finite(self) }
             #[inline]
             fn is_pos_finite(self) -> bool { <$t>::ZERO < self && <$t>::is_finite(self) }
             #[inline]
-            fn abs(self) -> $t { <$t>::abs(self) }
+            fn abs(self) -> Self { <$t>::abs(self) }
             #[inline]
-            fn mid(self, other: $t) -> $t { <$t>::midpoint(self, other) }
+            fn abs_difference(self, other: Self) -> Self { (self - other).abs() }
             #[inline]
-            fn compare(&self, other: &$t) -> Ordering {
+            fn mid(self, other: Self) -> Self { <$t>::midpoint(self, other) }
+            #[inline]
+            fn compare(&self, other: &Self) -> Ordering {
                 match (self.is_nan(), other.is_nan()) {
                     (true, true) => Ordering::Equal,
                     (true, false) => Ordering::Greater,
@@ -75,6 +95,11 @@ macro_rules! number_impl_float {
         }
 
         impl NumberFloat for $t {}
+
+        #[cfg(any(test, feature = "test-utils"))]
+        impl NumberTest for $t {
+            const TEST_EPS: Self = 1e-12;
+        }
     };
 }
 /// Interanal macro that implements `Number` for unsigned integers
@@ -82,11 +107,20 @@ macro_rules! number_impl_uint {
     ($t:ty) => {
         impl Number for $t {
             #[inline]
-            fn max_value() -> $t { <$t>::MAX }
+            fn max_value() -> Self { <$t>::MAX }
             #[inline]
-            fn mid(self, other: $t) -> $t { <$t>::midpoint(self, other) }
+            fn abs_difference(self, other: Self) -> Self { <$t>::abs_diff(self, other) }
             #[inline]
-            fn compare(&self, other: &$t) -> Ordering { <$t>::cmp(self, other) }
+            fn mid(self, other: Self) -> Self { <$t>::midpoint(self, other) }
+            #[inline]
+            fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
+        }
+
+        #[cfg(any(test, feature = "test-utils"))]
+        impl NumberTest for $t {
+            const TEST_EPS: Self = 0;
+            #[inline]
+            fn approx_eq(self, other: Self) -> bool { self == other }
         }
     };
 }
@@ -95,11 +129,13 @@ macro_rules! number_impl_sint {
     ($t:ty) => {
         impl Number for $t {
             #[inline]
-            fn max_value() -> $t { <$t>::MAX }
+            fn max_value() -> Self { <$t>::MAX }
             #[inline]
-            fn abs(self) -> $t { <$t>::abs(self) }
+            fn abs(self) -> Self { <$t>::abs(self) }
             #[inline]
-            fn mid(self, other: $t) -> $t {
+            fn abs_difference(self, other: Self) -> Self { (self - other).abs() }
+            #[inline]
+            fn mid(self, other: Self) -> Self {
                 // unstable until 1.87
                 // <$t>::midpoint(self, other)
                 // use rust impl directly, see
@@ -108,7 +144,14 @@ macro_rules! number_impl_sint {
                 t + (if t < 0 { 1 } else { 0 } & (self ^ other))
             }
             #[inline]
-            fn compare(&self, other: &$t) -> Ordering { <$t>::cmp(self, other) }
+            fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
+        }
+
+        #[cfg(any(test, feature = "test-utils"))]
+        impl NumberTest for $t {
+            const TEST_EPS: Self = 0;
+            #[inline]
+            fn approx_eq(self, other: Self) -> bool { self == other }
         }
     };
 }

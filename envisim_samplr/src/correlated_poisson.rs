@@ -759,18 +759,12 @@ mod tests {
         let options = Data10::options_e();
         let mut cpsv = SequentialStrategy::new_coord(&options, coord_0()).unwrap();
         decide_and_update(&mut cpsv, &mut rng, 0);
-        assert_fvec(
-            &cpsv.controller.probabilities().data()[1..=4],
-            &vec![0.0; 4],
-        );
+        assert_vec!(cpsv.controller.probabilities().data()[1..=4], vec![0.0; 4]);
 
         let options = Data10::options_e();
         let mut cpsv = SequentialStrategy::new_coord(&options, coord_1()).unwrap();
         decide_and_update(&mut cpsv, &mut rng, 0);
-        assert_fvec(
-            &cpsv.controller.probabilities().data()[1..=4],
-            &vec![0.25; 4],
-        );
+        assert_vec!(cpsv.controller.probabilities().data()[1..=4], vec![0.25; 4]);
 
         // let options = options_ue();
         println!("CPS1");

@@ -15,12 +15,10 @@
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
-    Dimensions,
     Matrix,
     MatrixDims,
     MatrixRef,
     PointSet,
-    RawData,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -186,11 +184,7 @@ where
 
     // The gram matrix
     let mut norm_matrix =
-        Matrix::from_value(0.0, MatrixDims::try_new(cols, cols * 2).expect("cols > 0"));
-
-    for i in 0..cols {
-        norm_matrix[(i, i + cols)] = 1.0;
-    }
+        Matrix::from_value(0.0, MatrixDims::try_new(cols, cols).expect("cols > 0"));
 
     if let Some(spec) = options.probabilities().as_equal() {
         let p = spec.as_f64();
@@ -276,12 +270,9 @@ where
         }
     }
 
-    norm_matrix.reduced_row_echelon_form();
-    let inv_matrix = Matrix::new(
-        norm_matrix.data().data()[norm_matrix.nrow().get().pow(2)..].to_vec(),
-        norm_matrix.nrow(),
-    )
-    .expect("dimenions to be correct");
+    let inv_matrix = norm_matrix
+        .inverse(options.eps())
+        .ok_or(SamplingOptionsError::InvalidSpreading)?;
 
     let result = voronoi_means.iter().fold(0.0, |acc, (_, vec)| {
         acc + MatrixRef::new(vec, 1)
@@ -428,7 +419,7 @@ mod test {
             (8.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
         ];
 
-        assert_fvec(&phi.0, &res);
+        assert_vec!(phi.0, res);
     }
     #[test]
     fn ed_internal() {

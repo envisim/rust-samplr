@@ -147,11 +147,11 @@ mod tests {
             data.col_iter(1).unwrap().sum::<f64>() - data[(0, 1)] / p,
         ];
 
-        assert_fvec(&sb, &dev);
+        assert_vec!(sb, dev);
 
         let options = options.set_balancing(&data).unwrap();
         let sb = balance_deviation_balancing(&[0], &options).unwrap();
 
-        assert_fvec(&sb, &dev);
+        assert_vec!(sb, dev);
     }
 }

@@ -16,6 +16,7 @@
 //! Both are derived from [`MatrixBase`].
 
 mod dims;
+mod raw_data;
 
 use std::num::NonZeroUsize;
 use std::ops::{
@@ -28,19 +29,18 @@ pub use dims::{
     MatrixCoord,
     MatrixDims,
 };
+use num_traits::Float;
+pub use raw_data::{
+    BorrowedMatrixData,
+    OwnedMatrixData,
+    RawData,
+};
 
 use crate::number_traits::{
     Number,
     NumberFloat,
 };
 pub use crate::spatial::PointSet;
-
-/// Data container trait
-pub trait RawData: Sized {
-    type Elem;
-    #[must_use]
-    fn data(&self) -> &[Self::Elem];
-}
 
 /// Base matrix representation
 #[must_use]
@@ -174,105 +174,6 @@ where
     }
 }
 
-impl<T, N> Dimensions for MatrixBase<T, N>
-where
-    T: RawData<Elem = N>,
-{
-    /// Returns the matrix dimension.
-    #[inline]
-    fn dims(&self) -> MatrixDims { self.dims }
-}
-impl<T, N, I> Index<I> for MatrixBase<T, N>
-where
-    T: RawData<Elem = N>,
-    I: Into<MatrixCoord>,
-{
-    type Output = T::Elem;
-    /// # Panics
-    /// If index is out of bounds.
-    #[must_use]
-    #[inline]
-    fn index(&self, index: I) -> &Self::Output {
-        let index = index
-            .into()
-            .to_linear(self.dims)
-            .expect("index to be valid for the matrix");
-        &self.internal_data()[index]
-    }
-}
-impl<T, N> From<&MatrixBase<T, N>> for Matrix<N>
-where
-    T: RawData<Elem = N>,
-    N: Copy,
-{
-    #[inline]
-    fn from(matrix: &MatrixBase<T, N>) -> Self { matrix.to_matrix() }
-}
-impl<'bdata, T, N> From<&'bdata MatrixBase<T, N>> for MatrixRef<'bdata, N>
-where
-    T: RawData<Elem = N>,
-{
-    #[inline]
-    fn from(matrix: &'bdata MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
-}
-
-impl<T, N> PointSet for MatrixBase<T, N>
-where
-    T: RawData<Elem = N>,
-    N: Number,
-{
-    type N = N;
-    /// Returns the number of rows in the matrix
-    #[inline]
-    fn size(&self) -> NonZeroUsize { self.dims.rows }
-    /// Returns an iterator of the rows in the matrix.
-    #[inline]
-    fn id_iter(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
-    /// Returns the number of columns in the matrix
-    #[inline]
-    fn dim(&self) -> NonZeroUsize { self.dims.cols }
-    /// Returns true if `id` is contained within the matrix.
-    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[inline]
-    fn exists(&self, row: usize) -> bool { row < self.dims.rows.get() }
-    /// Returns the element at coordinates `(row, col)`.
-    /// Panics on oob.
-    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[inline]
-    fn coord(&self, row: usize, col: usize) -> N {
-        let idx = row + col * self.dims.rows.get();
-        self.internal_data()[idx]
-    }
-    /// Returns the element at coordinates `(row, col)`.
-    /// Returns `None` if the coordinates are oob.
-    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[inline]
-    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
-    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
-    /// Panics on oob.
-    #[inline]
-    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N {
-        if id_a == id_b {
-            return N::zero();
-        }
-        let mut idx = id_a.min(id_b);
-        let idx_diff = id_a.abs_diff(id_b);
-        let mut sum = N::zero();
-        for _ in 0..self.ncol().get() {
-            let diff = self.internal_data()[idx] - self.internal_data()[idx + idx_diff];
-            sum += diff * diff;
-            idx += self.nrow().get();
-        }
-        sum
-    }
-    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
-    /// Returns `None` if any row is oob.
-    #[inline]
-    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
-        (self.exists(id_a) && self.exists(id_b)).then(|| self.sq_distance_between(id_a, id_b))
-    }
-}
-
 impl<N> Matrix<N> {
     /// Constructs a new owned matrix representation from some data vector.
     /// Returns `None` if the rows are not a divisor of the data length.
@@ -298,6 +199,21 @@ impl<N> Matrix<N> {
             data: OwnedMatrixData::new(vec![data; dims.len().get()]),
             dims,
         }
+    }
+    /// Constructs a new identity matrix
+    #[inline]
+    pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
+    where
+        N: Number,
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let rows = rows.try_into().ok()?;
+        let dims = MatrixDims::new(rows, rows);
+        let mut m = Self::from_value(N::ZERO, dims);
+        for r in 0..rows.get() {
+            m[(r, r)] = N::ONE;
+        }
+        Some(m)
     }
     /// Returns a mutable reference to the element at a specific coordinate.
     /// Returns `None`  if the coordinates are invalid.
@@ -434,6 +350,178 @@ impl<N> Matrix<N> {
             lead += 1;
         }
     }
+    /// In-place LUP decomposition.
+    ///
+    /// Decomposes $A$ (`self`) into a lower $L$ and an upper $U$ matrix, returning a permutation
+    /// vector $p$ such that $PA = LU$. Here, the permutatio vector $p$ represents the column
+    /// indices of the non-zero elements of $P$.
+    ///
+    /// Returns `None` if $A$ isn't square, or if $A$ is singular (as defined by `eps`).
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    #[must_use]
+    #[inline]
+    pub fn lu_decomposition(&mut self, eps: N) -> Option<Box<[usize]>>
+    where
+        N: NumberFloat,
+    {
+        // Non-square
+        if !self.dims().is_square() {
+            return None;
+        }
+        // Incorrect eps
+        let eps_max = N::ONE.powi(-2);
+        if !(N::ZERO..eps_max).contains(&eps) {
+            return None;
+        }
+
+        let nrows = self.nrow().get();
+        let mut p: Box<[usize]> = (0..nrows).collect::<Vec<usize>>().into_boxed_slice();
+
+        for row in 0..nrows {
+            // Find pivot_row, the row with the highest value in the row-column
+            let mut pivot_row = row;
+            let mut max_val = N::ZERO;
+            for row_b in row..nrows {
+                let val = Float::abs(self[(row_b, row)]);
+                if !Float::is_finite(val) {
+                    // val is infinite or nan
+                    return None;
+                }
+                if max_val < val {
+                    max_val = val;
+                    pivot_row = row_b;
+                }
+            }
+
+            // Singular matrix
+            if max_val < eps {
+                return None;
+            }
+
+            // Swap rows
+            if pivot_row != row {
+                p.swap(row, pivot_row);
+                for col in 0..nrows {
+                    // guaranteed: row < pivot_row
+                    let index_r = MatrixCoord::new(row, col).to_linear_unchecked(self.dims());
+                    let index_p = index_r + (pivot_row - row);
+                    self.data.data.swap(index_r, index_p);
+                }
+            }
+
+            // pivot_row is now row
+            let pivot_val = self[(row, row)];
+            for v in self.col_iter_mut(row).expect("row to exist").skip(row + 1) {
+                *v /= pivot_val;
+            }
+
+            for col in (row + 1)..nrows {
+                let akj = self[(row, col)];
+                for row_b in (row + 1)..nrows {
+                    let m = self[(row_b, row)] * akj;
+                    self[(row_b, col)] -= m;
+                }
+            }
+        }
+
+        Some(p)
+    }
+    /// Calculates the inverse of `self` using LU decomposition.
+    ///
+    /// Returns `None` if `self` isn't square, or if `self` is not invertible (as defined by `eps`).
+    #[expect(clippy::many_single_char_names, reason = "only within small scope")]
+    #[must_use]
+    #[inline]
+    pub fn inverse(&self, eps: N) -> Option<Self>
+    where
+        N: NumberFloat,
+    {
+        // Non-square
+        if !self.dims().is_square() {
+            return None;
+        }
+        // Incorrect eps
+        let eps_max = N::ONE.powi(-2);
+        if !(N::ZERO..eps_max).contains(&eps) {
+            return None;
+        }
+
+        let nrow = self.nrow().get();
+
+        if nrow == 2 {
+            const NZ2: NonZeroUsize = NonZeroUsize::new(2).expect("2 > 0");
+            // ab cd => 02 13
+            #[expect(clippy::unreachable, reason = "panic implies bug")]
+            let &[a, c, b, d] = self.internal_data() else {
+                unreachable!("2x2 = 4")
+            };
+            // ad-bc
+            let det = a * d - b * c;
+            if Number::abs(det) < eps {
+                return None;
+            };
+            // d -c -b a
+            let inv = vec![d / det, -c / det, -b / det, a / det];
+            return Self::new(inv, NZ2);
+        } else if nrow == 3 {
+            const NZ3: NonZeroUsize = NonZeroUsize::new(3).expect("3 > 0");
+            // abc def ghi => 036 147 258
+            #[expect(clippy::unreachable, reason = "panic implies bug")]
+            let &[a, d, g, b, e, h, c, f, i] = self.internal_data() else {
+                unreachable!("3x3=9")
+            };
+            let mut inv = vec![
+                e * i - f * h,
+                -(d * i - f * g),
+                d * h - e * g, // ABC
+                -(b * i - c * h),
+                a * i - c * g,
+                -(a * h - b * g), // DEF
+                b * f - c * e,
+                -(a * f - c * d),
+                a * e - b * d, // GHI
+            ];
+            let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
+            if Number::abs(det) < eps {
+                return None;
+            };
+            for v in &mut inv {
+                *v /= det;
+            }
+            return Self::new(inv, NZ3);
+        }
+
+        let (lu, p) = {
+            let mut lu = self.clone();
+            let p = lu.lu_decomposition(eps)?;
+            (lu, p)
+        };
+
+        let mut inv = Self::from_value(N::ZERO, self.dims());
+
+        // Solve for each column of the identity mat
+        for col in 0..nrow {
+            // Solve LY = P
+            for row in 0..nrow {
+                let mut sum = if p[row] == col { N::ONE } else { N::ZERO };
+                for k in 0..row {
+                    sum -= lu[(row, k)] * inv[(k, col)];
+                }
+                inv[(row, col)] = sum;
+            }
+
+            // Solve UX =  Y for X
+            for row in (0..nrow).rev() {
+                let mut sum = inv[(row, col)];
+                for k in (row + 1)..nrow {
+                    sum -= lu[(row, k)] * inv[(k, col)];
+                }
+                inv[(row, col)] = sum / lu[(row, row)];
+            }
+        }
+
+        Some(inv)
+    }
 }
 
 impl<'bdata, N> MatrixRef<'bdata, N> {
@@ -449,80 +537,112 @@ impl<'bdata, N> MatrixRef<'bdata, N> {
     }
 }
 
+impl<T, N> Dimensions for MatrixBase<T, N>
+where
+    T: RawData<Elem = N>,
+{
+    /// Returns the matrix dimension.
+    #[inline]
+    fn dims(&self) -> MatrixDims { self.dims }
+}
+
+impl<T, N, I> Index<I> for MatrixBase<T, N>
+where
+    T: RawData<Elem = N>,
+    I: Into<MatrixCoord>,
+{
+    type Output = T::Elem;
+    /// # Panics
+    /// If index is out of bounds.
+    #[must_use]
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        let index = index.into().to_linear_unchecked(self.dims);
+        &self.internal_data()[index]
+    }
+}
 impl<N, I> IndexMut<I> for Matrix<N>
 where
     I: Into<MatrixCoord>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let index = index
-            .into()
-            .to_linear(self.dims())
-            .expect("index to be valid for the matrix");
+        let index = index.into().to_linear_unchecked(self.dims());
         &mut self.data.data[index]
     }
 }
 
-#[must_use]
-#[derive(Debug, Clone)]
-pub struct OwnedMatrixData<N> {
-    /// Internal data vector
-    data: Vec<N>,
-}
-impl<N> OwnedMatrixData<N> {
-    /// Constructs a new owned matrix data
-    #[inline]
-    pub fn new(data: Vec<N>) -> Self { Self { data } }
-}
-
-impl<N> RawData for OwnedMatrixData<N> {
-    type Elem = N;
-    #[inline]
-    fn data(&self) -> &[Self::Elem] { &self.data }
-}
-impl<N> From<&BorrowedMatrixData<'_, N>> for OwnedMatrixData<N>
+impl<T, N> From<&MatrixBase<T, N>> for Matrix<N>
 where
+    T: RawData<Elem = N>,
     N: Copy,
 {
     #[inline]
-    fn from(data: &BorrowedMatrixData<N>) -> Self { Self::new(data.data().to_vec()) }
+    fn from(matrix: &MatrixBase<T, N>) -> Self { matrix.to_matrix() }
 }
-impl<N> From<&[N]> for OwnedMatrixData<N>
+impl<'bdata, T, N> From<&'bdata MatrixBase<T, N>> for MatrixRef<'bdata, N>
 where
-    N: Copy,
+    T: RawData<Elem = N>,
 {
     #[inline]
-    fn from(data: &[N]) -> Self { Self::new(data.to_vec()) }
-}
-impl<N> From<Vec<N>> for OwnedMatrixData<N> {
-    #[inline]
-    fn from(data: Vec<N>) -> Self { Self::new(data) }
+    fn from(matrix: &'bdata MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
 }
 
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-pub struct BorrowedMatrixData<'bdata, N> {
-    /// Internal data reference
-    data: &'bdata [N],
-}
-impl<'bdata, N> BorrowedMatrixData<'bdata, N> {
-    /// Constructs a new borrowed matrix data
+impl<T, N> PointSet for MatrixBase<T, N>
+where
+    T: RawData<Elem = N>,
+    N: Number,
+{
+    type N = N;
+    /// Returns the number of rows in the matrix
     #[inline]
-    pub fn new(data: &'bdata [N]) -> Self { Self { data } }
-}
-
-impl<N> RawData for BorrowedMatrixData<'_, N> {
-    type Elem = N;
+    fn size(&self) -> NonZeroUsize { self.dims.rows }
+    /// Returns an iterator of the rows in the matrix.
     #[inline]
-    fn data(&self) -> &[Self::Elem] { self.data }
-}
-impl<'borrow, N> From<&'borrow OwnedMatrixData<N>> for BorrowedMatrixData<'borrow, N> {
+    fn id_iter(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
+    /// Returns the number of columns in the matrix
     #[inline]
-    fn from(data: &'borrow OwnedMatrixData<N>) -> Self { Self::new(data.data()) }
-}
-impl<'bdata, N> From<&'bdata [N]> for BorrowedMatrixData<'bdata, N> {
+    fn dim(&self) -> NonZeroUsize { self.dims.cols }
+    /// Returns true if `id` is contained within the matrix.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn from(data: &'bdata [N]) -> Self { Self::new(data) }
+    fn exists(&self, row: usize) -> bool { row < self.dims.rows.get() }
+    /// Returns the element at coordinates `(row, col)`.
+    /// Panics on oob.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
+    #[inline]
+    fn coord(&self, row: usize, col: usize) -> N {
+        let idx = row + col * self.dims.rows.get();
+        self.internal_data()[idx]
+    }
+    /// Returns the element at coordinates `(row, col)`.
+    /// Returns `None` if the coordinates are oob.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
+    #[inline]
+    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
+    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
+    /// Panics on oob.
+    #[inline]
+    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N {
+        if id_a == id_b {
+            return N::zero();
+        }
+        let mut idx = id_a.min(id_b);
+        let idx_diff = id_a.abs_diff(id_b);
+        let mut sum = N::zero();
+        for _ in 0..self.ncol().get() {
+            let diff = self.internal_data()[idx] - self.internal_data()[idx + idx_diff];
+            sum += diff * diff;
+            idx += self.nrow().get();
+        }
+        sum
+    }
+    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
+    /// Returns `None` if any row is oob.
+    #[inline]
+    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
+        (self.exists(id_a) && self.exists(id_b)).then(|| self.sq_distance_between(id_a, id_b))
+    }
 }
 
 #[cfg(test)]
@@ -530,19 +650,12 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
 
-    /// Creates a 3x2 matrix in column-major order:
-    /// [ 1, 4 ]
-    /// [ 2, 5 ]
-    /// [ 3, 6 ]
+    /// Creates a 3x2 matrix
+    /// [ 1 4
+    ///   2 5
+    ///   3 6 ]
     fn setup_matrix() -> Matrix<f64> {
-        Matrix::new(
-            vec![
-                1.0, 2.0, 3.0, // dim 0
-                4.0, 5.0, 6.0, // dim 1
-            ],
-            nz(3),
-        )
-        .unwrap()
+        Matrix::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], nz(3)).unwrap()
     }
 
     #[test]
@@ -685,5 +798,111 @@ mod tests {
 
         assert!(m.mul_mat(&rhs_good).is_some());
         assert!(m.mul_mat(&rhs_bad).is_none());
+    }
+
+    #[test]
+    fn test_lu_decomposition() {
+        // 3x3 matrix
+        // [ 1 0 5
+        //   2 1 6
+        //   3 4 0 ]
+        let mut valid_matrix = Matrix::new(vec![1., 2., 3., 0., 1., 4., 5., 6., 0.], 3).unwrap();
+
+        let lu_res = valid_matrix.lu_decomposition(f64::TEST_EPS);
+        assert_eq!(lu_res.unwrap(), [2usize, 1, 0].into());
+        assert_mat!(
+            valid_matrix,
+            Matrix::new(
+                vec![3., 0.6667, 0.3333, 4.0, -1.6667, 0.8, 0.0, 6.0, 0.2],
+                3
+            )
+            .unwrap(),
+            1e-4
+        );
+
+        // Singular matrix (dependent columns)
+        // [ 1 2 3
+        //   1 2 3
+        //   1 2 3 ]
+        let mut singular_matrix = Matrix::new(vec![1., 2., 3., 1., 2., 3., 1., 2., 3.], 3).unwrap();
+
+        let lu_singular = singular_matrix.lu_decomposition(f64::TEST_EPS);
+        assert!(lu_singular.is_none());
+    }
+
+    #[test]
+    fn test_inverse_2x2() {
+        // Matrix:
+        // [ 4 3
+        //   3 2 ]
+        let m = Matrix::new(vec![4., 3., 3., 2.], 2).unwrap();
+
+        // Expected Inverse:
+        // [ -2  3
+        //    3 -4 ]
+        let expected = Matrix::new(vec![-2., 3., 3., -4.], 2).unwrap();
+
+        let inv = m
+            .inverse(f64::TEST_EPS)
+            .expect("Failed to invert 2x2 matrix");
+        assert_mat!(inv, expected);
+    }
+
+    #[test]
+    fn test_inverse_3x3() {
+        // Matrix:
+        // [ 1 2 3
+        //   0 1 4
+        //   5 6 0 ]
+        let m = Matrix::new(vec![1., 0., 5., 2., 1., 6., 3., 4., 0.], 3).unwrap();
+
+        // Inverse:
+        // [-24  18  5
+        //   20 -15 -4
+        //   -5   4  1 ]
+        let expected = Matrix::new(vec![-24., 20., -5., 18., -15., 4., 5., -4., 1.], 3).unwrap();
+
+        let inv = m.inverse(f64::TEST_EPS).unwrap();
+        assert_mat!(inv, expected);
+    }
+
+    #[test]
+    fn test_inverse_4x4() {
+        // Lower triangular matrix
+        // [ 1 0 0 0
+        //   2 1 0 0
+        //   3 2 1 0
+        //   4 3 2 1 ]
+        let m = Matrix::new(
+            vec![
+                1., 2., 3., 4., 0., 1., 2., 3., 0., 0., 1., 2., 0., 0., 0., 1.,
+            ],
+            4,
+        )
+        .unwrap();
+
+        // Inverse
+        // [ 1  0  0  0
+        //  -2  1  0  0
+        //   1 -2  1  0
+        //   0  1 -2  1 ]
+        let expected = Matrix::new(
+            vec![
+                1., -2., 1., 0., 0., 1., -2., 1., 0., 0., 1., -2., 0., 0., 0., 1.,
+            ],
+            4,
+        )
+        .unwrap();
+
+        let inv = m.inverse(f64::TEST_EPS).unwrap();
+        assert_mat!(inv, expected);
+    }
+
+    #[test]
+    fn test_inverse_singular() {
+        // All elements are 1.0, making the matrix singular (determinant = 0)
+        let m = Matrix::new(vec![1.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let inv = m.inverse(f64::TEST_EPS);
+        assert!(inv.is_none());
     }
 }

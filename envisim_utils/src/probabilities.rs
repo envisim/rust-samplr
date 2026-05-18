@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn is_zero() {
-        let p = prob_new(EPS);
+        let p = prob_new(f64::TEST_EPS);
         assert!(!p.is_zero(0));
         assert!(p.is_zero(2));
         assert!(!p.is_max(0));
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn weight() {
-        let p = prob_new(EPS);
+        let p = prob_new(f64::TEST_EPS);
         assert_delta!(p.weight(0, 1), 0.2 / 0.9);
         assert_delta!(p.weight_to(0.1, 1), 0.2 / 0.9);
         assert_delta!(p.weight(4, 5), 0.2 / 0.6);
