@@ -95,40 +95,34 @@ where
     /// Returns `None`  if the coordinates are invalid.
     #[must_use]
     #[inline]
-    pub fn get<C>(&self, coord: C) -> Option<N>
+    pub fn get<C>(&self, coord: C) -> Option<&N>
     where
         C: Into<MatrixCoord>,
         N: Copy,
     {
         let coord = coord.into();
-        self.dims.contains(coord).then(|| self[coord])
+        self.dims.contains(coord).then(|| &self[coord])
     }
     /// Returns an iterator of the elements in a row.
     /// Returns `None` if the row is invalid.
     #[must_use]
     #[inline]
-    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = N>>
-    where
-        N: Copy,
-    {
+    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
         let nrow = self.nrow().get();
         self.dims()
             .contains_row(row)
-            .then(|| self.internal_data()[row..].iter().step_by(nrow).copied())
+            .then(|| self.internal_data()[row..].iter().step_by(nrow))
     }
     /// Returns an iterator of the elements in a column.
     /// Returns `None` if the column is invalid.
     #[must_use]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = N>>
-    where
-        N: Copy,
-    {
+    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
         let nrow = self.nrow().get();
         let start = nrow * col;
         self.dims()
             .contains_col(col)
-            .then(|| self.internal_data()[start..(start + nrow)].iter().copied())
+            .then(|| self.internal_data()[start..(start + nrow)].iter())
     }
     /// Multiplies the matrix by a column vector.
     /// Returns `None` if the column vector length does not match the number of columns in the
@@ -253,7 +247,7 @@ where
     /// Returns `None` if the coordinates are oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)) }
+    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Panics on oob.
     #[inline]
@@ -304,6 +298,38 @@ impl<N> Matrix<N> {
             data: OwnedMatrixData::new(vec![data; dims.len().get()]),
             dims,
         }
+    }
+    /// Returns a mutable reference to the element at a specific coordinate.
+    /// Returns `None`  if the coordinates are invalid.
+    #[must_use]
+    #[inline]
+    pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut N>
+    where
+        C: Into<MatrixCoord>,
+    {
+        let coord = coord.into();
+        self.dims.contains(coord).then(|| &mut self[coord])
+    }
+    /// Returns a mutable iterator of the elements in a row.
+    /// Returns `None` if the row is invalid.
+    #[must_use]
+    #[inline]
+    pub fn row_iter_mut(&mut self, row: usize) -> Option<impl ExactSizeIterator<Item = &mut N>> {
+        let nrow = self.nrow().get();
+        self.dims()
+            .contains_row(row)
+            .then(|| self.data.data[row..].iter_mut().step_by(nrow))
+    }
+    /// Returns a mutable iterator of the elements in a column.
+    /// Returns `None` if the column is invalid.
+    #[must_use]
+    #[inline]
+    pub fn col_iter_mut(&mut self, col: usize) -> Option<impl ExactSizeIterator<Item = &mut N>> {
+        let nrow = self.nrow().get();
+        let start = nrow * col;
+        self.dims()
+            .contains_col(col)
+            .then(|| self.data.data[start..(start + nrow)].iter_mut())
     }
     /// Resizes the matrix.
     /// Does not respect data on expansion.
@@ -542,8 +568,8 @@ mod tests {
         assert_eq!(m.dims().rows, nz(3));
 
         // get() method
-        assert_eq!(m.get((0, 0)), Some(1.0));
-        assert_eq!(m.get((2, 1)), Some(6.0));
+        assert_eq!(m.get((0, 0)), Some(&1.0));
+        assert_eq!(m.get((2, 1)), Some(&6.0));
         assert_eq!(m.get((3, 0)), None); // Out of bounds
     }
 
@@ -580,16 +606,16 @@ mod tests {
         // Row Iterator for row 1: [2.0, 5.0]
         let mut row_iter = m.row_iter(1).unwrap();
         assert_eq!(row_iter.len(), 2);
-        assert_eq!(row_iter.next(), Some(2.0));
-        assert_eq!(row_iter.next(), Some(5.0));
+        assert_eq!(row_iter.next(), Some(&2.0));
+        assert_eq!(row_iter.next(), Some(&5.0));
         assert_eq!(row_iter.next(), None);
 
         // Column Iterator for col 1: [4.0, 5.0, 6.0]
         let mut col_iter = m.col_iter(1).unwrap();
         assert_eq!(col_iter.len(), 3);
-        assert_eq!(col_iter.next(), Some(4.0));
-        assert_eq!(col_iter.next(), Some(5.0));
-        assert_eq!(col_iter.next(), Some(6.0));
+        assert_eq!(col_iter.next(), Some(&4.0));
+        assert_eq!(col_iter.next(), Some(&5.0));
+        assert_eq!(col_iter.next(), Some(&6.0));
         assert_eq!(col_iter.next(), None);
 
         // Invalid indices
