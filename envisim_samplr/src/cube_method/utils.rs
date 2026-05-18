@@ -144,7 +144,6 @@ mod tests {
         )
         .unwrap();
         mat2.reduced_row_echelon_form();
-        println!("{:?}", mat2);
         assert_mat!(
             mat2,
             Matrix::new(

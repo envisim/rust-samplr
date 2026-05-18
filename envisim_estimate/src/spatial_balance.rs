@@ -19,6 +19,7 @@ use envisim_utils::matrix::{
     MatrixDims,
     MatrixRef,
     PointSet,
+    RawData,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
