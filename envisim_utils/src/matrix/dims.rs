@@ -51,6 +51,10 @@ impl MatrixDims {
     #[must_use]
     #[inline]
     pub fn len(&self) -> NonZeroUsize { self.rows.saturating_mul(self.cols) }
+    /// Returns `true` if `rows == cols`.
+    #[must_use]
+    #[inline]
+    pub fn is_square(&self) -> bool { self.rows == self.cols }
     /// Transposes the dimension
     #[inline]
     pub fn transpose(&self) -> Self {
@@ -134,9 +138,20 @@ impl MatrixCoord {
     pub fn to_linear(&self, shape: MatrixDims) -> Option<usize> {
         shape
             .contains(*self)
-            .then(|| self.row + self.col * shape.rows.get())
+            .then(|| self.to_linear_unchecked(shape))
     }
-
+    /// Convert to a linear index in column-major order.
+    /// # Panics
+    /// Panics if oob
+    #[expect(
+        clippy::wrong_self_convention,
+        reason = "ok as long as to_linear is ok"
+    )]
+    #[must_use]
+    #[inline]
+    pub(super) fn to_linear_unchecked(&self, shape: MatrixDims) -> usize {
+        self.row + self.col * shape.rows.get()
+    }
     /// Convert from a linear index in column-major order.
     /// Returns `None` if `index` cannot be contained in `shape`.
     #[must_use]

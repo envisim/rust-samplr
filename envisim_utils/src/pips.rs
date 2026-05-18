@@ -139,10 +139,8 @@ mod tests {
         let dt1 = vec![1.0f64, 2.0, 3.0, 4.0];
         let dt2 = vec![-1.0f64, 2.0, 3.0, 4.0];
 
-        assert_fvec(
-            pps_from_slice(&dt1).unwrap().data(),
-            &vec![0.1, 0.2, 0.3, 0.4],
-        );
+        let pps = pps_from_slice(&dt1).unwrap();
+        assert_vec!(pps.data(), [0.1, 0.2, 0.3, 0.4]);
 
         assert!(pps_from_slice(&dt2).is_err());
     }
@@ -154,13 +152,11 @@ mod tests {
         let dt3 = vec![1.0f64, 1.0, 1.0, 7.0];
 
         let pips1 = pips_from_slice(&dt1, 2).unwrap();
-        assert_fvec(pips1.data(), &vec![0.2, 0.4, 0.6, 0.8]);
+        assert_vec!(pips1.data(), [0.2, 0.4, 0.6, 0.8]);
 
         assert!(pips_from_slice(&dt2, 2).is_err());
 
-        assert_fvec(
-            pips_from_slice(&dt3, 2).unwrap().data(),
-            &vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0],
-        );
+        let pips3 = pips_from_slice(&dt3, 2).unwrap();
+        assert_vec!(pips3.data(), [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0]);
     }
 }
