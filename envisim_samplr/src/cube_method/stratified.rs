@@ -41,10 +41,10 @@ use envisim_utils::spatial::PointSet;
 use rustc_hash::FxSeededState;
 
 use super::cube::{
-    BasicCubeStrategy,
     CubeRunner,
     CubeStrategy,
     LocalCubeStrategy,
+    RandomCubeStrategy,
 };
 use crate::error::{
     SamplingError,
@@ -351,7 +351,7 @@ where
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_controller_float();
-    let strategy = BasicCubeStrategy();
+    let strategy = RandomCubeStrategy();
     let mut runner = CubeStratifiedRunner::new(options, rng, controller, strategy, strata)?;
     Ok(runner.sample(rng))
 }

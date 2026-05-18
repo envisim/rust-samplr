@@ -47,7 +47,8 @@ use envisim_utils::sampling_options::{
 
 use super::utils::{
     find_vector_in_null_space,
-    set_candidates_from_indices,
+    set_candidates_from_indices_randomly,
+    set_candidates_from_indices_sequentially,
 };
 use crate::EqualProbabilitySampling;
 
@@ -57,7 +58,7 @@ pub trait CubeStrategy<TREE> {
         candidates: &mut Vec<usize>,
         controller: &mut SampleController<FloatProbabilities, TREE>,
         rng: &mut R,
-        n_units: usize,
+        n_units: NonZeroUsize,
     ) where
         R: RandomNumberGenerator;
     // Used for stratified
@@ -120,16 +121,20 @@ where
     where
         R: RandomNumberGenerator,
     {
-        let b_cols = self.adjusted_data.ncol().get();
+        let b_cols = self.adjusted_data.ncol();
         assert_eq!(
             b_cols,
-            self.candidate_data.nrow().get(),
+            self.candidate_data.nrow(),
             "flight phase not setup properly"
         );
 
-        while self.controller.indices().len() > b_cols {
-            self.strategy
-                .select_units(&mut self.candidates, &mut self.controller, rng, b_cols + 1);
+        while self.controller.indices().len() > b_cols.get() {
+            self.strategy.select_units(
+                &mut self.candidates,
+                &mut self.controller,
+                rng,
+                b_cols.saturating_add(1),
+            );
             self.set_candidate_data();
             self.update_probabilities(rng);
         }
@@ -152,7 +157,11 @@ where
         );
 
         while self.controller.indices().len() > 1 {
-            set_candidates_from_indices(&mut self.candidates, self.controller.indices(), 0);
+            set_candidates_from_indices_sequentially(
+                &mut self.candidates,
+                self.controller.indices(),
+                NonZeroUsize::MAX,
+            );
             self.set_candidate_data();
             self.update_probabilities(rng);
         }
@@ -263,10 +272,11 @@ where
     }
 }
 
+/// Sequential cube strategy
 #[must_use]
-pub struct BasicCubeStrategy();
-impl BasicCubeStrategy {
-    /// Constructs a new cube runner using the cube strategy
+pub struct SequentialCubeStrategy();
+impl SequentialCubeStrategy {
+    /// Constructs a new cube runner using the sequential cube strategy
     #[inline]
     pub fn new<PS, AUX, T>(
         options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
@@ -276,21 +286,68 @@ impl BasicCubeStrategy {
         T: RawData<Elem = f64>,
     {
         let controller = options.to_controller_float();
-        CubeRunner::new(options, controller, BasicCubeStrategy())
+        CubeRunner::new(options, controller, Self())
     }
 }
-impl CubeStrategy<()> for BasicCubeStrategy {
+impl CubeStrategy<()> for SequentialCubeStrategy {
     #[inline]
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
         controller: &mut SampleController<FloatProbabilities, ()>,
         _rng: &mut R,
-        n_units: usize,
+        n_units: NonZeroUsize,
     ) where
         R: RandomNumberGenerator,
     {
-        set_candidates_from_indices(candidates, controller.indices(), n_units);
+        set_candidates_from_indices_sequentially(candidates, controller.indices(), n_units);
+    }
+    /// # Panics
+    /// If the id alread exists in the collection. This implies that the provided `ids` contains
+    /// duplicates.
+    #[inline]
+    fn reset_to_ids(
+        &mut self,
+        controller: &mut SampleController<FloatProbabilities, ()>,
+        ids: &mut [usize],
+        _n_neighbours: usize,
+    ) {
+        controller.indices_mut().clear();
+        for &id in ids.iter() {
+            controller.indices_mut().insert(id);
+        }
+    }
+}
+
+/// Random cube strategy
+#[must_use]
+pub struct RandomCubeStrategy();
+impl RandomCubeStrategy {
+    /// Constructs a new cube runner using the random cube strategy
+    #[inline]
+    pub fn new<PS, AUX, T>(
+        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    ) -> CubeRunner<Self, ()>
+    where
+        PS: ProbabilitySpec,
+        T: RawData<Elem = f64>,
+    {
+        let controller = options.to_controller_float();
+        CubeRunner::new(options, controller, Self())
+    }
+}
+impl CubeStrategy<()> for RandomCubeStrategy {
+    #[inline]
+    fn select_units<R>(
+        &mut self,
+        candidates: &mut Vec<usize>,
+        controller: &mut SampleController<FloatProbabilities, ()>,
+        rng: &mut R,
+        n_units: NonZeroUsize,
+    ) where
+        R: RandomNumberGenerator,
+    {
+        set_candidates_from_indices_randomly(rng, candidates, controller.indices(), n_units);
     }
     /// # Panics
     /// If the id alread exists in the collection. This implies that the provided `ids` contains
@@ -363,19 +420,22 @@ where
         candidates: &mut Vec<usize>,
         controller: &mut SampleController<FloatProbabilities, Tree<'btree, P>>,
         rng: &mut R,
-        n_units: usize,
+        n_units: NonZeroUsize,
     ) where
         R: RandomNumberGenerator,
     {
         assert!(
-            n_units > 1,
+            n_units.get() > 1,
             "only one unit wanted, should have entered landing phase"
         );
         let len = controller.indices().len();
-        assert!(len >= n_units, "too many units wanted");
 
-        if len == n_units {
-            return set_candidates_from_indices(candidates, controller.indices(), n_units);
+        if len <= n_units.get() {
+            return set_candidates_from_indices_sequentially(
+                candidates,
+                controller.indices(),
+                n_units,
+            );
         }
 
         candidates.clear();
@@ -395,7 +455,7 @@ where
             .expect("nn to be found");
 
         // Add all neighbours, if no equals
-        if self.searcher.neighbours().len() == n_units - 1 {
+        if self.searcher.neighbours().len() == n_units.get() - 1 {
             candidates.extend(self.searcher.neighbours().to_neighbour_id_iter());
             return;
         }
@@ -419,7 +479,7 @@ where
             NonZeroUsize::new(self.searcher.neighbours().len() - guaranteed_units)
                 .expect("more than one unit to remain on the border");
         // the number left to fill amongst the candidates
-        let n_open_spots = n_units - candidates.len();
+        let n_open_spots = n_units.get() - candidates.len();
         let opts = SamplingOptions::new_equal(n_remaining_units, n_open_spots)
             .expect("n_remaining_units to be larger than n_open_spots");
 
@@ -456,6 +516,8 @@ pub trait CubeSampling {
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
     ///
+    /// Units are selected randomly to the flight phase.
+    ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
@@ -477,35 +539,38 @@ pub trait CubeSampling {
     fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
         R: RandomNumberGenerator;
-}
-pub trait LocalCubeSampling<P>
-where
-    P: PointSet,
-{
-    /// Draw a sample using the local cube method.
+    /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
-    /// the sample is spatially balanced on the provided auxilliary variables in `auxiliaries`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
+    ///
+    /// Units are selected in sequence to the flight phase.
     ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// # use envisim_utils::matrix::*;
+    /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = SmallRng::try_sys_rng().unwrap();
-    /// let p: Vec<f64> = vec![0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.9];
-    /// let bal = Matrix::new(vec![
-    ///     0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90,
-    ///     0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90,
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let m = Matrix::new(vec![
+    ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+    ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
-    ///     .set_balancing(bal)?
-    ///     .set_spreading(spr)?
-    ///     .local_cube(&mut rng);
+    ///     .set_balancing(m)?
+    ///     .cube(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
+    #[must_use]
+    fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator;
+}
+pub trait LocalCubeSampling<P>
+where
+    P: PointSet,
+{
     #[must_use]
     fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
@@ -521,7 +586,14 @@ where
     where
         R: RandomNumberGenerator,
     {
-        BasicCubeStrategy::new(self).sample(rng)
+        RandomCubeStrategy::new(self).sample(rng)
+    }
+    #[inline]
+    fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
+    where
+        R: RandomNumberGenerator,
+    {
+        SequentialCubeStrategy::new(self).sample(rng)
     }
 }
 impl<PS, P, T> LocalCubeSampling<P>

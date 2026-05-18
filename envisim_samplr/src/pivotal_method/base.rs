@@ -27,10 +27,7 @@ use super::runner::{
 };
 
 #[must_use]
-pub struct SequentialStrategy {
-    /// The selected units
-    pair: (usize, usize),
-}
+pub struct SequentialStrategy();
 impl SequentialStrategy {
     /// Constructs a new [`PivotalRunner`] using the sequential strategy
     #[inline]
@@ -43,7 +40,7 @@ impl SequentialStrategy {
         let controller = options.to_controller();
         PivotalRunner {
             controller,
-            strategy: Self { pair: (0, 1) },
+            strategy: Self(),
         }
     }
 }
@@ -56,32 +53,9 @@ where
     where
         R: RandomNumberGenerator,
     {
-        let pair: Pair = controller.indices().into();
-        if !pair.is_full() {
-            return pair;
-        }
-
-        let pop_size = controller.population_size();
-
-        // Check if the pair.0 was the unit to disappear
-        if !controller.indices().contains(self.pair.0) {
-            // Check if pair.1 also disappeared
-            self.pair.0 = self.pair.1;
-
-            if !controller.indices().contains(self.pair.0) {
-                self.pair.0 = controller
-                    .indices()
-                    .seq_after(self.pair.0, pop_size)
-                    .expect("two units to remain");
-            }
-        }
-
-        // Now pair.0 is the first remaining unit...set pair.1 to the next remaining unit
-        self.pair.1 = controller
-            .indices()
-            .seq_after(self.pair.0, pop_size)
-            .expect("two units to remain");
-        Pair::new(self.pair)
+        // If Indices is initialized in reverse order, last units should be able to swap out safely,
+        // so pairs are always in correct order
+        controller.indices().into()
     }
 }
 

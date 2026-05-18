@@ -205,27 +205,21 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     where
         R: RandomNumberGenerator,
     {
-        if controller.indices().is_empty() {
-            return None;
-        } else if self.unit == 0 && controller.indices().contains(0) {
-            // Special case for 0, as it is set 0 at construction
-            return Some(0);
-        }
+        // Tempting to use controller.indices().last(), but order is not guaranteed as swap_remove
+        // might move a unit forward in the indices.list().
 
         let pop_size = controller.population_size();
-        let unit = controller.indices().seq_after(self.unit, pop_size);
-
-        if let Some(id) = unit {
-            self.unit = id;
+        while self.unit < pop_size && !controller.indices().contains(self.unit) {
+            self.unit += 1;
         }
 
-        unit
+        (self.unit < pop_size).then_some(self.unit)
     }
     #[inline]
     fn update_probabilities(
         &mut self,
         controller: &mut SampleController<FloatProbabilities, ()>,
-        id: usize,
+        _id: usize,
         probability: f64,
         quota: f64,
     ) {
@@ -233,20 +227,20 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
             return;
         }
 
+        let pop_size = controller.population_size();
         let mut remaining_weight: f64 = 1.0;
 
-        let pop_size = controller.population_size();
-        let mut id_n: usize = id;
-        while remaining_weight > 0.0 {
-            id_n = match controller.indices().seq_after(id_n, pop_size) {
-                Some(v) => v,
-                None => return,
-            };
-
+        for id_n in (self.unit + 1)..pop_size {
+            if !controller.indices().contains(id_n) {
+                continue;
+            }
             let possible_weight = controller.probabilities().weight_to(probability, id_n);
             let weight = possible_weight.min(remaining_weight);
             controller.unit_add_and_decide(id_n, weight * quota);
             remaining_weight -= possible_weight;
+            if remaining_weight <= 0.0 {
+                break;
+            }
         }
     }
 }
@@ -409,15 +403,17 @@ where
         }
 
         if self.random_values.is_empty() {
-            controller.indices().draw(rng)
-        } else {
-            let pop_size = controller.population_size();
-            let unit = controller.indices().seq_after(self.order, pop_size);
-            if let Some(id) = unit {
-                self.order = id;
-            }
-            unit
+            return controller.indices().draw(rng);
         }
+
+        // If random values are used -- i.e. coordination -- we want to have selection order fixed,
+        // in order to reduce entropy
+        let pop_size = controller.population_size();
+        while self.order < pop_size && !controller.indices().contains(self.order) {
+            self.order += 1;
+        }
+
+        (self.order < pop_size).then_some(self.order)
     }
     #[inline]
     fn update_probabilities(

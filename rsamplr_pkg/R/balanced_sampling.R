@@ -6,9 +6,12 @@
 #' Selects balanced samples with prescribed inclusion probabilities from finite populations.
 #'
 #' @details
-#' For the `cube` method, a fixed sized sample is obtained if the first column of `balance_mat` is
-#' the inclusion probabilities. For `cube_stratified`, the inclusion probabilities are inserted
-#' automatically.
+#' For the `cube` and `sequential_cube` methods, a fixed sized sample is obtained if the first
+#' column of `balance_mat` is the inclusion probabilities.
+#' For `cube_stratified`, the inclusion probabilities are inserted automatically.
+#'
+#' The `sequential_cube` determines units in the provided order, i.e. includes units by order into
+#' the solution window of the flight phase. `cube` determines units in a random order.
 #'
 #' @param probabilities A vector of inclusion probabilities.
 #' @param balance_mat A matrix of balancing covariates.
@@ -30,6 +33,10 @@
 #' Stratified balanced sampling.
 #' Survey Methodology, 35, 115-119.
 #'
+#' Leuenberger, M., Eustache, E., Jauslin, R., & Tillé, Y. (2022).
+#' Balancing a sample almost perfectly.
+#' Statistics & Probability Letters, 180, 109229.
+#'
 #' @examples
 #' set.seed(12345);
 #' N = 1000;
@@ -39,6 +46,9 @@
 #' strata = c(rep(1L, 100), rep(2L, 200), rep(3L, 300), rep(4L, 400));
 #'
 #' s = cube(prob, xb);
+#' plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
+#'
+#' s = sequential_cube(prob, xb);
 #' plot(xb[, 2], xb[, 3], pch = ifelse(sample_to_indicator(s, N), 19, 1));
 #'
 #' s = cube_stratified(prob, xb[, -1], strata);
@@ -78,6 +88,12 @@ NULL
 #' @export
 cube = function(probabilities, balance_mat, ...) {
   .balanced_wrapper("cube", probabilities, balance_mat, ...)
+}
+
+#' @describeIn balanced_sampling The cube method
+#' @export
+sequential_cube = function(probabilities, balance_mat, ...) {
+  .balanced_wrapper("sequential_cube", probabilities, balance_mat, ...)
 }
 
 #' @describeIn balanced_sampling The stratified cube method

@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ProbabilityStore` associated type now requires `num_traits::NumAssign`.
 - Refactored `SampleController`. Instead of being a trait, it is now a generic struct using the typestate pattern, implementing special methods for when a kd-tree is present. When a tree is present, removing a unit requires it to be removed from the tree aswell. This is ensured through the trait `UnitRemoving`.
 - Methods on `Indices` returns `bool` instead of `Option` where applicable.
+- `Indices` initialises its store in reversed order.
+- `DecideUnit` renamed to `UnitDecisionStatus` and is now provided through the `probabilities` module.
 
 ### Removed
 - Removed `MatrixIndex`.

@@ -28,18 +28,24 @@
 //! Doubly balanced spatial sampling with spreading and restitution of auxiliary totals.
 //! Environmetrics, 24(2), 120-131.
 //! <https://doi.org/10.1002/env.2194>
+//!
+//! Leuenberger, M., Eustache, E., Jauslin, R., & Tillé, Y. (2022).
+//! Balancing a sample almost perfectly.
+//! Statistics & Probability Letters, 180, 109229.
+//! <https://doi.org/10.1016/j.spl.2021.109229>
 
 mod cube;
 mod stratified;
 mod utils;
 
 pub use cube::{
-    BasicCubeStrategy,
     CubeRunner,
     CubeSampling,
     CubeStrategy,
     LocalCubeSampling,
     LocalCubeStrategy,
+    RandomCubeStrategy,
+    SequentialCubeStrategy,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 pub use stratified::{

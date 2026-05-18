@@ -162,6 +162,7 @@ fn rust_balanced(
         .set_balancing(bal_data)?;
 
     let s = match r_method {
+        "sequential_cube" => options.sequential_cube(&mut rng),
         "cube" | &_ => options.cube(&mut rng),
     };
 
