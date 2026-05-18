@@ -651,9 +651,9 @@ mod tests {
     use crate::test_utils::*;
 
     /// Creates a 3x2 matrix
-    /// [ 1, 4
-    ///   2, 5
-    ///   3, 6 ]
+    /// [ 1 4
+    ///   2 5
+    ///   3 6 ]
     fn setup_matrix() -> Matrix<f64> {
         Matrix::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], nz(3)).unwrap()
     }
@@ -803,9 +803,9 @@ mod tests {
     #[test]
     fn test_lu_decomposition() {
         // 3x3 matrix
-        // [ 1, 0, 5 ]
-        // [ 2, 1, 6 ]
-        // [ 3, 4, 0 ]
+        // [ 1 0 5
+        //   2 1 6
+        //   3 4 0 ]
         let mut valid_matrix = Matrix::new(vec![1., 2., 3., 0., 1., 4., 5., 6., 0.], 3).unwrap();
 
         let lu_res = valid_matrix.lu_decomposition(f64::TEST_EPS);
@@ -833,13 +833,13 @@ mod tests {
     #[test]
     fn test_inverse_2x2() {
         // Matrix:
-        // [ 4, 3
-        //   3, 2 ]
+        // [ 4 3
+        //   3 2 ]
         let m = Matrix::new(vec![4., 3., 3., 2.], 2).unwrap();
 
         // Expected Inverse:
-        // [ -2,  3
-        //    3, -4 ]
+        // [ -2  3
+        //    3 -4 ]
         let expected = Matrix::new(vec![-2., 3., 3., -4.], 2).unwrap();
 
         let inv = m
@@ -851,15 +851,15 @@ mod tests {
     #[test]
     fn test_inverse_3x3() {
         // Matrix:
-        // [ 1, 2, 3
-        //   0, 1, 4
-        //   5, 6, 0 ]
+        // [ 1 2 3
+        //   0 1 4
+        //   5 6 0 ]
         let m = Matrix::new(vec![1., 0., 5., 2., 1., 6., 3., 4., 0.], 3).unwrap();
 
         // Inverse:
-        // [-24,  18,  5
-        //   20, -15, -4
-        //   -5,   4,  1 ]
+        // [-24  18  5
+        //   20 -15 -4
+        //   -5   4  1 ]
         let expected = Matrix::new(vec![-24., 20., -5., 18., -15., 4., 5., -4., 1.], 3).unwrap();
 
         let inv = m.inverse(f64::TEST_EPS).unwrap();
@@ -869,10 +869,10 @@ mod tests {
     #[test]
     fn test_inverse_4x4() {
         // Lower triangular matrix
-        // [ 1, 0, 0, 0
-        //   2, 1, 0, 0
-        //   3, 2, 1, 0
-        //   4, 3, 2, 1 ]
+        // [ 1 0 0 0
+        //   2 1 0 0
+        //   3 2 1 0
+        //   4 3 2 1 ]
         let m = Matrix::new(
             vec![
                 1., 2., 3., 4., 0., 1., 2., 3., 0., 0., 1., 2., 0., 0., 0., 1.,
@@ -882,10 +882,10 @@ mod tests {
         .unwrap();
 
         // Inverse
-        // [ 1,  0,  0,  0
-        //  -2,  1,  0,  0
-        //   1, -2,  1,  0
-        //   0,  1, -2,  1 ]
+        // [ 1  0  0  0
+        //  -2  1  0  0
+        //   1 -2  1  0
+        //   0  1 -2  1 ]
         let expected = Matrix::new(
             vec![
                 1., -2., 1., 0., 0., 1., -2., 1., 0., 0., 1., -2., 0., 0., 0., 1.,
