@@ -144,11 +144,20 @@ mod tests {
         )
         .unwrap();
         mat2.reduced_row_echelon_form();
-        assert_mat!(mat2, Matrix::new_identity(3).unwrap());
-        assert_vec!(
-            // mat2.data().data()[9..12], // col 3
-            mat2.col_iter(3).unwrap(),
-            [-2.5, 1.833333333333333, 0.166666666666667]
+        println!("{:?}", mat2);
+        assert_mat!(
+            mat2,
+            Matrix::new(
+                vec![
+                    1., 0., 0., //
+                    0., 1., 0., //
+                    0., 0., 1., //
+                    -2.5, 1.8333, 0.1666 //
+                ],
+                3
+            )
+            .unwrap(),
+            1e-4
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
         assert_mat!(

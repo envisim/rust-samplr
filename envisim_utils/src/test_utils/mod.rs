@@ -36,10 +36,8 @@ pub use assert_delta;
 macro_rules! assert_vec {
     ($v1:expr,$v2:expr) => {{
         let (v1, v2) = (&$v1, &$v2);
-        let v1 = v1.into_iter();
-        let v2 = v2.into_iter();
         assert_eq!(v1.len(), v2.len(), "vector dims do not match");
-        for (i, (&a, &b)) in v1.zip(v2).enumerate() {
+        for (i, (&a, &b)) in v1.iter().zip(v2.iter()).enumerate() {
             let eps = a.test_eps();
             assert!(a.approx_eq_eps(b, eps), "|{a} - {b}| >= {eps} (at {i})");
         }

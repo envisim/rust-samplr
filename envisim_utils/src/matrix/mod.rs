@@ -457,7 +457,7 @@ impl<N> Matrix<N> {
             };
             // ad-bc
             let det = a * d - b * c;
-            if eps <= det {
+            if Number::abs(det) < eps {
                 return None;
             };
             // d -c -b a
@@ -472,17 +472,17 @@ impl<N> Matrix<N> {
             };
             let mut inv = vec![
                 e * i - f * h,
-                -d * i - f * g,
+                -(d * i - f * g),
                 d * h - e * g, // ABC
-                -b * i - c * h,
+                -(b * i - c * h),
                 a * i - c * g,
-                -a * h - b * g, // DEF
+                -(a * h - b * g), // DEF
                 b * f - c * e,
-                -a * f - c * d,
+                -(a * f - c * d),
                 a * e - b * d, // GHI
             ];
             let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
-            if eps <= det {
+            if Number::abs(det) < eps {
                 return None;
             };
             for v in &mut inv {
@@ -845,12 +845,12 @@ mod tests {
         // Matrix:
         // [ 4.0, 3.0 ]
         // [ 3.0, 2.0 ]
-        let m = Matrix::new(vec![4.0, 3.0, 3.0, 2.0], nz(2)).unwrap();
+        let m = Matrix::new(vec![4.0, 3.0, 3.0, 2.0], 2).unwrap();
 
         // Expected Inverse:
         // [ -2.0,  3.0 ]
         // [  3.0, -4.0 ]
-        let expected = Matrix::new(vec![-2.0, 3.0, 3.0, -4.0], nz(2)).unwrap();
+        let expected = Matrix::new(vec![-2.0, 3.0, 3.0, -4.0], 2).unwrap();
 
         let inv = m
             .inverse(f64::TEST_EPS)
@@ -932,9 +932,6 @@ mod tests {
         // All elements are 1.0, making the matrix singular (determinant = 0)
         let m = Matrix::new(vec![1.0, 1.0, 1.0, 1.0], 2).unwrap();
         let inv = m.inverse(f64::TEST_EPS);
-        assert!(
-            inv.is_none(),
-            "Singular matrix inverted successfully, expected None"
-        );
+        assert!(inv.is_none());
     }
 }
