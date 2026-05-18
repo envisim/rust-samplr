@@ -650,19 +650,12 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
 
-    /// Creates a 3x2 matrix in column-major order:
-    /// [ 1, 4 ]
-    /// [ 2, 5 ]
-    /// [ 3, 6 ]
+    /// Creates a 3x2 matrix
+    /// [ 1, 4
+    ///   2, 5
+    ///   3, 6 ]
     fn setup_matrix() -> Matrix<f64> {
-        Matrix::new(
-            vec![
-                1.0, 2.0, 3.0, // dim 0
-                4.0, 5.0, 6.0, // dim 1
-            ],
-            nz(3),
-        )
-        .unwrap()
+        Matrix::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], nz(3)).unwrap()
     }
 
     #[test]
@@ -809,48 +802,45 @@ mod tests {
 
     #[test]
     fn test_lu_decomposition() {
-        // Valid 3x3 Matrix (Column-major)
-        // [ 1.0, 0.0, 5.0 ]
-        // [ 2.0, 1.0, 6.0 ]
-        // [ 3.0, 4.0, 0.0 ]
-        let mut valid_matrix = Matrix::new(
-            vec![
-                1.0, 2.0, 3.0, // col 0
-                0.0, 1.0, 4.0, // col 1
-                5.0, 6.0, 0.0, // col 2
-            ],
-            3,
-        )
-        .unwrap();
+        // 3x3 matrix
+        // [ 1, 0, 5 ]
+        // [ 2, 1, 6 ]
+        // [ 3, 4, 0 ]
+        let mut valid_matrix = Matrix::new(vec![1., 2., 3., 0., 1., 4., 5., 6., 0.], 3).unwrap();
 
         let lu_res = valid_matrix.lu_decomposition(f64::TEST_EPS);
-        assert!(
-            lu_res.is_some(),
-            "LU decomposition failed for an invertible matrix"
+        assert_eq!(lu_res.unwrap(), [2usize, 1, 0].into());
+        assert_mat!(
+            valid_matrix,
+            Matrix::new(
+                vec![3., 0.6667, 0.3333, 4.0, -1.6667, 0.8, 0.0, 6.0, 0.2],
+                3
+            )
+            .unwrap(),
+            1e-4
         );
 
-        // Singular Matrix (Linearly dependent columns)
-        let mut singular_matrix =
-            Matrix::new(vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0], 3).unwrap();
+        // Singular matrix (dependent columns)
+        // [ 1 2 3
+        //   1 2 3
+        //   1 2 3 ]
+        let mut singular_matrix = Matrix::new(vec![1., 2., 3., 1., 2., 3., 1., 2., 3.], 3).unwrap();
 
         let lu_singular = singular_matrix.lu_decomposition(f64::TEST_EPS);
-        assert!(
-            lu_singular.is_none(),
-            "LU decomposition should return None for a singular matrix"
-        );
+        assert!(lu_singular.is_none());
     }
 
     #[test]
     fn test_inverse_2x2() {
         // Matrix:
-        // [ 4.0, 3.0 ]
-        // [ 3.0, 2.0 ]
-        let m = Matrix::new(vec![4.0, 3.0, 3.0, 2.0], 2).unwrap();
+        // [ 4, 3
+        //   3, 2 ]
+        let m = Matrix::new(vec![4., 3., 3., 2.], 2).unwrap();
 
         // Expected Inverse:
-        // [ -2.0,  3.0 ]
-        // [  3.0, -4.0 ]
-        let expected = Matrix::new(vec![-2.0, 3.0, 3.0, -4.0], 2).unwrap();
+        // [ -2,  3
+        //    3, -4 ]
+        let expected = Matrix::new(vec![-2., 3., 3., -4.], 2).unwrap();
 
         let inv = m
             .inverse(f64::TEST_EPS)
@@ -861,69 +851,50 @@ mod tests {
     #[test]
     fn test_inverse_3x3() {
         // Matrix:
-        // [ 1.0, 2.0, 3.0 ]
-        // [ 0.0, 1.0, 4.0 ]
-        // [ 5.0, 6.0, 0.0 ]
-        let m = Matrix::new(
-            vec![
-                1.0, 0.0, 5.0, // col 0
-                2.0, 1.0, 6.0, // col 1
-                3.0, 4.0, 0.0, // col 2
-            ],
-            3,
-        )
-        .unwrap();
+        // [ 1, 2, 3
+        //   0, 1, 4
+        //   5, 6, 0 ]
+        let m = Matrix::new(vec![1., 0., 5., 2., 1., 6., 3., 4., 0.], 3).unwrap();
 
-        // Expected Inverse:
-        // [-24.0,  18.0,  5.0 ]
-        // [ 20.0, -15.0, -4.0 ]
-        // [ -5.0,   4.0,  1.0 ]
-        let expected =
-            Matrix::new(vec![-24.0, 20.0, -5.0, 18.0, -15.0, 4.0, 5.0, -4.0, 1.0], 3).unwrap();
+        // Inverse:
+        // [-24,  18,  5
+        //   20, -15, -4
+        //   -5,   4,  1 ]
+        let expected = Matrix::new(vec![-24., 20., -5., 18., -15., 4., 5., -4., 1.], 3).unwrap();
 
-        let inv = m
-            .inverse(f64::TEST_EPS)
-            .expect("Failed to invert 3x3 matrix");
+        let inv = m.inverse(f64::TEST_EPS).unwrap();
         assert_mat!(inv, expected);
     }
 
     #[test]
     fn test_inverse_4x4() {
-        // Lower Triangular Matrix:
-        // [ 1.0, 0.0, 0.0, 0.0 ]
-        // [ 2.0, 1.0, 0.0, 0.0 ]
-        // [ 3.0, 2.0, 1.0, 0.0 ]
-        // [ 4.0, 3.0, 2.0, 1.0 ]
+        // Lower triangular matrix
+        // [ 1, 0, 0, 0
+        //   2, 1, 0, 0
+        //   3, 2, 1, 0
+        //   4, 3, 2, 1 ]
         let m = Matrix::new(
             vec![
-                1.0, 2.0, 3.0, 4.0, // col 0
-                0.0, 1.0, 2.0, 3.0, // col 1
-                0.0, 0.0, 1.0, 2.0, // col 2
-                0.0, 0.0, 0.0, 1.0, // col 3
+                1., 2., 3., 4., 0., 1., 2., 3., 0., 0., 1., 2., 0., 0., 0., 1.,
             ],
             4,
         )
         .unwrap();
 
-        // Expected Inverse:
-        // [ 1.0,  0.0,  0.0,  0.0 ]
-        // [-2.0,  1.0,  0.0,  0.0 ]
-        // [ 1.0, -2.0,  1.0,  0.0 ]
-        // [ 0.0,  1.0, -2.0,  1.0 ]
+        // Inverse
+        // [ 1,  0,  0,  0
+        //  -2,  1,  0,  0
+        //   1, -2,  1,  0
+        //   0,  1, -2,  1 ]
         let expected = Matrix::new(
             vec![
-                1.0, -2.0, 1.0, 0.0, // col 0
-                0.0, 1.0, -2.0, 1.0, // col 1
-                0.0, 0.0, 1.0, -2.0, // col 2
-                0.0, 0.0, 0.0, 1.0, // col 3
+                1., -2., 1., 0., 0., 1., -2., 1., 0., 0., 1., -2., 0., 0., 0., 1.,
             ],
             4,
         )
         .unwrap();
 
-        let inv = m
-            .inverse(f64::TEST_EPS)
-            .expect("Failed to invert 4x4 matrix");
+        let inv = m.inverse(f64::TEST_EPS).unwrap();
         assert_mat!(inv, expected);
     }
 
