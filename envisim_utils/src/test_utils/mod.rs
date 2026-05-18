@@ -15,8 +15,6 @@ pub use crate::number_traits::{
 /// Helper for NonZeroUsize
 pub fn nz(n: usize) -> std::num::NonZeroUsize { std::num::NonZeroUsize::new(n).unwrap() }
 
-// pub const EPS: f64 = f64::TEST_EPS;
-
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_delta {
@@ -73,55 +71,3 @@ macro_rules! assert_mat {
     }};
 }
 pub use assert_mat;
-
-// #[track_caller]
-// #[inline]
-// pub fn assert_fvec<N>(v1: &[N], v2: &[N])
-// where
-//     N: NumberTest,
-// {
-//     assert_eq!(v1.len(), v2.len(), "vector dims do not match");
-//     for (&a, &b) in v1.iter().zip(v2.iter()) {
-//         assert_delta!(a, b);
-//     }
-// }
-
-// #[track_caller]
-// #[inline]
-// pub fn assert_fvec_eps<N>(v1: &[N], v2: &[N], eps: N)
-// where
-//     N: NumberTest,
-// {
-//     assert_eq!(v1.len(), v2.len(), "vector dims do not match");
-//     for (&a, &b) in v1.iter().zip(v2.iter()) {
-//         assert_delta!(a, b, eps);
-//     }
-// }
-
-// #[track_caller]
-// #[inline]
-// pub fn assert_fmat<T1, T2, N>(m1: &MatrixBase<T1, N>, m2: &MatrixBase<T2, N>)
-// where
-//     T1: RawData<Elem = N>,
-//     T2: RawData<Elem = N>,
-//     N: NumberTest,
-// {
-//     assert_eq!(m1.dims(), m2.dims(), "matrix dims do not match");
-//     for (&a, &b) in m1.data().data().iter().zip(m2.data().data().iter()) {
-//         assert_delta!(a, b);
-//     }
-// }
-
-// #[track_caller]
-// #[inline]
-// pub fn assert_fmat_eps<T1, T2, N>(m1: &MatrixBase<T1, N>, m2: &MatrixBase<T2, N>, eps: N)
-// where
-//     T1: RawData<Elem = N>,
-//     T2: RawData<Elem = N>,
-//     N: NumberTest,
-// {
-//     assert_eq!(m1.dims(), m2.dims(), "matrix dims do not match");
-//     for (&a, &b) in m1.data().data().iter().zip(m2.data().data().iter()) {
-//         assert_delta!(a, b, eps);
-//     }
-// }
