@@ -104,6 +104,7 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
+    use envisim_utils::matrix::RawData;
     use envisim_utils::test_utils::*;
 
     use super::*;
@@ -121,14 +122,14 @@ mod tests {
         .unwrap();
         mat1.reduced_row_echelon_form();
         assert!(
-            mat1.data()
+            mat1.data().data()
                 == [
                     1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0
                 ]
         );
         let mat1_nullvec = find_vector_in_null_space(&mut mat1);
         assert_fvec(
-            &mat1.mul_vec(&mat1_nullvec).unwrap().data(),
+            &mat1.mul_vec(&mat1_nullvec).unwrap().data().data(),
             &[0.0, 0.0, 0.0],
         );
 
@@ -142,14 +143,14 @@ mod tests {
         )
         .unwrap();
         mat2.reduced_row_echelon_form();
-        assert!(&mat2.data()[0..9] == vec![1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
+        assert!(&mat2.data().data()[0..9] == vec![1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
         assert_fvec(
-            &mat2.data()[9..12], // col 3
+            &mat2.data().data()[9..12], // col 3
             &[-2.5, 1.833333333333333, 0.166666666666667],
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
         assert_fvec(
-            &mat2.mul_vec(&mat2_nullvec).unwrap().data(),
+            &mat2.mul_vec(&mat2_nullvec).unwrap().data().data(),
             &[0.0, 0.0, 0.0],
         );
     }
