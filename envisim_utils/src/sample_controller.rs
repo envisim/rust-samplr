@@ -21,7 +21,10 @@ use crate::probabilities::{
     ProbabilityStore,
     UnitDecisionStatus,
 };
-use crate::random::RandomNumberGenerator;
+use crate::random::{
+    RandomNumber,
+    RngFloat,
+};
 use crate::sampling_options::{
     SamplingOptionsError,
     SamplingOptionsResult,
@@ -121,7 +124,8 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     ) -> <PROB as ProbabilityStore>::PR
     where
         PROB: ProbabilityStore,
-        R: RandomNumberGenerator,
+        R: RngFloat,
+        <PROB as ProbabilityStore>::PR: RandomNumber<R>,
     {
         self.probabilities.draw(rng, max)
     }
@@ -196,7 +200,8 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     where
         Self: UnitRemoving,
         PROB: ProbabilityStore,
-        R: RandomNumberGenerator,
+        R: RngFloat,
+        <PROB as ProbabilityStore>::PR: RandomNumber<R>,
     {
         let Some(id) = self.indices.last() else {
             return UnitDecisionStatus::Undecided;

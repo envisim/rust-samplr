@@ -20,7 +20,10 @@ use super::error::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::random::RandomNumberGenerator;
+use crate::random::{
+    RandomNumber,
+    RngFloat,
+};
 
 #[must_use]
 #[derive(Clone, Debug)]
@@ -40,9 +43,9 @@ impl<'bcoord> CoordinationOptions<'bcoord> {
     #[inline]
     pub fn get_or<R>(&self, id: usize, rng: &mut R) -> f64
     where
-        R: RandomNumberGenerator,
+        R: RngFloat,
     {
-        self.get(id).unwrap_or_else(|| rng.rf64())
+        self.get(id).unwrap_or_else(|| f64::rand(rng))
     }
     /// Returns the stored random values
     #[must_use]
