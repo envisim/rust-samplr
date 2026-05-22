@@ -15,7 +15,7 @@
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilitySpec,
+    ProbabilityOptions,
     SpreadingOptions,
 };
 use envisim_utils::spatial::PointSet;
@@ -78,19 +78,16 @@ where
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_spreading<PS, P, BAL>(
+pub fn balance_deviation_spreading<PO, P, BAL>(
     sample: &[usize],
-    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PS: ProbabilitySpec,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet<N = f64>,
 {
-    balance_deviation(
-        sample,
-        &options.probabilities().as_f64_slice(),
-        options.spreading().data(),
-    )
+    let p = options.probabilities().to_slice_real();
+    balance_deviation(sample, &p, options.spreading().data())
 }
 
 /// Calculates the deviation from the balancing matrix.
@@ -110,19 +107,16 @@ where
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_balancing<PS, AUX, P>(
+pub fn balance_deviation_balancing<PO, AUX, P>(
     sample: &[usize],
-    options: &SamplingOptions<PS, AUX, BalancingOptions<P>>,
+    options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PS: ProbabilitySpec,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet<N = f64>,
 {
-    balance_deviation(
-        sample,
-        &options.probabilities().as_f64_slice(),
-        options.balancing().data(),
-    )
+    let p = options.probabilities().to_slice_real();
+    balance_deviation(sample, &p, options.balancing().data())
 }
 
 #[cfg(test)]

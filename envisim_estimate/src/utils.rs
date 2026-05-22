@@ -14,7 +14,7 @@
 
 use std::borrow::Borrow;
 
-use envisim_utils::probabilities::FloatProbabilities;
+use envisim_utils::probabilities::Probability;
 
 use crate::error::{
     EstimationError,
@@ -33,7 +33,7 @@ where
 {
     let y = *y.borrow();
     let p = *pi.borrow();
-    FloatProbabilities::is_prob(p)
+    Probability::is_probability(p, 1.0)
         .then(|| y / p)
         .ok_or(EstimationError::InvalidProbability)
 }
