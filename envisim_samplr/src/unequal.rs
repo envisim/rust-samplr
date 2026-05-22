@@ -22,7 +22,10 @@
 use std::cmp::Ordering;
 
 use envisim_utils::indices::Indices;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 use envisim_utils::sample_controller::Sample;
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -42,10 +45,10 @@ use crate::utils::poisson_internal;
 #[inline]
 fn draw<R>(rng: &mut R, probabilities: &[f64]) -> usize
 where
-    R: RandomNumberGenerator,
+    R: Rand<f64>,
 {
     let population_size = probabilities.len();
-    let rv = rng.rf64();
+    let rv = rng.rand();
     let mut psum: f64 = 0.0;
 
     for (i, &p) in probabilities.iter().enumerate() {
@@ -67,7 +70,7 @@ pub trait UnequalProbabilitySampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.1; 10];
     /// let s = SamplingOptions::new(p.into())?.with_replacement(&mut rng, 5)?;
     /// assert_eq!(s.len(), 5);
@@ -78,7 +81,7 @@ pub trait UnequalProbabilitySampling {
     /// Returns an error if probabilities does not sum to 1.0.
     fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using a sampford design.
     /// Probabilities must sum to an integer.
     ///
@@ -86,7 +89,7 @@ pub trait UnequalProbabilitySampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.sampford(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -97,7 +100,7 @@ pub trait UnequalProbabilitySampling {
     /// Returns an error if probabilities does not sum to an integer.
     fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using a pareto design.
     /// Probabilities must sum to an integer.
     ///
@@ -105,7 +108,7 @@ pub trait UnequalProbabilitySampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.pareto(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -116,7 +119,7 @@ pub trait UnequalProbabilitySampling {
     /// Returns an error if probabilities does not sum to an integer.
     fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using a brewer design.
     /// Probabilities must sum to an integer.
     ///
@@ -124,7 +127,7 @@ pub trait UnequalProbabilitySampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.brewer(&mut rng)?;
     /// assert_eq!(s.len(), 5);
@@ -135,14 +138,14 @@ pub trait UnequalProbabilitySampling {
     /// Returns an error if probabilities does not sum to an integer.
     fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using a poisson design.
     ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.poisson(&mut rng);
     /// # Ok::<(), SamplingError>(())
@@ -150,7 +153,7 @@ pub trait UnequalProbabilitySampling {
     #[must_use]
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using a conditional poisson design.
     /// Redraws a poisson sample until the fixed sample size is achieved.
     /// May terminate after `max_iterations`.
@@ -159,7 +162,7 @@ pub trait UnequalProbabilitySampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.conditional_poisson(&mut rng, 5)?;
     /// # Ok::<(), SamplingError>(())
@@ -169,7 +172,7 @@ pub trait UnequalProbabilitySampling {
     /// Returns an error if `sample_size` is larger than the population size.
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 impl<AUX, BAL> UnequalProbabilitySampling
     for SamplingOptions<ProbabilitySpecUnequal<'_>, AUX, BAL>
@@ -177,7 +180,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn with_replacement<R>(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.probabilities().as_f64_slice();
         if (self.probabilities().sample_size_f64() - 1.0).abs() > self.eps() {
@@ -191,7 +194,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
         let mut rvs = Vec::<f64>::with_capacity(n);
 
         for _ in 0..n {
-            rvs.push(rng.rf64());
+            rvs.push(rng.rand());
         }
 
         rvs.sort_unstable_by(|a, b| a.partial_cmp(b).expect("rvs to not be NaN"));
@@ -230,7 +233,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn sampford<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
@@ -272,7 +275,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn pareto<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.probabilities().as_f64_slice();
         let eps = self.eps();
@@ -287,7 +290,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
         let q_values: Vec<f64> = probabilities
             .iter()
             .map(|&p| {
-                let u = rng.rf64();
+                let u = rng.rand();
 
                 if 1.0 - eps < u || p < eps {
                     return f64::INFINITY;
@@ -316,7 +319,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn brewer<R>(&self, rng: &mut R) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let population_size = self.population_size().get();
         let probabilities = self.probabilities().as_f64_slice();
@@ -391,7 +394,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn poisson<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.probabilities().as_f64_slice();
         poisson_internal(rng, probabilities.as_ref())
@@ -399,7 +402,7 @@ impl<AUX, BAL> UnequalProbabilitySampling
     #[inline]
     fn conditional_poisson<R>(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.probabilities().as_f64_slice();
         let population_size = self.population_size().get();

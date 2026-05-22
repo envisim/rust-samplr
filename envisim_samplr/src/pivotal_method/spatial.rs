@@ -22,7 +22,11 @@ use envisim_utils::kd_tree::{
     Tree,
 };
 use envisim_utils::probabilities::ProbabilityStore;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+    random_element,
+};
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
@@ -108,7 +112,7 @@ where
         rng: &mut R,
     ) -> Pair
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let pair: Pair = controller.indices().into();
         if !pair.is_more() {
@@ -148,9 +152,8 @@ where
             }
 
             if !self.candidates.is_empty() {
-                let id2 = *rng
-                    .relement(&self.candidates)
-                    .expect("candidates to have elements");
+                let id2 =
+                    *random_element(rng, &self.candidates).expect("candidates to have elements");
                 return Pair::More(id1, id2);
             }
         }
@@ -208,7 +211,7 @@ where
         rng: &mut R,
     ) -> Pair
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let pair: Pair = controller.indices().into();
         if !pair.is_more() {
@@ -266,7 +269,7 @@ where
 
             // Some mutual nn has been found
             if left > 0 {
-                let id2 = *rng.relement(&self.candidates[0..left]).expect("left > 0");
+                let id2 = *random_element(rng, &self.candidates[0..left]).expect("left > 0");
                 return Pair::More(id1, id2);
             }
             // If no mutual nn has been found, we select one of the candidates by random to be the
@@ -277,8 +280,7 @@ where
             }
 
             self.history.push(
-                *rng.relement(&self.candidates)
-                    .expect("candidates to have positive length"),
+                *random_element(rng, &self.candidates).expect("candidates to have positive length"),
             );
         }
     }
@@ -325,7 +327,7 @@ where
         rng: &mut R,
     ) -> Pair
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let pair: Pair = controller.indices().into();
         if !pair.is_more() {
@@ -341,8 +343,7 @@ where
             .expect("id1 to exist")
             .search(controller.tree())
             .expect("nn to be found");
-        let id2 = rng
-            .relement(self.searcher.neighbours())
+        let id2 = random_element(rng, self.searcher.neighbours())
             .expect("neighbours to have positive length")
             .id();
 
@@ -362,7 +363,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
@@ -373,7 +374,7 @@ where
     /// ```
     fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the local pivotal method 1.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -382,7 +383,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
@@ -393,7 +394,7 @@ where
     /// ```
     fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the local pivotal method 2.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -402,7 +403,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?
@@ -413,7 +414,7 @@ where
     /// ```
     fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 impl<PS, P, BAL> LocalPivotalSampling<P> for SamplingOptions<PS, SpreadingOptions<P>, BAL>
 where
@@ -423,21 +424,21 @@ where
     #[inline]
     fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         LocalStrategy1::new(self).sample(rng)
     }
     #[inline]
     fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         LocalStrategy1S::new(self).sample(rng)
     }
     #[inline]
     fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         LocalStrategy2::new(self).sample(rng)
     }
@@ -455,7 +456,7 @@ where
 /// # use envisim_samplr::pivotal_method::hierarchical_lpm_2;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::Matrix;
-/// let mut rng = SmallRng::try_sys_rng().unwrap();
+/// let mut rng = try_sys_rng().unwrap();
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
@@ -488,7 +489,7 @@ pub fn hierarchical_lpm_2<R, PS, P, BAL>(
     sizes: &[usize],
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
-    R: RandomNumberGenerator,
+    R: FloatRng,
     PS: ProbabilitySpec,
     P: PointSet,
 {

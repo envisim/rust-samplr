@@ -14,7 +14,7 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::Rand;
 use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
 
@@ -140,10 +140,10 @@ pub trait DbdConfiguration {
     #[inline]
     fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = usize> + Clone + '_
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let n_samples = self.tcp().n_samples().get();
-        let sample_id = rng.rusize_to(n_samples);
+        let sample_id = rng.rand_in(0..n_samples);
         self.sample(sample_id)
     }
     /// Returns the energy of a specific sample multiplied by the sample size

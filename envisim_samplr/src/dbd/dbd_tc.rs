@@ -15,7 +15,10 @@
 use std::num::NonZeroUsize;
 
 pub use config::*;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
@@ -213,7 +216,7 @@ impl<P> DbdTacticalConfiguration<P> {
     ) -> Result<Self, TacticalConfiguration>
     where
         P: PointSet<N = f64>,
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let population_size = matrix.size();
         let sample_size = sample_size.min(population_size);
@@ -313,21 +316,19 @@ where
     fn temperature_mut(&mut self) -> &mut AnnealingTemperature { &mut self.temperature }
 
     #[inline]
-    fn draw_units<R: RandomNumberGenerator>(&mut self, rng: &mut R) {
+    fn draw_units<R>(&mut self, rng: &mut R)
+    where
+        R: Rand<usize>,
+    {
         let sample_size = self.tcp().sample_size().get();
+        let n_samples = self.tcp().n_samples().get();
 
         loop {
-            let a_unit = (
-                rng.rusize_to(self.tcp().n_samples().get()),
-                rng.rusize_to(sample_size),
-            );
-            let mut b_unit = (
-                rng.rusize_to(self.tcp().n_samples().get() - 1),
-                rng.rusize_to(sample_size),
-            );
+            let a_unit = (rng.rand_in(0..n_samples), rng.rand_in(0..sample_size));
+            let mut b_unit = (rng.rand_in(0..(n_samples - 1)), rng.rand_in(0..sample_size));
 
             if a_unit.0 == b_unit.0 {
-                b_unit.0 = self.tcp().n_samples().get() - 1;
+                b_unit.0 = n_samples - 1;
             }
 
             let a_id = self.configuration.bucket_get(a_unit.0, a_unit.1);

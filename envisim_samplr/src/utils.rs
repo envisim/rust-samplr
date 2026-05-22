@@ -14,19 +14,19 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::Rand;
 
 /// Random permutation of usize [0,...,len] vector
 #[inline]
 pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
 where
-    R: RandomNumberGenerator,
+    R: Rand<usize>,
 {
     let mut order: Vec<usize> = Vec::with_capacity(len.get());
     order.push(0);
 
     for i in 1..len.get() {
-        let j = rng.rusize_to(i + 1);
+        let j = rng.rand_to(i + 1);
         order.push(i);
         order.swap(i, j);
     }
@@ -38,12 +38,12 @@ where
 #[inline]
 pub fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
 where
-    R: RandomNumberGenerator,
+    R: Rand<f64>,
 {
     probabilities
         .iter()
         .enumerate()
-        .filter_map(|(i, &p)| rng.rbern(p).and_then(|b| b.then_some(i)))
+        .filter_map(|(i, &p)| (rng.rand() < p).then_some(i))
         .collect()
 }
 

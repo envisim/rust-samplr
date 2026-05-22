@@ -14,7 +14,11 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+    Rng,
+};
 
 /// Contains the annealing temperature tracker
 #[must_use]
@@ -63,12 +67,12 @@ impl AnnealingTemperature {
     #[inline]
     fn accept_change<R>(&self, rng: &mut R, change: f64) -> bool
     where
-        R: RandomNumberGenerator,
+        R: Rand<f64>,
     {
         if !self.is_positive() {
             return false;
         }
-        let u = rng.rf64();
+        let u: f64 = rng.rand();
         let v = (-change / self.temperature).exp();
         u < v
     }
@@ -94,7 +98,7 @@ pub trait AnnealingDistributionalDesign {
     /// Draws the random units
     fn draw_units<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator;
+        R: Rng;
     /// Evaluate the effect of a switch
     #[must_use]
     fn evaluate_switch(&mut self) -> Option<f64>;
@@ -106,7 +110,7 @@ pub trait AnnealingDistributionalDesign {
     #[inline]
     fn run<R>(&mut self, rng: &mut R, iterations: NonZeroUsize)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         for _ in 0..iterations.get() {
             self.draw_units(rng);

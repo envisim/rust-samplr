@@ -14,7 +14,10 @@
 
 use envisim_utils::indices::Pair;
 use envisim_utils::probabilities::ProbabilityStore;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
@@ -51,7 +54,7 @@ where
     #[inline]
     fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, _rng: &mut R) -> Pair
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         // If Indices is initialized in reverse order, last units should be able to swap out safely,
         // so pairs are always in correct order
@@ -83,7 +86,7 @@ where
     #[inline]
     fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, rng: &mut R) -> Pair
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let pair: Pair = controller.indices().into();
         if !pair.is_more() {
@@ -95,7 +98,7 @@ where
             .indices()
             .draw(rng)
             .expect("indices to contain units");
-        let k = rng.rusize_to(len - 1);
+        let k = rng.rand_to(len - 1);
         let mut id2 = controller.indices()[k];
 
         if id1 == id2 {
@@ -117,7 +120,7 @@ pub trait PivotalSampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let opts = SamplingOptions::new(p.into())?;
     /// let s = opts.spm(&mut rng);
@@ -126,7 +129,7 @@ pub trait PivotalSampling {
     /// ```
     fn spm<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the random pivotal method.
     /// A variant of the pivotal method where unit competes in a random order.
     ///
@@ -134,7 +137,7 @@ pub trait PivotalSampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let opts = SamplingOptions::new(p.into())?;
     /// let s = opts.rpm(&mut rng);
@@ -143,7 +146,7 @@ pub trait PivotalSampling {
     /// ```
     fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 
 impl<PS, AUX, BAL> PivotalSampling for SamplingOptions<PS, AUX, BAL>
@@ -153,14 +156,14 @@ where
     #[inline]
     fn spm<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         SequentialStrategy::new(self).sample(rng)
     }
     #[inline]
     fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         RandomStrategy::new(self).sample(rng)
     }
