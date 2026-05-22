@@ -10,253 +10,349 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use num_traits::ToPrimitive;
+use std::cmp::Ordering;
+use std::num::NonZeroUsize;
+use std::ops::{
+    Index,
+    IndexMut,
+};
+use std::usize;
 
-use crate::kd_tree::searcher::WeightCollection;
-use crate::random::RandomNumberGenerator;
-use crate::sampling_options::{
-    ProbabilitySpec,
-    ProbabilitySpecEqual,
+use num_traits::{
+    ConstOne,
+    ConstZero,
 };
 
+use crate::kd_tree::searcher::WeightCollection;
+use crate::number_traits::{
+    Number,
+    NumberFloat,
+};
+use crate::random::RandomNumberGenerator;
+use crate::sampling_options::Epsilon;
+
+pub trait ProbabilityValue {
+    type N: Number;
+}
+pub trait RealProbabilityValue: ProbabilityValue
+where
+    Self::N: NumberFloat,
+{
+    fn is_real_probability(prob: Self::N) -> bool { (Self::N::ZERO..Self::N::ONE).contains(&prob) }
+    fn from_real(prob: Self::N, eps: Epsilon<Self::N>) -> Option<Probability<Self::N>> {
+        Probability::from_raw(prob, Self::N::ONE, eps)
+    }
+}
+
 /// Decision result
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 #[expect(
     clippy::exhaustive_enums,
     reason = "a unit can only exists in three decision states"
 )]
-pub enum UnitDecisionStatus {
-    In,
-    Out,
-    Undecided,
+pub enum Probability<N> {
+    Zero(N),
+    Partial(N),
+    Full(N),
 }
-
-/// Contains probabilities represented as floats
-#[must_use]
-#[derive(Debug, Clone)]
-pub struct FloatProbabilities {
-    /// Internal data
-    data: Vec<f64>,
-    /// An epsilon to be used when comparing probabilities
-    eps: f64,
-}
-impl FloatProbabilities {
-    #[inline]
-    pub fn new(probabilities: Vec<f64>, eps: f64) -> Self {
-        Self {
-            data: probabilities,
-            eps,
-        }
-    }
-    #[expect(
-        clippy::missing_panics_doc,
-        clippy::unwrap_used,
-        reason = "usize to f64 conversion"
-    )]
-    #[inline]
-    pub fn new_equal(spec: ProbabilitySpecEqual, eps: f64) -> Self {
-        let p =
-            spec.sample_size().to_f64().unwrap() / spec.population_size().get().to_f64().unwrap();
-        Self::new(vec![p; spec.population_size().get()], eps)
-    }
-    #[inline]
-    pub fn new_equal_f64(prob: f64, population_size: usize, eps: f64) -> Self {
-        Self::new(vec![prob; population_size], eps)
-    }
-    #[inline]
-    pub fn from_iter<I>(probabilities: I, eps: f64) -> Self
+impl<N> Probability<N> {
+    pub fn is_zero(self) -> bool { matches!(self, Probability::Zero(_)) }
+    pub fn is_partial(self) -> bool { matches!(self, Probability::Partial(_)) }
+    pub fn is_full(self) -> bool { matches!(self, Probability::Full(_)) }
+    pub fn is_probability(prob: N, max: N) -> bool
     where
-        I: IntoIterator<Item = f64>,
+        N: Number,
     {
-        Self::new(probabilities.into_iter().collect(), eps)
+        (N::ZERO..=max).contains(&prob)
     }
 
-    #[must_use]
-    #[inline]
-    pub fn is_prob(p: f64) -> bool { (0.0..=1.0).contains(&p) }
-    #[must_use]
-    #[inline]
-    pub fn eps(&self) -> f64 { self.eps }
-    #[must_use]
-    #[inline]
-    pub fn weight(&self, idx0: usize, idx1: usize) -> f64 { self.weight_to(self.data[idx0], idx1) }
-    #[must_use]
-    #[inline]
-    pub fn weight_to(&self, prob: f64, idx1: usize) -> f64 {
-        if prob + self.data[idx1] <= self.max() {
-            self.data[idx1] / (self.max() - prob)
+    pub fn get(self) -> N
+    where
+        N: Copy,
+    {
+        match self {
+            Probability::Zero(p) | Probability::Partial(p) | Probability::Full(p) => p,
+        }
+    }
+
+    pub fn from_raw(prob: N, max: N, eps: Epsilon<N>) -> Option<Self>
+    where
+        N: Number,
+    {
+        // Now not infinite or nan
+        if !(N::ZERO..=max).contains(&prob) {
+            None
+        } else if eps.is_zero(prob) {
+            Some(Probability::Zero(N::ZERO))
+        } else if eps.is_zero(max - prob) {
+            Some(Probability::Full(max))
         } else {
-            (self.max() - self.data[idx1]) / prob
+            Some(Probability::Partial(prob))
+        }
+    }
+    fn from_raw_unchecked(prob: N, max: N, eps: Epsilon<N>) -> Self
+    where
+        N: Number,
+    {
+        // Now not infinite or nan
+        if !(N::ZERO..=max).contains(&prob) {
+            panic!("invalid prob {prob} (max: {max})");
+        } else if eps.is_zero(prob) {
+            Probability::Zero(N::ZERO)
+        } else if eps.is_zero(max - prob) {
+            Probability::Full(max)
+        } else {
+            Probability::Partial(prob)
         }
     }
 }
 
-/// Contains probabilities represented as integers
-#[must_use]
+impl<N> PartialEq for Probability<N> {
+    fn eq(&self, other: &Self) -> bool {
+        use Probability::*;
+        match (self, other) {
+            (Zero(_), Zero(_)) | (Full(_), Full(_)) => true,
+            (Partial(a), Partial(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl<N> Eq for Probability<N> {}
+impl<N> PartialOrd for Probability<N>
+where
+    N: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        use Probability::*;
+        match (self, other) {
+            (Zero(_), Zero(_)) | (Full(_), Full(_)) => Some(Ordering::Equal),
+            (Zero(_), _) | (_, Full(_)) => Some(Ordering::Less),
+            (Full(_), _) | (_, Zero(_)) => Some(Ordering::Greater),
+            (Partial(a), Partial(b)) => a.partial_cmp(b),
+        }
+    }
+}
+
+pub trait ProbabilityCollection {
+    type N: Number;
+    fn from_raw<I>(probs: I, max: Self::N, eps: Epsilon<Self::N>) -> Self
+    where
+        Self: Sized,
+        I: IntoIterator<Item = Self::N>,
+        Self::N: Number;
+    fn draw<R>(&self, rng: &mut R) -> Self::N
+    where
+        R: RandomNumberGenerator;
+    fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
+    where
+        R: RandomNumberGenerator;
+}
+pub trait RealProbabilityCollection: ProbabilityCollection
+where
+    Self::N: NumberFloat,
+{
+}
+
 #[derive(Debug, Clone)]
-pub struct ExactProbabilities {
-    /// Internal data
-    data: Vec<usize>,
+pub struct ProbabilitySet<N> {
+    data: Box<[Probability<N>]>,
+    max: N,
+    eps: Epsilon<N>,
 }
-impl ExactProbabilities {
-    #[inline]
-    pub fn new(probabilities: Vec<usize>) -> Self {
-        Self {
-            data: probabilities,
+impl<N> ProbabilitySet<N> {
+    pub fn data(&self) -> &[Probability<N>] { &self.data }
+    pub fn eps(&self) -> Epsilon<N>
+    where
+        N: Copy,
+    {
+        self.eps
+    }
+    pub fn max(&self) -> N
+    where
+        N: Copy,
+    {
+        self.max
+    }
+    pub fn len(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.data.len()).expect("set to be non-empty")
+    }
+    pub fn get(&self, idx: usize) -> Option<&Probability<N>> { self.data.get(idx) }
+    pub fn set(&mut self, idx: usize, value: N)
+    where
+        N: Number,
+    {
+        self[idx] = Probability::from_raw_unchecked(value, self.max, self.eps);
+    }
+    pub fn set_zero(&mut self, idx: usize)
+    where
+        N: Number,
+    {
+        self[idx] = Probability::Zero(N::ZERO);
+    }
+    pub fn set_full(&mut self, idx: usize) { self[idx] = Probability::Full(self.max); }
+    pub fn add(&mut self, unit: usize, value: Probability<N>) -> Probability<N>
+    where
+        N: Number,
+    {
+        match (self[unit], value) {
+            (Probability::Zero(_), _) | (Probability::Partial(_), Probability::Full(_)) => {
+                let current = self[unit];
+                self[unit] = value;
+                current
+            }
+            (Probability::Full(_), _) | (Probability::Partial(_), Probability::Zero(_)) => value,
+            (Probability::Partial(org), Probability::Partial(val)) => {
+                let sum = org + val;
+                if sum < self.max {
+                    self[unit] = Probability::from_raw_unchecked(sum, self.max, self.eps);
+                    Probability::Zero(N::ZERO)
+                } else {
+                    self[unit] = Probability::Full(self.max);
+                    Probability::from_raw_unchecked(sum - self.max, self.max, self.eps)
+                }
+            }
         }
     }
-    #[inline]
-    pub fn new_equal(spec: ProbabilitySpecEqual) -> Self {
-        Self::new(vec![spec.sample_size(); spec.population_size().get()])
-    }
-    #[must_use]
-    #[inline]
-    pub fn is_prob(&self, p: usize) -> bool { (0..=self.max()).contains(&p) }
-}
-impl FromIterator<usize> for ExactProbabilities {
-    #[inline]
-    fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
-        Self::new(iter.into_iter().collect())
-    }
-}
-
-pub trait ProbabilityStore {
-    type PR: num_traits::NumAssign + Copy + PartialOrd;
-    // + Default
-
-    #[must_use]
-    fn data(&self) -> &[Self::PR];
-    #[must_use]
-    fn data_mut(&mut self) -> &mut [Self::PR];
-    #[must_use]
-    #[inline]
-    fn len(&self) -> usize { self.data().len() }
-    #[must_use]
-    #[inline]
-    fn is_empty(&self) -> bool { self.data().is_empty() }
-    fn max(&self) -> Self::PR;
-
-    #[must_use]
-    #[inline]
-    fn get(&self, idx: usize) -> Self::PR { self.data()[idx] }
-    #[inline]
-    fn set(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] = value; }
-    fn set_zero(&mut self, idx: usize);
-    fn set_max(&mut self, idx: usize);
-    #[inline]
-    fn add(&mut self, idx: usize, value: Self::PR) { self.data_mut()[idx] += value; }
-
-    fn unit_status(&self, idx: usize) -> UnitDecisionStatus;
-    #[must_use]
-    #[inline]
-    fn is_zero(&self, idx: usize) -> bool { self.unit_status(idx) == UnitDecisionStatus::Out }
-    #[must_use]
-    #[inline]
-    fn is_max(&self, idx: usize) -> bool { self.unit_status(idx) == UnitDecisionStatus::In }
-    #[must_use]
-    fn eq(&self, a: Self::PR, b: Self::PR) -> bool;
-    #[must_use]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR;
-}
-impl ProbabilityStore for FloatProbabilities {
-    type PR = f64;
-    #[inline]
-    fn data(&self) -> &[Self::PR] { &self.data }
-    #[inline]
-    fn data_mut(&mut self) -> &mut [Self::PR] { &mut self.data }
-    #[inline]
-    fn max(&self) -> Self::PR { 1.0 }
-
-    #[inline]
-    fn set_zero(&mut self, idx: usize) { self.data[idx] = 0.0; }
-    #[inline]
-    fn set_max(&mut self, idx: usize) { self.data[idx] = 1.0; }
-
-    #[inline]
-    fn unit_status(&self, idx: usize) -> UnitDecisionStatus {
-        if self.data[idx] <= self.eps {
-            UnitDecisionStatus::Out
-        } else if self.data[idx] >= 1.0 - self.eps {
-            UnitDecisionStatus::In
-        } else {
-            UnitDecisionStatus::Undecided
+    pub fn weight(&self, main: usize, other: usize) -> f64 { self.weight_to(self[main], other) }
+    pub fn weight_to(&self, prob: Probability<N>, other: usize) -> f64
+    where
+        N: Number,
+    {
+        let max = self.max.to_f64().expect("max to convert to f64");
+        let p1 = self[other].get().to_f64().expect("to convert to f64");
+        match prob {
+            Probability::Partial(p0) => {
+                let p0 = p0.to_f64().expect("to convert to f64");
+                if p0 + p1 <= max {
+                    p1 / (max - p0)
+                } else {
+                    (max - p1) / p0
+                }
+            }
+            Probability::Zero(_) => p1,
+            Probability::Full(_) => max - p1,
         }
     }
+}
+
+impl<N> WeightCollection for ProbabilitySet<N>
+where
+    N: Number,
+{
     #[inline]
-    fn eq(&self, a: Self::PR, b: Self::PR) -> bool { (a - b).abs() <= self.eps }
+    fn get_weight(&self, id: usize) -> f64 { self[id].get().to_f64().expect("convert to f64") }
     #[inline]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
-        rng.rf64_to(max).expect("max to be non-negative")
+    fn try_get_weight(&self, id: usize) -> Option<f64> {
+        self.get(id)
+            .map(|v| v.get().to_f64().expect("convert to f64"))
     }
 }
-impl ProbabilityStore for ExactProbabilities {
-    type PR = usize;
-    #[inline]
-    fn data(&self) -> &[Self::PR] { &self.data }
-    #[inline]
-    fn data_mut(&mut self) -> &mut [Self::PR] { &mut self.data }
-    #[inline]
-    fn max(&self) -> Self::PR { self.data.len() }
+impl<N> Index<usize> for ProbabilitySet<N> {
+    type Output = Probability<N>;
+    fn index(&self, index: usize) -> &Self::Output { &self.data[index] }
+}
+impl<N> IndexMut<usize> for ProbabilitySet<N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut self.data[index] }
+}
 
-    #[inline]
-    fn set_zero(&mut self, idx: usize) { self.data[idx] = 0; }
-    #[inline]
-    fn set_max(&mut self, idx: usize) { self.data[idx] = self.max(); }
-
-    #[inline]
-    fn unit_status(&self, idx: usize) -> UnitDecisionStatus {
-        if self.data[idx] == 0 {
-            UnitDecisionStatus::Out
-        } else if self.data[idx] == self.max() {
-            UnitDecisionStatus::In
-        } else {
-            UnitDecisionStatus::Undecided
+// Macros for implementing probabilities for all primitive number types
+macro_rules! prob_float {
+    ($t:ty,$r:expr) => {
+        impl ProbabilityValue for Probability<$t> {
+            type N = $t;
         }
-    }
-    #[inline]
-    fn eq(&self, a: Self::PR, b: Self::PR) -> bool { a == b }
-    #[inline]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
-        rng.rusize_to(max)
-    }
+        impl RealProbabilityValue for Probability<$t> {}
+        impl ProbabilitySet<$t> {
+            pub fn new<I>(probs: I, eps: Epsilon<$t>) -> Self
+            where
+                I: IntoIterator<Item = $t>,
+            {
+                Self::from_raw(probs, 1.0, eps)
+            }
+        }
+        impl ProbabilityCollection for ProbabilitySet<$t> {
+            type N = $t;
+            fn from_raw<I>(probs: I, _max: Self::N, eps: Epsilon<Self::N>) -> Self
+            where
+                I: IntoIterator<Item = Self::N>,
+                Self::N: Number,
+            {
+                let max = 1.0;
+                let data: Box<[Probability<Self::N>]> = probs
+                    .into_iter()
+                    .map(|p| Probability::from_raw_unchecked(p, max, eps))
+                    .collect();
+                Self { data, max, eps }
+            }
+            fn draw<R>(&self, rng: &mut R) -> Self::N
+            where
+                R: RandomNumberGenerator,
+            {
+                rng.$r()
+            }
+            fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
+            where
+                R: RandomNumberGenerator,
+            {
+                assert!(0.0 < max && max <= 1.0);
+                rng.$r() * max
+            }
+        }
+        impl RealProbabilityCollection for ProbabilitySet<$t> {}
+    };
+}
+macro_rules! prob_int {
+    ($t:ty,$r:expr) => {
+        impl ProbabilityValue for Probability<$t> {
+            type N = $t;
+        }
+        impl ProbabilitySet<$t> {
+            pub fn new<I>(probs: I, max: $t) -> Self
+            where
+                I: IntoIterator<Item = $t>,
+            {
+                Self::from_raw(probs, max, Default::default())
+            }
+        }
+        impl ProbabilityCollection for ProbabilitySet<$t> {
+            type N = $t;
+            fn from_raw<I>(probs: I, max: Self::N, _eps: Epsilon<Self::N>) -> Self
+            where
+                I: IntoIterator<Item = Self::N>,
+                Self::N: Number,
+            {
+                assert!(0 < max);
+                let eps = 0;
+                let data: Box<[Probability<Self::N>]> = probs
+                    .into_iter()
+                    .map(|p| Probability::from_raw_unchecked(p, max, eps))
+                    .collect();
+                Self { data, max, eps }
+            }
+            fn draw<R>(&self, rng: &mut R) -> Self::N
+            where
+                R: RandomNumberGenerator,
+            {
+                self.draw_partial(rng, self.max)
+            }
+            fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
+            where
+                R: RandomNumberGenerator,
+            {
+                assert!(0 < max && max <= self.max);
+                rng.$r(max)
+            }
+        }
+    };
 }
 
-impl WeightCollection for FloatProbabilities {
-    #[inline]
-    fn get_weight(&self, id: usize) -> f64 { self.get(id) }
-    #[inline]
-    fn try_get_weight(&self, id: usize) -> Option<f64> { self.data().get(id).copied() }
-}
+prob_int!(usize, rusize_to);
+prob_int!(u8, ru8_to);
+prob_int!(u16, ru16_to);
+prob_int!(u32, ru16_to);
+prob_int!(u64, ru16_to);
+prob_int!(u128, ru16_to);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::*;
-
-    static PROBABILITY_ARR: [f64; 6] = [0.1, 0.2, 0.0, 1.0, 0.6, 0.8];
-    fn prob_new(eps: f64) -> FloatProbabilities {
-        FloatProbabilities::new(PROBABILITY_ARR.to_vec(), eps)
-    }
-
-    #[test]
-    fn is_zero() {
-        let p = prob_new(f64::TEST_EPS);
-        assert!(!p.is_zero(0));
-        assert!(p.is_zero(2));
-        assert!(!p.is_max(0));
-        assert!(p.is_max(3));
-
-        let mut p = prob_new(1e-2);
-        p.set(0, 0.999);
-        assert!(p.is_max(0));
-    }
-
-    #[test]
-    fn weight() {
-        let p = prob_new(f64::TEST_EPS);
-        assert_delta!(p.weight(0, 1), 0.2 / 0.9);
-        assert_delta!(p.weight_to(0.1, 1), 0.2 / 0.9);
-        assert_delta!(p.weight(4, 5), 0.2 / 0.6);
-        assert_delta!(p.weight_to(0.6, 5), 0.2 / 0.6);
-    }
-}
+prob_float!(f32, rf32);
+prob_float!(f64, rf64);

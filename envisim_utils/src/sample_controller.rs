@@ -18,15 +18,12 @@ use crate::kd_tree::{
     Tree,
 };
 use crate::probabilities::{
-    ProbabilityStore,
-    UnitDecisionStatus,
+    Probability,
+    ProbabilityCollection,
+    ProbabilitySet,
 };
 use crate::random::RandomNumberGenerator;
-use crate::sampling_options::{
-    SamplingOptionsError,
-    SamplingOptionsResult,
-    SpreadingOptions,
-};
+use crate::sampling_options::SpreadingOptions;
 
 /// Sample container
 #[must_use]
@@ -65,7 +62,7 @@ impl Sample {
 #[derive(Debug, Clone)]
 pub struct SampleController<PROB, TREE = ()> {
     /// The probability store
-    probabilities: PROB,
+    probabilities: ProbabilitySet<PROB>,
     /// The (remaining) sample indices
     indices: Indices,
     /// The units included in the sample
@@ -96,118 +93,84 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
 
     #[must_use]
     #[inline]
-    pub fn population_size(&self) -> usize
-    where
-        PROB: ProbabilityStore,
-    {
-        self.probabilities.len()
-    }
-    /// # Errors
-    /// Returns an error if `ProbabilityStore` is empty
-    #[inline]
-    pub fn population_size_nz(&self) -> SamplingOptionsResult<NonZeroUsize>
-    where
-        PROB: ProbabilityStore,
-    {
-        NonZeroUsize::new(self.population_size()).ok_or(SamplingOptionsError::InvalidPopulationSize)
-    }
+    pub fn population_size(&self) -> NonZeroUsize { self.probabilities.len() }
 
     #[must_use]
     #[inline]
-    pub fn draw<R>(
-        &self,
-        rng: &mut R,
-        max: <PROB as ProbabilityStore>::PR,
-    ) -> <PROB as ProbabilityStore>::PR
+    pub fn draw<R>(&self, rng: &mut R, max: PROB) -> PROB
     where
-        PROB: ProbabilityStore,
+        ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
         R: RandomNumberGenerator,
     {
-        self.probabilities.draw(rng, max)
+        self.probabilities.draw_partial(rng, max)
     }
     #[inline]
-    pub fn unit_decide(&mut self, idx: usize) -> UnitDecisionStatus
+    pub fn unit_decide(&mut self, idx: usize) -> Probability<PROB>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
     {
-        match self.probabilities.unit_status(idx) {
-            UnitDecisionStatus::In => {
+        let p = self.probabilities[idx];
+        match p {
+            Probability::Partial(_) => {}
+            Probability::Zero(_) => {
+                self.unit_remove(idx);
+            }
+            Probability::Full(_) => {
                 self.sample.add(idx);
                 self.unit_remove(idx);
-                UnitDecisionStatus::In
             }
-            UnitDecisionStatus::Out => {
-                self.unit_remove(idx);
-                UnitDecisionStatus::Out
-            }
-            UnitDecisionStatus::Undecided => UnitDecisionStatus::Undecided,
         }
+        p
     }
     #[inline]
-    pub fn unit_set_and_decide(
-        &mut self,
-        idx: usize,
-        prob: <PROB as ProbabilityStore>::PR,
-    ) -> UnitDecisionStatus
+    pub fn unit_set_and_decide(&mut self, idx: usize, prob: PROB) -> Probability<PROB>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
     {
         self.probabilities.set(idx, prob);
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_set_max(&mut self, idx: usize) -> UnitDecisionStatus
+    pub fn unit_set_full(&mut self, idx: usize) -> Probability<PROB>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
     {
         self.probabilities.set_max(idx);
         self.sample.add(idx);
         self.unit_remove(idx);
-        UnitDecisionStatus::In
+        self.probabilities[idx]
     }
     #[inline]
-    pub fn unit_set_zero(&mut self, idx: usize) -> UnitDecisionStatus
+    pub fn unit_set_zero(&mut self, idx: usize) -> Probability<PROB>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
     {
         self.probabilities.set_zero(idx);
         self.unit_remove(idx);
-        UnitDecisionStatus::Out
+        self.probabilities[idx]
     }
     #[inline]
-    pub fn unit_add_and_decide(
-        &mut self,
-        idx: usize,
-        prob: <PROB as ProbabilityStore>::PR,
-    ) -> UnitDecisionStatus
+    pub fn unit_add_and_decide(&mut self, idx: usize, prob: Probability<PROB>) -> Probability<PROB>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
     {
         self.probabilities.add(idx, prob);
         self.unit_decide(idx)
     }
     #[inline]
-    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> UnitDecisionStatus
+    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<Probability<PROB>>
     where
         Self: UnitRemoving,
-        PROB: ProbabilityStore,
+        ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
         R: RandomNumberGenerator,
     {
-        let Some(id) = self.indices.last() else {
-            return UnitDecisionStatus::Undecided;
-        };
-        let prob = self.probabilities.get(id);
-        let max = self.probabilities.max();
+        let id = self.indices.last()?;
+        let prob = self.probabilities[id];
 
-        if self.draw(rng, max) < prob {
-            self.unit_set_max(id)
+        if self.probabilities.draw(rng) < prob {
+            Some(self.unit_set_full(id))
         } else {
-            self.unit_set_zero(id)
+            Some(self.unit_set_zero(id))
         }
     }
 }
@@ -216,27 +179,24 @@ impl<PROB> SampleController<PROB, ()> {
     /// Constructs a new `SampleController` without a tree.
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
-    pub fn new(probabilities: PROB) -> Self
-    where
-        PROB: ProbabilityStore,
-    {
-        let population_size = probabilities.len();
+    pub fn new(probabilities: ProbabilitySet<PROB>) -> Self {
+        let population_size = probabilities.len().get();
         let mut indices = Indices::new(population_size);
         let mut sample = Sample::new(population_size);
 
         // Reverse order guarantees units can be drawn from the back in order, see comment in
         // Indices::with_fill.
         for i in (0..population_size).rev() {
-            match probabilities.unit_status(i) {
-                UnitDecisionStatus::In => {
-                    sample.add(i);
-                }
-                UnitDecisionStatus::Out => {}
-                UnitDecisionStatus::Undecided => {
+            match probabilities[i] {
+                Probability::Partial(_) => {
                     assert!(
                         indices.insert(i),
                         "unit {i} should not already be in indices {indices:?}"
                     );
+                }
+                Probability::Zero(_) => {}
+                Probability::Full(_) => {
+                    sample.add(i);
                 }
             };
         }
@@ -257,10 +217,10 @@ where
     P: PointSet,
 {
     #[inline]
-    pub fn new_spreading(probabilities: PROB, spreading: &'bspread SpreadingOptions<P>) -> Self
-    where
-        PROB: ProbabilityStore,
-    {
+    pub fn new_spreading(
+        probabilities: ProbabilitySet<PROB>,
+        spreading: &'bspread SpreadingOptions<P>,
+    ) -> Self {
         let base_controller = SampleController::new(probabilities);
         let mut units = base_controller.indices.to_vec();
         let tree = Tree::new(spreading, &mut units);
@@ -304,7 +264,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
     use crate::sampling_options::SamplingOptions;
     use crate::test_utils::*;
 

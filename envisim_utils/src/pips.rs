@@ -12,13 +12,12 @@
 
 //! Functions for calculating probabilities proportional to size
 
+use std::iter::repeat_n;
+
 use num_traits::ToPrimitive;
 
 pub use self::error::PipsError;
-use crate::probabilities::{
-    FloatProbabilities,
-    ProbabilityStore,
-};
+use crate::probabilities::ProbabilitySet;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
@@ -26,7 +25,7 @@ use crate::probabilities::{
 /// # Errors
 /// Returns an error if any value is non-positive.
 #[inline]
-pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
+pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
     }
@@ -41,9 +40,9 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
         sum += *x;
     }
 
-    Ok(FloatProbabilities::from_iter(
+    Ok(ProbabilitySet::new(
         arr.iter().map(|&x| x / sum),
-        1e-12,
+        Default::default(),
     ))
 }
 
@@ -56,13 +55,16 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<FloatProbabilities, PipsError> {
 /// Returns an error if any value is non-positive.
 #[expect(clippy::missing_panics_doc, reason = "usize to f64 conversion")]
 #[inline]
-pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabilities, PipsError> {
+pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet<f64>, PipsError> {
     if arr.is_empty() {
         return Err(PipsError::NoAuxiliaries);
     }
 
     if arr.len() < sample_size {
-        return Ok(FloatProbabilities::new_equal_f64(1.0, arr.len(), 1e-12));
+        return Ok(ProbabilitySet::<f64>::new(
+            repeat_n(1.0, arr.len()),
+            Default::default(),
+        ));
     }
 
     if arr.iter().any(|x| !x.is_normal() || (..0.0).contains(x)) {
@@ -71,7 +73,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<FloatProbabili
 
     let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
-    let mut pips = FloatProbabilities::new_equal_f64(0.0, arr.len(), 1e-12);
+    let mut pips = ProbabilitySet::<f64>::new(repeat_n(0.0, arr.len()), Default::default());
     let mut failed = true;
 
     while failed && n > 0.0 {

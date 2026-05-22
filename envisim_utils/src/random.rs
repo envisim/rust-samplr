@@ -59,7 +59,7 @@ pub trait RandomNumberGenerator {
     #[must_use]
     fn ri32_in(&mut self, a: i32, b: i32) -> Option<i32>;
 
-    // Draws a random integer
+    /// Draws a random integer
     #[must_use]
     fn ru64(&mut self) -> u64;
     /// Draws a number from {`0`, ..., `b-1`}
@@ -70,6 +70,19 @@ pub trait RandomNumberGenerator {
     #[inline]
     fn ru64_in(&mut self, a: u64, b: u64) -> Option<u64> {
         (a < b).then_some(self.ru64_to(b - a) + a)
+    }
+
+    /// Draws a random integer
+    #[must_use]
+    fn ru128(&mut self) -> u128;
+    /// Draws a number from {`0`, ..., `b-1`}
+    #[must_use]
+    fn ru128_to(&mut self, b: u128) -> u128;
+    /// Draws a number from {`a`, ..., `b-1`}
+    #[must_use]
+    #[inline]
+    fn ru128_in(&mut self, a: u128, b: u128) -> Option<u128> {
+        (a < b).then_some(self.ru128_to(b - a) + a)
     }
 
     /// Draws a random integer
@@ -226,6 +239,10 @@ mod small_rng {
             (a < b).then_some(self.0.random_range(a..b))
         }
         #[inline]
+        fn ru128(&mut self) -> u128 { self.0.random::<u128>() }
+        #[inline]
+        fn ru128_to(&mut self, b: u128) -> u128 { self.0.random_range(0..b) }
+        #[inline]
         fn ri64(&mut self) -> i64 { self.0.random::<i64>() }
         #[inline]
         fn ri64_in(&mut self, a: i64, b: i64) -> Option<i64> { Some(self.0.random_range(a..b)) }
@@ -270,6 +287,10 @@ mod small_rng {
         fn ru64_in(&mut self, a: u64, b: u64) -> Option<u64> {
             (a < b).then_some(self.0.random_range(a..b))
         }
+        #[inline]
+        fn ru128(&mut self) -> u128 { self.0.random::<u128>() }
+        #[inline]
+        fn ru128_to(&mut self, b: u128) -> u128 { self.0.random_range(0..b) }
         #[inline]
         fn ri64(&mut self) -> i64 { self.0.random::<i64>() }
         #[inline]
