@@ -19,6 +19,7 @@ pub mod number_traits;
 pub mod pips;
 pub mod probabilities;
 pub mod random;
+pub mod sample;
 pub mod sample_controller;
 pub mod sampling_options;
 pub mod spatial;

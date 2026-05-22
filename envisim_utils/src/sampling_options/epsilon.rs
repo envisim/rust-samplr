@@ -18,16 +18,29 @@ use super::{
 };
 use crate::number_traits::Number;
 
+/// An epsilon-like value, used for comparisons between `N` representations
+///
+/// For ints, Epsilon is constricted to 0, and for floats Epsilon should be sufficiently small.
+/// The constructor checks so that epsilon < 1.0, but this is almost guaranteed to be a too loose
+/// restriction. The default epsilon is `1e-12`.
+#[must_use]
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone)]
 pub struct Epsilon<N = f64>(N);
 impl<N> Epsilon<N> {
+    /// Gets the internal epsilon value
+    #[must_use]
+    #[inline]
     pub fn get(self) -> N
     where
         N: Copy,
     {
         self.0
     }
+    /// Constructs a new `Epsilon`
+    /// # Errors
+    /// Returns an error if `eps` is not sufficiently small.
+    #[inline]
     pub fn new(eps: N) -> SamplingOptionsResult<Self>
     where
         N: Number,
@@ -37,6 +50,8 @@ impl<N> Epsilon<N> {
         }
         Ok(Self(eps))
     }
+    #[must_use]
+    #[inline]
     pub fn is_zero(&self, value: N) -> bool
     where
         N: Number,
@@ -45,20 +60,25 @@ impl<N> Epsilon<N> {
     }
 }
 
+/// Implements epsilon for floats
 macro_rules! eps_impl_float {
     ($t:ty) => {
         impl Default for Epsilon<$t> {
+            #[inline]
             fn default() -> Self { Self(1e-12) }
         }
         impl TryFrom<$t> for Epsilon<$t> {
             type Error = SamplingOptionsError;
+            #[inline]
             fn try_from(value: $t) -> Result<Self, Self::Error> { Self::new(value) }
         }
     };
 }
+/// Implements epsilon for ints
 macro_rules! eps_impl_int {
     ($t:ty) => {
         impl Default for Epsilon<$t> {
+            #[inline]
             fn default() -> Self { Self(0) }
         }
     };

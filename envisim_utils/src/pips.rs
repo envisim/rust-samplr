@@ -18,6 +18,7 @@ use num_traits::ToPrimitive;
 
 pub use self::error::PipsError;
 use crate::probabilities::ProbabilitySet;
+use crate::sampling_options::Epsilon;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
@@ -40,9 +41,9 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
         sum += *x;
     }
 
-    Ok(ProbabilitySet::new(
+    Ok(ProbabilitySet::<f64>::new(
         arr.iter().map(|&x| x / sum),
-        Default::default(),
+        Epsilon::default(),
     ))
 }
 
@@ -63,7 +64,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     if arr.len() < sample_size {
         return Ok(ProbabilitySet::<f64>::new(
             repeat_n(1.0, arr.len()),
-            Default::default(),
+            Epsilon::default(),
         ));
     }
 
@@ -73,7 +74,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
 
     let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
-    let mut pips = ProbabilitySet::<f64>::new(repeat_n(0.0, arr.len()), Default::default());
+    let mut pips = ProbabilitySet::<f64>::new(repeat_n(0.0, arr.len()), Epsilon::default());
     let mut failed = true;
 
     while failed && n > 0.0 {
@@ -81,22 +82,22 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
         let sum: f64 = arr
             .iter()
             .enumerate()
-            .filter(|(i, _)| pips.get(*i) < 1.0)
+            .filter(|(i, _)| pips[*i].is_partial())
             .fold(0.0, |acc, (_, &x)| acc + x);
         let curr_n = n;
 
         arr.iter().enumerate().for_each(|(i, &x)| {
-            if pips.get(i) >= 1.0 {
+            if pips[i].is_full() {
                 return;
             }
 
             let p = (x * curr_n) / sum;
-            pips.set(i, p.min(1.0));
+            pips.set(i, p);
 
-            if p >= 1.0 {
+            if pips[i].is_full() {
                 n -= 1.0;
 
-                if !failed && p > 1.0 {
+                if p > 1.0 {
                     failed = true;
                 }
             }

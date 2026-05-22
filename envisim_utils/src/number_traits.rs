@@ -11,6 +11,7 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::cmp::Ordering;
+use std::fmt::Display;
 
 use num_traits::{
     ConstOne,
@@ -21,7 +22,7 @@ use num_traits::{
 };
 
 pub trait Number:
-    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne
+    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Display
 {
     #[must_use]
     #[inline]
@@ -50,7 +51,7 @@ pub trait Number:
 pub trait NumberFloat: Number + Float {}
 
 #[cfg(any(test, feature = "test-utils"))]
-pub trait NumberTest: Number + std::fmt::Display {
+pub trait NumberTest: Number + Display {
     const TEST_EPS: Self;
     #[must_use]
     #[inline]

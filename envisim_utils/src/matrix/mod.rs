@@ -40,6 +40,7 @@ use crate::number_traits::{
     Number,
     NumberFloat,
 };
+use crate::sampling_options::Epsilon;
 pub use crate::spatial::PointSet;
 
 /// Base matrix representation
@@ -360,20 +361,16 @@ impl<N> Matrix<N> {
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[must_use]
     #[inline]
-    pub fn lu_decomposition(&mut self, eps: N) -> Option<Box<[usize]>>
+    pub fn lu_decomposition<E>(&mut self, eps: E) -> Option<Box<[usize]>>
     where
         N: NumberFloat,
+        E: TryInto<Epsilon<N>>,
     {
         // Non-square
         if !self.dims().is_square() {
             return None;
         }
-        // Incorrect eps
-        let eps_max = N::ONE.powi(-2);
-        if !(N::ZERO..eps_max).contains(&eps) {
-            return None;
-        }
-
+        let eps = eps.try_into().ok()?;
         let nrows = self.nrow().get();
         let mut p: Box<[usize]> = (0..nrows).collect::<Vec<usize>>().into_boxed_slice();
 
@@ -394,7 +391,7 @@ impl<N> Matrix<N> {
             }
 
             // Singular matrix
-            if max_val < eps {
+            if eps.is_zero(max_val) {
                 return None;
             }
 
@@ -432,20 +429,16 @@ impl<N> Matrix<N> {
     #[expect(clippy::many_single_char_names, reason = "only within small scope")]
     #[must_use]
     #[inline]
-    pub fn inverse(&self, eps: N) -> Option<Self>
+    pub fn inverse<E>(&self, eps: E) -> Option<Self>
     where
         N: NumberFloat,
+        E: TryInto<Epsilon<N>>,
     {
         // Non-square
         if !self.dims().is_square() {
             return None;
         }
-        // Incorrect eps
-        let eps_max = N::ONE.powi(-2);
-        if !(N::ZERO..eps_max).contains(&eps) {
-            return None;
-        }
-
+        let eps = eps.try_into().ok()?;
         let nrow = self.nrow().get();
 
         if nrow == 2 {
@@ -457,7 +450,7 @@ impl<N> Matrix<N> {
             };
             // ad-bc
             let det = a * d - b * c;
-            if Number::abs(det) < eps {
+            if eps.is_zero(det) {
                 return None;
             };
             // d -c -b a
@@ -482,7 +475,7 @@ impl<N> Matrix<N> {
                 a * e - b * d, // GHI
             ];
             let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
-            if Number::abs(det) < eps {
+            if eps.is_zero(det) {
                 return None;
             };
             for v in &mut inv {

@@ -27,7 +27,7 @@ pub use error::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use probability_opts::{
+pub use probability_opts::{
     EqualProbabilityOptions,
     ProbabilityOptions,
     UnequalProbabilityOptions,
@@ -72,7 +72,6 @@ where
     #[must_use]
     #[inline]
     pub fn sample_size(&self) -> usize { self.probabilities().sample_size() }
-    #[must_use]
     #[inline]
     pub fn eps(&self) -> Epsilon<PO::Real> { self.eps }
     #[must_use]
@@ -106,7 +105,7 @@ where
     #[inline]
     pub fn set_eps<E>(mut self, eps: E) -> SamplingOptionsResult<Self>
     where
-        E: TryInto<Epsilon<PO::Real>>,
+        E: TryInto<Epsilon<PO::Real>, Error = SamplingOptionsError>,
     {
         self.eps = eps.try_into()?;
         Ok(self)
@@ -253,6 +252,7 @@ impl SamplingOptions<EqualProbabilityOptions> {
     }
 }
 
+/// Implements sampling options for floats
 macro_rules! opts_impl_float {
     ($t:ty) => {
         impl<'bprob> SamplingOptions<UnequalProbabilityOptions<'bprob, $t>> {
@@ -265,9 +265,7 @@ macro_rules! opts_impl_float {
                 probabilities: Cow<'bprob, [$t]>,
             ) -> SamplingOptionsResult<SamplingOptions<UnequalProbabilityOptions<'bprob, $t>, (), ()>>
             {
-                let spec = UnequalProbabilityOptions::new(
-                    probabilities,
-                )?;
+                let spec = UnequalProbabilityOptions::<$t>::new(probabilities)?;
                 Ok(Self::with_spec(spec))
             }
             #[inline]
@@ -286,6 +284,7 @@ macro_rules! opts_impl_float {
     };
 }
 
+/// Implements sampling options for unsigned integers
 macro_rules! opts_impl_int {
     ($t:ty) => {
         impl<'bprob> SamplingOptions<UnequalProbabilityOptions<'bprob, $t>> {
@@ -298,9 +297,7 @@ macro_rules! opts_impl_int {
                 probabilities: Cow<'bprob, [$t]>, max: $t
             ) -> SamplingOptionsResult<SamplingOptions<UnequalProbabilityOptions<'bprob, $t>, (), ()>>
             {
-                let spec = UnequalProbabilityOptions::new(
-                    probabilities,max
-                )?;
+                let spec = UnequalProbabilityOptions::<$t>::new(probabilities, max)?;
                 Ok(Self::with_spec(spec))
             }
             #[inline]
@@ -324,7 +321,5 @@ opts_impl_int!(u8);
 opts_impl_int!(u16);
 opts_impl_int!(u32);
 opts_impl_int!(u64);
-opts_impl_int!(u128);
 
-opts_impl_float!(f32);
 opts_impl_float!(f64);

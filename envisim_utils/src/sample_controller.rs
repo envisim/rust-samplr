@@ -17,47 +17,17 @@ use crate::kd_tree::{
     PointSet,
     Tree,
 };
+use crate::number_traits::Number;
 use crate::probabilities::{
     Probability,
     ProbabilityCollection,
     ProbabilitySet,
 };
-use crate::random::FloatRng;
+use crate::random::Rand;
+use crate::sample::Sample;
 use crate::sampling_options::SpreadingOptions;
 
-/// Sample container
-#[must_use]
-#[derive(Debug, Clone)]
-pub struct Sample(Vec<usize>);
-impl Sample {
-    #[inline]
-    pub fn new(capacity: usize) -> Self { Sample(Vec::<usize>::with_capacity(capacity)) }
-    #[inline]
-    pub fn clear(&mut self) { self.0.clear(); }
-    #[inline]
-    pub fn add(&mut self, idx: usize) { self.0.push(idx); }
-    #[inline]
-    pub fn sort(&mut self) { self.0.sort_unstable(); }
-    #[must_use]
-    #[inline]
-    pub fn to_vec(&self) -> Vec<usize> { self.0.clone() }
-    #[must_use]
-    #[inline]
-    pub fn sort_to_vec(&mut self) -> Vec<usize> {
-        self.sort();
-        self.to_vec()
-    }
-    #[must_use]
-    #[inline]
-    pub fn get(&self) -> &[usize] { &self.0 }
-    #[must_use]
-    #[inline]
-    pub fn len(&self) -> usize { self.0.len() }
-    #[must_use]
-    #[inline]
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-}
-
+/// A controller used in sampling designs
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct SampleController<PROB, TREE = ()> {
@@ -72,43 +42,48 @@ pub struct SampleController<PROB, TREE = ()> {
 }
 
 impl<PROB, TREE> SampleController<PROB, TREE> {
-    #[must_use]
+    /// Returns a reference to the probability set
     #[inline]
-    pub fn probabilities(&self) -> &PROB { &self.probabilities }
-    #[must_use]
+    pub fn probabilities(&self) -> &ProbabilitySet<PROB> { &self.probabilities }
+    /// Returns a mutable reference to the probability set
     #[inline]
-    pub fn probabilities_mut(&mut self) -> &mut PROB { &mut self.probabilities }
+    pub fn probabilities_mut(&mut self) -> &mut ProbabilitySet<PROB> { &mut self.probabilities }
+    /// Returns a reference to the indices
     #[inline]
     pub fn indices(&self) -> &Indices { &self.indices }
+    /// Returns a mutable reference to the indices
     #[inline]
     pub fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
+    /// Returns a reference to the sample
     #[inline]
     pub fn sample(&self) -> &Sample { &self.sample }
     #[inline]
     pub fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
-
+    /// Moves self and returns the sorted vector of sample indices
     #[must_use]
     #[inline]
-    pub fn sample_vec(&mut self) -> Vec<usize> { self.sample.sort_to_vec() }
-
+    pub fn to_sorted_sample_vec(self) -> Vec<usize> { self.sample.to_sorted_vec() }
+    /// Returns the populations size
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize { self.probabilities.len() }
-
+    /// Draws a random value constrained by the probability representation
     #[must_use]
     #[inline]
     pub fn draw<R>(&self, rng: &mut R, max: PROB) -> PROB
     where
         ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
-        R: RandomNumberGenerator,
-        R: FloatRng,
+        R: Rand<PROB>,
+        PROB: Number,
     {
         self.probabilities.draw_partial(rng, max)
     }
+    /// Removes a unit if its probability is not partial.
     #[inline]
     pub fn unit_decide(&mut self, idx: usize) -> Probability<PROB>
     where
         Self: UnitRemoving,
+        PROB: Copy,
     {
         let p = self.probabilities[idx];
         match p {
@@ -123,56 +98,69 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         }
         p
     }
+    /// Sets a unit to a new probability `prob` and removes it if `prob` is not partial.
     #[inline]
-    pub fn unit_set_and_decide(&mut self, idx: usize, prob: PROB) -> Probability<PROB>
+    pub fn unit_set_and_decide(&mut self, idx: usize, prob: PROB)
     where
         Self: UnitRemoving,
+        PROB: Number,
     {
         self.probabilities.set(idx, prob);
-        self.unit_decide(idx)
+        let _p = self.unit_decide(idx);
     }
+    /// Sets a unit to a full probability representation and removes it
     #[inline]
-    pub fn unit_set_full(&mut self, idx: usize) -> Probability<PROB>
+    pub fn unit_set_full(&mut self, idx: usize)
     where
         Self: UnitRemoving,
+        PROB: Copy,
     {
-        self.probabilities.set_max(idx);
+        self.probabilities.set_full(idx);
         self.sample.add(idx);
         self.unit_remove(idx);
-        self.probabilities[idx]
     }
+    /// Sets a unit to a zero probability representation and removes it
     #[inline]
-    pub fn unit_set_zero(&mut self, idx: usize) -> Probability<PROB>
+    pub fn unit_set_zero(&mut self, idx: usize)
     where
         Self: UnitRemoving,
+        PROB: Number,
     {
         self.probabilities.set_zero(idx);
         self.unit_remove(idx);
-        self.probabilities[idx]
     }
+    /// Adds `prob` to the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount of `prob` that could not be added
     #[inline]
     pub fn unit_add_and_decide(&mut self, idx: usize, prob: Probability<PROB>) -> Probability<PROB>
     where
         Self: UnitRemoving,
+        PROB: Number,
     {
-        self.probabilities.add(idx, prob);
-        self.unit_decide(idx)
+        let p = self.probabilities.add(idx, prob);
+        let _decision_outcome = self.unit_decide(idx);
+        p
     }
+    /// Decides the outcome of the last unit, or returns `None` if no last unit exists.
     #[inline]
     pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<Probability<PROB>>
     where
         Self: UnitRemoving,
         ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
-        R: FloatRng,
+        R: Rand<PROB>,
+        PROB: Number,
     {
+        if self.indices.len() != 1 {
+            return None;
+        }
         let id = self.indices.last()?;
         let prob = self.probabilities[id];
-
-        if self.probabilities.draw(rng) < prob {
-            Some(self.unit_set_full(id))
+        if self.probabilities.draw(rng) < prob.get() {
+            self.unit_set_full(id);
         } else {
-            Some(self.unit_set_zero(id))
+            self.unit_set_zero(id);
         }
+        Some(self.probabilities[id])
     }
 }
 
