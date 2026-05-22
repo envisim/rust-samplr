@@ -20,7 +20,10 @@ use rustc_hash::{
     FxHashMap,
 };
 
-use crate::random::RandomNumberGenerator;
+use crate::random::{
+    Rng,
+    random_element,
+};
 
 /// A struct (list) for keeping track of indices in use. The internal list keeps track, without
 /// order, of the indices.
@@ -177,9 +180,9 @@ impl Indices {
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<usize>
     where
-        R: RandomNumberGenerator,
+        R: Rng,
     {
-        rng.relement(&self.list).copied()
+        random_element(rng, &self.list).copied()
     }
 
     /// Checks if the list contains an index

@@ -26,7 +26,10 @@ use envisim_utils::matrix::{
     RawData,
 };
 use envisim_utils::probabilities::FloatProbabilities;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
@@ -81,7 +84,7 @@ where
     ) -> SamplingResult<Self>
     where
         PS: ProbabilitySpec,
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
         T: RawData<Elem = f64>,
     {
         let org_probabilities = options.probabilities().as_f64_slice();
@@ -118,7 +121,7 @@ where
         )]
         let strata = HashMap::<STRATA, Vec<usize>, FxSeededState>::with_capacity_and_hasher(
             org_probabilities.len() / 10,
-            FxSeededState::with_seed(rng.rusize()),
+            FxSeededState::with_seed(rng.rand()),
         );
 
         let this = Self {
@@ -168,7 +171,7 @@ where
     #[inline]
     fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.flight_per_stratum(rng);
         if self.strata.is_empty() {
@@ -185,7 +188,7 @@ where
     #[inline]
     fn flight_per_stratum<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let mut removable_stratums = Vec::<STRATA>::new();
         for (stratum_key, stratum) in &mut self.strata {
@@ -214,7 +217,7 @@ where
     #[inline]
     fn flight_on_full<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let adj_data_dim = MatrixDims::new(
             self.balancing_data.nrow(),
@@ -271,7 +274,7 @@ where
     #[inline]
     fn landing_per_stratum<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probabilities = self.org_probabilities.as_ref();
 
@@ -324,7 +327,7 @@ where
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::*;
-/// let mut rng = SmallRng::try_sys_rng().unwrap();
+/// let mut rng = try_sys_rng().unwrap();
 /// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -345,7 +348,7 @@ pub fn cube_stratified<R, PS, AUX, T, STRATA>(
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
-    R: RandomNumberGenerator,
+    R: FloatRng,
     PS: ProbabilitySpec,
     T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
@@ -368,7 +371,7 @@ where
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::*;
-/// let mut rng = SmallRng::try_sys_rng().unwrap();
+/// let mut rng = try_sys_rng().unwrap();
 /// let bal_m = Matrix::new(vec![
 ///     0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -394,7 +397,7 @@ pub fn local_cube_stratified<R, PS, P, T, STRATA>(
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
-    R: RandomNumberGenerator,
+    R: FloatRng,
     PS: ProbabilitySpec,
     P: PointSet,
     T: RawData<Elem = f64>,

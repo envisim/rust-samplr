@@ -22,7 +22,7 @@ use crate::probabilities::{
     ProbabilityCollection,
     ProbabilitySet,
 };
-use crate::random::RandomNumberGenerator;
+use crate::random::FloatRng;
 use crate::sampling_options::SpreadingOptions;
 
 /// Sample container
@@ -101,6 +101,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     where
         ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
         R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.probabilities.draw_partial(rng, max)
     }
@@ -162,7 +163,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     where
         Self: UnitRemoving,
         ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let id = self.indices.last()?;
         let prob = self.probabilities[id];

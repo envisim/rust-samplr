@@ -14,7 +14,10 @@
 
 use envisim_utils::indices::Pair;
 use envisim_utils::probabilities::ProbabilityStore;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
@@ -23,7 +26,7 @@ use envisim_utils::sample_controller::{
 pub trait PivotalStrategy<PST, TREE> {
     fn select_pair<R>(&mut self, controller: &mut SampleController<PST, TREE>, rng: &mut R) -> Pair
     where
-        R: RandomNumberGenerator;
+        R: Rand<usize>;
 }
 
 #[expect(
@@ -48,7 +51,7 @@ where
     #[inline]
     pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.run(rng);
         self.controller.sample_vec()
@@ -57,7 +60,7 @@ where
     #[inline]
     pub fn run<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         while self.update_probabilities(rng) {}
         let _last = self.controller.unit_decide_last(rng);
@@ -67,7 +70,7 @@ where
     #[inline]
     fn update_probabilities<R>(&mut self, rng: &mut R) -> bool
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let (id1, id2, cont) = match self.strategy.select_pair(&mut self.controller, rng) {
             Pair::More(id1, id2) => (id1, id2, true),

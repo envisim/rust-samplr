@@ -11,10 +11,24 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Utils for using R randomness and RNG state in rust
+#![allow(
+    clippy::as_conversions,
+    clippy::little_endian_bytes,
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "used in almost every random number function"
+)]
 
-use std::cmp::Ordering;
+use std::convert::Infallible;
 
-pub use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rng,
+    TryRng,
+};
 
 unsafe extern "C" {
     fn GetRNGstate();
@@ -47,98 +61,42 @@ impl Drop for RRng {
     }
 }
 
-impl RandomNumberGenerator for RRng {
+impl TryRng for RRng {
+    type Error = Infallible;
     #[inline]
-    fn rf64(&mut self) -> f64 {
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok((self.next_f64() * ((1_u64 << 32) as f64)) as u32)
+    }
+    #[inline]
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let high = self.next_u32() as u64;
+        let low = self.next_u32() as u64;
+        Ok((high << 32) | low)
+    }
+    #[inline]
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        let mut chunks = dst.chunks_exact_mut(4);
+
+        for chunk in &mut chunks {
+            let arr: &mut [u8; 4] = chunk.try_into().expect("chunk to be exactly len 4");
+            *arr = self.next_u32().to_le_bytes();
+        }
+
+        let rem = chunks.into_remainder();
+        if !rem.is_empty() {
+            let bytes = self.next_u32().to_le_bytes();
+            for (i, r) in rem.iter_mut().enumerate() {
+                *r = bytes[i];
+            }
+        }
+        Ok(())
+    }
+}
+
+impl FloatRng for RRng {
+    #[inline]
+    fn next_f64(&mut self) -> f64 {
         // SAFETY: C-R interface
         unsafe { unif_rand() }
-    }
-    #[expect(
-        clippy::cast_sign_loss,
-        clippy::as_conversions,
-        reason = "intended behaviour"
-    )]
-    #[inline]
-    fn ru32(&mut self) -> u32 { self.ri32() as u32 }
-    #[inline]
-    fn ru32_to(&mut self, b: u32) -> u32 {
-        loop {
-            let u = self.ru32();
-            let m = u32::MAX - (u32::MAX % b);
-            if u < m {
-                return u % b;
-            }
-        }
-    }
-    #[expect(
-        clippy::as_conversions,
-        clippy::cast_possible_truncation,
-        reason = "intended behaviour"
-    )]
-    #[inline]
-    fn ri32(&mut self) -> i32 {
-        let f = self.rf64() * 2.0 - 1.0;
-        (f * f64::from(i32::MAX)).floor() as i32
-    }
-    #[expect(
-        clippy::as_conversions,
-        clippy::cast_possible_truncation,
-        reason = "intended behaviour"
-    )]
-    #[inline]
-    fn ri32_in(&mut self, a: i32, b: i32) -> Option<i32> {
-        self.rf64_in(a.into(), b.into()).map(|v| v.floor() as i32)
-    }
-    #[inline]
-    fn ru64(&mut self) -> u64 {
-        let high = u64::from(self.ru32());
-        let low = u64::from(self.ru32());
-        (high << 32) | low
-    }
-    #[inline]
-    fn ru64_to(&mut self, b: u64) -> u64 {
-        loop {
-            let u = self.ru64();
-            let m = u64::MAX - (u64::MAX % b);
-            if u < m {
-                return u % b;
-            }
-        }
-    }
-    #[expect(
-        clippy::as_conversions,
-        clippy::cast_possible_wrap,
-        reason = "intended behaviour"
-    )]
-    #[inline]
-    fn ri64(&mut self) -> i64 { self.ru64() as i64 }
-    #[expect(
-        clippy::cast_sign_loss,
-        clippy::as_conversions,
-        reason = "intended behaviour"
-    )]
-    #[inline]
-    fn ri64_in(&mut self, a: i64, b: i64) -> Option<i64> {
-        match a.cmp(&b) {
-            Ordering::Greater => return None,
-            Ordering::Equal => return Some(a),
-            Ordering::Less => (),
-        };
-
-        let diff = (b as u64).wrapping_sub(a as u64);
-        // d can be 0...u32::MAX...i64::MAX / infty
-
-        if let Ok(d) = u32::try_from(diff) {
-            return Some(i64::from(self.ru32_to(d)) + a);
-        }
-
-        loop {
-            let unif = self.ru64() & 0x7FFF_FFFF_FFFF_FFFF;
-            let m_cap = u64::MAX - (u64::MAX) % diff;
-            if unif < m_cap {
-                #[expect(clippy::cast_possible_wrap, reason = "intended behaviour")]
-                return Some((unif % diff) as i64 + a);
-            }
-        }
     }
 }

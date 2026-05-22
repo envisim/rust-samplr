@@ -51,7 +51,7 @@ mod dbd_trait {
     //! Distributionally balanced design trait
     use std::num::NonZeroUsize;
 
-    use envisim_utils::random::RandomNumberGenerator;
+    use envisim_utils::random::FloatRng;
     use envisim_utils::sampling_options::{
         ProbabilitySpecEqual,
         SamplingOptions,
@@ -84,7 +84,7 @@ mod dbd_trait {
         /// # use envisim_samplr::*;
         /// # use envisim_utils::random::*;
         /// # use envisim_utils::matrix::*;
-        /// let mut rng = SmallRng::try_sys_rng().unwrap();
+        /// let mut rng = try_sys_rng().unwrap();
         /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
         /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
         /// let dbd_opts = DistributionalDesignOptions::default();
@@ -102,7 +102,7 @@ mod dbd_trait {
             dbs_options: DistributionalDesignOptions,
         ) -> SamplingResult<CircularConfiguration>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
         /// Construct a distributionally balanced design using a tactical configuration
         ///
         /// # Examples
@@ -110,7 +110,7 @@ mod dbd_trait {
         /// # use envisim_samplr::*;
         /// # use envisim_utils::random::*;
         /// # use envisim_utils::matrix::*;
-        /// let mut rng = SmallRng::try_sys_rng().unwrap();
+        /// let mut rng = try_sys_rng().unwrap();
         /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
         /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
         /// let dbd_opts = DistributionalDesignOptions::default();
@@ -128,7 +128,7 @@ mod dbd_trait {
             dbs_options: DistributionalDesignOptions,
         ) -> SamplingResult<TacticalConfiguration>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
         /// # Errors
         /// Returns an error if `sample_size` is 0.
         fn dbd_circular_iterations<R>(
@@ -139,7 +139,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
         /// # Errors
         /// Returns an error if `sample_size` is 0.
         fn dbd_tc_iterations<R>(
@@ -150,7 +150,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
     }
 
     impl<P, BAL> DistributionalDesigns
@@ -165,7 +165,7 @@ mod dbd_trait {
             dbs_options: DistributionalDesignOptions,
         ) -> SamplingResult<CircularConfiguration>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             let sample_size =
                 NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
@@ -188,7 +188,7 @@ mod dbd_trait {
             dbs_options: DistributionalDesignOptions,
         ) -> SamplingResult<TacticalConfiguration>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             let sample_size =
                 NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
@@ -223,7 +223,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));
@@ -285,7 +285,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));
@@ -350,7 +350,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
         /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
         ///
         /// # Errors
@@ -363,7 +363,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator;
+            R: FloatRng;
     }
     impl<P, BAL> DistributionalDesignEvaluators
         for SamplingOptions<ProbabilitySpecEqual, SpreadingOptions<P>, BAL>
@@ -379,7 +379,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));
@@ -437,7 +437,7 @@ mod dbd_trait {
             by: NonZeroUsize,
         ) -> SamplingResult<Vec<f64>>
         where
-            R: RandomNumberGenerator,
+            R: FloatRng,
         {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));

@@ -33,7 +33,11 @@ use envisim_utils::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
 };
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+    random_weighted,
+};
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
@@ -60,7 +64,7 @@ pub trait CubeStrategy<TREE> {
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     // Used for stratified
     fn reset_to_ids(
         &mut self,
@@ -97,7 +101,7 @@ where
     #[inline]
     pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.run(rng);
         self.controller.sample_vec()
@@ -106,7 +110,7 @@ where
     #[inline]
     pub fn run<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.run_flight(rng);
         self.run_landing(rng);
@@ -119,7 +123,7 @@ where
     #[inline]
     pub fn run_flight<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let b_cols = self.adjusted_data.ncol();
         assert_eq!(
@@ -147,7 +151,7 @@ where
     #[inline]
     pub fn run_landing<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let b_cols = self.adjusted_data.ncol();
         let len = self.controller.indices().len();
@@ -235,7 +239,7 @@ where
     #[inline]
     fn update_probabilities<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: Rand<f64>,
     {
         let uvec = find_vector_in_null_space(&mut self.candidate_data);
         let mut lambdas = (f64::MAX, f64::MAX);
@@ -257,8 +261,7 @@ where
             }
         }
 
-        let lambda = if rng
-            .one_of_f64(lambdas.0, lambdas.1)
+        let lambda = if random_weighted(rng, lambdas.0, lambdas.1)
             .expect("both lambdas to be non-negative, with at least one positive")
         {
             lambdas.0
@@ -298,7 +301,7 @@ impl CubeStrategy<()> for SequentialCubeStrategy {
         _rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         set_candidates_from_indices_sequentially(candidates, controller.indices(), n_units);
     }
@@ -345,7 +348,7 @@ impl CubeStrategy<()> for RandomCubeStrategy {
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         set_candidates_from_indices_randomly(rng, candidates, controller.indices(), n_units);
     }
@@ -422,7 +425,7 @@ where
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         assert!(
             n_units.get() > 1,
@@ -523,7 +526,7 @@ pub trait CubeSampling {
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
@@ -538,7 +541,7 @@ pub trait CubeSampling {
     #[must_use]
     fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
@@ -550,7 +553,7 @@ pub trait CubeSampling {
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
@@ -565,7 +568,7 @@ pub trait CubeSampling {
     #[must_use]
     fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 pub trait LocalCubeSampling<P>
 where
@@ -574,7 +577,7 @@ where
     #[must_use]
     fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 impl<PS, AUX, T> CubeSampling for SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>
 where
@@ -584,14 +587,14 @@ where
     #[inline]
     fn cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         RandomCubeStrategy::new(self).sample(rng)
     }
     #[inline]
     fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         SequentialCubeStrategy::new(self).sample(rng)
     }
@@ -606,7 +609,7 @@ where
     #[inline]
     fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         LocalCubeStrategy::new(self).sample(rng)
     }

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 - MSRV: 1.85.1
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
+- Added dependency [`rand_core`](https://crates.io/crates/rand_core).
 - Bumped optional dependency [`rand`](https://crates.io/crates/rand) to 0.10.1.
 
 ### Added
@@ -24,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added search point representation `SearchPoint`.
 - Added trait `FindSplit`, implemented for `MidpointSlide`.
 - Added `try_sys_rng` for `SmallRng`, which returns a random number generator using `rand::rngs::SysRng`.
+- Added trait `FloatRng` which extends `rand_core::Rng` with the method `next_f64`, which is needed in order to construct `Rng` from the R `unif_rand` API.
+- Added trait `Rand<N>`, which extends `Rng` to draw numbers from `N`. Implemented for primitive integers and `f64`.
+- Added trait `RandSlice<N>` which extends `Rand<N>` to draw numbers into a slice.
+- Added functions `random_element`, `random_weighted` for drawing a random element from a slice and making a weighted selection respectively.
 
 ### Changed
 - Made `Matrix` generic over `Number`. `Matrix` is now a type alias for `MatrixBase`, and represents an owned matrix. The type alias for a reference matrix is `MatrixRef`.
@@ -45,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed tree-searchers `Searcher`, `SearcherWeigthed`.
 - Removed type alias `FindSplit`.
 - Removed utility functions `usize_to_f64` and `f64_to_usize`. Use `num_traits::ToPrimitive` instead.
+- Removed trait `RandomNumberGenerator`.
 
 
 ## [0.4.0 - 2026-03-27]

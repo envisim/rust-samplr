@@ -28,7 +28,7 @@ use crate::number_traits::{
     Number,
     NumberFloat,
 };
-use crate::random::RandomNumberGenerator;
+use crate::random::FloatRng;
 use crate::sampling_options::Epsilon;
 
 pub trait ProbabilityValue {
@@ -143,10 +143,10 @@ pub trait ProbabilityCollection {
         Self::N: Number;
     fn draw<R>(&self, rng: &mut R) -> Self::N
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 pub trait RealProbabilityCollection: ProbabilityCollection
 where
@@ -287,13 +287,13 @@ macro_rules! prob_float {
             }
             fn draw<R>(&self, rng: &mut R) -> Self::N
             where
-                R: RandomNumberGenerator,
+                R: FloatRng,
             {
                 rng.$r()
             }
             fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
             where
-                R: RandomNumberGenerator,
+                R: FloatRng,
             {
                 assert!(0.0 < max && max <= 1.0);
                 rng.$r() * max
@@ -332,13 +332,13 @@ macro_rules! prob_int {
             }
             fn draw<R>(&self, rng: &mut R) -> Self::N
             where
-                R: RandomNumberGenerator,
+                R: FloatRng,
             {
                 self.draw_partial(rng, self.max)
             }
             fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
             where
-                R: RandomNumberGenerator,
+                R: FloatRng,
             {
                 assert!(0 < max && max <= self.max);
                 rng.$r(max)

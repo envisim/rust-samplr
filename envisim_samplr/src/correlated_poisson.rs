@@ -38,7 +38,11 @@ use envisim_utils::probabilities::{
     FloatProbabilities,
     ProbabilityStore,
 };
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+    random_element,
+};
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
@@ -61,14 +65,14 @@ use crate::error::SamplingResult;
 pub trait CorrelatedPoissonStrategy<TREE> {
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     fn select_unit<R>(
         &mut self,
         controller: &mut SampleController<FloatProbabilities, TREE>,
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     fn update_probabilities(
         &mut self,
         controller: &mut SampleController<FloatProbabilities, TREE>,
@@ -99,7 +103,7 @@ where
     #[inline]
     fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.run(rng);
         self.controller.sample_vec()
@@ -108,7 +112,7 @@ where
     #[inline]
     fn run<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         while let Some(id) = self.strategy.select_unit(&mut self.controller, rng) {
             let (p, q) = self.decide_unit(rng, id);
@@ -121,7 +125,7 @@ where
     #[must_use]
     fn decide_unit<R>(&mut self, rng: &mut R, id: usize) -> (f64, f64)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let probability = self.controller.probabilities().get(id);
         let mut quota = probability;
@@ -192,7 +196,7 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.random_values.get_or(id, rng)
     }
@@ -203,7 +207,7 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
         _rng: &mut R,
     ) -> Option<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         // Tempting to use controller.indices().last(), but order is not guaranteed as swap_remove
         // might move a unit forward in the indices.list().
@@ -384,7 +388,7 @@ where
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         self.random_values.get_or(id, rng)
     }
@@ -396,7 +400,7 @@ where
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         if controller.indices().is_empty() {
             return None;
@@ -468,9 +472,9 @@ where
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, _id: usize) -> f64
     where
-        R: RandomNumberGenerator,
+        R: Rand<f64>,
     {
-        rng.rf64()
+        rng.rand()
     }
     #[must_use]
     #[inline]
@@ -480,7 +484,7 @@ where
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         if controller.indices().len() <= 1 {
             return controller.indices().first();
@@ -521,7 +525,7 @@ where
             i += 1;
         }
 
-        rng.relement(&self.candidates).copied()
+        random_element(rng, &self.candidates).copied()
     }
     #[inline]
     fn update_probabilities(
@@ -543,7 +547,7 @@ pub trait CorrelatedPoissonSampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.cps(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -552,7 +556,7 @@ pub trait CorrelatedPoissonSampling {
     #[must_use]
     fn cps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -562,7 +566,7 @@ pub trait CorrelatedPoissonSampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let rv: Vec<f64> = vec![0.2; 10];
     /// let s = SamplingOptions::new(p.into())?.cps_coord(&mut rng, rv)?;
@@ -576,7 +580,7 @@ pub trait CorrelatedPoissonSampling {
     /// Returns an error if fewer than `population_size` random values is provided.
     fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>;
 }
 pub trait SpatiallyCorrelatedPoissonSampling<P>
@@ -591,7 +595,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.scps(&mut rng);
@@ -601,7 +605,7 @@ where
     #[must_use]
     fn scps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -612,7 +616,7 @@ where
     /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let rv: Vec<f64> = vec![0.2; 10];
@@ -631,7 +635,7 @@ where
         random_values: C,
     ) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -641,7 +645,7 @@ where
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p.into())?.set_spreading(m)?.lcps(&mut rng);
@@ -651,7 +655,7 @@ where
     #[must_use]
     fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 impl<PS, AUX, BAL> CorrelatedPoissonSampling for SamplingOptions<PS, AUX, BAL>
 where
@@ -660,14 +664,14 @@ where
     #[inline]
     fn cps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         SequentialStrategy::new(self).sample(rng)
     }
     #[inline]
     fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>,
     {
         Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
@@ -682,14 +686,14 @@ where
     #[inline]
     fn scps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         SpatialStrategy::new(self).sample(rng)
     }
     #[inline]
     fn scps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>,
     {
         Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
@@ -697,7 +701,7 @@ where
     #[inline]
     fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         LocalStrategy::new(self).sample(rng)
     }
@@ -738,7 +742,7 @@ mod tests {
         id: usize,
     ) -> (f64, f64)
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
         S: CorrelatedPoissonStrategy<TREE>,
         SampleController<FloatProbabilities, TREE>: UnitRemoving,
     {

@@ -15,7 +15,7 @@
 use std::num::NonZeroUsize;
 
 pub use config::*;
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::Rand;
 use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
 
@@ -225,11 +225,11 @@ where
     #[inline]
     fn draw_units<R>(&mut self, rng: &mut R)
     where
-        R: RandomNumberGenerator,
+        R: Rand<usize>,
     {
         let n = self.tcp().population_size().get();
-        let a = rng.rusize_to(n);
-        let b = rng.rusize_to(n - 1);
+        let a = rng.rand_in(0..n);
+        let b = rng.rand_in(0..(n - 1));
         self.pair = if a == b { (a, n - 1) } else { (a, b) };
     }
     #[inline]
