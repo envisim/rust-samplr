@@ -59,29 +59,6 @@ pub trait NumberFloat: Number + Float {}
 /// Integer numbers
 pub trait NumberInt: Number + Integer {}
 
-#[cfg(any(test, feature = "test-utils"))]
-/// Test utils for numbers
-pub trait NumberTest: Number + Display {
-    // const TEST_EPS: Self;
-    #[must_use]
-    #[inline]
-    fn test_eps(&self) -> Self {
-        // Self::TEST_EPS
-        Self::DEFAULT_EPSILON_VALUE
-    }
-    #[must_use]
-    #[inline]
-    fn approx_eq(self, other: Self) -> bool {
-        // Number::abs_difference(self, other) <= Self::TEST_EPS
-        Number::abs_difference(self, other) <= Self::DEFAULT_EPSILON_VALUE
-    }
-    #[must_use]
-    #[inline]
-    fn approx_eq_eps(self, other: Self, eps: Self) -> bool {
-        Number::abs_difference(self, other) <= eps
-    }
-}
-
 /// Interanal macro that implements `Number` for floats
 macro_rules! number_impl_float {
     ($t:ty) => {
@@ -114,11 +91,6 @@ macro_rules! number_impl_float {
         }
 
         impl NumberFloat for $t {}
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            // const TEST_EPS: Self = 1e-12;
-        }
     };
 }
 /// Interanal macro that implements `Number` for unsigned integers
@@ -138,13 +110,6 @@ macro_rules! number_impl_uint {
         }
 
         impl NumberInt for $t {}
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            // const TEST_EPS: Self = 0;
-            #[inline]
-            fn approx_eq(self, other: Self) -> bool { self == other }
-        }
     };
 }
 /// Interanal macro that implements `Number` for signed integers
@@ -173,13 +138,6 @@ macro_rules! number_impl_sint {
         }
 
         impl NumberInt for $t {}
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            // const TEST_EPS: Self = 0;
-            #[inline]
-            fn approx_eq(self, other: Self) -> bool { self == other }
-        }
     };
 }
 
