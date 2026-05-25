@@ -21,9 +21,9 @@ use envisim_utils::matrix::{
     MatrixBase,
     RawData,
 };
-use envisim_utils::probabilities::FloatProbabilities;
+use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
-    ProbabilitySpec,
+    ProbabilityOptions,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -112,7 +112,7 @@ where
 
         for j in 0..i {
             let p_ij = probabilities_second_order[(i, j)];
-            if !FloatProbabilities::is_prob(p_ij) {
+            if !Probability::is_probability(p_ij, 1.0) {
                 return Err(EstimationError::InvalidProbability);
             } else if p_ij == 0.0 {
                 return Ok(f64::NAN);
@@ -158,7 +158,7 @@ where
 
         for j in 0..i {
             let p_ij = probabilities_second_order[(i, j)];
-            if !FloatProbabilities::is_prob(p_ij) {
+            if !Probability::is_probability(p_ij, 1.0) {
                 return Err(EstimationError::InvalidProbability);
             } else if p_ij == 0.0 {
                 return Ok(f64::NAN);
@@ -210,13 +210,13 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> EstimationRe
 /// # Panics
 /// Panics if `P` does not contains units `0..sample_size`.
 #[inline]
-pub fn local_mean_variance<PS, P, BAL>(
+pub fn local_mean_variance<PO, P, BAL>(
     y_values: &[f64],
-    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     n_neighbours: NonZeroUsize,
 ) -> EstimationResult<f64>
 where
-    PS: ProbabilitySpec,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet<N = f64>,
 {
     let sample_size = y_values.len();
@@ -225,7 +225,7 @@ where
         return Ok(0.0);
     }
 
-    let probabilities = options.probabilities().as_f64_slice();
+    let probabilities = options.probabilities().to_slice_real();
     let tree = options.spreading().to_tree();
     // +1 since we search for self also
     let mut searcher = KNearestNeighbourSearcher::new(
@@ -282,6 +282,10 @@ mod test {
 
     #[test]
     fn test_ht() {
-        assert_delta!(estimate(&Y_VALS, &PI_VALS).unwrap(), 11437.46, 0.01);
+        assert_delta!(
+            estimate(&Y_VALS, &PI_VALS).unwrap(),
+            11437.46,
+            Epsilon::new(0.01).unwrap()
+        );
     }
 }

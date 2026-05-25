@@ -12,13 +12,15 @@
 
 //! Utility functions for envisim
 
+mod epsilon;
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;
-pub mod number_traits;
+mod number_traits;
 pub mod pips;
 pub mod probabilities;
 pub mod random;
+pub mod sample;
 pub mod sample_controller;
 pub mod sampling_options;
 pub mod spatial;
@@ -26,3 +28,9 @@ pub mod utils;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
+
+pub use epsilon::Epsilon;
+pub use number_traits::{
+    Number,
+    NumberFloat,
+};

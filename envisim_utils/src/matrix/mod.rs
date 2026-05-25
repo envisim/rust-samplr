@@ -40,6 +40,7 @@ use crate::number_traits::{
     Number,
     NumberFloat,
 };
+use crate::sampling_options::Epsilon;
 pub use crate::spatial::PointSet;
 
 /// Base matrix representation
@@ -360,20 +361,16 @@ impl<N> Matrix<N> {
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[must_use]
     #[inline]
-    pub fn lu_decomposition(&mut self, eps: N) -> Option<Box<[usize]>>
+    pub fn lu_decomposition<E>(&mut self, eps: E) -> Option<Box<[usize]>>
     where
         N: NumberFloat,
+        E: TryInto<Epsilon<N>>,
     {
         // Non-square
         if !self.dims().is_square() {
             return None;
         }
-        // Incorrect eps
-        let eps_max = N::ONE.powi(-2);
-        if !(N::ZERO..eps_max).contains(&eps) {
-            return None;
-        }
-
+        let eps = eps.try_into().ok()?;
         let nrows = self.nrow().get();
         let mut p: Box<[usize]> = (0..nrows).collect::<Vec<usize>>().into_boxed_slice();
 
@@ -394,7 +391,7 @@ impl<N> Matrix<N> {
             }
 
             // Singular matrix
-            if max_val < eps {
+            if eps.is_zero(max_val) {
                 return None;
             }
 
@@ -432,20 +429,16 @@ impl<N> Matrix<N> {
     #[expect(clippy::many_single_char_names, reason = "only within small scope")]
     #[must_use]
     #[inline]
-    pub fn inverse(&self, eps: N) -> Option<Self>
+    pub fn inverse<E>(&self, eps: E) -> Option<Self>
     where
         N: NumberFloat,
+        E: TryInto<Epsilon<N>>,
     {
         // Non-square
         if !self.dims().is_square() {
             return None;
         }
-        // Incorrect eps
-        let eps_max = N::ONE.powi(-2);
-        if !(N::ZERO..eps_max).contains(&eps) {
-            return None;
-        }
-
+        let eps = eps.try_into().ok()?;
         let nrow = self.nrow().get();
 
         if nrow == 2 {
@@ -457,7 +450,7 @@ impl<N> Matrix<N> {
             };
             // ad-bc
             let det = a * d - b * c;
-            if Number::abs(det) < eps {
+            if eps.is_zero(det) {
                 return None;
             };
             // d -c -b a
@@ -482,7 +475,7 @@ impl<N> Matrix<N> {
                 a * e - b * d, // GHI
             ];
             let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
-            if Number::abs(det) < eps {
+            if eps.is_zero(det) {
                 return None;
             };
             for v in &mut inv {
@@ -808,7 +801,7 @@ mod tests {
         //   3 4 0 ]
         let mut valid_matrix = Matrix::new(vec![1., 2., 3., 0., 1., 4., 5., 6., 0.], 3).unwrap();
 
-        let lu_res = valid_matrix.lu_decomposition(f64::TEST_EPS);
+        let lu_res = valid_matrix.lu_decomposition(Epsilon::default());
         assert_eq!(lu_res.unwrap(), [2usize, 1, 0].into());
         assert_mat!(
             valid_matrix,
@@ -817,7 +810,7 @@ mod tests {
                 3
             )
             .unwrap(),
-            1e-4
+            Epsilon::new(1e-4).unwrap()
         );
 
         // Singular matrix (dependent columns)
@@ -826,7 +819,7 @@ mod tests {
         //   1 2 3 ]
         let mut singular_matrix = Matrix::new(vec![1., 2., 3., 1., 2., 3., 1., 2., 3.], 3).unwrap();
 
-        let lu_singular = singular_matrix.lu_decomposition(f64::TEST_EPS);
+        let lu_singular = singular_matrix.lu_decomposition(Epsilon::default());
         assert!(lu_singular.is_none());
     }
 
@@ -843,7 +836,7 @@ mod tests {
         let expected = Matrix::new(vec![-2., 3., 3., -4.], 2).unwrap();
 
         let inv = m
-            .inverse(f64::TEST_EPS)
+            .inverse(Epsilon::default())
             .expect("Failed to invert 2x2 matrix");
         assert_mat!(inv, expected);
     }
@@ -862,7 +855,7 @@ mod tests {
         //   -5   4  1 ]
         let expected = Matrix::new(vec![-24., 20., -5., 18., -15., 4., 5., -4., 1.], 3).unwrap();
 
-        let inv = m.inverse(f64::TEST_EPS).unwrap();
+        let inv = m.inverse(Epsilon::default()).unwrap();
         assert_mat!(inv, expected);
     }
 
@@ -894,7 +887,7 @@ mod tests {
         )
         .unwrap();
 
-        let inv = m.inverse(f64::TEST_EPS).unwrap();
+        let inv = m.inverse(Epsilon::default()).unwrap();
         assert_mat!(inv, expected);
     }
 
@@ -902,7 +895,7 @@ mod tests {
     fn test_inverse_singular() {
         // All elements are 1.0, making the matrix singular (determinant = 0)
         let m = Matrix::new(vec![1.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let inv = m.inverse(f64::TEST_EPS);
+        let inv = m.inverse(Epsilon::default());
         assert!(inv.is_none());
     }
 }

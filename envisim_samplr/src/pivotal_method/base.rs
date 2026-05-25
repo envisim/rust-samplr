@@ -13,15 +13,15 @@
 //! Basic pivotal methods
 
 use envisim_utils::indices::Pair;
-use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::random::{
-    FloatRng,
     Rand,
+    Rng,
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilitySpec,
+    ProbabilityOptions,
     SamplingOptions,
+    SamplingOptionsRng,
 };
 
 use super::runner::{
@@ -34,11 +34,11 @@ pub struct SequentialStrategy();
 impl SequentialStrategy {
     /// Constructs a new [`PivotalRunner`] using the sequential strategy
     #[inline]
-    pub fn new<PS, AUX, BAL>(
-        options: &SamplingOptions<PS, AUX, BAL>,
-    ) -> PivotalRunner<Self, PS::Native, ()>
+    pub fn new<PO, AUX, BAL>(
+        options: &SamplingOptions<PO, AUX, BAL>,
+    ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -47,12 +47,9 @@ impl SequentialStrategy {
         }
     }
 }
-impl<PST> PivotalStrategy<PST, ()> for SequentialStrategy
-where
-    PST: ProbabilityStore,
-{
+impl<PROB> PivotalStrategy<PROB, ()> for SequentialStrategy {
     #[inline]
-    fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, _rng: &mut R) -> Pair
+    fn select_pair<R>(&mut self, controller: &mut SampleController<PROB, ()>, _rng: &mut R) -> Pair
     where
         R: Rand<usize>,
     {
@@ -66,11 +63,11 @@ pub struct RandomStrategy();
 impl RandomStrategy {
     /// Constructs a new [`PivotalRunner`] using the random strategy
     #[inline]
-    pub fn new<PS, AUX, BAL>(
-        options: &SamplingOptions<PS, AUX, BAL>,
-    ) -> PivotalRunner<Self, PS::Native, ()>
+    pub fn new<PO, AUX, BAL>(
+        options: &SamplingOptions<PO, AUX, BAL>,
+    ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -79,12 +76,9 @@ impl RandomStrategy {
         }
     }
 }
-impl<PST> PivotalStrategy<PST, ()> for RandomStrategy
-where
-    PST: ProbabilityStore,
-{
+impl<PROB> PivotalStrategy<PROB, ()> for RandomStrategy {
     #[inline]
-    fn select_pair<R>(&mut self, controller: &mut SampleController<PST, ()>, rng: &mut R) -> Pair
+    fn select_pair<R>(&mut self, controller: &mut SampleController<PROB, ()>, rng: &mut R) -> Pair
     where
         R: Rand<usize>,
     {
@@ -112,7 +106,10 @@ where
     }
 }
 
-pub trait PivotalSampling {
+pub trait PivotalSampling<R>
+where
+    R: Rng,
+{
     /// Draw a sample using the sequential pivotal method.
     /// A variant of the pivotal method where unit competes in order.
     ///
@@ -127,9 +124,7 @@ pub trait PivotalSampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn spm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn spm(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the random pivotal method.
     /// A variant of the pivotal method where unit competes in a random order.
     ///
@@ -144,27 +139,16 @@ pub trait PivotalSampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn rpm(&self, rng: &mut R) -> Vec<usize>;
 }
 
-impl<PS, AUX, BAL> PivotalSampling for SamplingOptions<PS, AUX, BAL>
+impl<R, PO, AUX, BAL> PivotalSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions,
 {
     #[inline]
-    fn spm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        SequentialStrategy::new(self).sample(rng)
-    }
+    fn spm(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }
     #[inline]
-    fn rpm<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        RandomStrategy::new(self).sample(rng)
-    }
+    fn rpm(&self, rng: &mut R) -> Vec<usize> { RandomStrategy::new(self).sample(rng) }
 }

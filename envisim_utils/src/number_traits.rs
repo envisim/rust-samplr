@@ -10,8 +10,12 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::cmp::Ordering;
+//! Provides a trait [`Number`], extending `num_traits`
 
+use std::cmp::Ordering;
+use std::fmt::Display;
+
+use num_integer::Integer;
 use num_traits::{
     ConstOne,
     ConstZero,
@@ -20,9 +24,14 @@ use num_traits::{
     NumCast,
 };
 
+use crate::Epsilon;
+
+/// An extension of [`num_traits::NumAssign`]
 pub trait Number:
-    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne
+    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Display
 {
+    const DEFAULT_EPSILON_VALUE: Self;
+
     #[must_use]
     #[inline]
     fn epsilonish() -> Self { Self::ZERO }
@@ -46,29 +55,23 @@ pub trait Number:
 
     #[must_use]
     fn compare(&self, other: &Self) -> Ordering;
-}
-pub trait NumberFloat: Number + Float {}
 
-#[cfg(any(test, feature = "test-utils"))]
-pub trait NumberTest: Number + std::fmt::Display {
-    const TEST_EPS: Self;
-    #[must_use]
     #[inline]
-    fn test_eps(&self) -> Self { Self::TEST_EPS }
-    #[must_use]
-    #[inline]
-    fn approx_eq(self, other: Self) -> bool { Number::abs(self - other) <= Self::TEST_EPS }
-    #[must_use]
-    #[inline]
-    fn approx_eq_eps(self, other: Self, eps: Self) -> bool {
-        Number::abs_difference(self, other) <= eps
-    }
+    fn default_epsilon(&self) -> Epsilon<Self> { Epsilon::default() }
 }
+/// Floating point numbers
+pub trait NumberFloat: Number + Float {}
+impl<N> NumberFloat for N where N: Number + Float {}
+/// Integer numbers
+pub trait NumberInt: Number + Integer {}
+impl<N> NumberInt for N where N: Number + Integer {}
 
 /// Interanal macro that implements `Number` for floats
 macro_rules! number_impl_float {
     ($t:ty) => {
         impl Number for $t {
+            const DEFAULT_EPSILON_VALUE: Self = 1e-12;
+
             #[inline]
             fn epsilonish() -> Self { <$t>::EPSILON }
             #[inline]
@@ -93,19 +96,14 @@ macro_rules! number_impl_float {
                 }
             }
         }
-
-        impl NumberFloat for $t {}
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            const TEST_EPS: Self = 1e-12;
-        }
     };
 }
 /// Interanal macro that implements `Number` for unsigned integers
 macro_rules! number_impl_uint {
     ($t:ty) => {
         impl Number for $t {
+            const DEFAULT_EPSILON_VALUE: Self = 0;
+
             #[inline]
             fn max_value() -> Self { <$t>::MAX }
             #[inline]
@@ -115,19 +113,14 @@ macro_rules! number_impl_uint {
             #[inline]
             fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
         }
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            const TEST_EPS: Self = 0;
-            #[inline]
-            fn approx_eq(self, other: Self) -> bool { self == other }
-        }
     };
 }
 /// Interanal macro that implements `Number` for signed integers
 macro_rules! number_impl_sint {
     ($t:ty) => {
         impl Number for $t {
+            const DEFAULT_EPSILON_VALUE: Self = 0;
+
             #[inline]
             fn max_value() -> Self { <$t>::MAX }
             #[inline]
@@ -145,13 +138,6 @@ macro_rules! number_impl_sint {
             }
             #[inline]
             fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
-        }
-
-        #[cfg(any(test, feature = "test-utils"))]
-        impl NumberTest for $t {
-            const TEST_EPS: Self = 0;
-            #[inline]
-            fn approx_eq(self, other: Self) -> bool { self == other }
         }
     };
 }

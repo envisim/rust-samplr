@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - MSRV: 1.85.1
+- Added dependency [`num-traits`](https://crates.io/crates/num-integer).
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
 - Added dependency [`rand_core`](https://crates.io/crates/rand_core).
 - Bumped optional dependency [`rand`](https://crates.io/crates/rand) to 0.10.1.
@@ -29,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added trait `Rand<N>`, which extends `Rng` to draw numbers from `N`. Implemented for primitive integers and `f64`.
 - Added trait `RandSlice<N>` which extends `Rand<N>` to draw numbers into a slice.
 - Added functions `random_element`, `random_weighted` for drawing a random element from a slice and making a weighted selection respectively.
+- Added `Epsilon` wrapper for float-based comparisons.
+- Added trait `ProbabilityOptions`, with implementors `EqualProbabilityOptions` and `UnequalProbabilityOptions`.
+- Added `Probability`, as a wrapper around numbers that can be represented as probabilities.
+- Added struct `ProbabilitySet`, replacing `ProbabilityStore`.
 
 ### Changed
 - Made `Matrix` generic over `Number`. `Matrix` is now a type alias for `MatrixBase`, and represents an owned matrix. The type alias for a reference matrix is `MatrixRef`.
@@ -41,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `SampleController`. Instead of being a trait, it is now a generic struct using the typestate pattern, implementing special methods for when a kd-tree is present. When a tree is present, removing a unit requires it to be removed from the tree aswell. This is ensured through the trait `UnitRemoving`.
 - Methods on `Indices` returns `bool` instead of `Option` where applicable.
 - `Indices` initialises its store in reversed order.
-- `DecideUnit` renamed to `UnitDecisionStatus` and is now provided through the `probabilities` module.
+- `SamplingOptions` to operate on `ProbabilityOptions'.
+- `Sample` is exported from its own module `envisim_utils::sample::Sample`.
 
 ### Removed
 - Removed `MatrixIndex`.
@@ -51,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed type alias `FindSplit`.
 - Removed utility functions `usize_to_f64` and `f64_to_usize`. Use `num_traits::ToPrimitive` instead.
 - Removed trait `RandomNumberGenerator`.
+- Removed `DecideUnit` in favour of `Probability`.
+- Removed the trait `ProbabilitySpec`, and its implementors `ProbabilitySpecUnequal` and `ProbabilitySpecEqual`.
+- Removed the trait `ProbabilityStore`, and its implementors `FloatProbabilities` and `ExactProbabilities`.
 
 
 ## [0.4.0 - 2026-03-27]

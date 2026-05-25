@@ -14,16 +14,18 @@
 //!
 //! Implements [`SystematicSampling`] for [`SamplingOptions`].
 
+use envisim_utils::Number;
 use envisim_utils::random::{
-    FloatRng,
     Rand,
+    Rng,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    ProbabilitySpec,
-    ProbabilitySpecEqual,
+    EqualProbabilityOptions,
+    ProbabilityOptions,
+    SamplingOptionsRng,
+    UnequalProbabilityOptions,
 };
-use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;
@@ -31,19 +33,23 @@ use crate::utils::shuffled_indices;
 /// Draws a systematic sample from the provided order using equal probabilities
 #[must_use]
 #[inline]
-fn from_order_equal<R>(rng: &mut R, spec: ProbabilitySpecEqual, order: &[usize]) -> Vec<usize>
+fn from_order_equal<R>(
+    rng: &mut R,
+    options: &EqualProbabilityOptions,
+    order: &[usize],
+) -> Vec<usize>
 where
     R: Rand<usize>,
 {
-    let mut sample = Vec::<usize>::with_capacity(spec.sample_size() + 1);
-    let mut r = rng.rand_to(spec.population_size().get());
+    let mut sample = Vec::<usize>::with_capacity(options.sample_size() + 1);
+    let mut r = rng.rand_to(options.population_size().get());
     let mut psum: usize = 0;
 
     for &id in order {
-        let pnext = psum + spec.sample_size();
+        let pnext = psum + options.sample_size();
         if psum <= r && r < pnext {
             sample.push(id);
-            r += spec.population_size().get();
+            r += options.population_size().get();
         }
         psum = pnext;
     }
@@ -54,26 +60,26 @@ where
 /// Draws a systematic sample from the provided order using unequal probabilities
 #[must_use]
 #[inline]
-fn from_order<R>(rng: &mut R, probabilities: &[f64], order: &[usize]) -> Vec<usize>
+fn from_order<'bprob, R, N>(
+    rng: &mut R,
+    options: &UnequalProbabilityOptions<'bprob, N>,
+    order: &[usize],
+) -> Vec<usize>
 where
-    R: Rand<f64>,
+    R: Rand<N>,
+    N: Number,
+    UnequalProbabilityOptions<'bprob, N>: ProbabilityOptions<Native = N>,
 {
-    let mut sample = Vec::<usize>::with_capacity(
-        probabilities
-            .iter()
-            .sum::<f64>()
-            .ceil()
-            .to_usize()
-            .expect("probability sum to be contained in usize"),
-    );
-    let mut r = rng.rand();
-    let mut psum: f64 = 0.0;
+    let (probs, pmax) = options.to_slice();
+    let mut sample = Vec::<usize>::with_capacity(options.sample_size());
+    let mut r = rng.rand_to(pmax);
+    let mut psum: N = N::ZERO;
 
     for &id in order {
-        let pnext = psum + probabilities[id];
+        let pnext = psum + probs[id];
         if psum <= r && r < pnext {
             sample.push(id);
-            r += 1.0;
+            r += pmax;
         }
 
         psum = pnext;
@@ -82,7 +88,10 @@ where
     sample
 }
 
-pub trait SystematicSampling {
+pub trait SystematicSampling<R>
+where
+    R: Rng,
+{
     /// Draw a systematic sample, using the provided order
     ///
     /// # Examples
@@ -95,9 +104,7 @@ pub trait SystematicSampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn systematic(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a systematic sample, using a random order
     ///
     /// # Examples
@@ -110,40 +117,42 @@ pub trait SystematicSampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn systematic_random_order(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<PS, AUX, BAL> SystematicSampling for SamplingOptions<PS, AUX, BAL>
+impl<R, AUX, BAL> SystematicSampling<R> for SamplingOptions<EqualProbabilityOptions, AUX, BAL>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<EqualProbabilityOptions>,
 {
     #[inline]
-    fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
+    fn systematic(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
         let order: Vec<usize> = (0..population_size.get()).collect();
-
-        if let Some(spec) = self.probabilities().as_equal() {
-            from_order_equal(rng, spec, &order)
-        } else {
-            from_order(rng, self.probabilities().as_f64_slice().as_ref(), &order)
-        }
+        from_order_equal(rng, self.probabilities(), &order)
     }
     #[inline]
-    fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
+    fn systematic_random_order(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
         let order = shuffled_indices(rng, population_size);
-
-        if let Some(spec) = self.probabilities().as_equal() {
-            from_order_equal(rng, spec, &order)
-        } else {
-            from_order(rng, self.probabilities().as_f64_slice().as_ref(), &order)
-        }
+        from_order_equal(rng, self.probabilities(), &order)
+    }
+}
+impl<'bprob, R, PROB, AUX, BAL> SystematicSampling<R>
+    for SamplingOptions<UnequalProbabilityOptions<'bprob, PROB>, AUX, BAL>
+where
+    R: SamplingOptionsRng<UnequalProbabilityOptions<'bprob, PROB>>,
+    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB>,
+    PROB: Number,
+{
+    #[inline]
+    fn systematic(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size();
+        let order: Vec<usize> = (0..population_size.get()).collect();
+        from_order(rng, self.probabilities(), &order)
+    }
+    #[inline]
+    fn systematic_random_order(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size();
+        let order = shuffled_indices(rng, population_size);
+        from_order(rng, self.probabilities(), &order)
     }
 }

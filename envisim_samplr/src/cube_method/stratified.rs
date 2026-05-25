@@ -25,7 +25,6 @@ use envisim_utils::matrix::{
     MatrixRef,
     RawData,
 };
-use envisim_utils::probabilities::FloatProbabilities;
 use envisim_utils::random::{
     FloatRng,
     Rand,
@@ -36,8 +35,9 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilitySpec,
+    ProbabilityOptions,
     SamplingOptions,
+    SamplingOptionsRng,
     SpreadingOptions,
 };
 use envisim_utils::spatial::PointSet;
@@ -70,24 +70,24 @@ pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
 impl<'bopts, S, TREE, STRATA> CubeStratifiedRunner<'bopts, S, TREE, STRATA>
 where
     S: CubeStrategy<TREE>,
-    SampleController<FloatProbabilities, TREE>: UnitRemoving,
+    SampleController<f64, TREE>: UnitRemoving,
     STRATA: Copy + Eq + Hash,
 {
     /// Constructs a new stratifed runner using the selected strategy
     #[inline]
-    fn new<PS, AUX, T, R>(
-        options: &'bopts SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    fn new<PO, AUX, T, R>(
+        options: &'bopts SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
         rng: &mut R,
-        controller: SampleController<FloatProbabilities, TREE>,
+        controller: SampleController<f64, TREE>,
         strategy: S,
         strata_vec: &'bopts [STRATA],
     ) -> SamplingResult<Self>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         R: Rand<usize>,
         T: RawData<Elem = f64>,
     {
-        let org_probabilities = options.probabilities().as_f64_slice();
+        let org_probabilities = options.probabilities().to_slice_real();
         let balancing_data = options.balancing().data().to_matrixref();
 
         let a_dims = MatrixDims::new(
@@ -136,7 +136,7 @@ where
     /// Prepares the stratified runner
     #[inline]
     fn prepare(mut self) -> SamplingResult<Self> {
-        if self.strata_vec.len() != self.runner.controller.population_size() {
+        if self.strata_vec.len() != self.runner.controller.population_size().get() {
             return Err(SamplingError::IncorrectStratification);
         }
 
@@ -169,20 +169,20 @@ where
     /// Runs the algorithm and returns the sample vector
     #[must_use]
     #[inline]
-    fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
+    fn sample<R>(mut self, rng: &mut R) -> Vec<usize>
     where
         R: FloatRng,
     {
         self.flight_per_stratum(rng);
         if self.strata.is_empty() {
-            return self.runner.controller.sample_vec();
+            return self.runner.controller.to_sorted_sample_vec();
         }
         self.flight_on_full(rng);
         if self.runner.controller.indices().is_empty() {
-            return self.runner.controller.sample_vec();
+            return self.runner.controller.to_sorted_sample_vec();
         }
         self.landing_per_stratum(rng);
-        self.runner.controller.sample_vec()
+        self.runner.controller.to_sorted_sample_vec()
     }
     /// Runs the flight phase for each stratum
     #[inline]
@@ -342,20 +342,20 @@ where
 /// # Errors
 /// Returns an error if the length of `strata` does not match the population size.
 #[inline]
-pub fn cube_stratified<R, PS, AUX, T, STRATA>(
+pub fn cube_stratified<R, PO, AUX, T, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
-    R: FloatRng,
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
-    let controller = options.to_controller_float();
+    let controller = options.to_controller_real();
     let strategy = RandomCubeStrategy();
-    let mut runner = CubeStratifiedRunner::new(options, rng, controller, strategy, strata)?;
+    let runner = CubeStratifiedRunner::new(options, rng, controller, strategy, strata)?;
     Ok(runner.sample(rng))
 }
 
@@ -391,19 +391,19 @@ where
     reason = "safe to assume balancing dims is not pushing the usize limit"
 )]
 #[inline]
-pub fn local_cube_stratified<R, PS, P, T, STRATA>(
+pub fn local_cube_stratified<R, PO, P, T, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
     strata: &[STRATA],
 ) -> SamplingResult<Vec<usize>>
 where
-    R: FloatRng,
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet,
     T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
-    let controller = options.to_spreading_controller_float();
+    let controller = options.to_spreading_controller_real();
     let searcher = KNearestNeighbourSearcher::new(
         options
             .balancing()
@@ -417,6 +417,6 @@ where
         spreading_options: options.spreading(),
         searcher,
     };
-    let mut runner = CubeStratifiedRunner::new(options, rng, controller, strategy, strata)?;
+    let runner = CubeStratifiedRunner::new(options, rng, controller, strategy, strata)?;
     Ok(runner.sample(rng))
 }

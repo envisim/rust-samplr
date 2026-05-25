@@ -15,13 +15,15 @@
 use std::num::NonZeroUsize;
 
 pub use config::*;
-use envisim_utils::random::{
-    FloatRng,
-    Rand,
+use envisim_utils::random::Rand;
+use envisim_utils::sampling_options::{
+    Epsilon,
+    EqualProbabilityOptions,
+    SamplingOptions,
+    SamplingOptionsRng,
+    UnequalProbabilityOptions,
 };
-use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::spatial::PointSet;
-use num_traits::ToPrimitive;
 
 use super::DistributionalDesignOptions;
 use super::annealing::{
@@ -212,11 +214,11 @@ impl<P> DbdTacticalConfiguration<P> {
         dbs_options: &DistributionalDesignOptions,
         matrix: P,
         sample_size: NonZeroUsize,
-        eps: f64,
+        eps: Epsilon<f64>,
     ) -> Result<Self, TacticalConfiguration>
     where
         P: PointSet<N = f64>,
-        R: FloatRng,
+        R: SamplingOptionsRng<EqualProbabilityOptions>,
     {
         let population_size = matrix.size();
         let sample_size = sample_size.min(population_size);
@@ -225,32 +227,21 @@ impl<P> DbdTacticalConfiguration<P> {
         let sequence = if dbs_options.spatial_initialization() {
             // Initial budget
             let mut b = vec![tcp.n_repeats().get(); tcp.population_size().get()];
-            // Probability vector
-            let mut p = vec![0.0_f64; tcp.population_size().get()];
             // Offset to samples
             let mut offset = 0;
             let mut samples: Vec<usize> = vec![0; sample_size.get() * tcp.n_samples().get()];
 
             for k in 0..tcp.n_samples().get() {
-                // Set probabilities according to budget space
-                for (id, &bb) in b.iter().enumerate() {
-                    p[id] = if bb == 0 {
-                        0.0
-                    } else if bb == tcp.n_samples().get() {
-                        1.0
-                    } else {
-                        bb.to_f64().expect("bb to convert to f64")
-                            / (tcp.n_samples().get() - k)
-                                .to_f64()
-                                .expect("n_samples to convert to f64")
-                    };
-                }
-
                 // Construct lpm opts
-                let lpm_opts = SamplingOptions::new((&p).into())
-                    .expect("population size to be positive")
-                    .set_spreading(&matrix)
-                    .expect("matrix to match population size");
+                let p_max = NonZeroUsize::new(tcp.n_samples().get() - k).expect("k < n_samples");
+                let p_spec = UnequalProbabilityOptions::<usize>::new_int((&b).into(), p_max)
+                    // let p_spec = UnequalProbabilityOptions::new_int(b.into(), p_max)
+                    .expect("b to be non-empty and limited by p_max");
+                let lpm_opts =
+                    // SamplingOptions::<UnequalProbabilityOptions<usize>>::with_spec(p_spec)
+                    SamplingOptions::with_spec(p_spec)
+                        .set_spreading(&matrix)
+                        .expect("matrix to match population size");
                 let s = lpm_opts.lpm_2(rng);
                 assert_eq!(
                     s.len(),

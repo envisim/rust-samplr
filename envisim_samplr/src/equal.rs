@@ -15,16 +15,19 @@
 //! Implements [`EqualProbabilitySampling`] for [`SamplingOptions`].
 
 use envisim_utils::random::{
-    FloatRng,
     Rand,
     RandSlice,
+    Rng,
 };
-use envisim_utils::sampling_options::ProbabilitySpecEqual;
+use envisim_utils::sampling_options::EqualProbabilityOptions;
 pub use envisim_utils::sampling_options::SamplingOptions;
 
 pub use crate::error::SamplingError;
 
-pub trait EqualProbabilitySampling {
+pub trait EqualProbabilitySampling<R>
+where
+    R: Rng,
+{
     /// Draw a simple random sample without replacement
     ///
     /// # Examples
@@ -36,9 +39,7 @@ pub trait EqualProbabilitySampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn srs<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn srs(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a simple random sample with replacement
     ///
     /// # Examples
@@ -50,9 +51,7 @@ pub trait EqualProbabilitySampling {
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn srs_with_replacement<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using Bernoulli sampling
     ///
     /// # Examples
@@ -63,17 +62,15 @@ pub trait EqualProbabilitySampling {
     /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn bernoulli<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual, AUX, BAL> {
+impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilityOptions, AUX, BAL>
+where
+    R: Rand<usize>,
+{
     #[must_use]
     #[inline]
-    fn srs<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: Rand<usize>,
-    {
+    fn srs(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
         let sample_size = self.sample_size();
 
@@ -95,10 +92,7 @@ impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     }
     #[must_use]
     #[inline]
-    fn srs_with_replacement<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandSlice<usize>,
-    {
+    fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
         let sample_size = self.sample_size();
 
@@ -115,10 +109,7 @@ impl<AUX, BAL> EqualProbabilitySampling for SamplingOptions<ProbabilitySpecEqual
     }
     #[must_use]
     #[inline]
-    fn bernoulli<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: RandSlice<usize>,
-    {
+    fn bernoulli(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size().get();
         let sample_size = self.sample_size();
 

@@ -16,10 +16,10 @@ use std::num::NonZeroUsize;
 
 use envisim_utils::random::Rand;
 use envisim_utils::spatial::PointSet;
+use num_integer::Integer;
 use num_traits::ToPrimitive;
 
 use super::energy_distance::EnergyDistance;
-use crate::utils::gcd;
 
 #[must_use]
 #[derive(Clone, Debug)]
@@ -82,10 +82,10 @@ impl TacticalConfigurationParameters {
         }
     }
     /// Constructs a new minimum tactical configuration
-    #[expect(clippy::missing_panics_doc, reason = "a panic implies a bug in gcd")]
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug in gcd")]
     #[inline]
     pub fn new_minimal(population_size: NonZeroUsize, sample_size: NonZeroUsize) -> Self {
-        let common_divisor = NonZeroUsize::new(gcd(population_size.get(), sample_size.get()))
+        let common_divisor = NonZeroUsize::new(population_size.get().gcd(&sample_size.get()))
             .expect("common divisor to be positive");
         let n_samples = NonZeroUsize::new(population_size.get() / common_divisor)
             .expect("pop size to be divisable by cd");

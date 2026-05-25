@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `EstimationError`.
 - Fallible functions now fail through `EstimationError` instead through `Option` or `envsim_utils::SamplingOptionsError`.
+- Removed stand-alone functions in `spatial_balance`, added trait `SpatialBalance` which implements the same methods.
 
 
 ## [0.4.0] - 2026-03-27

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - MSRV: 1.85.1
+- Added dependency [`num-traits`](https://crates.io/crates/num-integer).
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
 - Bumped dependency `envisim_utils`.
 
@@ -16,15 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - As coordination is removed from `SamplingOptions`, `cps_coord` and `scps_coord` dedicated methods now accept random values for coordination.
 - Added `sequential_cube`, which determines units in the provided order. `cube`, on the other hand, determines units in a random order, and uses random windows in the flight phase. (#28)
 - Moved dbd evaluating methods to its own trait, and renamed the methods.
+- Sampling methods use new RNG traits from `envisim_utils`.
 
 
 ## [0.5.0] - 2026-03-27
 - Bump `envisim_utils`.
-- Refactored sampling functions, now uses SamplingOptions from `envisim_utils`
-- SamplingError, removed Input, Indices, Node; added Options, IncorrectStratification, IncorrectDrawProbabilities, IncorrectProbabilitiesIntegerSum
-- Removed SampleContainer, added SampleController
-- Fix a bug in cube null space
-- Added Distributionally balanced designs
+- Refactored sampling functions, now uses SamplingOptions from `envisim_utils`.
+- SamplingError, removed Input, Indices, Node; added Options, IncorrectStratification, IncorrectDrawProbabilities, IncorrectProbabilitiesIntegerSum.
+- Removed SampleContainer, added SampleController.
+- Fix a bug in cube null space.
+- Added Distributionally balanced designs.
 
 
 ## [0.4.1] - 2026-02-26

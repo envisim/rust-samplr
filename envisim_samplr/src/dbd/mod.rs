@@ -51,10 +51,11 @@ mod dbd_trait {
     //! Distributionally balanced design trait
     use std::num::NonZeroUsize;
 
-    use envisim_utils::random::FloatRng;
+    use envisim_utils::random::Rng;
     use envisim_utils::sampling_options::{
-        ProbabilitySpecEqual,
+        EqualProbabilityOptions,
         SamplingOptions,
+        SamplingOptionsRng,
         SpreadingOptions,
     };
     use envisim_utils::spatial::PointSet;
@@ -76,7 +77,10 @@ mod dbd_trait {
         SamplingResult,
     };
 
-    pub trait DistributionalDesigns {
+    pub trait DistributionalDesigns<R>
+    where
+        R: Rng,
+    {
         /// Construct a distributionally balanced design in a circular configuration
         ///
         /// # Examples
@@ -96,13 +100,11 @@ mod dbd_trait {
         ///
         /// # Errors
         /// Returns an error if `sample_size` is 0.
-        fn dbd_circular<R>(
+        fn dbd_circular(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
-        ) -> SamplingResult<CircularConfiguration>
-        where
-            R: FloatRng;
+        ) -> SamplingResult<CircularConfiguration>;
         /// Construct a distributionally balanced design using a tactical configuration
         ///
         /// # Examples
@@ -115,58 +117,30 @@ mod dbd_trait {
         /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
         /// let dbd_opts = DistributionalDesignOptions::default();
         /// let dbd = opts.dbd_tc(&mut rng, dbd_opts)?;
-        /// let s: Vec<usize> = dbd.draw(&mut rng).collect();
-        /// assert_eq!(s.len(), 2);
         /// # Ok::<(), SamplingError>(())
         /// ```
         ///
         /// # Errors
         /// Returns an error if `sample_size` is 0.
-        fn dbd_tc<R>(
+        fn dbd_tc(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
-        ) -> SamplingResult<TacticalConfiguration>
-        where
-            R: FloatRng;
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        fn dbd_circular_iterations<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng;
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        fn dbd_tc_iterations<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng;
+        ) -> SamplingResult<TacticalConfiguration>;
     }
 
-    impl<P, BAL> DistributionalDesigns
-        for SamplingOptions<ProbabilitySpecEqual, SpreadingOptions<P>, BAL>
+    impl<R, P, BAL> DistributionalDesigns<R>
+        for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
     where
+        R: SamplingOptionsRng<EqualProbabilityOptions>,
         P: PointSet<N = f64>,
     {
         #[inline]
-        fn dbd_circular<R>(
+        fn dbd_circular(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
-        ) -> SamplingResult<CircularConfiguration>
-        where
-            R: FloatRng,
-        {
+        ) -> SamplingResult<CircularConfiguration> {
             let sample_size =
                 NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
             let max_iter = self.max_iterations();
@@ -182,14 +156,11 @@ mod dbd_trait {
             Ok(v.into_optimal_configuration())
         }
         #[inline]
-        fn dbd_tc<R>(
+        fn dbd_tc(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
-        ) -> SamplingResult<TacticalConfiguration>
-        where
-            R: FloatRng,
-        {
+        ) -> SamplingResult<TacticalConfiguration> {
             let sample_size =
                 NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
             let max_iter = self.max_iterations();
@@ -210,177 +181,49 @@ mod dbd_trait {
 
             Ok(v.into_optimal_configuration())
         }
-        /// Runs the circular dbd until `to`, reporting the energy in `by` intervals.
-        ///
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        #[inline]
-        fn dbd_circular_iterations<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng,
-        {
-            if to < by {
-                return Err(SamplingError::MaxIterations(to));
-            }
-
-            let sample_size =
-                NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-            let sample_size_float = sample_size
-                .get()
-                .to_f64()
-                .expect("sample_size to convert to f64");
-            let eps = self.eps();
-            let spreading_data = self.spreading().data();
-
-            let Ok(mut v) = DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) else {
-                return Ok(vec![0.0; to.get() / by * 2]);
-            };
-
-            let mut res: Vec<f64> = Vec::with_capacity(to.get() / by * 2);
-
-            let mut iters = by.get();
-            while iters <= to.get() {
-                v.run(rng, by);
-
-                let optimal_conf = v.optimal_configuration();
-                let mean = optimal_conf.average_energy();
-                let mut sd = 0.0;
-
-                for sid in 0..optimal_conf.tcp().n_samples().get() {
-                    let energy = optimal_conf.nenergy_of_sample(v.ed(), sid) / sample_size_float;
-                    sd += (energy - mean).powi(2);
-                }
-
-                sd = (sd
-                    / optimal_conf
-                        .tcp()
-                        .n_samples()
-                        .get()
-                        .to_f64()
-                        .expect("n_samples to convert to f64"))
-                .sqrt();
-                res.push(mean);
-                res.push(sd);
-                iters += by.get();
-            }
-
-            Ok(res)
-        }
-        /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
-        ///
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        #[inline]
-        fn dbd_tc_iterations<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng,
-        {
-            if to < by {
-                return Err(SamplingError::MaxIterations(to));
-            }
-
-            let sample_size =
-                NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
-            let sample_size_float = sample_size
-                .get()
-                .to_f64()
-                .expect("sample_size to convert to f64");
-            let eps = self.eps();
-            let spreading_data = self.spreading().data();
-
-            let Ok(mut v) =
-                DbdTacticalConfiguration::new(rng, &dbs_options, spreading_data, sample_size, eps)
-            else {
-                return Ok(vec![0.0; to.get() / by * 2]);
-            };
-
-            let mut res: Vec<f64> = Vec::with_capacity(to.get() / by * 2);
-            let n_buckets_float = v
-                .tcp()
-                .n_samples()
-                .get()
-                .to_f64()
-                .expect("n_samples to convert to f64");
-
-            let mut iters = by.get();
-            while iters <= to.get() {
-                v.run(rng, by);
-
-                let optimal_conf = v.optimal_configuration();
-                let mean = optimal_conf.average_energy();
-                let mut sd = 0.0;
-
-                for sid in 0..optimal_conf.tcp().n_samples().get() {
-                    let energy = optimal_conf.nenergy_of_sample(v.ed(), sid) / sample_size_float;
-                    sd += (energy - mean).powi(2);
-                }
-
-                sd = (sd / n_buckets_float).sqrt();
-                res.push(mean);
-                res.push(sd);
-                iters += by.get();
-            }
-
-            Ok(res)
-        }
     }
 
-    pub trait DistributionalDesignEvaluators: DistributionalDesigns {
-        /// Runs the circular dbd until `to`, reporting the energy in `by` intervals.
-        ///
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        fn dbd_circular_evaluator<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng;
-        /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
-        ///
-        /// # Errors
-        /// Returns an error if `sample_size` is 0.
-        fn dbd_tc_evaluator<R>(
-            &self,
-            rng: &mut R,
-            dbs_options: DistributionalDesignOptions,
-            to: NonZeroUsize,
-            by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng;
-    }
-    impl<P, BAL> DistributionalDesignEvaluators
-        for SamplingOptions<ProbabilitySpecEqual, SpreadingOptions<P>, BAL>
+    pub trait DistributionalDesignEvaluators<R>: DistributionalDesigns<R>
     where
+        R: Rng,
+    {
+        /// Runs the circular dbd until `to`, reporting the energy in `by` intervals.
+        ///
+        /// # Errors
+        /// Returns an error if `sample_size` is 0.
+        fn dbd_circular_evaluator(
+            &self,
+            rng: &mut R,
+            dbs_options: DistributionalDesignOptions,
+            to: NonZeroUsize,
+            by: NonZeroUsize,
+        ) -> SamplingResult<Vec<f64>>;
+        /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
+        ///
+        /// # Errors
+        /// Returns an error if `sample_size` is 0.
+        fn dbd_tc_evaluator(
+            &self,
+            rng: &mut R,
+            dbs_options: DistributionalDesignOptions,
+            to: NonZeroUsize,
+            by: NonZeroUsize,
+        ) -> SamplingResult<Vec<f64>>;
+    }
+    impl<R, P, BAL> DistributionalDesignEvaluators<R>
+        for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
+    where
+        R: SamplingOptionsRng<EqualProbabilityOptions>,
         P: PointSet<N = f64>,
     {
         #[inline]
-        fn dbd_circular_evaluator<R>(
+        fn dbd_circular_evaluator(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
             to: NonZeroUsize,
             by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng,
-        {
+        ) -> SamplingResult<Vec<f64>> {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));
             }
@@ -429,16 +272,13 @@ mod dbd_trait {
             Ok(res)
         }
         #[inline]
-        fn dbd_tc_evaluator<R>(
+        fn dbd_tc_evaluator(
             &self,
             rng: &mut R,
             dbs_options: DistributionalDesignOptions,
             to: NonZeroUsize,
             by: NonZeroUsize,
-        ) -> SamplingResult<Vec<f64>>
-        where
-            R: FloatRng,
-        {
+        ) -> SamplingResult<Vec<f64>> {
             if to < by {
                 return Err(SamplingError::MaxIterations(to));
             }

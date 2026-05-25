@@ -47,48 +47,7 @@ where
         .collect()
 }
 
-/// Returns the greatest common divisor of `a` and `b`
-#[inline]
-pub fn gcd(mut a: usize, mut b: usize) -> usize {
-    if a == 0 {
-        return b;
-    } else if b == 0 || a == b {
-        return a;
-    }
-
-    // Count common factors of 2
-    let shift = (a | b).trailing_zeros();
-    a >>= a.trailing_zeros();
-    b >>= b.trailing_zeros();
-
-    while a != b {
-        if a > b {
-            a -= b;
-            a >>= a.trailing_zeros();
-        } else {
-            b -= a;
-            b >>= b.trailing_zeros();
-        }
-    }
-
-    a << shift
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
-
-    #[test]
-    fn test_gcd() {
-        assert_eq!(gcd(0, 5), 5); // One number is zero
-        assert_eq!(gcd(7, 0), 7); // Other number is zero
-        assert_eq!(gcd(1, 100), 1); // GCD is 1 (coprime)
-        assert_eq!(gcd(48, 18), 6); // Standard case
-        assert_eq!(gcd(100, 35), 5); // Standard case
-        assert_eq!(gcd(17, 17), 17); // Both numbers equal
-        assert_eq!(gcd(1024, 512), 512); // One divides the other (powers of 2)
-        assert_eq!(gcd(97, 89), 1); // Two primes (coprime)
-        assert_eq!(gcd(462, 1071), 21); // Larger numbers with non-trivial GCD
-        assert_eq!(gcd(123456, 789012), 12); // Large numbers
-    }
+    // use super::*;
 }

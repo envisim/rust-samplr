@@ -16,6 +16,7 @@ use std::num::NonZeroUsize;
 
 pub use config::*;
 use envisim_utils::random::Rand;
+use envisim_utils::sampling_options::Epsilon;
 use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
 
@@ -184,7 +185,7 @@ impl<P> DbdCircular<P> {
         dbs_options: &DistributionalDesignOptions,
         matrix: P,
         sample_size: NonZeroUsize,
-        eps: f64,
+        eps: Epsilon<f64>,
     ) -> Result<Self, CircularConfiguration>
     where
         P: PointSet<N = f64>,

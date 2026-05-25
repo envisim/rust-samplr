@@ -19,7 +19,7 @@ use envisim_utils::matrix::{
     Dimensions,
     Matrix,
 };
-use envisim_utils::random::FloatRng;
+use envisim_utils::random::Rand;
 use envisim_utils::sampling_options::SamplingOptions;
 
 /// Set candidates by drawing randomly from the indices list, i.e. a basic fallback
@@ -30,7 +30,7 @@ pub fn set_candidates_from_indices_randomly<R>(
     indices: &Indices,
     len: NonZeroUsize,
 ) where
-    R: FloatRng,
+    R: Rand<usize>,
 {
     use crate::EqualProbabilitySampling;
     candidates.clear();
@@ -194,7 +194,7 @@ mod tests {
                 3
             )
             .unwrap(),
-            1e-4
+            Epsilon::new(1e-4).unwrap()
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
         assert_mat!(
