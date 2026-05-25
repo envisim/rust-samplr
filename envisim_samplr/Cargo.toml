@@ -1,6 +1,6 @@
 [package]
 name = "envisim_samplr"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
 homepage = "https://envisim.se"
@@ -19,7 +19,7 @@ workspace = true
 [dependencies]
 num-integer = "0.1.46"
 num-traits = "0.2.19"
-envisim_utils = {version="0.4.0", path="../envisim_utils", default-features=false}
+envisim_utils = {version="0.5.0", path="../envisim_utils", default-features=false}
 rustc-hash = "2.1.1"
 
 [dev-dependencies]
