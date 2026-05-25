@@ -388,11 +388,7 @@ fn rust_balance_deviation(
 
 #[savvy]
 fn rust_pips_from_values(r_values: RealSexp, r_sample_size: i32) -> savvy::Result<Sexp> {
-    let pips: Vec<f64> = pips_from_slice(r_values.as_slice(), to_usize(r_sample_size)?)?
-        .data()
-        .iter()
-        .map(|p| p.get())
-        .collect();
+    let pips: Vec<f64> = pips_from_slice(r_values.as_slice(), to_usize(r_sample_size)?)?.to_raw();
     pips.try_into()
 }
 

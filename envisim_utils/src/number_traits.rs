@@ -24,6 +24,8 @@ use num_traits::{
     NumCast,
 };
 
+use crate::Epsilon;
+
 /// An extension of [`num_traits::NumAssign`]
 pub trait Number:
     Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Display
@@ -53,6 +55,9 @@ pub trait Number:
 
     #[must_use]
     fn compare(&self, other: &Self) -> Ordering;
+
+    #[inline]
+    fn default_epsilon(&self) -> Epsilon<Self> { Epsilon::default() }
 }
 /// Floating point numbers
 pub trait NumberFloat: Number + Float {}

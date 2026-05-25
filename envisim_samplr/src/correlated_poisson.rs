@@ -236,8 +236,8 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
             }
             let possible_weight = controller.probabilities().weight_to(probability, id_n);
             let weight = possible_weight.min(remaining_weight);
-            let adding = Probability::Partial(weight * quota);
-            let _prest = controller.unit_add_and_decide(id_n, adding);
+            let delta = weight * quota;
+            let _prest = controller.unit_add_delta_and_decide(id_n, delta);
             remaining_weight -= possible_weight;
             if remaining_weight <= 0.0 {
                 break;
@@ -340,8 +340,8 @@ fn spatial_update_probabilities<P>(
         .partition_point(|n| n.distance() < max_distance);
 
     for n in &searcher.neighbours()[0..guaranteed_units] {
-        let adding = Probability::Partial(n.weight() * quota);
-        let _prest = controller.unit_add_and_decide(n.id(), adding);
+        let delta = n.weight() * quota;
+        let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
         remaining_weight -= n.weight();
     }
 
@@ -354,8 +354,8 @@ fn spatial_update_probabilities<P>(
     if sum_of_tie_weights == remaining_weight {
         // Add everything left, if it's exactly solved (unlikely)
         for n in &searcher.neighbours()[guaranteed_units..] {
-            let adding = Probability::Partial(n.weight() * quota);
-            let _prest = controller.unit_add_and_decide(n.id(), adding);
+            let delta = n.weight() * quota;
+            let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
             // remaining_weight -= n.weight();
         }
         return;
@@ -373,8 +373,8 @@ fn spatial_update_probabilities<P>(
         .unwrap();
     for n in &searcher.neighbours()[guaranteed_units..] {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
-        let adding = Probability::Partial(remaining_weight * quota);
-        let _prest = controller.unit_add_and_decide(n.id(), adding);
+        let delta = remaining_weight * quota;
+        let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
         remaining_weight -= removable_weight;
         number_of_shares -= 1.0;
     }
@@ -741,13 +741,19 @@ mod tests {
 
         let options = Data10::options_e();
         let mut cpsv = SequentialStrategy::new_coord(&options, coord_0()).unwrap();
-        decide_and_update(&mut cpsv, &mut rng, 0);
-        assert_vec!(cpsv.controller.probabilities().data()[1..=4], vec![0.0; 4]);
+        let _ = decide_and_update(&mut cpsv, &mut rng, 0);
+        assert_vec!(
+            cpsv.controller.probabilities().to_raw()[1..=4],
+            vec![0.0; 4]
+        );
 
         let options = Data10::options_e();
         let mut cpsv = SequentialStrategy::new_coord(&options, coord_1()).unwrap();
-        decide_and_update(&mut cpsv, &mut rng, 0);
-        assert_vec!(cpsv.controller.probabilities().data()[1..=4], vec![0.25; 4]);
+        let _ = decide_and_update(&mut cpsv, &mut rng, 0);
+        assert_vec!(
+            cpsv.controller.probabilities().to_raw()[1..=4],
+            vec![0.25; 4]
+        );
 
         // let options = options_ue();
         println!("CPS1");
@@ -767,19 +773,19 @@ mod tests {
 
         let options = Data10::options_e();
         let mut cps = SpatialStrategy::new_coord(&options, coord_0()).unwrap();
-        decide_and_update(&mut cps, &mut rng, 0);
+        let _ = decide_and_update(&mut cps, &mut rng, 0);
         println!("{:?}", cps.controller.probabilities().data());
-        assert_delta!(cps.controller.probabilities().get(1), 0.0);
-        assert_delta!(cps.controller.probabilities().get(8), 0.0);
-        assert_delta!(cps.controller.probabilities().get(4), 0.0);
-        assert_delta!(cps.controller.probabilities().get(2), 0.0);
+        assert_delta!(cps.controller.probabilities()[1].get(), 0.0);
+        assert_delta!(cps.controller.probabilities()[8].get(), 0.0);
+        assert_delta!(cps.controller.probabilities()[4].get(), 0.0);
+        assert_delta!(cps.controller.probabilities()[2].get(), 0.0);
 
         let mut cps = SpatialStrategy::new_coord(&options, coord_1()).unwrap();
-        decide_and_update(&mut cps, &mut rng, 9);
-        assert_delta!(cps.controller.probabilities().get(4), 0.25);
-        assert_delta!(cps.controller.probabilities().get(2), 0.25);
-        assert_delta!(cps.controller.probabilities().get(0), 0.25);
-        assert_delta!(cps.controller.probabilities().get(7), 0.25);
+        let _ = decide_and_update(&mut cps, &mut rng, 9);
+        assert_delta!(cps.controller.probabilities()[4].get(), 0.25);
+        assert_delta!(cps.controller.probabilities()[2].get(), 0.25);
+        assert_delta!(cps.controller.probabilities()[0].get(), 0.25);
+        assert_delta!(cps.controller.probabilities()[7].get(), 0.25);
     }
 
     #[test]

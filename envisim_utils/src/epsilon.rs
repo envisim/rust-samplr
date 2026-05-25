@@ -12,6 +12,12 @@
 
 //! Epsilon
 
+use std::fmt::{
+    Display,
+    Formatter,
+    Result as FmtResult,
+};
+
 use crate::number_traits::Number;
 use crate::sampling_options::{
     SamplingOptionsError,
@@ -74,6 +80,14 @@ where
 {
     #[inline]
     fn default() -> Self { Self(N::DEFAULT_EPSILON_VALUE) }
+}
+
+impl<N> Display for Epsilon<N>
+where
+    N: Number,
+{
+    #[inline]
+    fn fmt(&self, f: &mut Formatter) -> FmtResult { write!(f, "{}", self.0) }
 }
 
 /// Implements epsilon for floats

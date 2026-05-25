@@ -1,7 +1,7 @@
 use envisim_samplr::{
-    ProbabilitySpec,
-    ProbabilitySpecUnequal,
+    ProbabilityOptions,
     SamplingOptions,
+    UnequalProbabilityOptions,
 };
 use envisim_utils::matrix::Matrix;
 use envisim_utils::random::*;
@@ -11,9 +11,9 @@ use num_traits::ToPrimitive;
 fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
 #[allow(dead_code)]
-pub fn matrix_big_balanced() -> (ProbabilitySpecUnequal<'static>, Matrix<f64>) {
+pub fn matrix_big_balanced() -> (UnequalProbabilityOptions<'static, f64>, Matrix<f64>) {
     const P_VEC: [f64; 1000] = [0.1; 1000];
-    let spec = ProbabilitySpecUnequal::new((&P_VEC).into()).unwrap();
+    let spec = UnequalProbabilityOptions::new((&P_VEC).into()).unwrap();
 
     let mut b_vec: Vec<f64> = Vec::with_capacity(2000);
     b_vec.extend_from_slice(&P_VEC);
@@ -55,14 +55,14 @@ pub fn matrix_big_balanced() -> (ProbabilitySpecUnequal<'static>, Matrix<f64>) {
 
 #[allow(dead_code)]
 #[inline]
-pub fn test_wor<F, PS, SOP, BOP>(
+pub fn test_wor<F, PO, SOP, BOP>(
     mut sampler: F,
-    options: &SamplingOptions<PS, SOP, BOP>,
+    options: &SamplingOptions<PO, SOP, BOP>,
     eps: f64,
     runs: usize,
 ) where
     F: FnMut(&mut SmallRng) -> Vec<usize>,
-    PS: ProbabilitySpec,
+    PO: ProbabilityOptions<Real = f64>,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
     let sample_size = options.sample_size();
@@ -86,7 +86,7 @@ pub fn test_wor<F, PS, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .as_f64_slice()
+        .to_slice_real()
         .iter()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
@@ -95,7 +95,7 @@ pub fn test_wor<F, PS, SOP, BOP>(
     println!("{:?}, {:?}", sel, sel.iter().sum::<usize>());
 
     if !diff.iter().all(|&x| x.abs() < eps) {
-        let psum = options.probabilities().sample_size_f64();
+        let psum = options.probabilities().sample_size_real();
         let psum_emp = prob_emp.iter().sum::<f64>();
         panic!("{diff:?} >= {eps}\n(sums: {psum} vs. {psum_emp})",);
     }
@@ -103,14 +103,14 @@ pub fn test_wor<F, PS, SOP, BOP>(
 
 #[allow(dead_code)]
 #[inline]
-pub fn test_wor_random_n<F, PS, SOP, BOP>(
+pub fn test_wor_random_n<F, PO, SOP, BOP>(
     mut sampler: F,
-    options: &SamplingOptions<PS, SOP, BOP>,
+    options: &SamplingOptions<PO, SOP, BOP>,
     eps: f64,
     runs: usize,
 ) where
     F: FnMut(&mut SmallRng) -> Vec<usize>,
-    PS: ProbabilitySpec,
+    PO: ProbabilityOptions<Real = f64>,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
 
@@ -126,7 +126,7 @@ pub fn test_wor_random_n<F, PS, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .as_f64_slice()
+        .to_slice_real()
         .iter()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
@@ -135,7 +135,7 @@ pub fn test_wor_random_n<F, PS, SOP, BOP>(
     println!("{:?}, {:?}", sel, sel.iter().sum::<usize>());
 
     if !diff.iter().all(|&x| x.abs() < eps) {
-        let psum = options.probabilities().sample_size_f64();
+        let psum = options.probabilities().sample_size_real();
         let psum_emp = prob_emp.iter().sum::<f64>();
         panic!("{diff:?} >= {eps}\n(sums: {psum} vs. {psum_emp})",);
     }

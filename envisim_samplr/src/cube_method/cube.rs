@@ -29,7 +29,6 @@ use envisim_utils::matrix::{
     MatrixDims,
     RawData,
 };
-use envisim_utils::probabilities::Probability;
 use envisim_utils::random::{
     FloatRng,
     Rand,
@@ -269,8 +268,8 @@ where
         };
 
         for (i, &id) in self.candidates.iter().enumerate() {
-            let adding = Probability::Partial(lambda * uvec[i]);
-            let _prest = self.controller.unit_add_and_decide(id, adding);
+            let delta = lambda * uvec[i];
+            let _prest = self.controller.unit_add_delta_and_decide(id, delta);
         }
     }
 }

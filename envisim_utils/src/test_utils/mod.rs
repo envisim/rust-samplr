@@ -2,6 +2,7 @@ mod data;
 
 pub use data::*;
 
+pub use crate::epsilon::Epsilon;
 pub use crate::matrix::{
     MatrixBase,
     RawData,
@@ -9,7 +10,7 @@ pub use crate::matrix::{
 pub use crate::number_traits::{
     Number,
     NumberFloat,
-    NumberTest,
+    NumberInt,
 };
 
 /// Helper for NonZeroUsize
@@ -20,11 +21,11 @@ pub fn nz(n: usize) -> std::num::NonZeroUsize { std::num::NonZeroUsize::new(n).u
 macro_rules! assert_delta {
     ($a:expr,$b:expr) => {{
         let a = $a;
-        assert_delta!(a, $b, a.test_eps());
+        assert_delta!(a, $b, a.default_epsilon());
     }};
     ($a:expr,$b:expr,$d:expr) => {{
         let (a, b, eps) = ($a, $b, $d);
-        assert!(a.approx_eq_eps(b, eps), "|{a} - {b}| >= {eps}");
+        assert!(eps.difference_is_zero(a, b), "|{a} - {b}| > {eps}");
     }};
 }
 pub use assert_delta;
@@ -36,15 +37,15 @@ macro_rules! assert_vec {
         let (v1, v2) = (&$v1, &$v2);
         assert_eq!(v1.len(), v2.len(), "vector dims do not match");
         for (i, (&a, &b)) in v1.iter().zip(v2.iter()).enumerate() {
-            let eps = a.test_eps();
-            assert!(a.approx_eq_eps(b, eps), "|{a} - {b}| >= {eps} (at {i})");
+            let eps = a.default_epsilon();
+            assert!(eps.difference_is_zero(a, b), "|{a} - {b}| > {eps} (at {i})");
         }
     }};
     ($v1:expr,$v2:expr,$d:expr) => {{
         let (v1, v2, eps) = (&$v1, &$v2, $d);
         assert_eq!(v1.len(), v2.len(), "vector dims do not match");
         for (i, (&a, &b)) in v1.iter().zip(v2.iter()).enumerate() {
-            assert!(a.approx_eq_eps(b, eps), "|{a} - {b}| >= {eps} (at {i})");
+            assert!(eps.difference_is_zero(a, b), "|{a} - {b}| > {eps} (at {i})");
         }
     }};
 }
@@ -55,7 +56,7 @@ pub use assert_vec;
 macro_rules! assert_mat {
     ($m1:expr,$m2:expr) => {{
         let (m1, m2) = (&$m1, &$m2);
-        let eps = m1[(0, 0)].test_eps();
+        let eps = m1[(0, 0)].default_epsilon();
         assert_mat!(m1, m2, eps);
     }};
     ($m1:expr,$m2:expr,$d:expr) => {{
@@ -65,7 +66,10 @@ macro_rules! assert_mat {
             for c in 0..m1.ncol().get() {
                 let a = m1[(r, c)];
                 let b = m2[(r, c)];
-                assert!(a.approx_eq_eps(b, eps), "|{a} - {b}| >= {eps} (at {r},{c})");
+                assert!(
+                    eps.difference_is_zero(a, b),
+                    "|{a} - {b}| > {eps} (at {r},{c})"
+                );
             }
         }
     }};

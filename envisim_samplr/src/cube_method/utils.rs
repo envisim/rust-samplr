@@ -194,7 +194,7 @@ mod tests {
                 3
             )
             .unwrap(),
-            1e-4
+            Epsilon::new(1e-4).unwrap()
         );
         let mat2_nullvec = find_vector_in_null_space(&mut mat2);
         assert_mat!(

@@ -12,6 +12,8 @@
 
 use std::num::NonZeroUsize;
 
+use num_traits::Signed;
+
 use crate::indices::Indices;
 use crate::kd_tree::{
     PointSet,
@@ -128,6 +130,38 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         let p = self.probabilities.add(idx, prob);
         let _decision_outcome = self.unit_decide(idx);
         p
+    }
+    /// Subtracts `prob` from the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount of `prob` that could not be subtracted
+    #[inline]
+    pub fn unit_subtract_and_decide(
+        &mut self,
+        idx: usize,
+        prob: Probability<PROB>,
+    ) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Number,
+    {
+        let p = self.probabilities.subtract(idx, prob);
+        let _decision_outcome = self.unit_decide(idx);
+        p
+    }
+    /// Adds a delta to the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount that could not be added
+    #[inline]
+    pub fn unit_add_delta_and_decide(&mut self, idx: usize, delta: PROB) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Number + Signed,
+    {
+        if delta < PROB::ZERO {
+            let p = Probability::Partial(-delta);
+            self.unit_subtract_and_decide(idx, p)
+        } else {
+            let p = Probability::Partial(delta);
+            self.unit_add_and_decide(idx, p)
+        }
     }
     /// Decides the outcome of the last unit, or returns `None` if no last unit exists.
     #[inline]
@@ -248,14 +282,14 @@ mod tests {
     fn basic_controller_from_options() {
         let opts = SamplingOptions::with_spec(Data10::prob_u());
         let controller = opts.to_controller();
-        assert_eq!(controller.population_size(), 10);
+        assert_eq!(controller.population_size().get(), 10);
     }
 
     #[test]
     fn basic_controller_exact() {
         let opts = SamplingOptions::new_equal(10, 3).unwrap();
         let controller = opts.to_controller();
-        assert_eq!(controller.population_size(), 10);
+        assert_eq!(controller.population_size().get(), 10);
         assert_eq!(controller.probabilities().max(), 10);
     }
 }

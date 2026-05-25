@@ -291,7 +291,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = voronoi(&s, &options)?;
+    /// let sb = options.voronoi(&s)?;
     /// # Ok::<(), EstimationError>(())
     /// ```
     ///
@@ -314,7 +314,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = local(&s, &options, true)?;
+    /// let sb = options.local(&s, true)?;
     /// # Ok::<(), EstimationError>(())
     /// ```
     ///
@@ -337,7 +337,7 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = energy_distance(&s, &options);
+    /// let sb = options.energy_distance(&s);
     /// # Ok::<(), EstimationError>(())
     /// ```
     #[must_use]
@@ -526,17 +526,17 @@ mod test {
     #[test]
     fn test_voronoi() {
         let options = Data10::options_e();
-        let sb = voronoi(&[0], &options).unwrap();
+        let sb = options.voronoi(&[0]).unwrap();
         assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2));
     }
 
     #[test]
     fn test_local() {
         let options = Data10::options_e();
-        let sb = local(&[0], &options, false).unwrap();
-        assert_delta!(sb, 0.7515302, 1e-7);
+        let sb = options.local(&[0], false).unwrap();
+        assert_delta!(sb, 0.7515302, Epsilon::new(1e-7).unwrap());
 
-        let sb = local(&[0, 1], &options, false).unwrap();
-        assert_delta!(sb, 0.6454327, 1e-7);
+        let sb = options.local(&[0, 1], false).unwrap();
+        assert_delta!(sb, 0.6454327, Epsilon::new(1e-7).unwrap());
     }
 }

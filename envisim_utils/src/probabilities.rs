@@ -11,6 +11,11 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::cmp::Ordering;
+use std::fmt::{
+    Display,
+    Formatter,
+    Result as FmtResult,
+};
 use std::num::{
     NonZero,
     NonZeroUsize,
@@ -102,6 +107,20 @@ impl<N> Probability<N> {
             Probability::Zero(p) | Probability::Partial(p) | Probability::Full(p) => p,
         }
     }
+    /// Returns the complement of the probability
+    #[must_use]
+    #[inline]
+    pub fn complement(self, max: N) -> Self
+    where
+        N: Number,
+    {
+        match self {
+            Probability::Partial(p) => Probability::Partial(max - p),
+            Probability::Zero(_) => Probability::Full(max),
+            Probability::Full(_) => Probability::Zero(N::ZERO),
+        }
+    }
+
     /// Adds `other` to `self`, returning whatever could not be added
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
@@ -127,6 +146,35 @@ impl<N> Probability<N> {
                     Probability::new(sum - max, max, eps)
                         .expect("sum-max to be contained in 0..=max")
                 }
+            }
+        }
+    }
+    /// Subtracts `other` from `self`, returning whatever could not be subtracted
+    pub fn subtract(&mut self, other: Self, max: N, eps: Epsilon<N>) -> Self
+    where
+        N: Number,
+    {
+        match (*self, other) {
+            (Probability::Partial(org), Probability::Partial(val)) => {
+                let diff = org.abs_difference(val);
+                if val <= org {
+                    *self =
+                        Probability::new(diff, max, eps).expect("diff to be contained in 0..=max");
+                    Probability::Zero(N::ZERO)
+                } else {
+                    *self = Probability::Zero(N::ZERO);
+                    Probability::new(diff, max, eps).expect("diff to be contained in 0..=max")
+                }
+            }
+            (Probability::Zero(_), _) | (_, Probability::Zero(_)) => other,
+            (_, Probability::Full(_)) => {
+                let comp = self.complement(max);
+                *self = Probability::Zero(N::ZERO);
+                comp
+            }
+            (Probability::Full(_), _) => {
+                *self = other.complement(max);
+                Probability::Zero(N::ZERO)
             }
         }
     }
@@ -199,13 +247,20 @@ where
         }
     }
 }
-// impl<N> From<N> for Probability<N>
-// where
-//     N: Copy,
-// {
-//     #[inline]
-//     fn from(value: N) -> Self { Probability::Partial(value) }
-// }
+
+impl<N> Display for Probability<N>
+where
+    N: Display,
+{
+    #[inline]
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            Probability::Zero(p) | Probability::Partial(p) | Probability::Full(p) => {
+                write!(f, "{p}")
+            }
+        }
+    }
+}
 
 #[must_use]
 #[derive(Debug, Clone)]
@@ -221,6 +276,15 @@ impl<N> ProbabilitySet<N> {
     /// Returns the slice of the probabilties contained in the set
     #[inline]
     pub fn data(&self) -> &[Probability<N>] { &self.data }
+    /// Returns a vector of the probabilties contained in the set, as their raw representations
+    #[must_use]
+    #[inline]
+    pub fn to_raw(&self) -> Vec<N>
+    where
+        N: Copy,
+    {
+        self.data.iter().map(|p| p.get()).collect()
+    }
     /// Returns the stored epsilon value
     #[inline]
     pub fn eps(&self) -> Epsilon<N>
@@ -285,6 +349,17 @@ impl<N> ProbabilitySet<N> {
         let max = self.max;
         let eps = self.eps;
         self[unit].add(value, max, eps)
+    }
+    /// Subtracts `value` from the probability of `unit`.
+    /// Returns whatever could not be subtracted from `value`.
+    #[inline]
+    pub fn subtract(&mut self, unit: usize, value: Probability<N>) -> Probability<N>
+    where
+        N: Number,
+    {
+        let max = self.max;
+        let eps = self.eps;
+        self[unit].subtract(value, max, eps)
     }
     /// Draws a random value from the probability representation
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]

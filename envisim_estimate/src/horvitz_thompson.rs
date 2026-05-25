@@ -282,6 +282,10 @@ mod test {
 
     #[test]
     fn test_ht() {
-        assert_delta!(estimate(&Y_VALS, &PI_VALS).unwrap(), 11437.46, 0.01);
+        assert_delta!(
+            estimate(&Y_VALS, &PI_VALS).unwrap(),
+            11437.46,
+            Epsilon::new(0.01).unwrap()
+        );
     }
 }

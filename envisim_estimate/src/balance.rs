@@ -130,7 +130,7 @@ mod tests {
     fn test_balance() {
         let data = Data10::matrix();
         let spec = Data10::prob_e();
-        let p = spec.as_f64();
+        let p = spec.as_real();
         let options = SamplingOptions::with_spec_equal(spec)
             .set_spreading(&data)
             .unwrap();
