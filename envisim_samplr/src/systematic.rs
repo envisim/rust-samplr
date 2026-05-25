@@ -14,7 +14,10 @@
 //!
 //! Implements [`SystematicSampling`] for [`SamplingOptions`].
 
-use envisim_utils::random::RandomNumberGenerator;
+use envisim_utils::random::{
+    FloatRng,
+    Rand,
+};
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitySpec,
@@ -30,10 +33,10 @@ use crate::utils::shuffled_indices;
 #[inline]
 fn from_order_equal<R>(rng: &mut R, spec: ProbabilitySpecEqual, order: &[usize]) -> Vec<usize>
 where
-    R: RandomNumberGenerator,
+    R: Rand<usize>,
 {
     let mut sample = Vec::<usize>::with_capacity(spec.sample_size() + 1);
-    let mut r = rng.rusize_to(spec.population_size().get());
+    let mut r = rng.rand_to(spec.population_size().get());
     let mut psum: usize = 0;
 
     for &id in order {
@@ -53,7 +56,7 @@ where
 #[inline]
 fn from_order<R>(rng: &mut R, probabilities: &[f64], order: &[usize]) -> Vec<usize>
 where
-    R: RandomNumberGenerator,
+    R: Rand<f64>,
 {
     let mut sample = Vec::<usize>::with_capacity(
         probabilities
@@ -63,7 +66,7 @@ where
             .to_usize()
             .expect("probability sum to be contained in usize"),
     );
-    let mut r = rng.rf64();
+    let mut r = rng.rand();
     let mut psum: f64 = 0.0;
 
     for &id in order {
@@ -86,7 +89,7 @@ pub trait SystematicSampling {
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.systematic(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -94,14 +97,14 @@ pub trait SystematicSampling {
     /// ```
     fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
     /// Draw a systematic sample, using a random order
     ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
     /// # use envisim_utils::random::*;
-    /// let mut rng = SmallRng::try_sys_rng().unwrap();
+    /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let s = SamplingOptions::new(p.into())?.systematic_random_order(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -109,7 +112,7 @@ pub trait SystematicSampling {
     /// ```
     fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator;
+        R: FloatRng;
 }
 impl<PS, AUX, BAL> SystematicSampling for SamplingOptions<PS, AUX, BAL>
 where
@@ -118,7 +121,7 @@ where
     #[inline]
     fn systematic<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let population_size = self.population_size();
         let order: Vec<usize> = (0..population_size.get()).collect();
@@ -132,7 +135,7 @@ where
     #[inline]
     fn systematic_random_order<R>(&self, rng: &mut R) -> Vec<usize>
     where
-        R: RandomNumberGenerator,
+        R: FloatRng,
     {
         let population_size = self.population_size();
         let order = shuffled_indices(rng, population_size);

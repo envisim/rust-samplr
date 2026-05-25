@@ -5,13 +5,13 @@ use test_utils::*;
 #[test]
 fn test_spm() {
     let options = Data10::options_u();
-    test_wor(|rng| options.spm(rng), &options, 1e-2, 10000);
+    test_wor(|rng| options.spm(rng), &options, 1e-2, 20000);
 }
 
 #[test]
 fn test_rpm() {
     let options = Data10::options_u();
-    test_wor(|rng| options.rpm(rng), &options, 1e-2, 10000);
+    test_wor(|rng| options.rpm(rng), &options, 1e-2, 20000);
 }
 
 #[test]

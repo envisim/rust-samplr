@@ -13,7 +13,11 @@
 use num_traits::ToPrimitive;
 
 use crate::kd_tree::searcher::WeightCollection;
-use crate::random::RandomNumberGenerator;
+use crate::number_traits::Number;
+use crate::random::{
+    FloatRng,
+    Rand,
+};
 use crate::sampling_options::{
     ProbabilitySpec,
     ProbabilitySpecEqual,
@@ -121,8 +125,7 @@ impl FromIterator<usize> for ExactProbabilities {
 }
 
 pub trait ProbabilityStore {
-    type PR: num_traits::NumAssign + Copy + PartialOrd;
-    // + Default
+    type PR: Number;
 
     #[must_use]
     fn data(&self) -> &[Self::PR];
@@ -156,7 +159,9 @@ pub trait ProbabilityStore {
     #[must_use]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool;
     #[must_use]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR;
+    fn draw<G>(&self, rng: &mut G, max: Self::PR) -> Self::PR
+    where
+        G: FloatRng;
 }
 impl ProbabilityStore for FloatProbabilities {
     type PR = f64;
@@ -185,8 +190,11 @@ impl ProbabilityStore for FloatProbabilities {
     #[inline]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool { (a - b).abs() <= self.eps }
     #[inline]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
-        rng.rf64_to(max).expect("max to be non-negative")
+    fn draw<G>(&self, rng: &mut G, max: Self::PR) -> Self::PR
+    where
+        G: Rand<Self::PR>,
+    {
+        rng.rand_in(0.0..max)
     }
 }
 impl ProbabilityStore for ExactProbabilities {
@@ -216,8 +224,11 @@ impl ProbabilityStore for ExactProbabilities {
     #[inline]
     fn eq(&self, a: Self::PR, b: Self::PR) -> bool { a == b }
     #[inline]
-    fn draw<G: RandomNumberGenerator>(&self, rng: &mut G, max: Self::PR) -> Self::PR {
-        rng.rusize_to(max)
+    fn draw<G>(&self, rng: &mut G, max: Self::PR) -> Self::PR
+    where
+        G: Rand<Self::PR>,
+    {
+        rng.rand_in(0..max)
     }
 }
 
