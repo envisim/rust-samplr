@@ -20,6 +20,7 @@ use std::num::{
     NonZeroUsize,
 };
 
+use num_integer::Integer;
 use num_traits::ToPrimitive;
 
 use super::{
@@ -153,8 +154,6 @@ where
     /// The maximum value of the probability representation
     max: N,
 }
-// impl<N> UnequalProbabilityOptions<'_, N> where N: Number {}
-// impl<'bprob, N> UnequalProbabilityOptions<'bprob, N> where N: NumberInt {}
 
 /// Implements the probability options for float types
 macro_rules! prob_opts_impl_float {
@@ -294,12 +293,11 @@ macro_rules! prob_opts_impl_int {
                     .sum();
                 let u_sum = NonZeroU128::try_from(self.population_size())
                     .expect("population size to convert to U128");
-                let ss = s_sum / u_sum;
-                let mm = s_sum % u_sum;
+                let (ss, mm) = s_sum.div_mod_floor(&u_sum.get());
 
                 let res = ss.to_usize().expect("s_sum / u_sum to convert to usize");
 
-                if (mm >> 2) < u_sum.get() {
+                if (mm << 1) < u_sum.get() {
                     res
                 } else {
                     res + 1

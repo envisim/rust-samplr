@@ -62,6 +62,8 @@ where
 {
 }
 
+/// Contains the sampling options needed to perform equal/unequal probability sampling using
+/// classic, spatially balanced and balanced sampling methods.
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct SamplingOptions<PO, AUX = (), BAL = ()>
@@ -75,7 +77,6 @@ where
     /// Maximum number of iterations to run for an algorithm
     max_iterations: NonZeroUsize,
     /// Spreading auxiliaries options
-    // spreading: Option<SpreadingOptions<SOP>>,
     spreading: AUX,
     /// Balancing auxiliaries options
     balancing: BAL,
@@ -86,16 +87,21 @@ impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
     PO: ProbabilityOptions,
 {
+    /// Returns a reference to the provided probability specification
     #[inline]
     pub fn probabilities(&self) -> &PO { &self.probabilities }
+    /// Returns the population size as determined by the probability specification
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize { self.probabilities().population_size() }
+    /// Returns the sample size as determined by the probability specification
     #[must_use]
     #[inline]
     pub fn sample_size(&self) -> usize { self.probabilities().sample_size() }
+    /// Returns the real-valued epsilon
     #[inline]
     pub fn eps(&self) -> Epsilon<PO::Real> { self.eps }
+    /// Returns the maximum number of iterations
     #[must_use]
     #[inline]
     pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
@@ -198,24 +204,28 @@ where
     }
 }
 
+// BUILDERS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
     PO: ProbabilityOptions,
 {
-    // BUILDERS
+    /// Constructs a [`ProbabilitySet`] from the probability specification
     #[inline]
     pub fn to_probabilityset(&self) -> ProbabilitySet<PO::Native> {
         self.probabilities.to_probabilityset(self.eps)
     }
+    /// Constructs a real-valued [`ProbabilitySet`] from the probability specification
     #[inline]
     pub fn to_probabilityset_real(&self) -> ProbabilitySet<PO::Real> {
         self.probabilities.to_probabilityset_real(self.eps)
     }
+    /// Constructs a [`SampleController`] from the probability specification
     #[inline]
     pub fn to_controller(&self) -> SampleController<PO::Native, ()> {
         let probs = self.to_probabilityset();
         SampleController::new(probs)
     }
+    /// Constructs a real-valued [`SampleController`] from the probability specification
     #[inline]
     pub fn to_controller_real(&self) -> SampleController<PO::Real, ()> {
         let probs = self.to_probabilityset_real();
@@ -227,12 +237,15 @@ where
     PO: ProbabilityOptions,
     AUXP: PointSet,
 {
+    /// Constructs a [`SampleController`] containing a KD-tree from the probability specification.
     #[inline]
     pub fn to_spreading_controller(&self) -> SampleController<PO::Native, Tree<'_, AUXP>> {
         let probs = self.to_probabilityset();
         let spreading = self.spreading();
         SampleController::new_spreading(probs, spreading)
     }
+    /// Constructs a real-valued [`SampleController`] containing a KD-tree from the probability
+    /// specification.
     #[inline]
     pub fn to_spreading_controller_real(&self) -> SampleController<PO::Real, Tree<'_, AUXP>> {
         let probs = self.to_probabilityset_real();

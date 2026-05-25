@@ -56,6 +56,7 @@ impl<N> Epsilon<N> {
         }
         Ok(Self(eps))
     }
+    /// Returns `true` if the absolute `value` is almost zero
     #[must_use]
     #[inline]
     pub fn is_zero(&self, value: N) -> bool
@@ -64,6 +65,7 @@ impl<N> Epsilon<N> {
     {
         value.abs() <= self.0
     }
+    /// Returns `true` if the absolute difference between `a` and `b` is almost zero.
     #[must_use]
     #[inline]
     pub fn difference_is_zero(&self, a: N, b: N) -> bool

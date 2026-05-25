@@ -56,10 +56,28 @@ where
         Probability::new(prob, Self::N::ONE, eps)
     }
 }
+impl<N> RealProbabilityValue for Probability<N>
+where
+    N: NumberFloat,
+    Probability<N>: ProbabilityValue<N = N>,
+{
+}
 pub trait IntProbabilityValue: ProbabilityValue
 where
     Self::N: NumberInt,
 {
+}
+impl<N> IntProbabilityValue for Probability<N>
+where
+    N: NumberInt,
+    Probability<N>: ProbabilityValue<N = N>,
+{
+}
+impl<N> ProbabilityValue for Probability<N>
+where
+    N: Number,
+{
+    type N = N;
 }
 
 /// Stores a probability representation
@@ -108,7 +126,6 @@ impl<N> Probability<N> {
         }
     }
     /// Returns the complement of the probability
-    #[must_use]
     #[inline]
     pub fn complement(self, max: N) -> Self
     where
@@ -150,6 +167,8 @@ impl<N> Probability<N> {
         }
     }
     /// Subtracts `other` from `self`, returning whatever could not be subtracted
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    #[inline]
     pub fn subtract(&mut self, other: Self, max: N, eps: Epsilon<N>) -> Self
     where
         N: Number,
@@ -451,10 +470,6 @@ impl<N> IndexMut<usize> for ProbabilitySet<N> {
 /// Implements probability representations and sets for floats
 macro_rules! prob_repr_impl_float {
     ($t:ty) => {
-        impl ProbabilityValue for Probability<$t> {
-            type N = $t;
-        }
-        impl RealProbabilityValue for Probability<$t> {}
         impl ProbabilitySet<$t> {
             /// Constructs a new probability set
             #[inline]
@@ -475,10 +490,6 @@ macro_rules! prob_repr_impl_float {
 /// Implements probability representations and sets for ints
 macro_rules! prob_repr_impl_int {
     ($t:ty) => {
-        impl ProbabilityValue for Probability<$t> {
-            type N = $t;
-        }
-        impl IntProbabilityValue for Probability<$t> {}
         impl ProbabilitySet<$t> {
             /// Constructs a new probability set
             #[inline]

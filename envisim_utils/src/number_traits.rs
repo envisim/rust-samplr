@@ -61,8 +61,10 @@ pub trait Number:
 }
 /// Floating point numbers
 pub trait NumberFloat: Number + Float {}
+impl<N> NumberFloat for N where N: Number + Float {}
 /// Integer numbers
 pub trait NumberInt: Number + Integer {}
+impl<N> NumberInt for N where N: Number + Integer {}
 
 /// Interanal macro that implements `Number` for floats
 macro_rules! number_impl_float {
@@ -94,8 +96,6 @@ macro_rules! number_impl_float {
                 }
             }
         }
-
-        impl NumberFloat for $t {}
     };
 }
 /// Interanal macro that implements `Number` for unsigned integers
@@ -113,8 +113,6 @@ macro_rules! number_impl_uint {
             #[inline]
             fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
         }
-
-        impl NumberInt for $t {}
     };
 }
 /// Interanal macro that implements `Number` for signed integers
@@ -141,8 +139,6 @@ macro_rules! number_impl_sint {
             #[inline]
             fn compare(&self, other: &Self) -> Ordering { <$t>::cmp(self, other) }
         }
-
-        impl NumberInt for $t {}
     };
 }
 
