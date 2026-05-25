@@ -21,16 +21,20 @@ use envisim_utils::kd_tree::{
     PointSet,
     Tree,
 };
-use envisim_utils::probabilities::ProbabilityStore;
+use envisim_utils::probabilities::{
+    Probability,
+    RealProbabilityValue,
+};
 use envisim_utils::random::{
-    FloatRng,
     Rand,
+    Rng,
     random_element,
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilitySpec,
+    ProbabilityOptions,
     SamplingOptions,
+    SamplingOptionsRng,
     SpreadingOptions,
 };
 use num_traits::ToPrimitive;
@@ -81,11 +85,11 @@ where
 {
     /// Constructs a new [`PivotalRunner`]using the LPM1 strategy
     #[inline]
-    pub fn new<PS, BAL>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PS::Native, Tree<'_, P>>
+    pub fn new<PO, BAL>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -100,15 +104,14 @@ where
         }
     }
 }
-impl<PST, P> PivotalStrategy<PST, Tree<'_, P>> for LocalStrategy1<P>
+impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy1<P>
 where
-    PST: ProbabilityStore,
     P: PointSet,
 {
     #[inline]
     fn select_pair<R>(
         &mut self,
-        controller: &mut SampleController<PST, Tree<'_, P>>,
+        controller: &mut SampleController<PROB, Tree<'_, P>>,
         rng: &mut R,
     ) -> Pair
     where
@@ -178,11 +181,11 @@ where
 {
     /// Constructs a new [`PivotalRunner`]using the LPM1 fast strategy
     #[inline]
-    pub fn new<PS, BAL>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PS::Native, Tree<'_, P>>
+    pub fn new<PO, BAL>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -199,15 +202,14 @@ where
         }
     }
 }
-impl<PST, P> PivotalStrategy<PST, Tree<'_, P>> for LocalStrategy1S<P>
+impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy1S<P>
 where
-    PST: ProbabilityStore,
     P: PointSet,
 {
     #[inline]
     fn select_pair<R>(
         &mut self,
-        controller: &mut SampleController<PST, Tree<'_, P>>,
+        controller: &mut SampleController<PROB, Tree<'_, P>>,
         rng: &mut R,
     ) -> Pair
     where
@@ -274,7 +276,7 @@ where
             }
             // If no mutual nn has been found, we select one of the candidates by random to be the
             // next search unit ... but first we clear the history if it has become to long
-            if self.history.len() == controller.population_size() {
+            if self.history.len() == controller.population_size().get() {
                 self.history.clear();
                 self.history.push(id1);
             }
@@ -300,11 +302,11 @@ where
 {
     /// Constructs a new [`PivotalRunner`]using the LPM2 strategy
     #[inline]
-    pub fn new<PS, BAL>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PS::Native, Tree<'_, P>>
+    pub fn new<PO, BAL>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -315,15 +317,14 @@ where
         }
     }
 }
-impl<PST, P> PivotalStrategy<PST, Tree<'_, P>> for LocalStrategy2<P>
+impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy2<P>
 where
-    PST: ProbabilityStore,
     P: PointSet,
 {
     #[inline]
     fn select_pair<R>(
         &mut self,
-        controller: &mut SampleController<PST, Tree<'_, P>>,
+        controller: &mut SampleController<PROB, Tree<'_, P>>,
         rng: &mut R,
     ) -> Pair
     where
@@ -351,9 +352,9 @@ where
     }
 }
 
-pub trait LocalPivotalSampling<P>
+pub trait LocalPivotalSampling<R>
 where
-    P: PointSet,
+    R: Rng,
 {
     /// Draw a sample using the local pivotal method 1.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -372,9 +373,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn lpm_1(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the local pivotal method 1.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -392,9 +391,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn lpm_1s(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the local pivotal method 2.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -412,36 +409,20 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn lpm_2(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<PS, P, BAL> LocalPivotalSampling<P> for SamplingOptions<PS, SpreadingOptions<P>, BAL>
+impl<R, PO, P, BAL> LocalPivotalSampling<R> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions,
     P: PointSet,
 {
     #[inline]
-    fn lpm_1<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        LocalStrategy1::new(self).sample(rng)
-    }
+    fn lpm_1(&self, rng: &mut R) -> Vec<usize> { LocalStrategy1::new(self).sample(rng) }
     #[inline]
-    fn lpm_1s<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        LocalStrategy1S::new(self).sample(rng)
-    }
+    fn lpm_1s(&self, rng: &mut R) -> Vec<usize> { LocalStrategy1S::new(self).sample(rng) }
     #[inline]
-    fn lpm_2<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        LocalStrategy2::new(self).sample(rng)
-    }
+    fn lpm_2(&self, rng: &mut R) -> Vec<usize> { LocalStrategy2::new(self).sample(rng) }
 }
 
 /// Draw a sample using the hierarchical local pivotal method 2.
@@ -483,27 +464,27 @@ where
     reason = "panic implies bug"
 )]
 #[inline]
-pub fn hierarchical_lpm_2<R, PS, P, BAL>(
+pub fn hierarchical_lpm_2<R, PO, P, BAL>(
     rng: &mut R,
-    options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     sizes: &[usize],
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
-    R: FloatRng,
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet,
 {
     // Check validity of probabilities and sizes
     let sizes_sum = sizes.iter().sum();
     let sample_size = options.probabilities().sample_size();
-    let psum = options.probabilities().sample_size_f64();
-    if sample_size != sizes_sum || (psum.round() - psum).abs() > options.eps() {
+    let psum = options.probabilities().sample_size_real();
+    if sample_size != sizes_sum || !options.eps().difference_is_zero(psum.round(), psum) {
         return Err(SamplingError::IncorrectStratification);
     }
 
     // Cannot use ::new, controller needs to be float
     let mut pm = {
-        let controller = options.to_spreading_controller_float();
+        let controller = options.to_spreading_controller_real();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
         PivotalRunner {
             controller,
@@ -513,7 +494,7 @@ where
     pm.run(rng);
 
     if sizes.len() == 1 {
-        return Ok(vec![pm.controller.sample_vec()]);
+        return Ok(vec![pm.controller.to_sorted_sample_vec()]);
     }
 
     let mut return_sample = Vec::<Vec<usize>>::with_capacity(sizes.len());
@@ -528,14 +509,18 @@ where
 
         pm.controller.sample_mut().clear();
 
-        let prob = size.to_f64().expect("size to convert to f64")
-            / main_sample
-                .len()
-                .to_f64()
-                .expect("main sample length convert to f64");
+        let prob = Probability::new_real(
+            size.to_f64().expect("size to convert to f64")
+                / main_sample
+                    .len()
+                    .to_f64()
+                    .expect("main sample length convert to f64"),
+            options.eps(),
+        )
+        .expect("fraction to be in [0,1]");
 
         // Reset probs and add to indices/tree
-        for id in 0..pm.controller.population_size() {
+        for id in 0..pm.controller.population_size().get() {
             if main_sample.contains(&id) {
                 pm.controller.probabilities_mut().set(id, prob);
                 pm.controller.indices_mut().insert(id);
@@ -550,7 +535,10 @@ where
 
         pm.run(rng);
 
-        let s = pm.controller.sample_vec();
+        let s = {
+            pm.controller.sample_mut().sort();
+            pm.controller.sample().get().to_vec()
+        };
         for id in &s {
             main_sample.remove(id);
         }
@@ -558,6 +546,7 @@ where
         return_sample.push(s);
     }
 
+    // Take whatever's left and make into a sample
     let mut s: Vec<usize> = main_sample.into_iter().collect();
     s.sort_unstable();
     return_sample.push(s);

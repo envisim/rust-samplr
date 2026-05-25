@@ -14,6 +14,7 @@
 
 use std::num::NonZeroUsize;
 
+use envisim_utils::Epsilon;
 use envisim_utils::random::{
     FloatRng,
     Rand,
@@ -29,20 +30,19 @@ pub struct AnnealingTemperature {
     /// Annealing cooling rate
     cooling_rate: f64,
     /// Epsilon value for float comparisons
-    eps: f64,
+    eps: Epsilon<f64>,
     /// Track number of divergences
     divergence_count: usize,
 }
 impl AnnealingTemperature {
     /// Constructor
     #[inline]
-    pub fn new(temperature: f64, cooling_rate: f64, eps: f64) -> Self {
+    pub fn new(temperature: f64, cooling_rate: f64, eps: Epsilon<f64>) -> Self {
         assert!(temperature > 0.0, "temperature must be positive");
         assert!(
             0.0 < cooling_rate && cooling_rate < 1.0,
             "cooling_rate must be in (0.0, 1.0)"
         );
-        assert!((0.0..1.0).contains(&eps), "eps must be in [0.0, 1.0)");
 
         Self {
             temperature,
@@ -61,7 +61,7 @@ impl AnnealingTemperature {
     /// Returns `true` if temperature is above epsilon
     #[must_use]
     #[inline]
-    fn is_positive(&self) -> bool { self.temperature > self.eps }
+    fn is_positive(&self) -> bool { !self.eps.is_zero(self.temperature) }
     /// Returns `true` according to the probabilistic annealing decision
     #[must_use]
     #[inline]
@@ -83,7 +83,7 @@ impl Default for AnnealingTemperature {
         Self {
             temperature: 0.1,
             cooling_rate: 0.999,
-            eps: 1e-12,
+            eps: Epsilon::default(),
             divergence_count: 0,
         }
     }

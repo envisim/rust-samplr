@@ -17,11 +17,7 @@
 
 use envisim_estimate::balance::balance_deviation_spreading;
 use envisim_estimate::horvitz_thompson::local_mean_variance;
-use envisim_estimate::spatial_balance::{
-    energy_distance as sb_energy,
-    local as sb_local,
-    voronoi as sb_voronoi,
-};
+use envisim_estimate::spatial_balance::SpatialBalance;
 use envisim_samplr::cube_method::{
     cube_stratified,
     local_cube_stratified,
@@ -30,7 +26,6 @@ use envisim_samplr::dbd::DistributionalDesignEvaluators;
 use envisim_samplr::pivotal_method::hierarchical_lpm_2;
 use envisim_samplr::*;
 use envisim_utils::pips::pips_from_slice;
-use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::sampling_options::{
     SamplingOptions,
     SpreadingOptions,
@@ -335,10 +330,10 @@ fn rust_spatial_balance_measure(
     let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
 
     let v = match r_method {
-        "local" => sb_local(&sample, &options, true)?,
-        "local2" => sb_local(&sample, &options, false)?,
-        "energy-distance" => sb_energy(&sample, &options),
-        "voronoi" | &_ => sb_voronoi(&sample, &options)?,
+        "local" => options.local(&sample, true)?,
+        "local2" => options.local(&sample, false)?,
+        "energy-distance" => options.energy_distance(&sample),
+        "voronoi" | &_ => options.voronoi(&sample)?,
     };
 
     v.try_into()
@@ -363,10 +358,10 @@ fn rust_spatial_balance_measure_equal(
     let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
 
     let v = match r_method {
-        "local" => sb_local(&sample, &options, true)?,
-        "local2" => sb_local(&sample, &options, false)?,
-        "energy-distance" => sb_energy(&sample, &options),
-        "voronoi" | &_ => sb_voronoi(&sample, &options)?,
+        "local" => options.local(&sample, true)?,
+        "local2" => options.local(&sample, false)?,
+        "energy-distance" => options.energy_distance(&sample),
+        "voronoi" | &_ => options.voronoi(&sample)?,
     };
 
     v.try_into()
@@ -393,9 +388,12 @@ fn rust_balance_deviation(
 
 #[savvy]
 fn rust_pips_from_values(r_values: RealSexp, r_sample_size: i32) -> savvy::Result<Sexp> {
-    pips_from_slice(r_values.as_slice(), to_usize(r_sample_size)?)?
+    let pips: Vec<f64> = pips_from_slice(r_values.as_slice(), to_usize(r_sample_size)?)?
         .data()
-        .try_into()
+        .iter()
+        .map(|p| p.get())
+        .collect();
+    pips.try_into()
 }
 
 #[savvy]
@@ -415,10 +413,10 @@ fn rust_spatial_balance_measure_all(
     let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
 
     let bms = vec![
-        sb_voronoi(&sample, &options)?,
-        sb_local(&sample, &options, true)?,
-        sb_local(&sample, &options, false)?,
-        sb_energy(&sample, &options),
+        options.voronoi(&sample)?,
+        options.local(&sample, true)?,
+        options.local(&sample, false)?,
+        options.energy_distance(&sample),
     ];
 
     bms.try_into()
@@ -442,10 +440,10 @@ fn rust_spatial_balance_measure_all_equal(
     let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
 
     let bms = vec![
-        sb_voronoi(&sample, &options)?,
-        sb_local(&sample, &options, true)?,
-        sb_local(&sample, &options, false)?,
-        sb_energy(&sample, &options),
+        options.voronoi(&sample)?,
+        options.local(&sample, true)?,
+        options.local(&sample, false)?,
+        options.energy_distance(&sample),
     ];
 
     bms.try_into()

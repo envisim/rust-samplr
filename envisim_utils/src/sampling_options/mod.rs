@@ -12,17 +12,18 @@
 
 mod balancing_opts;
 mod coordination_opts;
-mod epsilon;
 mod error;
 mod probability_opts;
 mod spreading_opts;
 
 use std::borrow::Cow;
-use std::num::NonZeroUsize;
+use std::num::{
+    NonZero,
+    NonZeroUsize,
+};
 
 pub use balancing_opts::BalancingOptions;
 pub use coordination_opts::CoordinationOptions;
-pub use epsilon::Epsilon;
 pub use error::{
     SamplingOptionsError,
     SamplingOptionsResult,
@@ -34,11 +35,32 @@ pub use probability_opts::{
 };
 pub use spreading_opts::SpreadingOptions;
 
+pub use crate::Epsilon;
 use crate::kd_tree::Tree;
 use crate::matrix::Dimensions;
 use crate::probabilities::ProbabilitySet;
+use crate::random::{
+    FloatRng,
+    Rand,
+};
 use crate::sample_controller::SampleController;
 use crate::spatial::PointSet;
+use crate::{
+    Number,
+    NumberFloat,
+};
+
+pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>
+where
+    PO: ProbabilityOptions,
+{
+}
+impl<PO, R> SamplingOptionsRng<PO> for R
+where
+    PO: ProbabilityOptions,
+    R: FloatRng + Rand<PO::Native> + Rand<PO::Real>,
+{
+}
 
 #[must_use]
 #[derive(Clone, Debug)]
@@ -195,7 +217,7 @@ where
         SampleController::new(probs)
     }
     #[inline]
-    pub fn to_realcontroller(&self) -> SampleController<PO::Real, ()> {
+    pub fn to_controller_real(&self) -> SampleController<PO::Real, ()> {
         let probs = self.to_probabilityset_real();
         SampleController::new(probs)
     }
@@ -222,6 +244,27 @@ where
 /// Default maximum iterations value
 const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible");
 
+impl<'bprob, N, NR> SamplingOptions<UnequalProbabilityOptions<'bprob, N>>
+where
+    N: Number,
+    NR: NumberFloat,
+    UnequalProbabilityOptions<'bprob, N>: ProbabilityOptions<Native = N, Real = NR>,
+{
+    /// Initializes `SamplingOptions` with unequal probability options
+    #[inline]
+    pub fn with_spec(
+        spec: UnequalProbabilityOptions<'bprob, N>,
+    ) -> SamplingOptions<UnequalProbabilityOptions<'bprob, N>, (), ()> {
+        SamplingOptions {
+            probabilities: spec,
+            eps: Epsilon::<NR>::default(),
+            max_iterations: MAX_ITERATIONS,
+            spreading: (),
+            balancing: (),
+        }
+    }
+}
+
 impl SamplingOptions<EqualProbabilityOptions> {
     /// Initializes `SamplingOptions` by some `population_size`, `sample_size` pair.
     ///
@@ -238,6 +281,7 @@ impl SamplingOptions<EqualProbabilityOptions> {
         let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
         Ok(Self::with_spec_equal(spec))
     }
+    /// Initializes `SamplingOptions` with equal probability options
     #[inline]
     pub fn with_spec_equal(
         spec: EqualProbabilityOptions,
@@ -268,18 +312,6 @@ macro_rules! opts_impl_float {
                 let spec = UnequalProbabilityOptions::<$t>::new(probabilities)?;
                 Ok(Self::with_spec(spec))
             }
-            #[inline]
-            pub fn with_spec(
-                spec: UnequalProbabilityOptions<'bprob, $t>,
-            ) -> SamplingOptions<UnequalProbabilityOptions<'bprob, $t>, (), ()> {
-                SamplingOptions {
-                    probabilities: spec,
-                    eps: Epsilon::<$t>::default(),
-                    max_iterations: MAX_ITERATIONS,
-                    spreading: (),
-                    balancing: (),
-                }
-            }
         }
     };
 }
@@ -293,24 +325,13 @@ macro_rules! opts_impl_int {
             /// # Errors
             /// If `probabilities` cannot be turned into [`ProbabilitySpecUnequal`].
             #[inline]
-            pub fn new(
-                probabilities: Cow<'bprob, [$t]>, max: $t
+            pub fn new_int(
+                probabilities: Cow<'bprob, [$t]>,
+                max: NonZero<$t>,
             ) -> SamplingOptionsResult<SamplingOptions<UnequalProbabilityOptions<'bprob, $t>, (), ()>>
             {
-                let spec = UnequalProbabilityOptions::<$t>::new(probabilities, max)?;
+                let spec = UnequalProbabilityOptions::<$t>::new_int(probabilities, max)?;
                 Ok(Self::with_spec(spec))
-            }
-            #[inline]
-            pub fn with_spec(
-                spec: UnequalProbabilityOptions<'bprob, $t>,
-            ) -> SamplingOptions<UnequalProbabilityOptions<'bprob, $t>, (), ()> {
-                SamplingOptions {
-                    probabilities: spec,
-                    eps: Epsilon::<f64>::default(),
-                    max_iterations: MAX_ITERATIONS,
-                    spreading: (),
-                    balancing: (),
-                }
             }
         }
     };

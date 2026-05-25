@@ -11,7 +11,10 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::cmp::Ordering;
-use std::num::NonZeroUsize;
+use std::num::{
+    NonZero,
+    NonZeroUsize,
+};
 use std::ops::{
     Index,
     IndexMut,
@@ -26,6 +29,7 @@ use crate::kd_tree::searcher::WeightCollection;
 use crate::number_traits::{
     Number,
     NumberFloat,
+    NumberInt,
 };
 use crate::random::Rand;
 use crate::sampling_options::Epsilon;
@@ -43,9 +47,14 @@ where
     fn is_real_probability(prob: Self::N) -> bool { (Self::N::ZERO..=Self::N::ONE).contains(&prob) }
     /// Constructs a [`Probability`] if `prob` can be converted, otherwise returns `None`.
     #[inline]
-    fn from_real(prob: Self::N, eps: Epsilon<Self::N>) -> Option<Probability<Self::N>> {
-        Probability::from_raw(prob, Self::N::ONE, eps)
+    fn new_real(prob: Self::N, eps: Epsilon<Self::N>) -> Option<Probability<Self::N>> {
+        Probability::new(prob, Self::N::ONE, eps)
     }
+}
+pub trait IntProbabilityValue: ProbabilityValue
+where
+    Self::N: NumberInt,
+{
 }
 
 /// Stores a probability representation
@@ -93,10 +102,38 @@ impl<N> Probability<N> {
             Probability::Zero(p) | Probability::Partial(p) | Probability::Full(p) => p,
         }
     }
+    /// Adds `other` to `self`, returning whatever could not be added
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    #[inline]
+    pub fn add(&mut self, other: Self, max: N, eps: Epsilon<N>) -> Self
+    where
+        N: Number,
+    {
+        match (*self, other) {
+            (Probability::Zero(_), _) | (Probability::Partial(_), Probability::Full(_)) => {
+                let current = *self;
+                *self = other;
+                current
+            }
+            (Probability::Full(_), _) | (Probability::Partial(_), Probability::Zero(_)) => other,
+            (Probability::Partial(org), Probability::Partial(val)) => {
+                let sum = org + val;
+                if sum < max {
+                    *self =
+                        Probability::new(sum, max, eps).expect("sum to be contained in 0..=max");
+                    Probability::Zero(N::ZERO)
+                } else {
+                    *self = Probability::Full(max);
+                    Probability::new(sum - max, max, eps)
+                        .expect("sum-max to be contained in 0..=max")
+                }
+            }
+        }
+    }
     /// Constructs a probability from `prob` if it can be contained `0..=max`, otherwise returns
     /// `None`.
     #[inline]
-    pub fn from_raw(prob: N, max: N, eps: Epsilon<N>) -> Option<Self>
+    pub fn new(prob: N, max: N, eps: Epsilon<N>) -> Option<Self>
     where
         N: Number,
     {
@@ -109,6 +146,20 @@ impl<N> Probability<N> {
             Some(Probability::Full(max))
         } else {
             Some(Probability::Partial(prob))
+        }
+    }
+    /// Ensures that `self` is contained and in correct represetnation
+    /// # Panics
+    /// Panics if `self` is not a valid probability representation.
+    #[inline]
+    pub fn trim(self, max: N, eps: Epsilon<N>) -> Self
+    where
+        N: Number,
+    {
+        match self {
+            Probability::Partial(_) => Self::new(self.get(), max, eps).expect("self is contained"),
+            Probability::Zero(_) => Probability::Zero(N::ZERO),
+            Probability::Full(_) => Probability::Full(max),
         }
     }
 }
@@ -148,29 +199,13 @@ where
         }
     }
 }
-
-pub trait ProbabilityCollection {
-    type N: Number;
-    #[must_use]
-    fn from_raw<I>(probs: I, max: Self::N, eps: Epsilon<Self::N>) -> Self
-    where
-        Self: Sized,
-        I: IntoIterator<Item = Self::N>,
-        Self::N: Number;
-    #[must_use]
-    fn draw<R>(&self, rng: &mut R) -> Self::N
-    where
-        R: Rand<Self::N>;
-    #[must_use]
-    fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
-    where
-        R: Rand<Self::N>;
-}
-pub trait RealProbabilityCollection: ProbabilityCollection
-where
-    Self::N: NumberFloat,
-{
-}
+// impl<N> From<N> for Probability<N>
+// where
+//     N: Copy,
+// {
+//     #[inline]
+//     fn from(value: N) -> Self { Probability::Partial(value) }
+// }
 
 #[must_use]
 #[derive(Debug, Clone)]
@@ -218,12 +253,11 @@ impl<N> ProbabilitySet<N> {
     /// # Panics
     /// Panics if `value` is not a valid probability representation.
     #[inline]
-    pub fn set(&mut self, idx: usize, value: N)
+    pub fn set(&mut self, idx: usize, value: Probability<N>)
     where
         N: Number,
     {
-        self[idx] = Probability::from_raw(value, self.max, self.eps)
-            .expect("value to be contained in 0..=max");
+        self[idx] = value.trim(self.max, self.eps);
     }
     /// Sets the probability of unit `idx` to the zero representation.
     #[inline]
@@ -243,32 +277,38 @@ impl<N> ProbabilitySet<N> {
     }
     /// Adds `value` to the probability of `unit`.
     /// Returns whatever could not be added to `value`.
-    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
     pub fn add(&mut self, unit: usize, value: Probability<N>) -> Probability<N>
     where
         N: Number,
     {
-        match (self[unit], value) {
-            (Probability::Zero(_), _) | (Probability::Partial(_), Probability::Full(_)) => {
-                let current = self[unit];
-                self[unit] = value;
-                current
-            }
-            (Probability::Full(_), _) | (Probability::Partial(_), Probability::Zero(_)) => value,
-            (Probability::Partial(org), Probability::Partial(val)) => {
-                let sum = org + val;
-                if sum < self.max {
-                    self[unit] = Probability::from_raw(sum, self.max, self.eps)
-                        .expect("sum to be contained in 0..=max");
-                    Probability::Zero(N::ZERO)
-                } else {
-                    self[unit] = Probability::Full(self.max);
-                    Probability::from_raw(sum - self.max, self.max, self.eps)
-                        .expect("sum-max to be contained in 0..=max")
-                }
-            }
-        }
+        let max = self.max;
+        let eps = self.eps;
+        self[unit].add(value, max, eps)
+    }
+    /// Draws a random value from the probability representation
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    #[inline]
+    pub fn draw<R>(&self, rng: &mut R) -> Probability<N>
+    where
+        N: Number,
+        R: Rand<N>,
+    {
+        let r = rng.rand_to(self.max);
+        Probability::new(r, self.max, self.eps).expect("r < max")
+    }
+    /// Draws a random value from the probability representation up to `max`.
+    /// # Panics
+    /// Panics if not `0 < max <= self.max`
+    #[inline]
+    pub fn draw_partial<R>(&self, rng: &mut R, max: N) -> Probability<N>
+    where
+        N: Number,
+        R: Rand<N>,
+    {
+        assert!(N::ZERO < max && max <= self.max, "0 < max <= repr max");
+        let r = rng.rand_to(max);
+        Probability::new(r, self.max, self.eps).expect("r < max")
     }
     /// Returns the weight of `other` on `main`.
     #[inline]
@@ -347,43 +387,14 @@ macro_rules! prob_repr_impl_float {
             where
                 I: IntoIterator<Item = $t>,
             {
-                Self::from_raw(probs, 1.0, eps)
-            }
-        }
-        impl ProbabilityCollection for ProbabilitySet<$t> {
-            type N = $t;
-            #[inline]
-            fn from_raw<I>(probs: I, _max: Self::N, eps: Epsilon<Self::N>) -> Self
-            where
-                I: IntoIterator<Item = Self::N>,
-                Self::N: Number,
-            {
                 let max = 1.0;
-                let data: Box<[Probability<Self::N>]> = probs
+                let data: Box<[Probability<$t>]> = probs
                     .into_iter()
-                    .map(|p| {
-                        Probability::from_raw(p, max, eps).expect("p to be contained in 0..=max")
-                    })
+                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
                     .collect();
                 Self { data, max, eps }
             }
-            #[inline]
-            fn draw<R>(&self, rng: &mut R) -> Self::N
-            where
-                R: Rand<$t>,
-            {
-                rng.rand()
-            }
-            #[inline]
-            fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
-            where
-                R: Rand<$t>,
-            {
-                assert!(0.0 < max && max <= 1.0);
-                rng.rand_to(max)
-            }
         }
-        impl RealProbabilityCollection for ProbabilitySet<$t> {}
     };
 }
 /// Implements probability representations and sets for ints
@@ -392,48 +403,21 @@ macro_rules! prob_repr_impl_int {
         impl ProbabilityValue for Probability<$t> {
             type N = $t;
         }
+        impl IntProbabilityValue for Probability<$t> {}
         impl ProbabilitySet<$t> {
             /// Constructs a new probability set
             #[inline]
-            pub fn new<I>(probs: I, max: $t) -> Self
+            pub fn new<I>(probs: I, max: NonZero<$t>) -> Self
             where
                 I: IntoIterator<Item = $t>,
             {
-                Self::from_raw(probs, max, Default::default())
-            }
-        }
-        impl ProbabilityCollection for ProbabilitySet<$t> {
-            type N = $t;
-            #[inline]
-            fn from_raw<I>(probs: I, max: Self::N, _eps: Epsilon<Self::N>) -> Self
-            where
-                I: IntoIterator<Item = Self::N>,
-                Self::N: Number,
-            {
-                assert!(0 < max);
+                let max = max.get();
                 let eps = Epsilon::<$t>::default();
-                let data: Box<[Probability<Self::N>]> = probs
+                let data: Box<[Probability<$t>]> = probs
                     .into_iter()
-                    .map(|p| {
-                        Probability::from_raw(p, max, eps).expect("p to be contained in 0..=max")
-                    })
+                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
                     .collect();
                 Self { data, max, eps }
-            }
-            #[inline]
-            fn draw<R>(&self, rng: &mut R) -> Self::N
-            where
-                R: Rand<$t>,
-            {
-                rng.rand_to(self.max)
-            }
-            #[inline]
-            fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::N
-            where
-                R: Rand<$t>,
-            {
-                assert!(0 < max && max <= self.max);
-                rng.rand_to(max)
             }
         }
     };

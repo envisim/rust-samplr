@@ -29,13 +29,11 @@ use envisim_utils::matrix::{
     MatrixDims,
     RawData,
 };
-use envisim_utils::probabilities::{
-    FloatProbabilities,
-    ProbabilityStore,
-};
+use envisim_utils::probabilities::Probability;
 use envisim_utils::random::{
     FloatRng,
     Rand,
+    Rng,
     random_weighted,
 };
 use envisim_utils::sample_controller::{
@@ -44,8 +42,9 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilitySpec,
+    ProbabilityOptions,
     SamplingOptions,
+    SamplingOptionsRng,
     SpreadingOptions,
 };
 
@@ -60,15 +59,15 @@ pub trait CubeStrategy<TREE> {
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut SampleController<FloatProbabilities, TREE>,
+        controller: &mut SampleController<f64, TREE>,
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: FloatRng;
+        R: Rand<usize>;
     // Used for stratified
     fn reset_to_ids(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, TREE>,
+        controller: &mut SampleController<f64, TREE>,
         ids: &mut [usize],
         n_neighbours: usize,
     );
@@ -81,7 +80,7 @@ pub trait CubeStrategy<TREE> {
 #[must_use]
 pub struct CubeRunner<S, TREE> {
     /// Sample controller
-    pub(super) controller: SampleController<FloatProbabilities, TREE>,
+    pub(super) controller: SampleController<f64, TREE>,
     /// Sample strategy
     pub(super) strategy: S,
     /// Candidates for balancing
@@ -94,17 +93,17 @@ pub struct CubeRunner<S, TREE> {
 impl<S, TREE> CubeRunner<S, TREE>
 where
     S: CubeStrategy<TREE>,
-    SampleController<FloatProbabilities, TREE>: UnitRemoving,
+    SampleController<f64, TREE>: UnitRemoving,
 {
     /// Runs the simulation and returns a sorted sample
     #[must_use]
     #[inline]
-    pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
+    pub fn sample<R>(mut self, rng: &mut R) -> Vec<usize>
     where
         R: FloatRng,
     {
         self.run(rng);
-        self.controller.sample_vec()
+        self.controller.to_sorted_sample_vec()
     }
     /// Runs the sampling algorithm
     #[inline]
@@ -178,13 +177,13 @@ where
         reason = "safe to assume balancing dims is not pushing the usize limit"
     )]
     #[inline]
-    pub fn new<PS, AUX, T>(
-        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
-        controller: SampleController<FloatProbabilities, TREE>,
+    pub fn new<PO, AUX, T>(
+        options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
+        controller: SampleController<f64, TREE>,
         strategy: S,
     ) -> Self
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         T: RawData<Elem = f64>,
     {
         let balancing_data = options.balancing().data();
@@ -192,7 +191,7 @@ where
         let mut adjusted_data = balancing_data.to_matrix();
 
         for i in 0..b_dims.rows.get() {
-            let p = controller.probabilities().get(i);
+            let p = controller.probabilities()[i].get();
             for j in 0..b_dims.cols.get() {
                 adjusted_data[(i, j)] /= p;
             }
@@ -247,7 +246,7 @@ where
         for (prob, &uval) in self
             .candidates
             .iter()
-            .map(|&id| self.controller.probabilities().get(id))
+            .map(|&id| self.controller.probabilities()[id].get())
             .zip(uvec.iter())
         {
             let lvals = ((prob / uval).abs(), ((1.0 - prob) / uval).abs());
@@ -270,7 +269,8 @@ where
         };
 
         for (i, &id) in self.candidates.iter().enumerate() {
-            self.controller.unit_add_and_decide(id, lambda * uvec[i]);
+            let adding = Probability::Partial(lambda * uvec[i]);
+            let _prest = self.controller.unit_add_and_decide(id, adding);
         }
     }
 }
@@ -281,14 +281,14 @@ pub struct SequentialCubeStrategy();
 impl SequentialCubeStrategy {
     /// Constructs a new cube runner using the sequential cube strategy
     #[inline]
-    pub fn new<PS, AUX, T>(
-        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    pub fn new<PO, AUX, T>(
+        options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, ()>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         T: RawData<Elem = f64>,
     {
-        let controller = options.to_controller_float();
+        let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
     }
 }
@@ -297,11 +297,11 @@ impl CubeStrategy<()> for SequentialCubeStrategy {
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         _rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         set_candidates_from_indices_sequentially(candidates, controller.indices(), n_units);
     }
@@ -311,7 +311,7 @@ impl CubeStrategy<()> for SequentialCubeStrategy {
     #[inline]
     fn reset_to_ids(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         ids: &mut [usize],
         _n_neighbours: usize,
     ) {
@@ -328,14 +328,14 @@ pub struct RandomCubeStrategy();
 impl RandomCubeStrategy {
     /// Constructs a new cube runner using the random cube strategy
     #[inline]
-    pub fn new<PS, AUX, T>(
-        options: &SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>,
+    pub fn new<PO, AUX, T>(
+        options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, ()>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         T: RawData<Elem = f64>,
     {
-        let controller = options.to_controller_float();
+        let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
     }
 }
@@ -344,11 +344,11 @@ impl CubeStrategy<()> for RandomCubeStrategy {
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         set_candidates_from_indices_randomly(rng, candidates, controller.indices(), n_units);
     }
@@ -358,7 +358,7 @@ impl CubeStrategy<()> for RandomCubeStrategy {
     #[inline]
     fn reset_to_ids(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         ids: &mut [usize],
         _n_neighbours: usize,
     ) {
@@ -389,14 +389,14 @@ where
 {
     /// Constructs a new cube runner using the local cube strategy
     #[inline]
-    pub fn new<PS, T>(
-        options: &'btree SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
+    pub fn new<PO, T>(
+        options: &'btree SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, Tree<'btree, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         T: RawData<Elem = f64>,
     {
-        let controller = options.to_spreading_controller_float();
+        let controller = options.to_spreading_controller_real();
         let searcher = KNearestNeighbourSearcher::new(
             options.balancing().data().ncol(),
             controller.tree().data(),
@@ -421,11 +421,11 @@ where
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
-        controller: &mut SampleController<FloatProbabilities, Tree<'btree, P>>,
+        controller: &mut SampleController<f64, Tree<'btree, P>>,
         rng: &mut R,
         n_units: NonZeroUsize,
     ) where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         assert!(
             n_units.get() > 1,
@@ -497,7 +497,7 @@ where
     #[inline]
     fn reset_to_ids(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, Tree<'btree, P>>,
+        controller: &mut SampleController<f64, Tree<'btree, P>>,
         ids: &mut [usize],
         n_neighbours: usize,
     ) {
@@ -514,7 +514,10 @@ where
     }
 }
 
-pub trait CubeSampling {
+pub trait CubeSampling<R>
+where
+    R: Rng,
+{
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
@@ -539,9 +542,7 @@ pub trait CubeSampling {
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn cube(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxilliary variables in `balancing`.
     /// For fixed sized samples, the first auxilliary variable should be the probability vector.
@@ -566,51 +567,36 @@ pub trait CubeSampling {
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn sequential_cube(&self, rng: &mut R) -> Vec<usize>;
 }
-pub trait LocalCubeSampling<P>
+pub trait LocalCubeSampling<R>
 where
-    P: PointSet,
+    R: Rng,
 {
     #[must_use]
-    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn local_cube(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<PS, AUX, T> CubeSampling for SamplingOptions<PS, AUX, BalancingOptions<MatrixBase<T>>>
+impl<R, PO, AUX, T> CubeSampling<R> for SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     T: RawData<Elem = f64>,
 {
     #[inline]
-    fn cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        RandomCubeStrategy::new(self).sample(rng)
-    }
+    fn cube(&self, rng: &mut R) -> Vec<usize> { RandomCubeStrategy::new(self).sample(rng) }
     #[inline]
-    fn sequential_cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
+    fn sequential_cube(&self, rng: &mut R) -> Vec<usize> {
         SequentialCubeStrategy::new(self).sample(rng)
     }
 }
-impl<PS, P, T> LocalCubeSampling<P>
-    for SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>
+impl<R, PO, P, T> LocalCubeSampling<R>
+    for SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet,
     T: RawData<Elem = f64>,
 {
     #[inline]
-    fn local_cube<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        LocalCubeStrategy::new(self).sample(rng)
-    }
+    fn local_cube(&self, rng: &mut R) -> Vec<usize> { LocalCubeStrategy::new(self).sample(rng) }
 }

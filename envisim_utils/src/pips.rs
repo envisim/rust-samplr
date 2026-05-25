@@ -17,7 +17,10 @@ use std::iter::repeat_n;
 use num_traits::ToPrimitive;
 
 pub use self::error::PipsError;
-use crate::probabilities::ProbabilitySet;
+use crate::probabilities::{
+    Probability,
+    ProbabilitySet,
+};
 use crate::sampling_options::Epsilon;
 
 /// Draw probabilities proportional to size.
@@ -92,7 +95,7 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
             }
 
             let p = (x * curr_n) / sum;
-            pips.set(i, p);
+            pips.set(i, Probability::Partial(p));
 
             if pips[i].is_full() {
                 n -= 1.0;

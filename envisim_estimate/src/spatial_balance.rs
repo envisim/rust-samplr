@@ -14,6 +14,7 @@
 
 use std::iter::once;
 
+use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
@@ -30,7 +31,6 @@ use envisim_utils::sampling_options::{
     SpreadingOptions,
     UnequalProbabilityOptions,
 };
-use envisim_utils::spatial::Number;
 use num_traits::ToPrimitive;
 use rustc_hash::{
     FxBuildHasher,

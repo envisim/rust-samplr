@@ -12,19 +12,20 @@
 
 //! Runners and base traits for pivotal methods
 
+use envisim_utils::Number;
 use envisim_utils::indices::Pair;
-use envisim_utils::probabilities::ProbabilityStore;
-use envisim_utils::random::{
-    FloatRng,
-    Rand,
-};
+use envisim_utils::random::Rand;
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
 
-pub trait PivotalStrategy<PST, TREE> {
-    fn select_pair<R>(&mut self, controller: &mut SampleController<PST, TREE>, rng: &mut R) -> Pair
+pub trait PivotalStrategy<PROB, TREE> {
+    fn select_pair<R>(
+        &mut self,
+        controller: &mut SampleController<PROB, TREE>,
+        rng: &mut R,
+    ) -> Pair
     where
         R: Rand<usize>;
 }
@@ -34,33 +35,33 @@ pub trait PivotalStrategy<PST, TREE> {
     reason = "super is ok, needed for impl"
 )]
 #[must_use]
-pub struct PivotalRunner<S, PST, TREE> {
+pub struct PivotalRunner<S, PROB, TREE> {
     /// Sample controller
-    pub(super) controller: SampleController<PST, TREE>,
+    pub(super) controller: SampleController<PROB, TREE>,
     /// Sample strategy
     pub(super) strategy: S,
 }
-impl<S, PST, TREE> PivotalRunner<S, PST, TREE>
+impl<S, PROB, TREE> PivotalRunner<S, PROB, TREE>
 where
-    S: PivotalStrategy<PST, TREE>,
-    SampleController<PST, TREE>: UnitRemoving,
-    PST: ProbabilityStore,
+    S: PivotalStrategy<PROB, TREE>,
+    SampleController<PROB, TREE>: UnitRemoving,
+    PROB: Number,
 {
     /// Runs the simulation and returns a sorted sample
     #[must_use]
     #[inline]
-    pub fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
+    pub fn sample<R>(mut self, rng: &mut R) -> Vec<usize>
     where
-        R: FloatRng,
+        R: Rand<PROB>,
     {
         self.run(rng);
-        self.controller.sample_vec()
+        self.controller.to_sorted_sample_vec()
     }
     /// Runs the sampling algorithm
     #[inline]
     pub fn run<R>(&mut self, rng: &mut R)
     where
-        R: FloatRng,
+        R: Rand<PROB>,
     {
         while self.update_probabilities(rng) {}
         let _last = self.controller.unit_decide_last(rng);
@@ -70,7 +71,7 @@ where
     #[inline]
     fn update_probabilities<R>(&mut self, rng: &mut R) -> bool
     where
-        R: FloatRng,
+        R: Rand<PROB>,
     {
         let (id1, id2, cont) = match self.strategy.select_pair(&mut self.controller, rng) {
             Pair::More(id1, id2) => (id1, id2, true),
@@ -81,41 +82,44 @@ where
         };
 
         let max = self.controller.probabilities().max();
+        let eps = self.controller.probabilities().eps();
 
-        let p1 = self.controller.probabilities().data()[id1];
-        let p2 = self.controller.probabilities().data()[id2];
-        let psum = p1 + p2;
+        let p1 = self.controller.probabilities()[id1];
+        let p2 = self.controller.probabilities()[id2];
 
-        if psum == max {
-            if self.controller.draw(rng, max) < p1 {
-                self.controller.unit_set_max(id1);
+        let (psum, prest) = {
+            let mut ps = p1;
+            let pr = ps.add(p2, max, eps);
+            (ps, pr)
+        };
+
+        if prest.is_zero() {
+            // psum <= 1.0
+            if self
+                .controller
+                .probabilities()
+                .draw_partial(rng, psum.get())
+                < p1
+            {
+                self.controller.unit_set_and_decide(id1, psum);
                 self.controller.unit_set_zero(id2);
             } else {
                 self.controller.unit_set_zero(id1);
-                self.controller.unit_set_max(id2);
+                self.controller.unit_set_and_decide(id2, psum);
             }
-
-            return cont;
-        }
-
-        if max < psum {
-            if self.controller.draw(rng, max + max - psum) < max - p2 {
-                self.controller.unit_set_max(id1);
-                self.controller.unit_set_and_decide(id2, psum - max);
-            } else {
-                self.controller.unit_set_and_decide(id1, psum - max);
-                self.controller.unit_set_max(id2);
-            }
-            return cont;
-        }
-
-        // psum < one
-        if self.controller.probabilities().draw(rng, psum) < p1 {
-            self.controller.unit_set_and_decide(id1, psum);
-            self.controller.unit_set_zero(id2);
+            // 1.0 < psum
+        } else if self
+            .controller
+            .probabilities()
+            .draw_partial(rng, max - prest.get())
+            .get()
+            < max - p2.get()
+        {
+            self.controller.unit_set_full(id1);
+            self.controller.unit_set_and_decide(id2, prest);
         } else {
-            self.controller.unit_set_zero(id1);
-            self.controller.unit_set_and_decide(id2, psum);
+            self.controller.unit_set_and_decide(id1, prest);
+            self.controller.unit_set_full(id2);
         }
 
         cont

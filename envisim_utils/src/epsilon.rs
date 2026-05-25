@@ -12,11 +12,11 @@
 
 //! Epsilon
 
-use super::{
+use crate::number_traits::Number;
+use crate::sampling_options::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::number_traits::Number;
 
 /// An epsilon-like value, used for comparisons between `N` representations
 ///
@@ -58,15 +58,27 @@ impl<N> Epsilon<N> {
     {
         value.abs() <= self.0
     }
+    #[must_use]
+    #[inline]
+    pub fn difference_is_zero(&self, a: N, b: N) -> bool
+    where
+        N: Number,
+    {
+        Number::abs_difference(a, b) <= self.0
+    }
+}
+
+impl<N> Default for Epsilon<N>
+where
+    N: Number,
+{
+    #[inline]
+    fn default() -> Self { Self(N::DEFAULT_EPSILON_VALUE) }
 }
 
 /// Implements epsilon for floats
 macro_rules! eps_impl_float {
     ($t:ty) => {
-        impl Default for Epsilon<$t> {
-            #[inline]
-            fn default() -> Self { Self(1e-12) }
-        }
         impl TryFrom<$t> for Epsilon<$t> {
             type Error = SamplingOptionsError;
             #[inline]
@@ -74,29 +86,24 @@ macro_rules! eps_impl_float {
         }
     };
 }
-/// Implements epsilon for ints
-macro_rules! eps_impl_int {
-    ($t:ty) => {
-        impl Default for Epsilon<$t> {
-            #[inline]
-            fn default() -> Self { Self(0) }
-        }
-    };
-}
+///// Implements epsilon for ints
+// macro_rules! eps_impl_int {
+//     ($t:ty) => {};
+// }
 
-eps_impl_int!(usize);
-eps_impl_int!(u8);
-eps_impl_int!(u16);
-eps_impl_int!(u32);
-eps_impl_int!(u64);
-eps_impl_int!(u128);
+// eps_impl_int!(usize);
+// eps_impl_int!(u8);
+// eps_impl_int!(u16);
+// eps_impl_int!(u32);
+// eps_impl_int!(u64);
+// eps_impl_int!(u128);
 
-eps_impl_int!(isize);
-eps_impl_int!(i8);
-eps_impl_int!(i16);
-eps_impl_int!(i32);
-eps_impl_int!(i64);
-eps_impl_int!(i128);
+// eps_impl_int!(isize);
+// eps_impl_int!(i8);
+// eps_impl_int!(i16);
+// eps_impl_int!(i32);
+// eps_impl_int!(i64);
+// eps_impl_int!(i128);
 
 eps_impl_float!(f32);
 eps_impl_float!(f64);

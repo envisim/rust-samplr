@@ -15,17 +15,18 @@
 use std::borrow::Cow;
 use std::iter::repeat_n;
 use std::num::{
+    NonZero,
     NonZeroU128,
     NonZeroUsize,
 };
 
 use num_traits::ToPrimitive;
 
-use super::epsilon::Epsilon;
 use super::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
+use crate::Epsilon;
 use crate::number_traits::{
     Number,
     NumberFloat,
@@ -112,7 +113,7 @@ impl ProbabilityOptions for EqualProbabilityOptions {
     fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         ProbabilitySet::<Self::Native>::new(
             repeat_n(self.sample_size, self.population_size.get()),
-            self.population_size.get(),
+            self.population_size,
         )
     }
     #[inline]
@@ -152,7 +153,8 @@ where
     /// The maximum value of the probability representation
     max: N,
 }
-impl<N> UnequalProbabilityOptions<'_, N> where N: Number {}
+// impl<N> UnequalProbabilityOptions<'_, N> where N: Number {}
+// impl<'bprob, N> UnequalProbabilityOptions<'bprob, N> where N: NumberInt {}
 
 /// Implements the probability options for float types
 macro_rules! prob_opts_impl_float {
@@ -221,11 +223,12 @@ macro_rules! prob_opts_impl_int {
             /// Returns an error if the `probabilities` container was empty, or if any provided probability
             /// was not a proper probaility (i.e. within [0.0, 1.0]).
             #[inline]
-            pub fn new(probabilities: Cow<'bprob, [$t]>, max: $t) -> SamplingOptionsResult<Self> {
+            pub fn new_int(
+                probabilities: Cow<'bprob, [$t]>,
+                max: NonZero<$t>,
+            ) -> SamplingOptionsResult<Self> {
+                let max = max.get();
                 let data = probabilities;
-                if max <= 0 {
-                    return Err(SamplingOptionsError::InvalidEpsilon);
-                }
                 if data.is_empty() {
                     return Err(SamplingOptionsError::InvalidPopulationSize);
                 }
@@ -240,7 +243,10 @@ macro_rules! prob_opts_impl_int {
             type Real = f64;
             #[inline]
             fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
-                ProbabilitySet::<Self::Native>::new(self.data.iter().copied(), self.max)
+                ProbabilitySet::<Self::Native>::new(
+                    self.data.iter().copied(),
+                    NonZero::new(self.max).expect("max > 0"),
+                )
             }
             #[inline]
             fn to_probabilityset_real(

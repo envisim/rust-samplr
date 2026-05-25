@@ -12,6 +12,8 @@
 
 //! Distributionally balanced design options
 
+use envisim_utils::Epsilon;
+
 use super::annealing::AnnealingTemperature;
 use crate::{
     SamplingError,
@@ -93,7 +95,7 @@ impl DistributionalDesignOptions {
     }
     /// Converts the dbd option into an `AnnealingTemperature` object
     #[inline]
-    pub(crate) fn as_annealing_temperature(&self, eps: f64) -> AnnealingTemperature {
+    pub(crate) fn as_annealing_temperature(&self, eps: Epsilon<f64>) -> AnnealingTemperature {
         AnnealingTemperature::new(self.annealing_temperature, self.annealing_cooling_rate, eps)
     }
 }

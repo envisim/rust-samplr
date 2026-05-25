@@ -21,7 +21,7 @@ use rustc_hash::{
 };
 
 use crate::random::{
-    Rng,
+    Rand,
     random_element,
 };
 
@@ -180,7 +180,7 @@ impl Indices {
     #[inline]
     pub fn draw<R>(&self, rng: &mut R) -> Option<usize>
     where
-        R: Rng,
+        R: Rand<usize>,
     {
         random_element(rng, &self.list).copied()
     }

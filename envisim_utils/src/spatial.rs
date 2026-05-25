@@ -10,11 +10,13 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Provides the `PointSet` trait
+
 use std::num::NonZeroUsize;
 
 use num_traits::ConstZero;
 
-pub use crate::number_traits::Number;
+use crate::number_traits::Number;
 
 pub trait PointSet {
     type N: Number;

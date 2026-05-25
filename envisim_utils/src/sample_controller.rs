@@ -20,7 +20,6 @@ use crate::kd_tree::{
 use crate::number_traits::Number;
 use crate::probabilities::{
     Probability,
-    ProbabilityCollection,
     ProbabilitySet,
 };
 use crate::random::Rand;
@@ -67,17 +66,6 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize { self.probabilities.len() }
-    /// Draws a random value constrained by the probability representation
-    #[must_use]
-    #[inline]
-    pub fn draw<R>(&self, rng: &mut R, max: PROB) -> PROB
-    where
-        ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
-        R: Rand<PROB>,
-        PROB: Number,
-    {
-        self.probabilities.draw_partial(rng, max)
-    }
     /// Removes a unit if its probability is not partial.
     #[inline]
     pub fn unit_decide(&mut self, idx: usize) -> Probability<PROB>
@@ -100,7 +88,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     }
     /// Sets a unit to a new probability `prob` and removes it if `prob` is not partial.
     #[inline]
-    pub fn unit_set_and_decide(&mut self, idx: usize, prob: PROB)
+    pub fn unit_set_and_decide(&mut self, idx: usize, prob: Probability<PROB>)
     where
         Self: UnitRemoving,
         PROB: Number,
@@ -146,7 +134,6 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<Probability<PROB>>
     where
         Self: UnitRemoving,
-        ProbabilitySet<PROB>: ProbabilityCollection<N = PROB>,
         R: Rand<PROB>,
         PROB: Number,
     {
@@ -155,7 +142,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
         }
         let id = self.indices.last()?;
         let prob = self.probabilities[id];
-        if self.probabilities.draw(rng) < prob.get() {
+        if self.probabilities.draw(rng) < prob {
             self.unit_set_full(id);
         } else {
             self.unit_set_zero(id);

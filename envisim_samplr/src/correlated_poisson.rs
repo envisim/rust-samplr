@@ -31,16 +31,15 @@
 //! Environmetrics, 35(2), e2832.
 //! <https://doi.org/10.1002/env.2832>
 
+use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::WeightedSearcher;
 use envisim_utils::kd_tree::searcher::neighbour::WeightedNeighbour;
-use envisim_utils::probabilities::{
-    FloatProbabilities,
-    ProbabilityStore,
-};
+use envisim_utils::probabilities::Probability;
 use envisim_utils::random::{
     FloatRng,
     Rand,
+    Rng,
     random_element,
 };
 use envisim_utils::sample_controller::{
@@ -50,13 +49,11 @@ use envisim_utils::sample_controller::{
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     CoordinationOptions,
-    ProbabilitySpec,
+    ProbabilityOptions,
+    SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::spatial::{
-    Number,
-    PointSet,
-};
+use envisim_utils::spatial::PointSet;
 use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;
@@ -65,19 +62,19 @@ use crate::error::SamplingResult;
 pub trait CorrelatedPoissonStrategy<TREE> {
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: FloatRng;
+        R: Rand<f64>;
     fn select_unit<R>(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, TREE>,
+        controller: &mut SampleController<f64, TREE>,
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: FloatRng;
+        R: Rand<usize>;
     fn update_probabilities(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, TREE>,
+        controller: &mut SampleController<f64, TREE>,
         id: usize,
-        probability: f64,
+        probability: Probability<f64>,
         quota: f64,
     );
 }
@@ -85,10 +82,10 @@ pub trait CorrelatedPoissonStrategy<TREE> {
 #[must_use]
 pub struct CorrelatedPoissonRunner<S, TREE>
 where
-    SampleController<FloatProbabilities, TREE>: UnitRemoving,
+    SampleController<f64, TREE>: UnitRemoving,
 {
     /// Sample controller
-    controller: SampleController<FloatProbabilities, TREE>,
+    controller: SampleController<f64, TREE>,
     /// Sample strategy
     strategy: S,
 }
@@ -96,23 +93,23 @@ where
 impl<S, TREE> CorrelatedPoissonRunner<S, TREE>
 where
     S: CorrelatedPoissonStrategy<TREE>,
-    SampleController<FloatProbabilities, TREE>: UnitRemoving,
+    SampleController<f64, TREE>: UnitRemoving,
 {
     /// Runs the simulation and returns a sorted sample
     #[must_use]
     #[inline]
-    fn sample<R>(&mut self, rng: &mut R) -> Vec<usize>
+    fn sample<R>(mut self, rng: &mut R) -> Vec<usize>
     where
-        R: FloatRng,
+        R: Rand<f64> + Rand<usize>,
     {
         self.run(rng);
-        self.controller.sample_vec()
+        self.controller.to_sorted_sample_vec()
     }
     /// Runs the sampling algorithm
     #[inline]
     fn run<R>(&mut self, rng: &mut R)
     where
-        R: FloatRng,
+        R: Rand<f64> + Rand<usize>,
     {
         while let Some(id) = self.strategy.select_unit(&mut self.controller, rng) {
             let (p, q) = self.decide_unit(rng, id);
@@ -122,17 +119,16 @@ where
     }
     /// Decides the outcome of the selected unit
     #[inline]
-    #[must_use]
-    fn decide_unit<R>(&mut self, rng: &mut R, id: usize) -> (f64, f64)
+    fn decide_unit<R>(&mut self, rng: &mut R, id: usize) -> (Probability<f64>, f64)
     where
-        R: FloatRng,
+        R: Rand<f64>,
     {
-        let probability = self.controller.probabilities().get(id);
-        let mut quota = probability;
+        let probability = self.controller.probabilities()[id];
+        let mut quota = probability.get();
         let rv = self.strategy.random_value(rng, id);
 
-        if rv < probability {
-            self.controller.unit_set_max(id);
+        if rv < probability.get() {
+            self.controller.unit_set_full(id);
             quota -= 1.0;
         } else {
             self.controller.unit_set_zero(id);
@@ -152,13 +148,13 @@ pub struct SequentialStrategy<'bcoord> {
 impl<'bcoord> SequentialStrategy<'bcoord> {
     /// Constructs a new CPS runner using the sequential strategy
     #[inline]
-    pub fn new<PS, AUX, BAL>(
-        options: &SamplingOptions<PS, AUX, BAL>,
+    pub fn new<PO, AUX, BAL>(
+        options: &SamplingOptions<PO, AUX, BAL>,
     ) -> CorrelatedPoissonRunner<Self, ()>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
     {
-        let controller = options.to_controller_float();
+        let controller = options.to_controller_real();
         CorrelatedPoissonRunner {
             controller,
             strategy: Self {
@@ -172,17 +168,17 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
     #[inline]
-    pub fn new_coord<PS, AUX, BAL, C>(
-        options: &SamplingOptions<PS, AUX, BAL>,
+    pub fn new_coord<PO, AUX, BAL, C>(
+        options: &SamplingOptions<PO, AUX, BAL>,
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, ()>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         C: Into<CoordinationOptions<'bcoord>>,
     {
-        let controller = options.to_controller_float();
+        let controller = options.to_controller_real();
         let random_values = random_values.into();
-        random_values.check(controller.population_size_nz()?)?;
+        random_values.check(controller.population_size())?;
         Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
@@ -196,23 +192,23 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: FloatRng,
+        R: Rand<f64>,
     {
         self.random_values.get_or(id, rng)
     }
     #[inline]
     fn select_unit<R>(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         _rng: &mut R,
     ) -> Option<usize>
     where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         // Tempting to use controller.indices().last(), but order is not guaranteed as swap_remove
         // might move a unit forward in the indices.list().
 
-        let pop_size = controller.population_size();
+        let pop_size = controller.population_size().get();
         while self.unit < pop_size && !controller.indices().contains(self.unit) {
             self.unit += 1;
         }
@@ -222,9 +218,9 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     #[inline]
     fn update_probabilities(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, ()>,
+        controller: &mut SampleController<f64, ()>,
         _id: usize,
-        probability: f64,
+        probability: Probability<f64>,
         quota: f64,
     ) {
         if controller.indices().is_empty() {
@@ -234,13 +230,14 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
         let pop_size = controller.population_size();
         let mut remaining_weight: f64 = 1.0;
 
-        for id_n in (self.unit + 1)..pop_size {
+        for id_n in (self.unit + 1)..pop_size.get() {
             if !controller.indices().contains(id_n) {
                 continue;
             }
             let possible_weight = controller.probabilities().weight_to(probability, id_n);
             let weight = possible_weight.min(remaining_weight);
-            controller.unit_add_and_decide(id_n, weight * quota);
+            let adding = Probability::Partial(weight * quota);
+            let _prest = controller.unit_add_and_decide(id_n, adding);
             remaining_weight -= possible_weight;
             if remaining_weight <= 0.0 {
                 break;
@@ -267,13 +264,13 @@ where
 {
     /// Constructs a new CPS runner using the spatial strategy
     #[inline]
-    pub fn new<PS, BAL>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    pub fn new<PO, BAL>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> CorrelatedPoissonRunner<Self, Tree<'_, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
     {
-        let controller = options.to_spreading_controller_float();
+        let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
         CorrelatedPoissonRunner {
             controller,
@@ -289,18 +286,18 @@ where
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
     #[inline]
-    pub fn new_coord<PS, BAL, C>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    pub fn new_coord<PO, BAL, C>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, Tree<'_, P>>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
         C: Into<CoordinationOptions<'bcoord>>,
     {
-        let controller = options.to_spreading_controller_float();
+        let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
         let random_values = random_values.into();
-        random_values.check(controller.population_size_nz()?)?;
+        random_values.check(controller.population_size())?;
         Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
@@ -315,9 +312,9 @@ where
 #[inline]
 fn spatial_update_probabilities<P>(
     searcher: &mut WeightedSearcher<P::N>,
-    controller: &mut SampleController<FloatProbabilities, Tree<'_, P>>,
+    controller: &mut SampleController<f64, Tree<'_, P>>,
     id: usize,
-    probability: f64,
+    probability: Probability<f64>,
     quota: f64,
 ) where
     P: PointSet,
@@ -327,7 +324,7 @@ fn spatial_update_probabilities<P>(
     }
 
     searcher
-        .reset_from_unit(controller.tree().data(), id, probability)
+        .reset_from_unit(controller.tree().data(), id, probability.get())
         .expect("id to exist")
         .search(controller.tree(), controller.probabilities())
         .expect("nn to be found");
@@ -343,7 +340,8 @@ fn spatial_update_probabilities<P>(
         .partition_point(|n| n.distance() < max_distance);
 
     for n in &searcher.neighbours()[0..guaranteed_units] {
-        controller.unit_add_and_decide(n.id(), n.weight() * quota);
+        let adding = Probability::Partial(n.weight() * quota);
+        let _prest = controller.unit_add_and_decide(n.id(), adding);
         remaining_weight -= n.weight();
     }
 
@@ -356,7 +354,8 @@ fn spatial_update_probabilities<P>(
     if sum_of_tie_weights == remaining_weight {
         // Add everything left, if it's exactly solved (unlikely)
         for n in &searcher.neighbours()[guaranteed_units..] {
-            controller.unit_add_and_decide(n.id(), n.weight() * quota);
+            let adding = Probability::Partial(n.weight() * quota);
+            let _prest = controller.unit_add_and_decide(n.id(), adding);
             // remaining_weight -= n.weight();
         }
         return;
@@ -374,7 +373,8 @@ fn spatial_update_probabilities<P>(
         .unwrap();
     for n in &searcher.neighbours()[guaranteed_units..] {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
-        controller.unit_add_and_decide(n.id(), remaining_weight * quota);
+        let adding = Probability::Partial(remaining_weight * quota);
+        let _prest = controller.unit_add_and_decide(n.id(), adding);
         remaining_weight -= removable_weight;
         number_of_shares -= 1.0;
     }
@@ -388,7 +388,7 @@ where
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
-        R: FloatRng,
+        R: Rand<f64>,
     {
         self.random_values.get_or(id, rng)
     }
@@ -396,11 +396,11 @@ where
     #[inline]
     fn select_unit<R>(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, Tree<'_, P>>,
+        controller: &mut SampleController<f64, Tree<'_, P>>,
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         if controller.indices().is_empty() {
             return None;
@@ -412,7 +412,7 @@ where
 
         // If random values are used -- i.e. coordination -- we want to have selection order fixed,
         // in order to reduce entropy
-        let pop_size = controller.population_size();
+        let pop_size = controller.population_size().get();
         while self.order < pop_size && !controller.indices().contains(self.order) {
             self.order += 1;
         }
@@ -422,9 +422,9 @@ where
     #[inline]
     fn update_probabilities(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, Tree<'_, P>>,
+        controller: &mut SampleController<f64, Tree<'_, P>>,
         id: usize,
-        probability: f64,
+        probability: Probability<f64>,
         quota: f64,
     ) {
         spatial_update_probabilities(&mut self.searcher, controller, id, probability, quota);
@@ -447,13 +447,13 @@ where
 {
     /// Constructs a new CPS runner using the local strategy
     #[inline]
-    pub fn new<PS, BAL>(
-        options: &SamplingOptions<PS, SpreadingOptions<P>, BAL>,
+    pub fn new<PO, BAL>(
+        options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> CorrelatedPoissonRunner<Self, Tree<'_, P>>
     where
-        PS: ProbabilitySpec,
+        PO: ProbabilityOptions<Real = f64>,
     {
-        let controller = options.to_spreading_controller_float();
+        let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
         CorrelatedPoissonRunner {
             controller,
@@ -480,11 +480,11 @@ where
     #[inline]
     fn select_unit<R>(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, Tree<'_, P>>,
+        controller: &mut SampleController<f64, Tree<'_, P>>,
         rng: &mut R,
     ) -> Option<usize>
     where
-        R: FloatRng,
+        R: Rand<usize>,
     {
         if controller.indices().len() <= 1 {
             return controller.indices().first();
@@ -503,7 +503,7 @@ where
                 .reset_from_unit(
                     controller.tree().data(),
                     id,
-                    controller.probabilities().get(id),
+                    controller.probabilities()[id].get(),
                 )
                 .expect("id to exist")
                 .search(controller.tree(), controller.probabilities())
@@ -530,16 +530,19 @@ where
     #[inline]
     fn update_probabilities(
         &mut self,
-        controller: &mut SampleController<FloatProbabilities, Tree<'_, P>>,
+        controller: &mut SampleController<f64, Tree<'_, P>>,
         id: usize,
-        probability: f64,
+        probability: Probability<f64>,
         quota: f64,
     ) {
         spatial_update_probabilities(&mut self.searcher, controller, id, probability, quota);
     }
 }
 
-pub trait CorrelatedPoissonSampling {
+pub trait CorrelatedPoissonSampling<R>
+where
+    R: Rng,
+{
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -554,9 +557,7 @@ pub trait CorrelatedPoissonSampling {
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn cps(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the (sequential) correlated poisson sampling method.
     /// A variant of the cps where unit competes in order.
     ///
@@ -578,14 +579,13 @@ pub trait CorrelatedPoissonSampling {
     /// Returns an error if fewer than `population_size` random values is provided.
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn cps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>;
 }
-pub trait SpatiallyCorrelatedPoissonSampling<P>
+pub trait SpatiallyCorrelatedPoissonSampling<R>
 where
-    P: PointSet,
+    R: Rng,
 {
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -603,9 +603,7 @@ where
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn scps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn scps(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the spatially correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -629,13 +627,8 @@ where
     ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn scps_coord<'bcoord, R, C>(
-        &self,
-        rng: &mut R,
-        random_values: C,
-    ) -> SamplingResult<Vec<usize>>
+    fn scps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -653,23 +646,17 @@ where
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng;
+    fn lcps(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<PS, AUX, BAL> CorrelatedPoissonSampling for SamplingOptions<PS, AUX, BAL>
+impl<R, PO, AUX, BAL> CorrelatedPoissonSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
 {
     #[inline]
-    fn cps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        SequentialStrategy::new(self).sample(rng)
-    }
+    fn cps(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }
     #[inline]
-    fn cps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn cps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>,
@@ -677,34 +664,24 @@ where
         Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
     }
 }
-impl<PS, P, BAL> SpatiallyCorrelatedPoissonSampling<P>
-    for SamplingOptions<PS, SpreadingOptions<P>, BAL>
+impl<R, PO, P, BAL> SpatiallyCorrelatedPoissonSampling<R>
+    for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
-    PS: ProbabilitySpec,
+    R: SamplingOptionsRng<PO>,
+    PO: ProbabilityOptions<Real = f64>,
     P: PointSet,
 {
     #[inline]
-    fn scps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        SpatialStrategy::new(self).sample(rng)
-    }
+    fn scps(&self, rng: &mut R) -> Vec<usize> { SpatialStrategy::new(self).sample(rng) }
     #[inline]
-    fn scps_coord<'bcoord, R, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn scps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        R: FloatRng,
         C: Into<CoordinationOptions<'bcoord>>,
     {
         Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
     }
     #[inline]
-    fn lcps<R>(&self, rng: &mut R) -> Vec<usize>
-    where
-        R: FloatRng,
-    {
-        LocalStrategy::new(self).sample(rng)
-    }
+    fn lcps(&self, rng: &mut R) -> Vec<usize> { LocalStrategy::new(self).sample(rng) }
 }
 
 #[cfg(test)]
@@ -729,10 +706,16 @@ mod tests {
 
         let options = Data10::options_e();
         let mut cps = SequentialStrategy::new_coord(&options, coord_0()).unwrap();
-        assert_eq!(cps.decide_unit(&mut rng, 7), (0.2, -0.8));
+        assert_eq!(
+            cps.decide_unit(&mut rng, 7),
+            (Probability::Partial(0.2), -0.8)
+        );
 
         let mut cps = SequentialStrategy::new_coord(&options, coord_1()).unwrap();
-        assert_eq!(cps.decide_unit(&mut rng, 7), (0.2, 0.2));
+        assert_eq!(
+            cps.decide_unit(&mut rng, 7),
+            (Probability::Partial(0.2), 0.2)
+        );
         Ok(())
     }
 
@@ -740,11 +723,11 @@ mod tests {
         cps: &mut CorrelatedPoissonRunner<S, TREE>,
         rng: &mut R,
         id: usize,
-    ) -> (f64, f64)
+    ) -> (Probability<f64>, f64)
     where
         R: FloatRng,
         S: CorrelatedPoissonStrategy<TREE>,
-        SampleController<FloatProbabilities, TREE>: UnitRemoving,
+        SampleController<f64, TREE>: UnitRemoving,
     {
         let (p, q) = cps.decide_unit(rng, id);
         cps.strategy
