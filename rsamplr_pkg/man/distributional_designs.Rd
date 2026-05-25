@@ -16,7 +16,7 @@ dbd_tc(sample_size, spread_mat, ...)
 \item{spread_mat}{A matrix of spreading covariates.}
 
 \item{...}{
-  Arguments passed on to \code{\link[=.dbd_defaults]{.dbd_defaults}}
+  Arguments passed on to \code{\link{.dbd_defaults}}
   \describe{
     \item{\code{annealing_temp}}{The initial temperature to use in simulated annealing}
     \item{\code{annealing_cooling}}{The annealing_cooling rate tu use in simulated annealing}

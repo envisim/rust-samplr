@@ -10,20 +10,44 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-use envisim_utils::random::RandomNumberGenerator;
+//! Utility functions for sampling algorithms
+
+use std::num::NonZeroUsize;
+
+use envisim_utils::random::Rand;
 
 /// Random permutation of usize [0,...,len] vector
-pub fn shuffled_indices<R: RandomNumberGenerator>(rng: &mut R, len: usize) -> Vec<usize> {
-    assert!(len > 0, "len must be positive");
-
-    let mut order: Vec<usize> = Vec::with_capacity(len);
+#[inline]
+pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
+where
+    R: Rand<usize>,
+{
+    let mut order: Vec<usize> = Vec::with_capacity(len.get());
     order.push(0);
 
-    for i in 1..len {
-        let j = rng.rusize_to(i + 1);
+    for i in 1..len.get() {
+        let j = rng.rand_to(i + 1);
         order.push(i);
         order.swap(i, j);
     }
 
     order
+}
+
+/// The basic poisson sampling algorithm
+#[inline]
+pub fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
+where
+    R: Rand<f64>,
+{
+    probabilities
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &p)| (rng.rand() < p).then_some(i))
+        .collect()
+}
+
+#[cfg(test)]
+mod test {
+    // use super::*;
 }

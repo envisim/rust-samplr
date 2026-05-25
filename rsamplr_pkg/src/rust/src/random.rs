@@ -1,8 +1,36 @@
-use std::cmp::Ordering;
+// Copyright (C) 2026 Wilmer Prentius.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use envisim_utils::random::RandomNumberGenerator;
+//! Utils for using R randomness and RNG state in rust
+#![allow(
+    clippy::as_conversions,
+    clippy::little_endian_bytes,
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "used in almost every random number function"
+)]
 
-extern "C" {
+use std::convert::Infallible;
+
+use envisim_utils::random::{
+    FloatRng,
+    Rng,
+    TryRng,
+};
+
+unsafe extern "C" {
     fn GetRNGstate();
     fn PutRNGstate();
     fn unif_rand() -> f64;
@@ -10,95 +38,65 @@ extern "C" {
     // fn exp_rand() -> f64;
 }
 
+/// Holds the R RNG state
+#[must_use]
 pub struct RRng();
 
 impl RRng {
+    /// Gets the current RNG state from R
+    #[inline]
     pub fn new() -> Self {
-        unsafe {
-            GetRNGstate();
-        }
+        // SAFETY: C-R interface, OK as long as we drop on destruct
+        unsafe { GetRNGstate() };
         RRng()
     }
 }
 
 impl Drop for RRng {
+    /// Puts the RNG state back to R
+    #[inline]
     fn drop(&mut self) {
-        unsafe {
-            PutRNGstate();
-        }
+        // SAFETY: C-R interface, just putting back RNG state
+        unsafe { PutRNGstate() };
     }
 }
 
-impl RandomNumberGenerator for RRng {
+impl TryRng for RRng {
+    type Error = Infallible;
     #[inline]
-    fn rf64(&mut self) -> f64 { unsafe { unif_rand() } }
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok((self.next_f64() * ((1_u64 << 32) as f64)) as u32)
+    }
     #[inline]
-    fn ru32(&mut self) -> u32 { self.ri32() as u32 }
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let high = self.next_u32() as u64;
+        let low = self.next_u32() as u64;
+        Ok((high << 32) | low)
+    }
     #[inline]
-    fn ru32_to(&mut self, b: u32) -> u32 {
-        loop {
-            let u = self.ru32();
-            let m = u32::MAX - (u32::MAX % b);
-            if u < m {
-                return u % b;
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        let mut chunks = dst.chunks_exact_mut(4);
+
+        for chunk in &mut chunks {
+            let arr: &mut [u8; 4] = chunk.try_into().expect("chunk to be exactly len 4");
+            *arr = self.next_u32().to_le_bytes();
+        }
+
+        let rem = chunks.into_remainder();
+        if !rem.is_empty() {
+            let bytes = self.next_u32().to_le_bytes();
+            for (i, r) in rem.iter_mut().enumerate() {
+                *r = bytes[i];
             }
         }
+        Ok(())
     }
-    #[inline]
-    fn ri32(&mut self) -> i32 {
-        let f = self.rf64() * 2.0 - 1.0;
+}
 
-        (f * f64::from(i32::MAX)).floor() as i32
-    }
+impl FloatRng for RRng {
     #[inline]
-    fn ri32_in(&mut self, a: i32, b: i32) -> Option<i32> {
-        self.rf64_in(a.into(), b.into()).map(|v| v.floor() as i32)
-    }
-    #[inline]
-    fn ru64(&mut self) -> u64 {
-        let high = u64::from(self.ru32());
-        let low = u64::from(self.ru32());
-        (high << 32) | low
-    }
-    #[inline]
-    fn ru64_to(&mut self, b: u64) -> u64 {
-        loop {
-            let u = self.ru64();
-            let m = u64::MAX - (u64::MAX % b);
-            if u < m {
-                return u % b;
-            }
-        }
-    }
-    #[inline]
-    fn ri64(&mut self) -> i64 {
-        #[allow(clippy::cast_possible_wrap)]
-        let v = self.ru64() as i64;
-        v
-    }
-    #[inline]
-    fn ri64_in(&mut self, a: i64, b: i64) -> Option<i64> {
-        match a.cmp(&b) {
-            Ordering::Greater => return None,
-            Ordering::Equal => return Some(a),
-            _ => (),
-        };
-
-        let d = (b as u64).wrapping_sub(a as u64);
-        // d can be 0...u32::MAX...i64::MAX / infty
-
-        if d <= u64::from(u32::MAX) {
-            #[allow(clippy::needless_return)]
-            return Some(i64::from(self.ru32_to(d as u32)) + a);
-        } else {
-            loop {
-                let u = self.ru64() & 0x7FFF_FFFF_FFFF_FFFF;
-                let m = u64::MAX - (u64::MAX) % d;
-                if u < m {
-                    #[allow(clippy::cast_possible_wrap)]
-                    return Some((u % d) as i64 + a);
-                }
-            }
-        }
+    fn next_f64(&mut self) -> f64 {
+        // SAFETY: C-R interface
+        unsafe { unif_rand() }
     }
 }

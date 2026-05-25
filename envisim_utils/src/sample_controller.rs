@@ -10,219 +10,286 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::num::NonZeroUsize;
+
+use num_traits::Signed;
+
 use crate::indices::Indices;
 use crate::kd_tree::{
-    Node,
-    TreeBuilder,
+    PointSet,
+    Tree,
 };
-use crate::probabilities::ProbabilityStore;
-use crate::random::RandomNumberGenerator;
-use crate::sampling_options::{
-    SamplingOptionsResult,
-    SpreadingOptions,
+use crate::number_traits::Number;
+use crate::probabilities::{
+    Probability,
+    ProbabilitySet,
 };
+use crate::random::Rand;
+use crate::sample::Sample;
+use crate::sampling_options::SpreadingOptions;
 
-/// Sample container
-pub struct Sample(Vec<usize>);
-impl Sample {
-    pub fn new(capacity: usize) -> Self { Sample(Vec::<usize>::with_capacity(capacity)) }
-    pub fn clear(&mut self) { self.0.clear(); }
-    pub fn add(&mut self, idx: usize) { self.0.push(idx); }
-    pub fn sort(&mut self) -> &mut Self {
-        self.0.sort_unstable();
-        self
-    }
-    pub fn to_vec(&self) -> Vec<usize> { self.0.to_vec() }
-    pub fn sort_to_vec(&mut self) -> Vec<usize> { self.sort().to_vec() }
-    pub fn get(&self) -> &[usize] { &self.0 }
-    pub fn len(&self) -> usize { self.0.len() }
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-}
-
-/// Decision result
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(clippy::exhaustive_enums)]
-pub enum DecideUnit {
-    In,
-    Out,
-    Undecided,
-}
-
-pub trait SampleController {
-    type Store: ProbabilityStore;
-    fn controller(&self) -> &BasicSampleController<Self::Store>;
-    fn controller_mut(&mut self) -> &mut BasicSampleController<Self::Store>;
-    fn probabilities(&self) -> &Self::Store { &self.controller().probabilities }
-    fn probabilities_mut(&mut self) -> &mut Self::Store { &mut self.controller_mut().probabilities }
-    fn indices(&self) -> &Indices { &self.controller().indices }
-    fn indices_mut(&mut self) -> &mut Indices { &mut self.controller_mut().indices }
-    fn sample(&self) -> &Sample { &self.controller().sample }
-    fn sample_mut(&mut self) -> &mut Sample { &mut self.controller_mut().sample }
-
-    fn population_size(&self) -> usize { self.probabilities().len() }
-
-    fn draw<R: RandomNumberGenerator>(
-        &self,
-        rng: &mut R,
-        max: <Self::Store as ProbabilityStore>::PR,
-    ) -> <Self::Store as ProbabilityStore>::PR {
-        self.probabilities().draw(rng, max)
-    }
-
-    fn unit_remove(&mut self, idx: usize) -> Option<usize> { self.indices_mut().remove(idx) }
-    fn unit_decide(&mut self, idx: usize) -> Option<DecideUnit> {
-        if self.probabilities().is_max(idx) {
-            self.sample_mut().add(idx);
-            self.unit_remove(idx)?;
-            return Some(DecideUnit::In);
-        } else if self.probabilities().is_zero(idx) {
-            self.unit_remove(idx)?;
-            return Some(DecideUnit::Out);
-        }
-        Some(DecideUnit::Undecided)
-    }
-    fn unit_set_and_decide(
-        &mut self,
-        idx: usize,
-        prob: <Self::Store as ProbabilityStore>::PR,
-    ) -> Option<DecideUnit> {
-        self.probabilities_mut().set(idx, prob);
-        self.unit_decide(idx)
-    }
-    fn unit_set_max(&mut self, idx: usize) -> Option<DecideUnit> {
-        self.probabilities_mut().set_max(idx);
-        self.sample_mut().add(idx);
-        self.unit_remove(idx)?;
-        Some(DecideUnit::In)
-    }
-    fn unit_set_zero(&mut self, idx: usize) -> Option<DecideUnit> {
-        self.probabilities_mut().set_zero(idx);
-        self.unit_remove(idx)?;
-        Some(DecideUnit::Out)
-    }
-    fn unit_add_and_decide(
-        &mut self,
-        idx: usize,
-        prob: <Self::Store as ProbabilityStore>::PR,
-    ) -> Option<DecideUnit> {
-        self.probabilities_mut().add(idx, prob);
-        self.unit_decide(idx)
-    }
-    fn unit_decide_last<R: RandomNumberGenerator>(&mut self, rng: &mut R) -> Option<DecideUnit> {
-        let Some(id) = self.indices().last() else {
-            return Some(DecideUnit::Undecided);
-        };
-        let prob = self.probabilities().get(id);
-        let max = self.probabilities().max();
-
-        if self.draw(rng, max) < prob {
-            self.unit_set_max(id)
-        } else {
-            self.unit_set_zero(id)
-        }
-    }
-}
-
-// BasicSampleController
-pub struct BasicSampleController<ST: ProbabilityStore> {
-    probabilities: ST,
+/// A controller used in sampling designs
+#[must_use]
+#[derive(Debug, Clone)]
+pub struct SampleController<PROB, TREE = ()> {
+    /// The probability store
+    probabilities: ProbabilitySet<PROB>,
+    /// The (remaining) sample indices
     indices: Indices,
+    /// The units included in the sample
     sample: Sample,
+    /// The kd-tree containing the (remaining) units
+    tree: TREE,
 }
-impl<ST: ProbabilityStore> BasicSampleController<ST> {
-    pub fn new(probabilities: ST) -> Self {
-        let population_size = probabilities.len();
-        let mut controller = Self {
-            probabilities,
-            indices: Indices::with_fill(population_size),
-            sample: Sample::new(population_size),
-        };
-        controller.init();
-        controller
+
+impl<PROB, TREE> SampleController<PROB, TREE> {
+    /// Returns a reference to the probability set
+    #[inline]
+    pub fn probabilities(&self) -> &ProbabilitySet<PROB> { &self.probabilities }
+    /// Returns a mutable reference to the probability set
+    #[inline]
+    pub fn probabilities_mut(&mut self) -> &mut ProbabilitySet<PROB> { &mut self.probabilities }
+    /// Returns a reference to the indices
+    #[inline]
+    pub fn indices(&self) -> &Indices { &self.indices }
+    /// Returns a mutable reference to the indices
+    #[inline]
+    pub fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
+    /// Returns a reference to the sample
+    #[inline]
+    pub fn sample(&self) -> &Sample { &self.sample }
+    #[inline]
+    pub fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
+    /// Moves self and returns the sorted vector of sample indices
+    #[must_use]
+    #[inline]
+    pub fn to_sorted_sample_vec(self) -> Vec<usize> { self.sample.to_sorted_vec() }
+    /// Returns the populations size
+    #[must_use]
+    #[inline]
+    pub fn population_size(&self) -> NonZeroUsize { self.probabilities.len() }
+    /// Removes a unit if its probability is not partial.
+    #[inline]
+    pub fn unit_decide(&mut self, idx: usize) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Copy,
+    {
+        let p = self.probabilities[idx];
+        match p {
+            Probability::Partial(_) => {}
+            Probability::Zero(_) => {
+                self.unit_remove(idx);
+            }
+            Probability::Full(_) => {
+                self.sample.add(idx);
+                self.unit_remove(idx);
+            }
+        }
+        p
     }
-    fn init(&mut self) {
-        for i in 0..self.population_size() {
-            self.unit_decide(i);
+    /// Sets a unit to a new probability `prob` and removes it if `prob` is not partial.
+    #[inline]
+    pub fn unit_set_and_decide(&mut self, idx: usize, prob: Probability<PROB>)
+    where
+        Self: UnitRemoving,
+        PROB: Number,
+    {
+        self.probabilities.set(idx, prob);
+        let _p = self.unit_decide(idx);
+    }
+    /// Sets a unit to a full probability representation and removes it
+    #[inline]
+    pub fn unit_set_full(&mut self, idx: usize)
+    where
+        Self: UnitRemoving,
+        PROB: Copy,
+    {
+        self.probabilities.set_full(idx);
+        self.sample.add(idx);
+        self.unit_remove(idx);
+    }
+    /// Sets a unit to a zero probability representation and removes it
+    #[inline]
+    pub fn unit_set_zero(&mut self, idx: usize)
+    where
+        Self: UnitRemoving,
+        PROB: Number,
+    {
+        self.probabilities.set_zero(idx);
+        self.unit_remove(idx);
+    }
+    /// Adds `prob` to the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount of `prob` that could not be added
+    #[inline]
+    pub fn unit_add_and_decide(&mut self, idx: usize, prob: Probability<PROB>) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Number,
+    {
+        let p = self.probabilities.add(idx, prob);
+        let _decision_outcome = self.unit_decide(idx);
+        p
+    }
+    /// Subtracts `prob` from the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount of `prob` that could not be subtracted
+    #[inline]
+    pub fn unit_subtract_and_decide(
+        &mut self,
+        idx: usize,
+        prob: Probability<PROB>,
+    ) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Number,
+    {
+        let p = self.probabilities.subtract(idx, prob);
+        let _decision_outcome = self.unit_decide(idx);
+        p
+    }
+    /// Adds a delta to the probability of a unit and removes it if the new sum is not partial.
+    /// Returns the amount that could not be added
+    #[inline]
+    pub fn unit_add_delta_and_decide(&mut self, idx: usize, delta: PROB) -> Probability<PROB>
+    where
+        Self: UnitRemoving,
+        PROB: Number + Signed,
+    {
+        if delta < PROB::ZERO {
+            let p = Probability::Partial(-delta);
+            self.unit_subtract_and_decide(idx, p)
+        } else {
+            let p = Probability::Partial(delta);
+            self.unit_add_and_decide(idx, p)
         }
     }
-}
-
-impl<ST: ProbabilityStore> SampleController for BasicSampleController<ST> {
-    type Store = ST;
-    fn controller(&self) -> &BasicSampleController<ST> { self }
-    fn controller_mut(&mut self) -> &mut BasicSampleController<ST> { self }
-    fn probabilities(&self) -> &ST { &self.probabilities }
-    fn probabilities_mut(&mut self) -> &mut ST { &mut self.probabilities }
-    fn indices(&self) -> &Indices { &self.indices }
-    fn indices_mut(&mut self) -> &mut Indices { &mut self.indices }
-    fn sample(&self) -> &Sample { &self.sample }
-    fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
-}
-
-// SpreadingSampleController
-pub struct SpreadingSampleController<'a, ST: ProbabilityStore> {
-    controller: BasicSampleController<ST>,
-    tree: Box<Node<'a>>,
-}
-
-impl<'a, ST: ProbabilityStore> SpreadingSampleController<'a, ST> {
-    pub fn new(
-        controller: BasicSampleController<ST>,
-        spreading: &'a SpreadingOptions<'a>,
-    ) -> SamplingOptionsResult<Self> {
-        let mut units = controller.indices().to_vec();
-        let tree = spreading.build(&mut units)?;
-        Ok(Self {
-            controller,
-            tree: tree.into(),
-        })
-    }
-    pub fn tree(&self) -> &Node<'a> { &self.tree }
-    pub fn tree_mut(&mut self) -> &mut Node<'a> { &mut self.tree }
-    pub fn reset_tree(
-        &mut self,
-        spreading: &'a SpreadingOptions<'a>,
-        units: &mut [usize],
-    ) -> SamplingOptionsResult<()> {
-        self.tree = spreading.build(units)?.into();
-        Ok(())
+    /// Decides the outcome of the last unit, or returns `None` if no last unit exists.
+    #[inline]
+    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<Probability<PROB>>
+    where
+        Self: UnitRemoving,
+        R: Rand<PROB>,
+        PROB: Number,
+    {
+        if self.indices.len() != 1 {
+            return None;
+        }
+        let id = self.indices.last()?;
+        let prob = self.probabilities[id];
+        if self.probabilities.draw(rng) < prob {
+            self.unit_set_full(id);
+        } else {
+            self.unit_set_zero(id);
+        }
+        Some(self.probabilities[id])
     }
 }
 
-impl<'a, ST: ProbabilityStore> SampleController for SpreadingSampleController<'a, ST> {
-    type Store = ST;
-    fn controller(&self) -> &BasicSampleController<ST> { &self.controller }
-    fn controller_mut(&mut self) -> &mut BasicSampleController<ST> { &mut self.controller }
+impl<PROB> SampleController<PROB, ()> {
+    /// Constructs a new `SampleController` without a tree.
+    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    #[inline]
+    pub fn new(probabilities: ProbabilitySet<PROB>) -> Self {
+        let population_size = probabilities.len().get();
+        let mut indices = Indices::new(population_size);
+        let mut sample = Sample::new(population_size);
 
-    fn unit_remove(&mut self, idx: usize) -> Option<usize> {
-        self.tree.remove_unit(idx)?;
-        self.controller.unit_remove(idx)
+        // Reverse order guarantees units can be drawn from the back in order, see comment in
+        // Indices::with_fill.
+        for i in (0..population_size).rev() {
+            match probabilities[i] {
+                Probability::Partial(_) => {
+                    assert!(
+                        indices.insert(i),
+                        "unit {i} should not already be in indices {indices:?}"
+                    );
+                }
+                Probability::Zero(_) => {}
+                Probability::Full(_) => {
+                    sample.add(i);
+                }
+            };
+        }
+
+        Self {
+            probabilities,
+            indices,
+            sample,
+            tree: (),
+        }
+    }
+    #[inline]
+    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
+}
+
+impl<'bspread, PROB, P> SampleController<PROB, Tree<'bspread, P>>
+where
+    P: PointSet,
+{
+    #[inline]
+    pub fn new_spreading(
+        probabilities: ProbabilitySet<PROB>,
+        spreading: &'bspread SpreadingOptions<P>,
+    ) -> Self {
+        let base_controller = SampleController::new(probabilities);
+        let mut units = base_controller.indices.to_vec();
+        let tree = Tree::new(spreading, &mut units);
+        Self {
+            probabilities: base_controller.probabilities,
+            indices: base_controller.indices,
+            sample: base_controller.sample,
+            tree,
+        }
+    }
+    #[inline]
+    pub fn tree(&self) -> &Tree<'bspread, P> { &self.tree }
+    #[inline]
+    pub fn tree_mut(&mut self) -> &mut Tree<'bspread, P> { &mut self.tree }
+    #[inline]
+    pub fn reset_tree(&mut self, spreading: &'bspread SpreadingOptions<P>, units: &mut [usize]) {
+        self.tree = Tree::new(spreading, units);
+    }
+    #[inline]
+    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
+}
+
+pub trait UnitRemoving {
+    /// Returns `true` if `idx` was present and removed, `false` if `idx` wasn't found.
+    fn unit_remove(&mut self, idx: usize) -> bool;
+}
+impl<PROB> UnitRemoving for SampleController<PROB, ()> {
+    #[inline]
+    fn unit_remove(&mut self, idx: usize) -> bool { self.indices.remove(idx) }
+}
+impl<PROB, P> UnitRemoving for SampleController<PROB, Tree<'_, P>>
+where
+    P: PointSet,
+{
+    #[inline]
+    fn unit_remove(&mut self, idx: usize) -> bool {
+        self.tree.remove_unit(idx);
+        self.indices.remove(idx)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // use envisim_test_utils::*;
-
-    use super::*;
-    use crate::sampling_options::{
-        ProbabilitySpecUnequal,
-        SamplingOptions,
-    };
+    // use super::*;
+    use crate::sampling_options::SamplingOptions;
+    use crate::test_utils::*;
 
     #[test]
     fn basic_controller_from_options() {
-        let probs = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-        let opts: SamplingOptions<ProbabilitySpecUnequal> = probs.try_into().unwrap();
+        let opts = SamplingOptions::with_spec(Data10::prob_u());
         let controller = opts.to_controller();
-        assert_eq!(controller.population_size(), 10);
+        assert_eq!(controller.population_size().get(), 10);
     }
 
     #[test]
     fn basic_controller_exact() {
         let opts = SamplingOptions::new_equal(10, 3).unwrap();
         let controller = opts.to_controller();
-        assert_eq!(controller.population_size(), 10);
+        assert_eq!(controller.population_size().get(), 10);
         assert_eq!(controller.probabilities().max(), 10);
     }
 }

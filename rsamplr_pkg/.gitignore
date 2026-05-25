@@ -4,3 +4,5 @@ src/Makevars.win
 
 test/
 .Rhistory
+
+build/

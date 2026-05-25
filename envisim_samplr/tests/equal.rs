@@ -5,17 +5,15 @@ use test_utils::*;
 
 #[test]
 fn srs_wor() {
-    let mut rng = rng();
-    let options = options_equal_10_2();
-    test_wor(|| options.srs(&mut rng), &options, 1e-2, 100000);
+    let options = Data10::options_e();
+    test_wor(|rng| options.srs(rng), &options, 1e-2, 100000);
 }
 
 #[test]
 fn srs_wr() {
-    let mut rng = rng();
-    let options = options_equal_10_2();
+    let options = Data10::options_e();
     test_wor(
-        || options.srs_with_replacement(&mut rng),
+        |rng| options.srs_with_replacement(rng),
         &options,
         1e-2,
         100000,

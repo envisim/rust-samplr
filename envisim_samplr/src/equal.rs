@@ -11,108 +11,114 @@
 // program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Simple random sampling
+//!
+//! Implements [`EqualProbabilitySampling`] for [`SamplingOptions`].
 
-use envisim_utils::random::RandomNumberGenerator;
-use envisim_utils::sampling_options::{
-    ProbabilitySpecEqual,
-    SamplingOptions,
+use envisim_utils::random::{
+    Rand,
+    RandSlice,
+    Rng,
 };
+use envisim_utils::sampling_options::EqualProbabilityOptions;
+pub use envisim_utils::sampling_options::SamplingOptions;
 
-pub trait EqualProbabilitySampling {
-    fn srs<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
-    fn srs_with_replacement<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
-    fn bernoulli<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize>;
-}
-impl<'a> EqualProbabilitySampling for SamplingOptions<'a, ProbabilitySpecEqual> {
+pub use crate::error::SamplingError;
+
+pub trait EqualProbabilitySampling<R>
+where
+    R: Rng,
+{
     /// Draw a simple random sample without replacement
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
-    /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.srs(&mut rng);
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = try_sys_rng().unwrap();
+    /// let s = SamplingOptions::new_equal(10, 5)?.srs(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn srs<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
-        let population_size = self.population_size();
-        let sample_size = self.sample_size();
-
-        if sample_size == 0 {
-            return vec![];
-        } else if sample_size == population_size {
-            return (0usize..population_size).collect();
-        }
-
-        let mut sample = Vec::<usize>::with_capacity(sample_size);
-
-        for i in 0..population_size {
-            if rng.rusize_to(population_size - i) < sample_size - sample.len() {
-                sample.push(i);
-            }
-        }
-
-        sample
-    }
+    fn srs(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a simple random sample with replacement
     ///
     /// # Examples
     /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
-    /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.srs_with_replacement(&mut rng);
-    ///
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = try_sys_rng().unwrap();
+    /// let s = SamplingOptions::new_equal(10, 5)?.srs_with_replacement(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn srs_with_replacement<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
+    fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize>;
+    /// Draw a sample using Bernoulli sampling
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// let mut rng = try_sys_rng().unwrap();
+    /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
+    /// # Ok::<(), SamplingOptionsError>(())
+    /// ```
+    fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
+}
+impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilityOptions, AUX, BAL>
+where
+    R: Rand<usize>,
+{
+    #[must_use]
+    #[inline]
+    fn srs(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
         let sample_size = self.sample_size();
 
         if sample_size == 0 {
             return vec![];
-        } else if sample_size == population_size {
-            return (0usize..population_size).collect();
+        } else if sample_size == population_size.get() {
+            return (0..population_size.get()).collect();
         }
 
-        let mut sample: Vec<usize> = (0..sample_size)
-            .map(|_| rng.rusize_to(population_size))
-            .collect();
+        let mut sample = Vec::<usize>::with_capacity(sample_size);
 
-        sample.sort_unstable();
-        sample
-    }
-    /// Draw a sample using Bernoulli sampling
-    ///
-    /// # Examples
-    /// ```
-    /// use envisim_samplr::*;
-    /// use envisim_utils::random::*;
-    ///
-    /// let mut rng = SmallRng::from_os_rng();
-    /// let opts = SamplingOptions::new_equal(10, 5)?;
-    /// let s = opts.bernoulli(&mut rng);
-    /// # Ok::<(), SamplingOptionsError>(())
-    /// ```
-    fn bernoulli<R: RandomNumberGenerator>(&self, rng: &mut R) -> Vec<usize> {
-        let population_size = self.population_size();
-        let sample_size = self.sample_size();
-
-        let mut sample = Vec::with_capacity(population_size);
-
-        for i in 0..population_size {
-            if rng.rusize_to(population_size) < sample_size {
+        for i in 0..population_size.get() {
+            if rng.rand_in(0..(population_size.get() - i)) < sample_size - sample.len() {
                 sample.push(i);
             }
         }
 
         sample
+    }
+    #[must_use]
+    #[inline]
+    fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size();
+        let sample_size = self.sample_size();
+
+        if sample_size == 0 {
+            return vec![];
+        } else if sample_size == population_size.get() {
+            return (0..population_size.get()).collect();
+        }
+
+        let mut sample = vec![0; sample_size];
+        rng.rand_to_n(&mut sample, population_size.get());
+        sample.sort_unstable();
+        sample
+    }
+    #[must_use]
+    #[inline]
+    fn bernoulli(&self, rng: &mut R) -> Vec<usize> {
+        let population_size = self.population_size().get();
+        let sample_size = self.sample_size();
+
+        let mut rands = vec![0; population_size];
+        rng.rand_in_n(&mut rands, 0..population_size);
+        rands
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &v)| (v < sample_size).then_some(i))
+            .collect()
     }
 }
