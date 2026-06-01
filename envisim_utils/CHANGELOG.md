@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `fmt::Debug` as a supertrait of `Number`.
 - Changed `PointSet` to be generic over `Id` and `Value`, previously only `Value` (renamed from `N`).
 - Changed `FindSplit::split`, `MidpointSlide::new`, `Neighbour`, `WeightedNeighbour`, `WeightCollection` to be generic over `units` or `Id`.
-- Changed `TreeSearcher`, `SearchPoint`, `NearestNeighbourSearcher`, `KNearestNeighbourSearcher`, `WeightedSearcher` to be generic over `PointSet`.
+- Changed `TreeSearcher`, `SearchPoint`, `NearestNeighbourSearcher`, `KNearestNeighbourSearcher`, `WeightedSearcher`, `Node`, `Leaf`, `Branch` to be generic over `PointSet`.
 - Fixed bug in `Border::from_data`.
 
 ## [0.5.0] - 2026-05-25
