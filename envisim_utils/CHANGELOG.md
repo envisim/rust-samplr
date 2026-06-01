@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- Added `fmt::Debug` as a supertrait of `Number`.
+- Changed `PointSet` to be generic over `Id` and `Value`, previously only `Value` (renamed from `N`).
+- Changed `FindSplit::split`, `MidpointSlide::new`, `Neighbour`, `WeightedNeighbour`, `WeightCollection` to be generic over `units` or `Id`.
+- Changed `TreeSearcher`, `SearchPoint`, `NearestNeighbourSearcher`, `KNearestNeighbourSearcher`, `WeightedSearcher` to be generic over `PointSet`.
+- Fixed bug in `Border::from_data`.
+
 ## [0.5.0] - 2026-05-25
 - MSRV: 1.85.1
 - Added dependency [`num-traits`](https://crates.io/crates/num-integer).
