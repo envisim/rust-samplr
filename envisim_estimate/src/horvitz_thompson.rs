@@ -217,7 +217,7 @@ pub fn local_mean_variance<PO, P, BAL>(
 ) -> EstimationResult<f64>
 where
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     let sample_size = y_values.len();
 

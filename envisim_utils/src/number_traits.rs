@@ -13,7 +13,10 @@
 //! Provides a trait [`Number`], extending `num_traits`
 
 use std::cmp::Ordering;
-use std::fmt::Display;
+use std::fmt::{
+    Debug,
+    Display,
+};
 
 use num_integer::Integer;
 use num_traits::{
@@ -28,7 +31,7 @@ use crate::Epsilon;
 
 /// An extension of [`num_traits::NumAssign`]
 pub trait Number:
-    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Display
+    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Debug + Display
 {
     const DEFAULT_EPSILON_VALUE: Self;
 

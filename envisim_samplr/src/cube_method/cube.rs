@@ -380,11 +380,11 @@ where
     /// The spreading options, needed in order to reset the tree (used in stratified cube)
     pub(super) spreading_options: &'btree SpreadingOptions<P>,
     /// Searcher, used in tree
-    pub(super) searcher: KNearestNeighbourSearcher<P::N>,
+    pub(super) searcher: KNearestNeighbourSearcher<P>,
 }
 impl<'btree, P> LocalCubeStrategy<'btree, P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new cube runner using the local cube strategy
     #[inline]
@@ -412,7 +412,7 @@ where
 }
 impl<'btree, P> CubeStrategy<Tree<'btree, P>> for LocalCubeStrategy<'btree, P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// # Panics
     /// Panics if only one unit is wanted, or if more units is wanted than remains.
@@ -593,7 +593,7 @@ impl<R, PO, P, T> LocalCubeSampling<R>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet,
+    P: PointSet<Id = usize>,
     T: RawData<Elem = f64>,
 {
     #[inline]

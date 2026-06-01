@@ -14,6 +14,7 @@
 //!
 //! A split method defines a splitting strategy for a kd-tree.
 
+use num_traits::ConstZero;
 pub use split::{
     Split,
     SplitUnit,
@@ -117,10 +118,10 @@ mod split {
         /// Sorts units according to the split, and sets unit so that it represents the index of the
         /// first unit to the right.
         #[inline]
-        pub(super) fn set_unit<T>(&mut self, data: &T, units: &mut [usize])
+        pub(super) fn set_unit<P>(&mut self, data: &P, units: &mut [P::Id])
         where
             N: Number,
-            T: PointSet<N = N>,
+            P: PointSet<Value = N>,
         {
             let mut left: usize = 0;
             let mut right: usize = units.len();
@@ -281,17 +282,18 @@ impl<N> Border<N> {
     }
     /// Constructs a new border from the `units` according to `data` in a certain dimension `dim`.
     #[inline]
-    fn from_data<T>(data: &T, units: &[usize], dim: usize) -> Self
+    fn from_data<P>(data: &P, units: &[P::Id], dim: usize) -> Self
     where
         N: Number,
-        T: PointSet<N = N>,
+        P: PointSet<Value = N>,
     {
         if units.is_empty() {
             return Self::default();
         }
+        let val0 = units[0];
         let mut b = Self {
-            min: data.coord(0, dim),
-            max: data.coord(0, dim),
+            min: data.coord(val0, dim),
+            max: data.coord(val0, dim),
         };
         for &id in units.iter().skip(1) {
             b.set_min(data.coord(id, dim));
@@ -314,25 +316,25 @@ where
 }
 
 /// Splits the data into left and right according to some algorithm.
-pub trait FindSplit<T>
+pub trait FindSplit<P>
 where
     Self: Sized,
-    T: PointSet,
+    P: PointSet,
 {
     /// Returns the split as:
     /// `SplitUnit`, the split and index of first right-unit.
     /// The left and right splits.
-    fn split(self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<T::N>, Self, Self)>;
+    fn split(self, data: &P, units: &mut [P::Id]) -> Option<(SplitUnit<P::Value>, Self, Self)>;
 }
 
-impl<T> FindSplit<T> for MidpointSlide<T::N>
+impl<P> FindSplit<P> for MidpointSlide<P::Value>
 where
     Self: Sized,
-    T: PointSet,
+    P: PointSet,
 {
     #[must_use]
     #[inline]
-    fn split(mut self, data: &T, units: &mut [usize]) -> Option<(SplitUnit<T::N>, Self, Self)> {
+    fn split(mut self, data: &P, units: &mut [P::Id]) -> Option<(SplitUnit<P::Value>, Self, Self)> {
         let split = self.find_split(data, units)?;
         let mut left = self.clone();
         let mut right = self;
@@ -364,10 +366,10 @@ pub struct MidpointSlide<N> {
 impl<N> MidpointSlide<N> {
     /// Constructs a new base window from the `units` according to `data`.
     #[inline]
-    pub fn new<T>(data: &T, units: &[usize]) -> Self
+    pub fn new<P>(data: &P, units: &[P::Id]) -> Self
     where
         N: Number,
-        T: PointSet<N = N>,
+        P: PointSet<Value = N>,
     {
         Self {
             borders: (0..data.dim().get())
@@ -390,10 +392,10 @@ impl<N> MidpointSlide<N> {
     /// Redraw borders for a dimension. Returns `true` if borders are not degenerate
     #[must_use]
     #[inline]
-    fn redraw<T>(&mut self, dim: usize, data: &T, units: &[usize]) -> bool
+    fn redraw<P>(&mut self, dim: usize, data: &P, units: &[P::Id]) -> bool
     where
         N: Number,
-        T: PointSet<N = N>,
+        P: PointSet<Value = N>,
     {
         self.borders[dim] = Border::from_data(data, units, dim);
         self.borders[dim].min != self.borders[dim].max
@@ -416,10 +418,10 @@ impl<N> MidpointSlide<N> {
     /// Will panic if data dimensions does not match the number of borders in the split.
     /// This implies that the split is run on different data than for the previous split.
     #[must_use]
-    fn find_split<T>(&mut self, data: &T, units: &mut [usize]) -> Option<SplitUnit<N>>
+    fn find_split<P>(&mut self, data: &P, units: &mut [P::Id]) -> Option<SplitUnit<P::Value>>
     where
         N: Number,
-        T: PointSet<N = N>,
+        P: PointSet<Value = N>,
     {
         assert_eq!(
             data.dim().get(),
@@ -431,7 +433,7 @@ impl<N> MidpointSlide<N> {
             return None;
         }
 
-        let mut split = SplitUnit::new(0, N::zero(), true, 0);
+        let mut split = SplitUnit::new(0, <P::Value as ConstZero>::ZERO, true, 0);
 
         // Sort dims by range
         for &dim in &self.order() {

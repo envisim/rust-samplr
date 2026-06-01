@@ -21,6 +21,7 @@ use neighbour::{
     Neighbour,
     WeightedNeighbour,
 };
+use num_traits::ConstZero;
 
 use super::Tree;
 use crate::number_traits::Number;
@@ -35,51 +36,56 @@ pub mod neighbour {
     ///
     /// A neighbour is equal to another if their distances are the same.
     #[derive(Copy, Clone, Debug)]
-    pub struct Neighbour<N> {
+    pub struct Neighbour<Id, Value> {
         /// Id of unit
-        id: usize,
+        id: Id,
         /// Squared euclidean distance
-        distance: N,
+        distance: Value,
     }
-    impl<N> Neighbour<N> {
+    impl<Id, Value> Neighbour<Id, Value> {
         /// Returns the neighbour id.
         #[inline]
-        pub fn id(&self) -> usize { self.id }
+        pub fn id(&self) -> Id
+        where
+            Id: Copy,
+        {
+            self.id
+        }
         /// Returns the squared euclidean distance to the neighbour
         #[inline]
-        pub fn distance(&self) -> N
+        pub fn distance(&self) -> Value
         where
-            N: Copy,
+            Value: Copy,
         {
             self.distance
         }
         /// Constructs a new neighbour
         #[inline]
-        pub fn new(id: usize, distance: N) -> Self { Self { id, distance } }
+        pub fn new(id: Id, distance: Value) -> Self { Self { id, distance } }
     }
 
-    impl<N> Ord for Neighbour<N>
+    impl<Id, Value> Ord for Neighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
-        fn cmp(&self, other: &Self) -> Ordering { N::compare(&self.distance, &other.distance) }
+        fn cmp(&self, other: &Self) -> Ordering { Value::compare(&self.distance, &other.distance) }
     }
-    impl<N> PartialOrd for Neighbour<N>
+    impl<Id, Value> PartialOrd for Neighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
     }
-    impl<N> PartialEq for Neighbour<N>
+    impl<Id, Value> PartialEq for Neighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
         fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
     }
-    impl<N> Eq for Neighbour<N> where N: Number {}
+    impl<Id, Value> Eq for Neighbour<Id, Value> where Value: Number {}
 
     /// A weighted neighbouring unit, some squared euclidean distance away
     ///
@@ -87,22 +93,27 @@ pub mod neighbour {
     /// A weighted neighbour is sorted before another if its distance is smaller, or its distance is
     /// equal but its weight is smaller.
     #[derive(Copy, Clone, Debug)]
-    pub struct WeightedNeighbour<N> {
+    pub struct WeightedNeighbour<Id, Value> {
         /// The neighbour
-        neighbour: Neighbour<N>,
+        neighbour: Neighbour<Id, Value>,
         /// The weight
         weight: f64,
     }
 
-    impl<N> WeightedNeighbour<N> {
+    impl<Id, Value> WeightedNeighbour<Id, Value> {
         /// Returns the id of the neighbour.
         #[inline]
-        pub fn id(&self) -> usize { self.neighbour.id }
+        pub fn id(&self) -> Id
+        where
+            Id: Copy,
+        {
+            self.neighbour.id
+        }
         /// Returns the squared euclidean distance to the neighbour
         #[inline]
-        pub fn distance(&self) -> N
+        pub fn distance(&self) -> Value
         where
-            N: Copy,
+            Value: Copy,
         {
             self.neighbour.distance
         }
@@ -111,14 +122,14 @@ pub mod neighbour {
         pub fn weight(&self) -> f64 { self.weight }
         /// Constructs a new weighted neighbour
         #[inline]
-        pub fn new(id: usize, distance: N, weight: f64) -> Self {
+        pub fn new(id: Id, distance: Value, weight: f64) -> Self {
             let neighbour = Neighbour::new(id, distance);
             Self { neighbour, weight }
         }
     }
-    impl<N> Ord for WeightedNeighbour<N>
+    impl<Id, Value> Ord for WeightedNeighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
         fn cmp(&self, other: &Self) -> Ordering {
@@ -127,123 +138,122 @@ pub mod neighbour {
                 .then(self.weight().total_cmp(&other.weight()))
         }
     }
-    impl<N> PartialOrd for WeightedNeighbour<N>
+    impl<Id, Value> PartialOrd for WeightedNeighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
     }
-    impl<N> PartialEq for WeightedNeighbour<N>
+    impl<Id, Value> PartialEq for WeightedNeighbour<Id, Value>
     where
-        N: Number,
+        Value: Number,
     {
         #[inline]
         fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
     }
-    impl<N> Eq for WeightedNeighbour<N> where N: Number {}
+    impl<Id, Value> Eq for WeightedNeighbour<Id, Value> where Value: Number {}
 
-    pub trait NeighbourSlice {
-        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize>;
+    pub trait NeighbourSlice<Id> {
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = Id>;
         #[inline]
-        fn to_neighbour_ids(&self) -> Box<[usize]> {
+        fn to_neighbour_ids(&self) -> Box<[Id]> {
             self.to_neighbour_id_iter()
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
         }
         #[inline]
-        fn contains_id(&self, id: usize) -> bool {
+        fn contains_id(&self, id: Id) -> bool
+        where
+            Id: Eq,
+        {
             self.to_neighbour_id_iter().any(|nid| nid == id)
         }
     }
-    impl<N> NeighbourSlice for [Neighbour<N>]
+    impl<Id, Value> NeighbourSlice<Id> for [Neighbour<Id, Value>]
     where
-        N: Copy,
+        Id: Copy,
+        Value: Copy,
     {
         #[inline]
-        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = Id> {
             self.iter().map(Neighbour::id)
         }
     }
-    impl<N> NeighbourSlice for [WeightedNeighbour<N>]
+    impl<Id, Value> NeighbourSlice<Id> for [WeightedNeighbour<Id, Value>]
     where
-        N: Copy,
+        Id: Copy,
+        Value: Copy,
     {
         #[inline]
-        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = usize> {
+        fn to_neighbour_id_iter(&self) -> impl Iterator<Item = Id> {
             self.iter().map(WeightedNeighbour::id)
         }
     }
 }
 
 /// A trait for searching in a kd-[`Tree`]
-pub trait TreeSearcher<N>
+pub trait TreeSearcher<P>
 where
-    N: Number,
+    P: PointSet,
 {
     /// Returns a reference to the searching point.
-    fn point(&self) -> &[N];
+    fn point(&self) -> &[P::Value];
     /// Returns `true` if the search does not need to visit a node.
-    fn is_satisfied(&self, distance: N) -> bool;
+    fn is_satisfied(&self, distance: P::Value) -> bool;
     /// A function called on the leafs of each visited node.
-    fn visit_leaf<P>(&mut self, data: &P, leaf_units: &[usize])
-    where
-        P: PointSet<N = N>;
+    fn visit_leaf(&mut self, data: &P, leaf_units: &[P::Id]);
 }
 
 /// The search point of the [`TreeSearcher`]
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct SearchPoint<N> {
+pub struct SearchPoint<P>
+where
+    P: PointSet,
+{
     /// Search point
-    point: Box<[N]>,
+    point: Box<[P::Value]>,
     /// Potential id of the point
-    unit: Option<usize>,
+    unit: Option<P::Id>,
 }
-impl<N> SearchPoint<N> {
+impl<P> SearchPoint<P>
+where
+    P: PointSet,
+{
     /// Returns the search point
     #[must_use]
     #[inline]
-    pub fn point(&self) -> &[N] { &self.point }
+    pub fn point(&self) -> &[P::Value] { &self.point }
     /// Returns the potential id of the search point
     #[must_use]
     #[inline]
-    pub fn unit(&self) -> Option<usize> { self.unit }
+    pub fn unit(&self) -> Option<P::Id> { self.unit }
     /// Returns `true` if the id of `other` matches the potential id of the search point.
     #[must_use]
     #[inline]
-    pub fn is_unit(&self, other: usize) -> bool { self.unit.is_some_and(|u| u == other) }
+    pub fn is_unit(&self, other: P::Id) -> bool { self.unit.is_some_and(|u| u == other) }
     /// Constructs a new, uninitialized search point
     #[inline]
-    pub fn new(dim: NonZeroUsize) -> Self
-    where
-        N: Number,
-    {
+    pub fn new(dim: NonZeroUsize) -> Self {
         Self {
-            point: vec![N::zero(); dim.get()].into_boxed_slice(),
+            point: vec![P::Value::ZERO; dim.get()].into_boxed_slice(),
             unit: None,
         }
     }
     /// Constructs a new search point from a unit id
     /// Returns `None` if the unit does not exist in the `data`.
     #[inline]
-    pub fn from_unit<P>(data: &P, unit: usize) -> Option<Self>
-    where
-        N: Copy,
-        P: PointSet<N = N>,
-    {
+    pub fn from_unit(data: &P, unit: P::Id) -> Option<Self> {
         Some(Self {
             point: data.to_boxed_slice(unit)?,
-            unit: unit.into(),
+            unit: Some(unit),
         })
     }
     /// Constructs a new search point from a point slice
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[N]) -> Option<Self>
-    where
-        N: Copy,
-    {
+    pub fn from_slice(point: &[P::Value]) -> Option<Self> {
         (!point.is_empty()).then(|| Self {
             point: point.into(),
             unit: None,
@@ -253,11 +263,7 @@ impl<N> SearchPoint<N> {
     /// Returns `None` if the unit does not exist in the `data`.
     #[must_use]
     #[inline]
-    pub fn set_from_unit<P>(&mut self, data: &P, unit: usize) -> Option<()>
-    where
-        N: Copy,
-        P: PointSet<N = N>,
-    {
+    pub fn set_from_unit(&mut self, data: &P, unit: P::Id) -> Option<()> {
         self.point = data.to_boxed_slice(unit)?;
         self.unit = Some(unit);
         Some(())
@@ -266,10 +272,7 @@ impl<N> SearchPoint<N> {
     /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
     #[must_use]
     #[inline]
-    pub fn set_from_slice(&mut self, point: &[N]) -> Option<()>
-    where
-        N: Copy,
-    {
+    pub fn set_from_slice(&mut self, point: &[P::Value]) -> Option<()> {
         (self.point.len() == point.len()).then(|| {
             self.point = point.into();
             self.unit = None;
@@ -280,20 +283,22 @@ impl<N> SearchPoint<N> {
 /// Searching the nearest neighbour of a unit.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct NearestNeighbourSearcher<N> {
+pub struct NearestNeighbourSearcher<P>
+where
+    P: PointSet,
+{
     /// Search point
-    point: SearchPoint<N>,
+    point: SearchPoint<P>,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
-    neighbours: Vec<Neighbour<N>>,
+    neighbours: Vec<Neighbour<P::Id, P::Value>>,
 }
-impl<N> NearestNeighbourSearcher<N> {
+impl<P> NearestNeighbourSearcher<P>
+where
+    P: PointSet,
+{
     /// Constructs a new, uninitialized, 1NN-searcher.
     #[inline]
-    pub fn new<T>(data: &T) -> Self
-    where
-        N: Number,
-        T: PointSet<N = N>,
-    {
+    pub fn new(data: &P) -> Self {
         Self {
             point: SearchPoint::new(data.dim()),
             neighbours: Vec::with_capacity(6),
@@ -302,11 +307,7 @@ impl<N> NearestNeighbourSearcher<N> {
     /// Constructs a new 1NN-searcher from a `unit` according to `data`.
     /// Returns `None` if the unit does not exist in `data`.
     #[inline]
-    pub fn from_unit<T>(data: &T, unit: usize) -> Option<Self>
-    where
-        N: Copy,
-        T: PointSet<N = N>,
-    {
+    pub fn from_unit(data: &P, unit: P::Id) -> Option<Self> {
         Some(Self {
             point: SearchPoint::from_unit(data, unit)?,
             neighbours: Vec::with_capacity(6),
@@ -315,10 +316,7 @@ impl<N> NearestNeighbourSearcher<N> {
     /// Constructs a new 1NN-searcher from a point.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[N]) -> Option<Self>
-    where
-        N: Copy,
-    {
+    pub fn from_slice(point: &[P::Value]) -> Option<Self> {
         Some(Self {
             point: SearchPoint::from_slice(point)?,
             neighbours: Vec::with_capacity(6),
@@ -329,11 +327,7 @@ impl<N> NearestNeighbourSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
-    where
-        N: Copy,
-        T: PointSet<N = N>,
-    {
+    pub fn reset_from_unit(&mut self, data: &P, unit: P::Id) -> Option<&mut Self> {
         self.point.set_from_unit(data, unit)?;
         self.neighbours.clear();
         Some(self)
@@ -343,10 +337,7 @@ impl<N> NearestNeighbourSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[N]) -> Option<&mut Self>
-    where
-        N: Copy,
-    {
+    pub fn reset_from_slice(&mut self, point: &[P::Value]) -> Option<&mut Self> {
         self.point.set_from_slice(point)?;
         self.neighbours.clear();
         Some(self)
@@ -355,50 +346,42 @@ impl<N> NearestNeighbourSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<T>(&mut self, tree: &Tree<T>) -> Option<()>
-    where
-        N: Number,
-        T: PointSet<N = N>,
-    {
+    pub fn search(&mut self, tree: &Tree<P>) -> Option<()> {
         self.neighbours.clear();
         tree.iterate_leafs_by(self)
     }
     /// Returns the neighbours of the latest search.
     #[must_use]
     #[inline]
-    pub fn neighbours(&self) -> &[Neighbour<N>] { &self.neighbours }
+    pub fn neighbours(&self) -> &[Neighbour<P::Id, P::Value>] { &self.neighbours }
     /// Returns the maximum squared euclidean distance of the neighbours in the latest search.
     /// Returns `None` if no neighbours were found.
     #[must_use]
     #[inline]
-    pub fn max_distance(&self) -> Option<N>
-    where
-        N: Copy,
-    {
+    pub fn max_distance(&self) -> Option<P::Value> {
         self.neighbours.last().map(Neighbour::distance)
     }
 }
-impl<N> TreeSearcher<N> for NearestNeighbourSearcher<N>
+impl<P> TreeSearcher<P> for NearestNeighbourSearcher<P>
 where
-    N: Number,
+    P: PointSet,
 {
     #[must_use]
     #[inline]
-    fn point(&self) -> &[N] { self.point.point() }
+    fn point(&self) -> &[P::Value] { self.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool {
+    fn is_satisfied(&self, distance: P::Value) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
         // !self.neighbours.is_empty() && self.max_distance() < distance.powi(2)
         self.max_distance()
             .is_some_and(|md| md < distance * distance)
     }
     #[inline]
-    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
-    where
-        T: PointSet<N = N>,
-    {
-        let mut current_max = self.max_distance().unwrap_or(<N as Number>::max_value());
+    fn visit_leaf(&mut self, data: &P, leaf_units: &[P::Id]) {
+        let mut current_max = self
+            .max_distance()
+            .unwrap_or(<P::Value as Number>::max_value());
         for &id in leaf_units {
             if Some(id) == self.point.unit {
                 continue;
@@ -420,22 +403,24 @@ where
 /// If `k == 1`, use [`NearestNeighbourSearcher`] instead.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct KNearestNeighbourSearcher<N> {
+pub struct KNearestNeighbourSearcher<P>
+where
+    P: PointSet,
+{
     /// Search point
-    point: SearchPoint<N>,
+    point: SearchPoint<P>,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
-    neighbours: Vec<Neighbour<N>>,
+    neighbours: Vec<Neighbour<P::Id, P::Value>>,
     /// The `k` number of neighbours to search for.
     nominal_size: NonZeroUsize,
 }
-impl<N> KNearestNeighbourSearcher<N> {
+impl<P> KNearestNeighbourSearcher<P>
+where
+    P: PointSet,
+{
     /// Constructs a new, uninitialized, kNN-searcher.
     #[inline]
-    pub fn new<P>(k: NonZeroUsize, data: &P) -> Self
-    where
-        N: Number,
-        P: PointSet<N = N>,
-    {
+    pub fn new(k: NonZeroUsize, data: &P) -> Self {
         Self {
             point: SearchPoint::new(data.dim()),
             neighbours: Vec::with_capacity(k.get() + 6),
@@ -445,11 +430,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     /// Constructs a new kNN-searcher from a `unit` according to `data`.
     /// Returns `None` if the unit does not exist in `data`.
     #[inline]
-    pub fn from_unit<T>(k: NonZeroUsize, data: &T, unit: usize) -> Option<Self>
-    where
-        N: Copy,
-        T: PointSet<N = N>,
-    {
+    pub fn from_unit(k: NonZeroUsize, data: &P, unit: P::Id) -> Option<Self> {
         Some(Self {
             point: SearchPoint::from_unit(data, unit)?,
             neighbours: Vec::with_capacity(k.get() + 6),
@@ -459,10 +440,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     /// Constructs a new kNN-searcher from a point.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(k: NonZeroUsize, point: &[N]) -> Option<Self>
-    where
-        N: Copy,
-    {
+    pub fn from_slice(k: NonZeroUsize, point: &[P::Value]) -> Option<Self> {
         Some(Self {
             point: SearchPoint::from_slice(point)?,
             neighbours: Vec::with_capacity(k.get() + 6),
@@ -480,11 +458,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_unit<T>(&mut self, data: &T, unit: usize) -> Option<&mut Self>
-    where
-        N: Copy,
-        T: PointSet<N = N>,
-    {
+    pub fn reset_from_unit(&mut self, data: &P, unit: P::Id) -> Option<&mut Self> {
         self.point.set_from_unit(data, unit)?;
         self.neighbours.clear();
         Some(self)
@@ -494,10 +468,7 @@ impl<N> KNearestNeighbourSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[N]) -> Option<&mut Self>
-    where
-        N: Copy,
-    {
+    pub fn reset_from_slice(&mut self, point: &[P::Value]) -> Option<&mut Self> {
         self.point.set_from_slice(point)?;
         self.neighbours.clear();
         Some(self)
@@ -506,39 +477,32 @@ impl<N> KNearestNeighbourSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<P>(&mut self, tree: &Tree<P>) -> Option<()>
-    where
-        N: Number,
-        P: PointSet<N = N>,
-    {
+    pub fn search(&mut self, tree: &Tree<P>) -> Option<()> {
         self.neighbours.clear();
         tree.iterate_leafs_by(self)
     }
     /// Returns the neighbours of the latest search.
     #[must_use]
     #[inline]
-    pub fn neighbours(&self) -> &[Neighbour<N>] { &self.neighbours }
+    pub fn neighbours(&self) -> &[Neighbour<P::Id, P::Value>] { &self.neighbours }
     /// Returns the maximum squared euclidean distance of the neighbours in the latest search.
     /// Returns `None` if no neighbours were found.
     #[must_use]
     #[inline]
-    pub fn max_distance(&self) -> Option<N>
-    where
-        N: Copy,
-    {
+    pub fn max_distance(&self) -> Option<P::Value> {
         self.neighbours.last().map(Neighbour::distance)
     }
 }
-impl<N> TreeSearcher<N> for KNearestNeighbourSearcher<N>
+impl<P> TreeSearcher<P> for KNearestNeighbourSearcher<P>
 where
-    N: Number,
+    P: PointSet,
 {
     #[must_use]
     #[inline]
-    fn point(&self) -> &[N] { self.point.point() }
+    fn point(&self) -> &[P::Value] { self.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool {
+    fn is_satisfied(&self, distance: P::Value) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
         // self.neighbours.len() >= self.nominal_size.get() && self.max_distance() <
         // distance.powi(2)
@@ -548,15 +512,14 @@ where
                 .is_some_and(|md| md < distance * distance)
     }
     #[inline]
-    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
-    where
-        T: PointSet<N = N>,
-    {
+    fn visit_leaf(&mut self, data: &P, leaf_units: &[P::Id]) {
         let original_len = self.neighbours.len();
 
         // Default to 0.0 b/c trick below.
         // self.neighbours is assumed to be sorted by distance.
-        let mut current_max = self.max_distance().unwrap_or(<N as Number>::max_value());
+        let mut current_max = self
+            .max_distance()
+            .unwrap_or(<P::Value as Number>::max_value());
         for &id in leaf_units {
             if Some(id) == self.point.unit {
                 continue;
@@ -605,25 +568,27 @@ where
 /// Searching the nearest neighbour of a unit, until the total weight of the neighbours sum to 1.0.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct WeightedSearcher<N> {
+pub struct WeightedSearcher<P>
+where
+    P: PointSet,
+{
     /// Search point
-    point: SearchPoint<N>,
+    point: SearchPoint<P>,
     /// The weight of the search point
     point_weight: f64,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`], where lower weights are
     /// sorted before higher weights in case of ties.
-    neighbours: Vec<WeightedNeighbour<N>>,
+    neighbours: Vec<WeightedNeighbour<P::Id, P::Value>>,
     /// The total weight of the neighbours
     total_weight: f64,
 }
-impl<N> WeightedSearcher<N> {
+impl<P> WeightedSearcher<P>
+where
+    P: PointSet,
+{
     /// Constructs a new, uninitialized, wNN-searcher.
     #[inline]
-    pub fn new<T>(data: &T) -> Self
-    where
-        N: Number,
-        T: PointSet<N = N>,
-    {
+    pub fn new(data: &P) -> Self {
         Self {
             point: SearchPoint::new(data.dim()),
             point_weight: 0.5,
@@ -634,11 +599,7 @@ impl<N> WeightedSearcher<N> {
     /// Constructs a new wNN-searcher from a `unit` according to `data`.
     /// Returns `None` if the unit does not exist in `data`.
     #[inline]
-    pub fn from_unit<T>(data: &T, unit: usize, weight: f64) -> Option<Self>
-    where
-        N: Copy,
-        T: PointSet<N = N>,
-    {
+    pub fn from_unit(data: &P, unit: P::Id, weight: f64) -> Option<Self> {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
@@ -652,10 +613,7 @@ impl<N> WeightedSearcher<N> {
     /// Constructs a new wNN-searcher from a point.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[N], weight: f64) -> Option<Self>
-    where
-        N: Copy,
-    {
+    pub fn from_slice(point: &[P::Value], weight: f64) -> Option<Self> {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
@@ -671,11 +629,7 @@ impl<N> WeightedSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_unit<P>(&mut self, data: &P, unit: usize, weight: f64) -> Option<&mut Self>
-    where
-        N: Copy,
-        P: PointSet<N = N>,
-    {
+    pub fn reset_from_unit(&mut self, data: &P, unit: P::Id, weight: f64) -> Option<&mut Self> {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
@@ -690,10 +644,7 @@ impl<N> WeightedSearcher<N> {
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[N], weight: f64) -> Option<&mut Self>
-    where
-        N: Copy,
-    {
+    pub fn reset_from_slice(&mut self, point: &[P::Value], weight: f64) -> Option<&mut Self> {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
@@ -707,11 +658,9 @@ impl<N> WeightedSearcher<N> {
     /// In cases of ties, all nearest neighbours are added.
     #[must_use]
     #[inline]
-    pub fn search<P, W>(&mut self, tree: &Tree<P>, weights: &W) -> Option<()>
+    pub fn search<W>(&mut self, tree: &Tree<P>, weights: &W) -> Option<()>
     where
-        N: Number,
-        P: PointSet<N = N>,
-        W: WeightCollection,
+        W: WeightCollection<P::Id>,
     {
         if !(0.0 < self.point_weight && self.point_weight < 1.0) {
             return None;
@@ -724,7 +673,7 @@ impl<N> WeightedSearcher<N> {
     /// Returns the neighbours of the latest search.
     #[must_use]
     #[inline]
-    pub fn neighbours(&self) -> &[WeightedNeighbour<N>] { &self.neighbours }
+    pub fn neighbours(&self) -> &[WeightedNeighbour<P::Id, P::Value>] { &self.neighbours }
     /// Returns the sum of the weight of the neighbours
     #[must_use]
     #[inline]
@@ -737,10 +686,7 @@ impl<N> WeightedSearcher<N> {
     /// Returns `None` if no neighbours were found.
     #[must_use]
     #[inline]
-    pub fn max_distance(&self) -> Option<N>
-    where
-        N: Copy,
-    {
+    pub fn max_distance(&self) -> Option<P::Value> {
         self.neighbours.last().map(WeightedNeighbour::distance)
     }
     /// Helper for calculating the potential weight, where other is assumed to be a probability.
@@ -757,14 +703,14 @@ impl<N> WeightedSearcher<N> {
     }
 }
 
-pub trait WeightCollection {
+pub trait WeightCollection<Id> {
     #[must_use]
-    fn try_get_weight(&self, id: usize) -> Option<f64>;
+    fn try_get_weight(&self, id: Id) -> Option<f64>;
     #[must_use]
     #[inline]
-    fn get_weight(&self, id: usize) -> f64 { self.try_get_weight(id).expect("id to exist") }
+    fn get_weight(&self, id: Id) -> f64 { self.try_get_weight(id).expect("id to exist") }
 }
-impl WeightCollection for &[f64] {
+impl WeightCollection<usize> for &[f64] {
     #[inline]
     fn try_get_weight(&self, id: usize) -> Option<f64> { self.get(id).copied() }
     #[inline]
@@ -776,43 +722,49 @@ impl WeightCollection for &[f64] {
 /// searches.
 #[must_use]
 #[derive(Debug)]
-struct WeightedSearcherWrapper<'borrow, N, W> {
+struct WeightedSearcherWrapper<'borrow, P, W>
+where
+    P: PointSet,
+{
     /// The (public) searcher
-    searcher: &'borrow mut WeightedSearcher<N>,
+    searcher: &'borrow mut WeightedSearcher<P>,
     /// The weights used
     weights: &'borrow W,
 }
-impl<'borrow, N, W> WeightedSearcherWrapper<'borrow, N, W> {
+impl<'borrow, P, W> WeightedSearcherWrapper<'borrow, P, W>
+where
+    P: PointSet,
+{
     /// Constructs a new wrapper around weigthed searcher
-    fn new(searcher: &'borrow mut WeightedSearcher<N>, weights: &'borrow W) -> Self {
+    fn new(searcher: &'borrow mut WeightedSearcher<P>, weights: &'borrow W) -> Self {
         Self { searcher, weights }
     }
 }
-impl<N, W> TreeSearcher<N> for WeightedSearcherWrapper<'_, N, W>
+impl<P, W> TreeSearcher<P> for WeightedSearcherWrapper<'_, P, W>
 where
-    N: Number,
-    W: WeightCollection,
+    P: PointSet,
+    W: WeightCollection<P::Id>,
 {
     #[must_use]
     #[inline]
-    fn point(&self) -> &[N] { self.searcher.point.point() }
+    fn point(&self) -> &[P::Value] { self.searcher.point.point() }
     #[must_use]
     #[inline]
-    fn is_satisfied(&self, distance: N) -> bool {
+    fn is_satisfied(&self, distance: P::Value) -> bool {
         self.searcher.total_weight >= 1.0
             && self
                 .searcher
                 .max_distance()
                 .is_some_and(|md| md < distance * distance)
     }
-    fn visit_leaf<T>(&mut self, data: &T, leaf_units: &[usize])
-    where
-        T: PointSet<N = N>,
-    {
+    fn visit_leaf(&mut self, data: &P, leaf_units: &[P::Id]) {
         let original_len = self.searcher.neighbours.len();
 
         // Default to 0.0 b/c trick below
-        let mut current_max = self.searcher.max_distance().unwrap_or(N::zero());
+        let mut current_max = self
+            .searcher
+            .max_distance()
+            .unwrap_or(<P::Value as ConstZero>::ZERO);
         for &id in leaf_units {
             if Some(id) == self.searcher.point.unit {
                 continue;

@@ -439,7 +439,7 @@ impl<N> ProbabilitySet<N> {
     }
 }
 
-impl<N> WeightCollection for ProbabilitySet<N>
+impl<N> WeightCollection<usize> for ProbabilitySet<N>
 where
     N: Number,
 {
