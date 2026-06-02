@@ -590,17 +590,17 @@ where
     type Id = usize;
     /// Returns the number of rows in the matrix
     #[inline]
-    fn size(&self) -> NonZeroUsize { self.dims.rows }
+    fn len(&self) -> NonZeroUsize { self.dims.rows }
     /// Returns an iterator of the rows in the matrix.
     #[inline]
-    fn id_iter(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
+    fn ids(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
     /// Returns the number of columns in the matrix
     #[inline]
-    fn dim(&self) -> NonZeroUsize { self.dims.cols }
+    fn dimensions(&self) -> NonZeroUsize { self.dims.cols }
     /// Returns true if `id` is contained within the matrix.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn exists(&self, row: usize) -> bool { row < self.dims.rows.get() }
+    fn contains(&self, row: usize) -> bool { row < self.dims.rows.get() }
     /// Returns the element at coordinates `(row, col)`.
     /// Panics on oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
@@ -613,7 +613,14 @@ where
     /// Returns `None` if the coordinates are oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn try_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
+    fn get_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
+    /// Returns an iterator over the coords of `row`, or `None` if `row` does not exist.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
+    #[must_use]
+    #[inline]
+    fn get_coords(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
+        self.row_iter(row)
+    }
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Panics on oob.
     #[inline]
@@ -634,8 +641,8 @@ where
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Returns `None` if any row is oob.
     #[inline]
-    fn try_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
-        (self.exists(id_a) && self.exists(id_b)).then(|| self.sq_distance_between(id_a, id_b))
+    fn get_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
+        (self.contains(id_a) && self.contains(id_b)).then(|| self.sq_distance_between(id_a, id_b))
     }
 }
 
@@ -735,15 +742,15 @@ mod tests {
         let m = setup_matrix();
 
         // Basic trait methods
-        assert_eq!(PointSet::size(&m), nz(3));
-        assert_eq!(PointSet::dim(&m), nz(2));
-        assert!(m.exists(2));
-        assert!(!m.exists(3));
+        assert_eq!(PointSet::len(&m), nz(3));
+        assert_eq!(PointSet::dimensions(&m), nz(2));
+        assert!(m.contains(2));
+        assert!(!m.contains(3));
 
         // Coordinate access
         assert_eq!(m.coord(1, 1), 5.0);
-        assert_eq!(m.try_coord(2, 0), Some(3.0));
-        assert_eq!(m.try_coord(3, 0), None);
+        assert_eq!(m.get_coord(2, 0), Some(3.0));
+        assert_eq!(m.get_coord(3, 0), None);
     }
 
     #[test]
@@ -760,7 +767,7 @@ mod tests {
         let same_dist = m.sq_distance_between(2, 2);
         assert_eq!(same_dist, 0.0);
 
-        assert!(m.try_sq_distance_between(0, 3).is_none());
+        assert!(m.get_sq_distance_between(0, 3).is_none());
     }
 
     #[test]

@@ -39,18 +39,18 @@ where
 {
     let population_size = probabilities.len();
 
-    (0..data.dim().get())
+    (0..data.dimensions().get())
         .map(|j| {
             // Calculate the dimension total for the population
             let pop_sum: f64 = (0..population_size)
-                .map(|i| data.try_coord(i, j))
+                .map(|i| data.get_coord(i, j))
                 .sum::<Option<f64>>()
                 .ok_or(EstimationError::InvalidSample)?;
             // Calculate the dimension HT-estimator
             let sample_sum: f64 = sample
                 .iter()
                 .map(|&i| {
-                    data.try_coord(i, j)
+                    data.get_coord(i, j)
                         .zip(probabilities.get(i))
                         .ok_or(EstimationError::InvalidSample)
                         .and_then(ypi_quotient)

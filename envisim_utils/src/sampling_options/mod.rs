@@ -166,7 +166,7 @@ where
         I: Into<SpreadingOptions<AUXP>>,
     {
         let data = data.into();
-        if data.data().size() != self.population_size() {
+        if data.data().len() != self.population_size() {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
         Ok(SamplingOptions {

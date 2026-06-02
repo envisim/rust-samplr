@@ -68,7 +68,7 @@ where
     let tree = Tree::new(opts, &mut sample.to_vec());
     let mut searcher = NearestNeighbourSearcher::new(data);
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Units in voronoi means have already been handled
         if pi_sums.contains_key(&id) {
             continue;
@@ -113,7 +113,7 @@ where
 {
     let data = opts.data();
     let sample_size = sample.len();
-    let data_cols = data.dim().get();
+    let data_cols = data.dimensions().get();
     let mut means =
         FxHashMap::<P::Id, Box<[P::Value]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
@@ -137,7 +137,7 @@ where
     let tree = Tree::new(opts, &mut sample.to_vec());
     let mut searcher = NearestNeighbourSearcher::new(data);
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Units in voronoi means have already been handled
         if means.contains_key(&id) {
             continue;
@@ -179,16 +179,16 @@ fn norm_matrix<P>(data: P, balance_probabilities: bool) -> Matrix<P::Value>
 where
     P: PointSet<Value = f64>,
 {
-    let data_cols = data.dim().get();
+    let data_cols = data.dimensions().get();
     let cols = data
-        .dim()
+        .dimensions()
         .saturating_add(usize::from(balance_probabilities));
     let mut norm_matrix = Matrix::from_value(0.0, MatrixDims::new(cols, cols));
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Last column as probs column
         if balance_probabilities {
-            norm_matrix[(data.dim().get(), data.dim().get())] += 1.0;
+            norm_matrix[(data.dimensions().get(), data.dimensions().get())] += 1.0;
         }
 
         for i in 0..data_cols {
@@ -218,12 +218,12 @@ fn energy_distance_phi_equal<P>(matrix: &P) -> (FxHashMap<P::Id, P::Value>, P::V
 where
     P: PointSet<Value = f64>,
 {
-    let size = matrix.size().get();
+    let size = matrix.len().get();
     let mut phi = FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(size, FxBuildHasher);
 
-    for (i, id1) in matrix.id_iter().enumerate() {
+    for (i, id1) in matrix.ids().enumerate() {
         let mut phi1 = <P::Value as ConstZero>::ZERO;
-        for id2 in matrix.id_iter().take(i) {
+        for id2 in matrix.ids().take(i) {
             let dist = matrix.sq_distance_between(id1, id2).sqrt();
             phi1 += dist;
             *phi.get_mut(&id2).expect("id2 to exist in map") += dist;
@@ -253,7 +253,7 @@ where
 {
     let population_size = probabilities.len();
     assert!(
-        population_size <= matrix.size().get(),
+        population_size <= matrix.len().get(),
         "not able to map between prob indices and PointSet"
     );
     let mut phi =
@@ -408,7 +408,7 @@ where
 
         let data = self.spreading().data();
         let cols = data
-            .dim()
+            .dimensions()
             .saturating_add(usize::from(balance_probabilities));
         let p = self.probabilities().as_real();
         let p_factor = (1.0 - p) / p;
@@ -480,7 +480,7 @@ where
 
         let data = self.spreading().data();
         let cols = data
-            .dim()
+            .dimensions()
             .saturating_add(usize::from(balance_probabilities));
         let probs = self.probabilities().to_slice_real();
         let voronoi_means = voronoi_means(

@@ -42,7 +42,7 @@ pub fn nearest_neighbour<P>(
 where
     P: PointSet<Id = usize, Value = f64>,
 {
-    let population_size = auxiliaries.size().get();
+    let population_size = auxiliaries.len().get();
     let sample_size = sample.len();
 
     if sample.len() != y_values.len() || !sample.iter().all(|id| (0..population_size).contains(id))
