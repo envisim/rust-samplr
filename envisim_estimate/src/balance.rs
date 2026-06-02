@@ -35,7 +35,7 @@ fn balance_deviation<P>(
     data: &P,
 ) -> EstimationResult<Vec<f64>>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     let population_size = probabilities.len();
 
@@ -84,7 +84,7 @@ pub fn balance_deviation_spreading<PO, P, BAL>(
 ) -> EstimationResult<Vec<f64>>
 where
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     let p = options.probabilities().to_slice_real();
     balance_deviation(sample, &p, options.spreading().data())
@@ -113,7 +113,7 @@ pub fn balance_deviation_balancing<PO, AUX, P>(
 ) -> EstimationResult<Vec<f64>>
 where
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     let p = options.probabilities().to_slice_real();
     balance_deviation(sample, &p, options.balancing().data())

@@ -53,10 +53,10 @@ use crate::error::{
 /// neighbours of `id_org`, they are mutual nns
 #[inline]
 fn is_mutual_nn<P>(
-    searcher: &mut NearestNeighbourSearcher<P::N>,
+    searcher: &mut NearestNeighbourSearcher<P>,
     tree: &Tree<'_, P>,
-    id_org: usize,
-    id_n: usize,
+    id_org: P::Id,
+    id_n: P::Id,
 ) -> bool
 where
     P: PointSet,
@@ -75,13 +75,13 @@ where
     P: PointSet,
 {
     /// The searcher to be used to find the neighbours of the selected unit
-    searcher: NearestNeighbourSearcher<P::N>,
+    searcher: NearestNeighbourSearcher<P>,
     /// The candidates to be selected as deciding unit
     candidates: Vec<usize>,
 }
 impl<P> LocalStrategy1<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new [`PivotalRunner`]using the LPM1 strategy
     #[inline]
@@ -90,7 +90,6 @@ where
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
         PO: ProbabilityOptions,
-        P: PointSet,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -106,7 +105,7 @@ where
 }
 impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy1<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn select_pair<R>(
@@ -169,7 +168,7 @@ where
     P: PointSet,
 {
     /// The searcher to be used to find the neighbours of the selected unit
-    searcher: NearestNeighbourSearcher<P::N>,
+    searcher: NearestNeighbourSearcher<P>,
     /// The candidates to be selected as deciding unit
     candidates: Vec<usize>,
     /// History of potential minimal nns
@@ -177,7 +176,7 @@ where
 }
 impl<P> LocalStrategy1S<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new [`PivotalRunner`]using the LPM1 fast strategy
     #[inline]
@@ -186,7 +185,6 @@ where
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
         PO: ProbabilityOptions,
-        P: PointSet,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -204,7 +202,7 @@ where
 }
 impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy1S<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn select_pair<R>(
@@ -294,11 +292,11 @@ where
     P: PointSet,
 {
     /// The searcher to be used to find the neighbours of the selected unit
-    searcher: NearestNeighbourSearcher<P::N>,
+    searcher: NearestNeighbourSearcher<P>,
 }
 impl<P> LocalStrategy2<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new [`PivotalRunner`]using the LPM2 strategy
     #[inline]
@@ -319,7 +317,7 @@ where
 }
 impl<PROB, P> PivotalStrategy<PROB, Tree<'_, P>> for LocalStrategy2<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn select_pair<R>(
@@ -415,7 +413,7 @@ impl<R, PO, P, BAL> LocalPivotalSampling<R> for SamplingOptions<PO, SpreadingOpt
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions,
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn lpm_1(&self, rng: &mut R) -> Vec<usize> { LocalStrategy1::new(self).sample(rng) }
@@ -472,7 +470,7 @@ pub fn hierarchical_lpm_2<R, PO, P, BAL>(
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     // Check validity of probabilities and sizes
     let sizes_sum = sizes.iter().sum();

@@ -36,7 +36,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     pub fn new(matrix: P, sample_size: NonZeroUsize) -> Self
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         let size = matrix.size().get();
         let u_size = size.to_f64().expect("matrix size to convert to f64");
@@ -75,7 +75,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     fn s_energy_between(&self, id1: usize, id2: usize) -> f64
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         self.matrix.sq_distance_between(id1, id2).sqrt()
     }
@@ -84,7 +84,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     pub fn relative_distance(&self, unit: usize, a: usize, b: usize) -> f64
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         self.matrix.sq_distance_between(unit, a).sqrt()
             - self.matrix.sq_distance_between(unit, b).sqrt()
@@ -94,7 +94,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     pub fn total<I>(&self, sample_iter: I) -> f64
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         let mut s_spread: f64 = 0.0;
@@ -137,7 +137,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     fn s_delta<I>(&self, sample: I, add: usize, rem: usize) -> Option<f64>
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         if add == rem {
@@ -169,7 +169,7 @@ impl<P> EnergyDistance<P> {
     #[inline]
     pub fn delta<I>(&self, sample: I, add: usize, rem: usize) -> Option<f64>
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
         I: Iterator<Item = usize> + Clone,
     {
         let inter_spread = self.i_delta(add, rem)?;

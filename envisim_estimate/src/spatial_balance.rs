@@ -31,7 +31,10 @@ use envisim_utils::sampling_options::{
     SpreadingOptions,
     UnequalProbabilityOptions,
 };
-use num_traits::ToPrimitive;
+use num_traits::{
+    ConstZero,
+    ToPrimitive,
+};
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
@@ -43,16 +46,17 @@ use crate::error::EstimationResult;
 /// Calculates the pi-sums for each voronoi cell
 fn voronoi_pi_sum<P, F>(
     opts: &SpreadingOptions<P>,
-    sample: &[usize],
+    sample: &[P::Id],
     prob: F,
-) -> EstimationResult<FxHashMap<usize, f64>>
+) -> EstimationResult<FxHashMap<P::Id, P::Value>>
 where
-    P: PointSet<N = f64>,
-    F: Fn(usize) -> f64,
+    P: PointSet<Value = f64>,
+    F: Fn(P::Id) -> P::Value,
 {
     let data = opts.data();
     let sample_size = sample.len();
-    let mut pi_sums = FxHashMap::<usize, f64>::with_capacity_and_hasher(sample_size, FxBuildHasher);
+    let mut pi_sums =
+        FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     for &id in sample {
         let p = prob(id);
@@ -96,21 +100,22 @@ where
 
 /// Calculate the voronoi means of `data`.
 /// `sample` is an iterator over sample indices and their probability factor (1-pi)/pi
+#[expect(clippy::type_complexity, reason = "Ok complexity")]
 fn voronoi_means<P, F>(
     opts: &SpreadingOptions<P>,
-    sample: &[usize],
+    sample: &[P::Id],
     prob: F,
     balance_probabilities: bool,
-) -> EstimationResult<FxHashMap<usize, Box<[f64]>>>
+) -> EstimationResult<FxHashMap<P::Id, Box<[P::Value]>>>
 where
-    P: PointSet<N = f64>,
-    F: Fn(usize) -> f64,
+    P: PointSet<Value = f64>,
+    F: Fn(P::Id) -> P::Value,
 {
     let data = opts.data();
     let sample_size = sample.len();
     let data_cols = data.dim().get();
     let mut means =
-        FxHashMap::<usize, Box<[f64]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
+        FxHashMap::<P::Id, Box<[P::Value]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     for &id in sample {
         let p_factor = prob(id);
@@ -170,9 +175,9 @@ where
 }
 
 /// Calculate the norm matrix of `data`
-fn norm_matrix<P>(data: P, balance_probabilities: bool) -> Matrix<f64>
+fn norm_matrix<P>(data: P, balance_probabilities: bool) -> Matrix<P::Value>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Value = f64>,
 {
     let data_cols = data.dim().get();
     let cols = data
@@ -209,66 +214,99 @@ where
 /// Returns (phi-vec, phi-sumish)
 #[must_use]
 #[inline]
-fn energy_distance_phi_equal<P>(matrix: &P) -> (Vec<f64>, f64)
+fn energy_distance_phi_equal<P>(matrix: &P) -> (FxHashMap<P::Id, P::Value>, P::Value)
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Value = f64>,
 {
     let size = matrix.size().get();
-    let u_size = size.to_f64().expect("matrix dims to convert to f64");
-    let mut phi = vec![0.0; size];
-    let mut u_spread = 0.0;
+    let mut phi = FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(size, FxBuildHasher);
 
-    for id1 in matrix.id_iter() {
-        for id2 in matrix.id_iter().skip(id1 + 1) {
+    for (i, id1) in matrix.id_iter().enumerate() {
+        let mut phi1 = <P::Value as ConstZero>::ZERO;
+        for id2 in matrix.id_iter().take(i) {
             let dist = matrix.sq_distance_between(id1, id2).sqrt();
-            phi[id1] += dist;
-            phi[id2] += dist;
+            phi1 += dist;
+            *phi.get_mut(&id2).expect("id2 to exist in map") += dist;
         }
-        phi[id1] /= u_size;
-        u_spread += phi[id1];
+        phi.insert(id1, phi1);
     }
+
+    let u_size = size.to_f64().expect("pop size to convert to f64");
+    let mut u_spread = <P::Value as ConstZero>::ZERO;
+    for val in phi.values_mut() {
+        *val /= u_size;
+        u_spread += *val;
+    }
+
     (phi, u_spread / u_size)
 }
 /// Returns (phi-vec, phi-sumish)
 #[must_use]
 #[inline]
-fn energy_distance_phi_unequal<P>(matrix: P, probabilities: &[f64], s_size: f64) -> (Vec<f64>, f64)
+fn energy_distance_phi_unequal<P>(
+    matrix: P,
+    probabilities: &[P::Value],
+    s_size: f64,
+) -> (FxHashMap<P::Id, P::Value>, P::Value)
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
-    let size = matrix.size().get();
-    let mut phi = vec![0.0; size];
-    let mut u_spread = 0.0;
+    let population_size = probabilities.len();
+    assert!(
+        population_size <= matrix.size().get(),
+        "not able to map between prob indices and PointSet"
+    );
+    let mut phi =
+        FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(population_size, FxBuildHasher);
 
-    for id1 in matrix.id_iter() {
-        for id2 in matrix.id_iter().skip(id1 + 1) {
+    let probs: Vec<f64> = probabilities.iter().map(|&p| p / s_size).collect();
+
+    for id1 in 0..population_size {
+        let mut phi1 = <P::Value as ConstZero>::ZERO;
+
+        for id2 in 0..id1 {
             let dist = matrix.sq_distance_between(id1, id2).sqrt();
-            phi[id1] += dist * probabilities[id2] / s_size;
-            phi[id2] += dist * probabilities[id1] / s_size;
+            phi1 += dist * probs[id2];
+            *phi.get_mut(&id2).expect("id2 to exist in map") += dist * probs[id1];
         }
-        u_spread += phi[id1] * probabilities[id1];
+
+        phi.insert(id1, phi1);
     }
-    (phi, u_spread / s_size)
+
+    let mut u_spread = <P::Value as ConstZero>::ZERO;
+    for (&id, val) in &mut phi {
+        // Second div. by s_size goes here
+        u_spread += *val * probs[id];
+    }
+
+    (phi, u_spread)
 }
 
 /// Returns 2 E||X-Z|| - E||X-X'||
 #[must_use]
 #[inline]
-fn energy_distance_internal<P>(sample: &[usize], matrix: P, phi: &[f64]) -> f64
+fn energy_distance_internal<P>(
+    sample: &[P::Id],
+    matrix: P,
+    phi: &FxHashMap<P::Id, P::Value>,
+) -> P::Value
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Value = f64>,
 {
-    let s_size = sample.len().to_f64().expect("sample.len to convert to f64");
-    let mut s_spread: f64 = 0.0;
-    let mut inter_spread: f64 = 0.0;
+    let s_size = sample
+        .len()
+        .to_f64()
+        .expect("sample size to convert to f64");
+    let mut s_spread = <P::Value as ConstZero>::ZERO;
+    let mut inter_spread = <P::Value as ConstZero>::ZERO;
 
-    for i in 0..sample.len() {
-        let id1 = sample[i];
+    for (i, id1) in sample.iter().enumerate() {
         inter_spread += phi[id1];
 
         // Iterate over 0..i
-        for &id2 in sample.iter().take(i) {
-            s_spread += 2.0 * matrix.sq_distance_between(id1, id2).sqrt();
+        for id2 in sample.iter().take(i) {
+            let dist = matrix.sq_distance_between(*id1, *id2).sqrt();
+            s_spread += 2.0 * dist;
         }
     }
 
@@ -303,7 +341,7 @@ where
     ///
     /// # Errors
     /// If `sample` contains duplicate ids
-    fn voronoi(&self, sample: &[usize]) -> EstimationResult<f64>;
+    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value>;
     /// Local measure of spatial balance.
     ///
     /// # Examples
@@ -326,7 +364,7 @@ where
     ///
     /// # Errors
     /// If `sample` contains duplicate ids
-    fn local(&self, sample: &[usize], balance_probabilities: bool) -> EstimationResult<f64>;
+    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value>;
     /// Energy distance between sample distribution and population.
     ///
     /// # Examples
@@ -341,16 +379,16 @@ where
     /// # Ok::<(), EstimationError>(())
     /// ```
     #[must_use]
-    fn energy_distance(&self, sample: &[usize]) -> f64;
+    fn energy_distance(&self, sample: &[P::Id]) -> P::Value;
 }
 
 impl<P, BAL> SpatialBalance<P>
     for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Value = f64>,
 {
     #[inline]
-    fn voronoi(&self, sample: &[usize]) -> EstimationResult<f64> {
+    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
         if sample.is_empty() {
             return Ok(f64::NAN);
         }
@@ -363,7 +401,7 @@ where
         Ok(result)
     }
     #[inline]
-    fn local(&self, sample: &[usize], balance_probabilities: bool) -> EstimationResult<f64> {
+    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value> {
         if sample.is_empty() {
             return Ok(f64::NAN);
         }
@@ -406,7 +444,7 @@ where
         Ok(result.sqrt())
     }
     #[inline]
-    fn energy_distance(&self, sample: &[usize]) -> f64 {
+    fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
         let matrix = self.spreading().data();
         let (phi, u_spread) = energy_distance_phi_equal(matrix);
         let edi = energy_distance_internal(sample, matrix, &phi);
@@ -418,11 +456,11 @@ impl<'bprob, PROB, P, BAL> SpatialBalance<P>
     for SamplingOptions<UnequalProbabilityOptions<'bprob, PROB>, SpreadingOptions<P>, BAL>
 where
     PROB: Number,
-    P: PointSet<N = f64>,
-    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB, Real = f64>,
+    P: PointSet<Id = usize, Value = f64>,
+    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB, Real = P::Value>,
 {
     #[inline]
-    fn voronoi(&self, sample: &[usize]) -> EstimationResult<f64> {
+    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
         if sample.is_empty() {
             return Ok(f64::NAN);
         }
@@ -435,7 +473,7 @@ where
         Ok(result)
     }
     #[inline]
-    fn local(&self, sample: &[usize], balance_probabilities: bool) -> EstimationResult<f64> {
+    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value> {
         if sample.is_empty() {
             return Ok(f64::NAN);
         }
@@ -479,8 +517,9 @@ where
 
         Ok(result.sqrt())
     }
+    /// Requires that [`PointSet`] is able to map probability indices
     #[inline]
-    fn energy_distance(&self, sample: &[usize]) -> f64 {
+    fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
         let matrix = self.spreading().data();
         let probs = self.probabilities().to_slice_real();
         let s_size = sample
@@ -503,22 +542,23 @@ mod test {
     fn ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let phi = energy_distance_phi_equal(&data);
-        let res: Vec<f64> = vec![
+        let (phi, _) = energy_distance_phi_equal(&data);
+        let phi_res = vec![phi[&0], phi[&1], phi[&2]];
+        let facit: Vec<f64> = vec![
             (2.0f64.sqrt() + 8.0f64.sqrt()) / 3.0f64,
             (2.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
             (8.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
         ];
 
-        assert_vec!(phi.0, res);
+        assert_vec!(phi_res, facit);
     }
     #[test]
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let phi = energy_distance_phi_equal(&data);
-        let dist = energy_distance_internal(&[1, 2], &data, &phi.0);
-        let res: f64 = 2.0 * (phi.0[1] + phi.0[2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
+        let (phi, _) = energy_distance_phi_equal(&data);
+        let dist = energy_distance_internal(&[1, 2], &data, &phi);
+        let res: f64 = 2.0 * (phi[&1] + phi[&2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
 
         assert_delta!(dist, res);
     }

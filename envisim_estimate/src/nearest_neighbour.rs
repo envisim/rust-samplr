@@ -36,11 +36,11 @@ use crate::error::EstimationResult;
 #[inline]
 pub fn nearest_neighbour<P>(
     y_values: &[f64],
-    sample: &[usize],
+    sample: &[P::Id],
     auxiliaries: P,
 ) -> EstimationResult<f64>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     let population_size = auxiliaries.size().get();
     let sample_size = sample.len();

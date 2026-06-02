@@ -63,7 +63,7 @@ mod config {
             ed: &EnergyDistance<P>,
         ) -> Self
         where
-            P: PointSet<N = f64>,
+            P: PointSet<Id = usize, Value = f64>,
         {
             let population_size =
                 NonZeroUsize::new(sequence.len()).expect("sequence to be non-empty");
@@ -108,7 +108,7 @@ mod config {
         #[inline]
         fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
         where
-            P: PointSet<N = f64>,
+            P: PointSet<Id = usize, Value = f64>,
         {
             self.total_nenergy = 0.0;
             for i in 0..self.tcp.n_samples().get() {
@@ -188,7 +188,7 @@ impl<P> DbdCircular<P> {
         eps: Epsilon<f64>,
     ) -> Result<Self, CircularConfiguration>
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         let sequence: Vec<usize> = matrix.id_iter().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
@@ -216,7 +216,7 @@ impl<P> DbdCircular<P> {
 
 impl<P> AnnealingDistributionalDesign for DbdCircular<P>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     #[inline]
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }

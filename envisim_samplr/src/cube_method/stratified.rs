@@ -399,7 +399,7 @@ pub fn local_cube_stratified<R, PO, P, T, STRATA>(
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet,
+    P: PointSet<Id = usize>,
     T: RawData<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {

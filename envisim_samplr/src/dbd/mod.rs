@@ -133,7 +133,7 @@ mod dbd_trait {
         for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
     where
         R: SamplingOptionsRng<EqualProbabilityOptions>,
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         #[inline]
         fn dbd_circular(
@@ -214,7 +214,7 @@ mod dbd_trait {
         for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
     where
         R: SamplingOptionsRng<EqualProbabilityOptions>,
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         #[inline]
         fn dbd_circular_evaluator(
