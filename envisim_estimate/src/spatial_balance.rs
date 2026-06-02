@@ -74,11 +74,7 @@ where
             continue;
         }
 
-        searcher.reset_from_slice(
-            &data
-                .to_boxed_slice(id)
-                .expect("id to exist in data by iter"),
-        );
+        searcher.reset_from_point(data.get_coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = prob(id)
@@ -143,11 +139,7 @@ where
             continue;
         }
 
-        searcher.reset_from_slice(
-            &data
-                .to_boxed_slice(id)
-                .expect("id to exist in data by iter"),
-        );
+        searcher.reset_from_point(data.get_coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = searcher

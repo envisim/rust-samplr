@@ -244,12 +244,7 @@ where
         }
 
         searcher
-            .reset_from_slice(
-                &tree
-                    .data()
-                    .to_boxed_slice(i)
-                    .expect("i to exist in aux data"),
-            )
+            .reset_from_point(tree.data().get_coords(i).expect("i to exist in aux data"))
             .expect("tree data to be searchable")
             .search(&tree)
             .expect("search to be possible");

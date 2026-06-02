@@ -412,7 +412,7 @@ mod tests {
         let tree = Tree::new(&options, &mut units);
 
         // Use the real NearestNeighbourSearcher
-        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.1, 0.1]).unwrap();
+        let mut searcher = NearestNeighbourSearcher::from_point([0.1, 0.1].iter()).unwrap();
 
         // Traverse the tree
         tree.iterate_leafs_by(&mut searcher)
