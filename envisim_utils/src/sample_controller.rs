@@ -224,7 +224,7 @@ impl<PROB> SampleController<PROB, ()> {
 
 impl<'bspread, PROB, P> SampleController<PROB, Tree<'bspread, P>>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     pub fn new_spreading(
@@ -263,7 +263,7 @@ impl<PROB> UnitRemoving for SampleController<PROB, ()> {
 }
 impl<PROB, P> UnitRemoving for SampleController<PROB, Tree<'_, P>>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn unit_remove(&mut self, idx: usize) -> bool {

@@ -586,7 +586,8 @@ where
     T: RawData<Elem = N>,
     N: Number,
 {
-    type N = N;
+    type Value = N;
+    type Id = usize;
     /// Returns the number of rows in the matrix
     #[inline]
     fn size(&self) -> NonZeroUsize { self.dims.rows }

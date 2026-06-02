@@ -70,7 +70,7 @@ mod config {
             ed: &EnergyDistance<P>,
         ) -> Self
         where
-            P: PointSet<N = f64>,
+            P: PointSet<Id = usize, Value = f64>,
         {
             assert_eq!(
                 sequence.len(),
@@ -131,7 +131,7 @@ mod config {
         #[inline]
         fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
         where
-            P: PointSet<N = f64>,
+            P: PointSet<Id = usize, Value = f64>,
         {
             self.total_nenergy = 0.0;
             for i in 0..self.tcp.n_samples().get() {
@@ -217,7 +217,7 @@ impl<P> DbdTacticalConfiguration<P> {
         eps: Epsilon<f64>,
     ) -> Result<Self, TacticalConfiguration>
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
         R: SamplingOptionsRng<EqualProbabilityOptions>,
     {
         let population_size = matrix.size();
@@ -299,7 +299,7 @@ impl<P> DbdTacticalConfiguration<P> {
 
 impl<P> AnnealingDistributionalDesign for DbdTacticalConfiguration<P>
 where
-    P: PointSet<N = f64>,
+    P: PointSet<Id = usize, Value = f64>,
 {
     #[inline]
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }

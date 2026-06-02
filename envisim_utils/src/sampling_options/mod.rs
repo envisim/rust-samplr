@@ -235,7 +235,7 @@ where
 impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
 where
     PO: ProbabilityOptions,
-    AUXP: PointSet,
+    AUXP: PointSet<Id = usize>,
 {
     /// Constructs a [`SampleController`] containing a KD-tree from the probability specification.
     #[inline]

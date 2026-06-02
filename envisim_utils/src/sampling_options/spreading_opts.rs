@@ -84,7 +84,7 @@ impl<P> SpreadingOptions<P> {
     where
         P: PointSet,
     {
-        let mut units: Vec<usize> = self.data.id_iter().collect();
+        let mut units: Vec<P::Id> = self.data.id_iter().collect();
         Tree::new(self, &mut units)
     }
 }
@@ -102,11 +102,11 @@ where
     P: PointSet,
 {
     type Data = P;
-    type Split = MidpointSlide<P::N>;
+    type Split = MidpointSlide<P::Value>;
     #[inline]
     fn data(&self) -> &Self::Data { &self.data }
     #[inline]
     fn bucket_size(&self) -> NonZeroUsize { self.bucket_size }
     #[inline]
-    fn split_method(&self, units: &[usize]) -> Self::Split { MidpointSlide::new(&self.data, units) }
+    fn split_method(&self, units: &[P::Id]) -> Self::Split { MidpointSlide::new(&self.data, units) }
 }

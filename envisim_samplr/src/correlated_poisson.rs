@@ -256,11 +256,11 @@ where
     /// the same. If no random values (no coordination), the order is random.
     order: usize,
     /// The searcher to be used to find the neighbours of the selected unit
-    searcher: WeightedSearcher<P::N>,
+    searcher: WeightedSearcher<P>,
 }
 impl<'bcoord, P> SpatialStrategy<'bcoord, P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new CPS runner using the spatial strategy
     #[inline]
@@ -311,13 +311,13 @@ where
 /// Fins the neighbours of the selected unit, and updates their probabilities and selection status
 #[inline]
 fn spatial_update_probabilities<P>(
-    searcher: &mut WeightedSearcher<P::N>,
+    searcher: &mut WeightedSearcher<P>,
     controller: &mut SampleController<f64, Tree<'_, P>>,
     id: usize,
     probability: Probability<f64>,
     quota: f64,
 ) where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     if controller.indices().is_empty() {
         return;
@@ -382,7 +382,7 @@ fn spatial_update_probabilities<P>(
 
 impl<P> CorrelatedPoissonStrategy<Tree<'_, P>> for SpatialStrategy<'_, P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[must_use]
     #[inline]
@@ -437,13 +437,13 @@ where
     P: PointSet,
 {
     /// The searcher to be used to find the neighbours of the selected unit
-    searcher: WeightedSearcher<P::N>,
+    searcher: WeightedSearcher<P>,
     /// The candidates to be selected as deciding unit
     candidates: Vec<usize>,
 }
 impl<P> LocalStrategy<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     /// Constructs a new CPS runner using the local strategy
     #[inline]
@@ -466,7 +466,7 @@ where
 }
 impl<P> CorrelatedPoissonStrategy<Tree<'_, P>> for LocalStrategy<P>
 where
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[must_use]
     #[inline]
@@ -492,7 +492,7 @@ where
             return controller.indices().draw(rng);
         }
 
-        let mut minimum_distance = P::N::max_value();
+        let mut minimum_distance = P::Value::max_value();
         self.candidates.clear();
 
         // Loop through all remaining units
@@ -669,7 +669,7 @@ impl<R, PO, P, BAL> SpatiallyCorrelatedPoissonSampling<R>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    P: PointSet,
+    P: PointSet<Id = usize>,
 {
     #[inline]
     fn scps(&self, rng: &mut R) -> Vec<usize> { SpatialStrategy::new(self).sample(rng) }

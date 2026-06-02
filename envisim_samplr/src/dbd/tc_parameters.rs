@@ -151,7 +151,7 @@ pub trait DbdConfiguration {
     #[inline]
     fn nenergy_of_sample<P>(&self, ed: &EnergyDistance<P>, sample_id: usize) -> f64
     where
-        P: PointSet<N = f64>,
+        P: PointSet<Id = usize, Value = f64>,
     {
         ed.total(self.sample(sample_id))
     }

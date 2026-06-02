@@ -30,7 +30,6 @@ use split_methods::{
     Split,
 };
 
-use crate::number_traits::Number;
 pub use crate::spatial::PointSet;
 
 /// Tree construction trait
@@ -44,7 +43,7 @@ pub trait TreeConfig {
     #[must_use]
     fn bucket_size(&self) -> NonZeroUsize;
     #[must_use]
-    fn split_method(&self, units: &[usize]) -> Self::Split;
+    fn split_method(&self, units: &[<Self::Data as PointSet>::Id]) -> Self::Split;
 }
 
 /// A kd-tree
@@ -55,7 +54,7 @@ where
     P: PointSet,
 {
     /// The first node
-    node: Node<P::N>,
+    node: Node<P>,
     /// A reference to the data
     data: &'bdata P,
 }
@@ -67,29 +66,38 @@ where
     clippy::exhaustive_enums,
     reason = "any new node-types is a breaking change"
 )]
-pub enum Node<N> {
-    Branch(Branch<N>),
-    Leaf(Leaf),
+pub enum Node<P>
+where
+    P: PointSet,
+{
+    Branch(Branch<P>),
+    Leaf(Leaf<P>),
 }
 
 /// A `Branch` is a [`Node`] which defines a split along a dimension.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct Branch<N> {
+pub struct Branch<P>
+where
+    P: PointSet,
+{
     /// The split of the branch
-    split: Split<N>,
+    split: Split<P::Value>,
     /// The node to the left of the split
-    left: Box<Node<N>>,
+    left: Box<Node<P>>,
     /// The node to the right of the split
-    right: Box<Node<N>>,
+    right: Box<Node<P>>,
 }
 
 /// A `Leaf` is a [`Node`] which contains units.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct Leaf {
+pub struct Leaf<P>
+where
+    P: PointSet,
+{
     /// The units contained within the leaf
-    units: Vec<usize>,
+    units: Vec<P::Id>,
 }
 
 impl<'bdata, P> Tree<'bdata, P>
@@ -98,7 +106,7 @@ where
 {
     /// Constructs a new tree containing `units`, according to some `config`.
     #[inline]
-    pub fn new<C, S>(config: &'bdata C, units: &mut [usize]) -> Self
+    pub fn new<C, S>(config: &'bdata C, units: &mut [P::Id]) -> Self
     where
         C: TreeConfig<Data = P, Split = S>,
         S: FindSplit<P>,
@@ -117,8 +125,8 @@ where
     /// Returns `None` if `unit` does not exists in the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf_of_unit(&self, unit: usize) -> Option<&Leaf> {
-        let v: Box<[P::N]> = self.data.to_boxed_slice(unit)?;
+    pub fn find_leaf_of_unit(&self, unit: P::Id) -> Option<&Leaf<P>> {
+        let v: Box<[P::Value]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, find_leaf should always be Some as there can't be
         // dimension mismatch
         self.find_leaf(&v)
@@ -127,7 +135,7 @@ where
     /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf(&self, unit: &[P::N]) -> Option<&Leaf> {
+    pub fn find_leaf(&self, unit: &[P::Value]) -> Option<&Leaf<P>> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
     }
     /// Iterates the leaf by a [`TreeSearcher`].
@@ -135,7 +143,7 @@ where
     #[inline]
     pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> Option<()>
     where
-        S: TreeSearcher<P::N>,
+        S: TreeSearcher<P>,
     {
         if self.data.dim().get() == searcher.point().len() {
             self.node.iterate_leafs_by(self.data, searcher)
@@ -147,8 +155,8 @@ where
     /// Returns `None` if `unit` does not exists in the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf_of_unit_mut(&mut self, unit: usize) -> Option<&mut Leaf> {
-        let v: Box<[P::N]> = self.data.to_boxed_slice(unit)?;
+    pub fn find_leaf_of_unit_mut(&mut self, unit: P::Id) -> Option<&mut Leaf<P>> {
+        let v: Box<[P::Value]> = self.data.to_boxed_slice(unit)?;
         // Since data constructs the slice, it should always be Some
         self.find_leaf_mut(&v)
     }
@@ -156,7 +164,7 @@ where
     /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
     #[must_use]
     #[inline]
-    pub fn find_leaf_mut(&mut self, unit: &[P::N]) -> Option<&mut Leaf> {
+    pub fn find_leaf_mut(&mut self, unit: &[P::Value]) -> Option<&mut Leaf<P>> {
         (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
     }
     /// Inserts a unit into the tree.
@@ -164,7 +172,7 @@ where
     /// Returns `true` if the unit did not already exist.
     /// Does not rebalance the tree.
     #[inline]
-    pub fn insert_unit(&mut self, unit: usize) -> Option<bool> {
+    pub fn insert_unit(&mut self, unit: P::Id) -> Option<bool> {
         self.find_leaf_of_unit_mut(unit)?.insert_unit(unit).into()
     }
     /// Removes a unit from the tree.
@@ -172,19 +180,20 @@ where
     /// Returns `false` if the unit did not already exist.
     /// Does not rebalance the tree.
     #[inline]
-    pub fn remove_unit(&mut self, unit: usize) -> Option<bool> {
+    pub fn remove_unit(&mut self, unit: P::Id) -> Option<bool> {
         self.find_leaf_of_unit_mut(unit)?.remove_unit(unit).into()
     }
 }
 
-impl<N> Node<N> {
+impl<P> Node<P>
+where
+    P: PointSet,
+{
     /// Constructs a new node, by trying to find a possible split, otherwise creating a leaf.
     /// A leaf is also created if the bucket size has been fulfilled.
-    fn new<B, P, S>(config: &B, borders: S, units: &mut [usize]) -> Self
+    fn new<B, S>(config: &B, borders: S, units: &mut [P::Id]) -> Self
     where
-        N: Number,
         B: TreeConfig<Data = P, Split = S>,
-        P: PointSet<N = N>,
         S: FindSplit<P>,
     {
         // If not enough units remain, a leaf should be constructed
@@ -207,10 +216,7 @@ impl<N> Node<N> {
         .into()
     }
     /// Returns a reference to the leaf that would contain `unit`.
-    fn find_leaf(&self, unit: &[N]) -> &Leaf
-    where
-        N: Number,
-    {
+    fn find_leaf(&self, unit: &[P::Value]) -> &Leaf<P> {
         match self {
             Self::Branch(branch) => {
                 if branch.split.unit_is_left(unit) {
@@ -223,10 +229,7 @@ impl<N> Node<N> {
         }
     }
     /// Returns a mutable reference to the leaf that would contain `unit`.
-    fn find_leaf_mut(&mut self, unit: &[N]) -> &mut Leaf
-    where
-        N: Number,
-    {
+    fn find_leaf_mut(&mut self, unit: &[P::Value]) -> &mut Leaf<P> {
         match self {
             Self::Branch(branch) => {
                 if branch.split.unit_is_left(unit) {
@@ -241,11 +244,9 @@ impl<N> Node<N> {
     /// Iterates the leaf by a [`TreeSearcher`].
     #[must_use]
     #[inline]
-    fn iterate_leafs_by<P, S>(&self, data: &P, searcher: &mut S) -> Option<()>
+    fn iterate_leafs_by<S>(&self, data: &P, searcher: &mut S) -> Option<()>
     where
-        N: Number,
-        P: PointSet<N = N>,
-        S: TreeSearcher<N>,
+        S: TreeSearcher<P>,
     {
         match self {
             Self::Branch(branch) => {
@@ -271,21 +272,27 @@ impl<N> Node<N> {
         Some(())
     }
 }
-impl<N> Branch<N> {
+impl<P> Branch<P>
+where
+    P: PointSet,
+{
     /// Returns the split that defines the branch.
     #[inline]
-    pub fn split(&self) -> &Split<N> { &self.split }
+    pub fn split(&self) -> &Split<P::Value> { &self.split }
     /// Returns a reference to the node left of the split.
     #[inline]
-    pub fn left(&self) -> &Node<N> { &self.left }
+    pub fn left(&self) -> &Node<P> { &self.left }
     /// Returns a reference to the node right of the split.
     #[inline]
-    pub fn right(&self) -> &Node<N> { &self.right }
+    pub fn right(&self) -> &Node<P> { &self.right }
 }
-impl Leaf {
+impl<P> Leaf<P>
+where
+    P: PointSet,
+{
     /// Constructs a new leaf.
     #[inline]
-    fn new(units: &[usize]) -> Self {
+    fn new(units: &[P::Id]) -> Self {
         Self {
             units: units.to_vec(),
         }
@@ -293,15 +300,15 @@ impl Leaf {
     /// Returns a reference to the units in the leaf.
     #[must_use]
     #[inline]
-    pub fn units(&self) -> &[usize] { &self.units }
+    pub fn units(&self) -> &[P::Id] { &self.units }
     /// Returns `true` if the leaf contains `unit`.
     #[must_use]
     #[inline]
-    pub fn contains_unit(&self, unit: usize) -> bool { self.units.contains(&unit) }
+    pub fn contains_unit(&self, unit: P::Id) -> bool { self.units.contains(&unit) }
     /// Inserts a unit into the leaf.
     /// Returns `true` if the unit did not already exist.
     #[inline]
-    fn insert_unit(&mut self, unit: usize) -> bool {
+    fn insert_unit(&mut self, unit: P::Id) -> bool {
         if !self.contains_unit(unit) {
             self.units.push(unit);
             return true;
@@ -311,7 +318,7 @@ impl Leaf {
     /// Removes a unit from the leaf.
     /// Returns `false` if the unit did not already exist.
     #[inline]
-    fn remove_unit(&mut self, unit: usize) -> bool {
+    fn remove_unit(&mut self, unit: P::Id) -> bool {
         match self.units.iter().position(|&id| id == unit) {
             Some(idx) => {
                 self.units.swap_remove(idx);
@@ -322,19 +329,19 @@ impl Leaf {
     }
 }
 
-impl<N> From<Branch<N>> for Node<N>
+impl<P> From<Branch<P>> for Node<P>
 where
-    N: num_traits::Num + Copy,
+    P: PointSet,
 {
     #[inline]
-    fn from(branch: Branch<N>) -> Self { Node::Branch(branch) }
+    fn from(branch: Branch<P>) -> Self { Node::Branch(branch) }
 }
-impl<N> From<Leaf> for Node<N>
+impl<P> From<Leaf<P>> for Node<P>
 where
-    N: num_traits::Num + Copy,
+    P: PointSet,
 {
     #[inline]
-    fn from(leaf: Leaf) -> Self { Node::Leaf(leaf) }
+    fn from(leaf: Leaf<P>) -> Self { Node::Leaf(leaf) }
 }
 
 #[cfg(test)]
