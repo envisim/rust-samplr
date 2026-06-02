@@ -66,12 +66,7 @@ where
     }
 
     for i in 0..population_size {
-        searcher.reset_from_slice(
-            &tree
-                .data()
-                .to_boxed_slice(i)
-                .expect("i to exist in aux data"),
-        );
+        searcher.reset_from_point(tree.data().get_coords(i).expect("i to exist in aux data"));
         searcher.search(&tree).expect("search to be possible");
         let partial_prob = 1.0
             / searcher

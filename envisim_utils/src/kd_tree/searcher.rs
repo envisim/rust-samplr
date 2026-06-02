@@ -250,14 +250,16 @@ where
             unit: Some(unit),
         })
     }
-    /// Constructs a new search point from a point slice
+    /// Constructs a new search point from a point iterator.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[P::Value]) -> Option<Self> {
-        (!point.is_empty()).then(|| Self {
-            point: point.into(),
-            unit: None,
-        })
+    pub fn from_point<'bpoint, I>(point: I) -> Option<Self>
+    where
+        I: Iterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
+        let point: Box<[P::Value]> = point.copied().collect();
+        (!point.is_empty()).then_some(Self { point, unit: None })
     }
     /// Sets the search point according to the `unit` from `data`.
     /// Returns `None` if the unit does not exist in the `data`.
@@ -268,15 +270,21 @@ where
         self.unit = Some(unit);
         Some(())
     }
-    /// Sets the search point from a point slice.
+    /// Sets the search point from a point iterator.
     /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
     #[must_use]
     #[inline]
-    pub fn set_from_slice(&mut self, point: &[P::Value]) -> Option<()> {
-        (self.point.len() == point.len()).then(|| {
-            self.point = point.into();
-            self.unit = None;
-        })
+    pub fn set_from_point<'bpoint, I>(&mut self, point: I) -> Option<()>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
+        if self.point.len() != point.len() {
+            return None;
+        }
+        self.point.iter_mut().zip(point).for_each(|(v, p)| *v = *p);
+        self.unit = None;
+        Some(())
     }
 }
 
@@ -313,12 +321,16 @@ where
             neighbours: Vec::with_capacity(6),
         })
     }
-    /// Constructs a new 1NN-searcher from a point.
+    /// Constructs a new 1NN-searcher from a point iterator.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[P::Value]) -> Option<Self> {
+    pub fn from_point<'bpoint, I>(point: I) -> Option<Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
         Some(Self {
-            point: SearchPoint::from_slice(point)?,
+            point: SearchPoint::from_point(point)?,
             neighbours: Vec::with_capacity(6),
         })
     }
@@ -332,13 +344,17 @@ where
         self.neighbours.clear();
         Some(self)
     }
-    /// Sets the search point from a point slice.
+    /// Sets the search point from a point iterator.
     /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[P::Value]) -> Option<&mut Self> {
-        self.point.set_from_slice(point)?;
+    pub fn reset_from_point<'bpoint, I>(&mut self, point: I) -> Option<&mut Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
+        self.point.set_from_point(point)?;
         self.neighbours.clear();
         Some(self)
     }
@@ -437,12 +453,16 @@ where
             nominal_size: k,
         })
     }
-    /// Constructs a new kNN-searcher from a point.
+    /// Constructs a new kNN-searcher from a point iterator.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(k: NonZeroUsize, point: &[P::Value]) -> Option<Self> {
+    pub fn from_point<'bpoint, I>(k: NonZeroUsize, point: I) -> Option<Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
         Some(Self {
-            point: SearchPoint::from_slice(point)?,
+            point: SearchPoint::from_point(point)?,
             neighbours: Vec::with_capacity(k.get() + 6),
             nominal_size: k,
         })
@@ -463,13 +483,17 @@ where
         self.neighbours.clear();
         Some(self)
     }
-    /// Sets the search point from a point slice.
+    /// Sets the search point from a point iterator.
     /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[P::Value]) -> Option<&mut Self> {
-        self.point.set_from_slice(point)?;
+    pub fn reset_from_point<'bpoint, I>(&mut self, point: I) -> Option<&mut Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
+        self.point.set_from_point(point)?;
         self.neighbours.clear();
         Some(self)
     }
@@ -610,15 +634,19 @@ where
             total_weight: 0.0,
         })
     }
-    /// Constructs a new wNN-searcher from a point.
+    /// Constructs a new wNN-searcher from a point iterator.
     /// Returns `None` if the point is empty.
     #[inline]
-    pub fn from_slice(point: &[P::Value], weight: f64) -> Option<Self> {
+    pub fn from_point<'bpoint, I>(point: I, weight: f64) -> Option<Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
         Some(Self {
-            point: SearchPoint::from_slice(point)?,
+            point: SearchPoint::from_point(point)?,
             point_weight: weight,
             neighbours: Vec::with_capacity(6),
             total_weight: 0.0,
@@ -639,16 +667,20 @@ where
         self.total_weight = 0.0;
         Some(self)
     }
-    /// Sets the search point from a point slice.
+    /// Sets the search point from a point iterator.
     /// Returns `None` if the point dimensionaliy does not match the corrent search point dim.
     ///
     /// Clears the previous search.
     #[inline]
-    pub fn reset_from_slice(&mut self, point: &[P::Value], weight: f64) -> Option<&mut Self> {
+    pub fn reset_from_point<'bpoint, I>(&mut self, point: I, weight: f64) -> Option<&mut Self>
+    where
+        I: ExactSizeIterator<Item = &'bpoint P::Value>,
+        P::Value: 'bpoint,
+    {
         if !(0.0 < weight && weight < 1.0) {
             return None;
         }
-        self.point.set_from_slice(point)?;
+        self.point.set_from_point(point)?;
         self.point_weight = weight;
         self.neighbours.clear();
         self.total_weight = 0.0;
@@ -867,7 +899,7 @@ mod tests {
     #[test]
     fn test_nn_search_basic() {
         let mat = setup_matrix();
-        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.1, 0.1]).unwrap();
+        let mut searcher = NearestNeighbourSearcher::from_point([0.1, 0.1].iter()).unwrap();
 
         // Mock visit to all units
         searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
@@ -881,7 +913,7 @@ mod tests {
     fn test_nn_tie_handling() {
         let mat = setup_matrix();
         // Search from center (0.5, 0.5)
-        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.5, 0.5]).unwrap();
+        let mut searcher = NearestNeighbourSearcher::from_point([0.5, 0.5].iter()).unwrap();
 
         searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
 
@@ -896,7 +928,7 @@ mod tests {
     fn test_knn_basic_limit() {
         let mat = setup_matrix();
         let k = nz(2);
-        let mut searcher = KNearestNeighbourSearcher::from_slice(k, &[0.4, 0.0]).unwrap();
+        let mut searcher = KNearestNeighbourSearcher::from_point(k, [0.4, 0.0].iter()).unwrap();
 
         searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
 
@@ -912,7 +944,7 @@ mod tests {
         let mat = setup_matrix();
         let k = nz(1); // Ask for 1
         // Search from (0.5, 0.0). Units (0,0) and (1,0) are both dist_sq 0.25
-        let mut searcher = KNearestNeighbourSearcher::from_slice(k, &[0.5, 0.0]).unwrap();
+        let mut searcher = KNearestNeighbourSearcher::from_point(k, [0.5, 0.0].iter()).unwrap();
 
         searcher.visit_leaf(&mat, &[0, 1, 2, 3]);
 
@@ -931,7 +963,7 @@ mod tests {
 
         // Search point weight = 0.5
         // calculate_weight for 0.2: 0.2 / (1.0 - 0.5) = 0.4
-        let mut searcher = WeightedSearcher::from_slice(&[0.0, 0.0], 0.5).unwrap();
+        let mut searcher = WeightedSearcher::from_point([0.0, 0.0].iter(), 0.5).unwrap();
         let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
 
         wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
@@ -948,7 +980,7 @@ mod tests {
         let weights: &[f64] = &[0.1, 0.1, 0.1, 0.1];
 
         // Search from (0.5, 0.5) where all points tie for distance
-        let mut searcher = WeightedSearcher::from_slice(&[0.5, 0.5], 0.8).unwrap();
+        let mut searcher = WeightedSearcher::from_point([0.5, 0.5].iter(), 0.8).unwrap();
         let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
 
         wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
