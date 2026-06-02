@@ -136,7 +136,7 @@ where
     #[must_use]
     #[inline]
     pub fn find_leaf(&self, unit: &[P::Value]) -> Option<&Leaf<P>> {
-        (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
+        (unit.len() == self.data.dimensions().get()).then(|| self.node.find_leaf(unit))
     }
     /// Iterates the leaf by a [`TreeSearcher`].
     #[must_use]
@@ -145,7 +145,7 @@ where
     where
         S: TreeSearcher<P>,
     {
-        if self.data.dim().get() == searcher.point().len() {
+        if self.data.dimensions().get() == searcher.point().len() {
             self.node.iterate_leafs_by(self.data, searcher)
         } else {
             None
@@ -165,7 +165,7 @@ where
     #[must_use]
     #[inline]
     pub fn find_leaf_mut(&mut self, unit: &[P::Value]) -> Option<&mut Leaf<P>> {
-        (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
+        (unit.len() == self.data.dimensions().get()).then(|| self.node.find_leaf_mut(unit))
     }
     /// Inserts a unit into the tree.
     /// Returns `None` if `unit` does not exists in the tree data.

@@ -372,7 +372,7 @@ impl<N> MidpointSlide<N> {
         P: PointSet<Value = N>,
     {
         Self {
-            borders: (0..data.dim().get())
+            borders: (0..data.dimensions().get())
                 .map(|d| Border::from_data(data, units, d))
                 .collect(),
         }
@@ -424,7 +424,7 @@ impl<N> MidpointSlide<N> {
         P: PointSet<Value = N>,
     {
         assert_eq!(
-            data.dim().get(),
+            data.dimensions().get(),
             self.borders.len(),
             "data dimensions must match the size of the number of borders in the split"
         );

@@ -45,7 +45,7 @@ impl<P> SpreadingOptions<P> {
         P: PointSet,
     {
         Self {
-            bucket_size: Self::estimate_bucket_size(data.size()),
+            bucket_size: Self::estimate_bucket_size(data.len()),
             data,
         }
     }
@@ -84,7 +84,7 @@ impl<P> SpreadingOptions<P> {
     where
         P: PointSet,
     {
-        let mut units: Vec<P::Id> = self.data.id_iter().collect();
+        let mut units: Vec<P::Id> = self.data.ids().collect();
         Tree::new(self, &mut units)
     }
 }

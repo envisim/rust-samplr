@@ -190,7 +190,7 @@ impl<P> DbdCircular<P> {
     where
         P: PointSet<Id = usize, Value = f64>,
     {
-        let sequence: Vec<usize> = matrix.id_iter().collect();
+        let sequence: Vec<usize> = matrix.ids().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
         let ed = EnergyDistance::new(matrix, sample_size);
 

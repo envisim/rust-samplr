@@ -220,7 +220,7 @@ impl<P> DbdTacticalConfiguration<P> {
         P: PointSet<Id = usize, Value = f64>,
         R: SamplingOptionsRng<EqualProbabilityOptions>,
     {
-        let population_size = matrix.size();
+        let population_size = matrix.len();
         let sample_size = sample_size.min(population_size);
         let tcp = TacticalConfigurationParameters::new_minimal(population_size, sample_size);
 

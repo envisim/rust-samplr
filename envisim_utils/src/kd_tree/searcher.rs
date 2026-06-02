@@ -300,7 +300,7 @@ where
     #[inline]
     pub fn new(data: &P) -> Self {
         Self {
-            point: SearchPoint::new(data.dim()),
+            point: SearchPoint::new(data.dimensions()),
             neighbours: Vec::with_capacity(6),
         }
     }
@@ -422,7 +422,7 @@ where
     #[inline]
     pub fn new(k: NonZeroUsize, data: &P) -> Self {
         Self {
-            point: SearchPoint::new(data.dim()),
+            point: SearchPoint::new(data.dimensions()),
             neighbours: Vec::with_capacity(k.get() + 6),
             nominal_size: k,
         }
@@ -590,7 +590,7 @@ where
     #[inline]
     pub fn new(data: &P) -> Self {
         Self {
-            point: SearchPoint::new(data.dim()),
+            point: SearchPoint::new(data.dimensions()),
             point_weight: 0.5,
             neighbours: Vec::with_capacity(6),
             total_weight: 0.0,
