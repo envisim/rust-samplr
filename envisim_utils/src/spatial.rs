@@ -20,6 +20,9 @@ use num_traits::ConstZero;
 
 use crate::number_traits::Number;
 
+/// Methods for accessing containers of points in some coordinate system.
+/// The container must not be empty.
+#[expect(clippy::len_without_is_empty, reason = "cannot be empty")]
 pub trait PointSet {
     type Id: Sized + Eq + Hash + Ord + Copy + Debug;
     type Value: Number;
