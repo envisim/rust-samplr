@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.3.1] - 2026-06-02
+- Bumped envisim-dependencies.
+
+
 ## [0.3.0] - 2026-05-25
 - Minimum R version 4.6
 - MSRV: 1.85.1
@@ -16,6 +20,7 @@ This release breaks historical seeds.
 - Fixed bug in `brewer` unequal probability sampling.
 - Fixed bug in `cube`.
 - Added `sequential_cube`, which determines units in the provided order. `cube`, on the other hand, determines units in a random order, and uses random windows in the flight phase. (#28)
+
 
 ## [0.2.0] - 2026-03-31
 - Added distributionally balanced designs `dbd_tc`, `dbd_circular`
