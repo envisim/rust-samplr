@@ -29,11 +29,14 @@ pub use dims::{
     MatrixCoord,
     MatrixDims,
 };
-use num_traits::Float;
+use num_traits::{
+    ConstOne,
+    ConstZero,
+    Float,
+};
 pub use raw_data::{
-    BorrowedMatrixData,
-    OwnedMatrixData,
     RawData,
+    RawDataMut,
 };
 
 use crate::number_traits::{
@@ -46,10 +49,7 @@ pub use crate::spatial::PointSet;
 /// Base matrix representation
 #[must_use]
 #[derive(Debug, Clone)]
-pub struct MatrixBase<T, N = <T as RawData>::Elem>
-where
-    T: RawData<Elem = N>,
-{
+pub struct MatrixBase<T> {
     /// Data
     data: T,
     /// Matrix dimension
@@ -57,30 +57,43 @@ where
 }
 
 /// Owned matrix representation
-pub type Matrix<N> = MatrixBase<OwnedMatrixData<N>>;
+pub type Matrix<N> = MatrixBase<Vec<N>>;
 /// Borrowed matrix representation
-pub type MatrixRef<'bdata, N> = MatrixBase<BorrowedMatrixData<'bdata, N>>;
+pub type MatrixRef<'bdata, N> = MatrixBase<&'bdata [N]>;
 
-impl<T, N> MatrixBase<T, N>
-where
-    T: RawData<Elem = N>,
-{
+impl<T> MatrixBase<T> {
+    /// Constructs a new owned matrix representation from some data vector.
+    /// Returns `None` if the rows are not a divisor of the data length.
+    #[inline]
+    pub fn new<NZ>(data: T, rows: NZ) -> Option<Self>
+    where
+        T: RawData,
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let rows = rows.try_into().ok()?;
+        let dims = MatrixDims::from_row_count(data.data().len(), rows)?;
+        Some(Self { data, dims })
+    }
     /// Constructs a borrowed matrix representation from a matrix.
     #[inline]
-    pub fn to_matrixref(&self) -> MatrixRef<'_, N> {
+    pub fn to_matrixref(&self) -> MatrixRef<'_, T::Elem>
+    where
+        T: RawData,
+    {
         MatrixRef {
-            data: self.internal_data().into(),
+            data: self.data.data(),
             dims: self.dims(),
         }
     }
     /// Constructs an owned matrix representation from a matrix. Copies the data.
     #[inline]
-    pub fn to_matrix(&self) -> Matrix<N>
+    pub fn to_matrix(&self) -> Matrix<T::Elem>
     where
-        N: Copy,
+        T: RawData,
+        T::Elem: Copy,
     {
         Matrix {
-            data: self.internal_data().to_vec().into(),
+            data: self.data.data().to_vec(),
             dims: self.dims(),
         }
     }
@@ -88,60 +101,108 @@ where
     #[must_use]
     #[inline]
     pub fn data(&self) -> &T { &self.data }
-    /// Returns a reference to the underlying data as a slice.
-    #[must_use]
-    #[inline]
-    fn internal_data(&self) -> &[N] { self.data().data() }
     /// Returns the element at a specific coordinate.
     /// Returns `None`  if the coordinates are invalid.
     #[must_use]
     #[inline]
-    pub fn get<C>(&self, coord: C) -> Option<&N>
+    pub fn get<C>(&self, coord: C) -> Option<&T::Elem>
     where
+        T: RawData,
         C: Into<MatrixCoord>,
-        N: Copy,
     {
         let coord = coord.into();
         self.dims.contains(coord).then(|| &self[coord])
+    }
+    /// Returns a mutable reference to the element at a specific coordinate.
+    /// Returns `None`  if the coordinates are invalid.
+    #[must_use]
+    #[inline]
+    pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut T::Elem>
+    where
+        T: RawDataMut,
+        C: Into<MatrixCoord>,
+    {
+        let coord = coord.into();
+        self.dims.contains(coord).then(|| &mut self[coord])
     }
     /// Returns an iterator of the elements in a row.
     /// Returns `None` if the row is invalid.
     #[must_use]
     #[inline]
-    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
+    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem>>
+    where
+        T: RawData,
+    {
         let nrow = self.nrow().get();
         self.dims()
             .contains_row(row)
-            .then(|| self.internal_data()[row..].iter().step_by(nrow))
+            .then(|| self.data.data()[row..].iter().step_by(nrow))
+    }
+    /// Returns a mutable iterator of the elements in a row.
+    /// Returns `None` if the row is invalid.
+    #[must_use]
+    #[inline]
+    pub fn row_iter_mut(
+        &mut self,
+        row: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
+    where
+        T: RawDataMut,
+    {
+        let nrow = self.nrow().get();
+        self.dims()
+            .contains_row(row)
+            .then(|| self.data.data_mut()[row..].iter_mut().step_by(nrow))
     }
     /// Returns an iterator of the elements in a column.
     /// Returns `None` if the column is invalid.
     #[must_use]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
+    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem>>
+    where
+        T: RawData,
+    {
         let nrow = self.nrow().get();
         let start = nrow * col;
         self.dims()
             .contains_col(col)
-            .then(|| self.internal_data()[start..(start + nrow)].iter())
+            .then(|| self.data.data()[start..(start + nrow)].iter())
+    }
+    /// Returns a mutable iterator of the elements in a column.
+    /// Returns `None` if the column is invalid.
+    #[must_use]
+    #[inline]
+    pub fn col_iter_mut(
+        &mut self,
+        col: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
+    where
+        T: RawDataMut,
+    {
+        let nrow = self.nrow().get();
+        let start = nrow * col;
+        self.dims()
+            .contains_col(col)
+            .then(|| self.data.data_mut()[start..(start + nrow)].iter_mut())
     }
     /// Multiplies the matrix by a column vector.
     /// Returns `None` if the column vector length does not match the number of columns in the
     /// matrix.
     #[must_use]
     #[inline]
-    pub fn mul_vec(&self, rhs: &[N]) -> Option<Matrix<N>>
+    pub fn mul_vec(&self, rhs: &[T::Elem]) -> Option<Matrix<T::Elem>>
     where
-        N: Number,
+        T: RawData,
+        T::Elem: Number,
     {
         if self.ncol().get() != rhs.len() {
             return None;
         }
-        let mut product = vec![N::zero(); self.nrow().get()];
+        let mut product = vec![T::Elem::ZERO; self.nrow().get()];
         let mut index = 0;
         for mul in rhs {
             for pr in &mut product {
-                *pr += *mul * self.internal_data()[index];
+                *pr += *mul * self.data.data()[index];
                 index += 1;
             }
         }
@@ -152,126 +213,135 @@ where
     /// other matrix.
     #[must_use]
     #[inline]
-    pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2, N>) -> Option<Matrix<N>>
+    pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2>) -> Option<Matrix<T::Elem>>
     where
-        T2: RawData<Elem = N>,
-        N: Number,
+        T: RawData,
+        T::Elem: Number,
+        T2: RawData<Elem = T::Elem>,
     {
         if self.ncol() != rhs.nrow() {
             return None;
         }
-        let mut product = Vec::<N>::with_capacity(self.nrow().get() * rhs.ncol().get());
+        let mut product = Vec::<T::Elem>::with_capacity(self.nrow().get() * rhs.ncol().get());
         let mut index = 0;
         // Multiply self by each column in rhs
         for _ in 0..rhs.ncol().get() {
             // Take rhs column
-            let rhs_col = &rhs.internal_data()[index..(index + rhs.nrow().get())];
+            let rhs_col = &rhs.data.data()[index..(index + rhs.nrow().get())];
             // Result
             let temp_column_res = self.mul_vec(rhs_col)?;
-            product.extend_from_slice(temp_column_res.internal_data());
+            product.extend_from_slice(temp_column_res.data.data());
             index += rhs.nrow().get();
         }
         Matrix::new(product, self.nrow())
     }
-}
+    /// Calculates the inverse of `self` using LU decomposition.
+    ///
+    /// Returns `None` if `self` isn't square, or if `self` is not invertible (as defined by `eps`).
+    #[expect(clippy::many_single_char_names, reason = "only within small scope")]
+    #[must_use]
+    #[inline]
+    pub fn inverse<E>(&self, eps: E) -> Option<Matrix<T::Elem>>
+    where
+        T: RawData,
+        T::Elem: NumberFloat,
+        E: TryInto<Epsilon<T::Elem>>,
+    {
+        // Non-square
+        if !self.dims().is_square() {
+            return None;
+        }
+        let eps = eps.try_into().ok()?;
+        let nrow = self.nrow().get();
 
-impl<N> Matrix<N> {
-    /// Constructs a new owned matrix representation from some data vector.
-    /// Returns `None` if the rows are not a divisor of the data length.
-    #[inline]
-    pub fn new<NZ>(data: Vec<N>, rows: NZ) -> Option<Self>
-    where
-        NZ: TryInto<NonZeroUsize>,
-    {
-        let rows = rows.try_into().ok()?;
-        let dims = MatrixDims::from_row_count(data.len(), rows)?;
-        let data = OwnedMatrixData::new(data);
-        Some(Self { data, dims })
-    }
-    /// Constructs a new owned matrix representation filled with some value `data`.
-    #[inline]
-    pub fn from_value<D>(data: N, dims: D) -> Self
-    where
-        N: Copy,
-        D: Into<MatrixDims>,
-    {
-        let dims: MatrixDims = dims.into();
-        Self {
-            data: OwnedMatrixData::new(vec![data; dims.len().get()]),
-            dims,
+        if nrow == 2 {
+            const NZ2: NonZeroUsize = NonZeroUsize::new(2).expect("2 > 0");
+            // ab cd => 02 13
+            #[expect(clippy::unreachable, reason = "panic implies bug")]
+            let &[a, c, b, d] = self.data.data() else {
+                unreachable!("2x2 = 4")
+            };
+            // ad-bc
+            let det = a * d - b * c;
+            if eps.is_zero(det) {
+                return None;
+            };
+            // d -c -b a
+            let inv = vec![d / det, -c / det, -b / det, a / det];
+            return MatrixBase::new(inv, NZ2);
+        } else if nrow == 3 {
+            const NZ3: NonZeroUsize = NonZeroUsize::new(3).expect("3 > 0");
+            // abc def ghi => 036 147 258
+            #[expect(clippy::unreachable, reason = "panic implies bug")]
+            let &[a, d, g, b, e, h, c, f, i] = self.data.data() else {
+                unreachable!("3x3=9")
+            };
+            let mut inv = vec![
+                e * i - f * h,
+                -(d * i - f * g),
+                d * h - e * g, // ABC
+                -(b * i - c * h),
+                a * i - c * g,
+                -(a * h - b * g), // DEF
+                b * f - c * e,
+                -(a * f - c * d),
+                a * e - b * d, // GHI
+            ];
+            let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
+            if eps.is_zero(det) {
+                return None;
+            };
+            for v in &mut inv {
+                *v /= det;
+            }
+            return MatrixBase::new(inv, NZ3);
         }
-    }
-    /// Constructs a new identity matrix
-    #[inline]
-    pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
-    where
-        N: Number,
-        NZ: TryInto<NonZeroUsize>,
-    {
-        let rows = rows.try_into().ok()?;
-        let dims = MatrixDims::new(rows, rows);
-        let mut m = Self::from_value(N::ZERO, dims);
-        for r in 0..rows.get() {
-            m[(r, r)] = N::ONE;
+
+        let (lu, p) = {
+            let mut lu = self.to_matrix();
+            let p = lu.lu_decomposition(eps)?;
+            (lu, p)
+        };
+
+        let mut inv = MatrixBase::from_value(T::Elem::ZERO, self.dims());
+
+        // Solve for each column of the identity mat
+        for col in 0..nrow {
+            // Solve LY = P
+            for row in 0..nrow {
+                let mut sum = if p[row] == col {
+                    T::Elem::ONE
+                } else {
+                    T::Elem::ZERO
+                };
+                for k in 0..row {
+                    sum -= lu[(row, k)] * inv[(k, col)];
+                }
+                inv[(row, col)] = sum;
+            }
+
+            // Solve UX =  Y for X
+            for row in (0..nrow).rev() {
+                let mut sum = inv[(row, col)];
+                for k in (row + 1)..nrow {
+                    sum -= lu[(row, k)] * inv[(k, col)];
+                }
+                inv[(row, col)] = sum / lu[(row, row)];
+            }
         }
-        Some(m)
-    }
-    /// Returns a mutable reference to the element at a specific coordinate.
-    /// Returns `None`  if the coordinates are invalid.
-    #[must_use]
-    #[inline]
-    pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut N>
-    where
-        C: Into<MatrixCoord>,
-    {
-        let coord = coord.into();
-        self.dims.contains(coord).then(|| &mut self[coord])
-    }
-    /// Returns a mutable iterator of the elements in a row.
-    /// Returns `None` if the row is invalid.
-    #[must_use]
-    #[inline]
-    pub fn row_iter_mut(&mut self, row: usize) -> Option<impl ExactSizeIterator<Item = &mut N>> {
-        let nrow = self.nrow().get();
-        self.dims()
-            .contains_row(row)
-            .then(|| self.data.data[row..].iter_mut().step_by(nrow))
-    }
-    /// Returns a mutable iterator of the elements in a column.
-    /// Returns `None` if the column is invalid.
-    #[must_use]
-    #[inline]
-    pub fn col_iter_mut(&mut self, col: usize) -> Option<impl ExactSizeIterator<Item = &mut N>> {
-        let nrow = self.nrow().get();
-        let start = nrow * col;
-        self.dims()
-            .contains_col(col)
-            .then(|| self.data.data[start..(start + nrow)].iter_mut())
-    }
-    /// Resizes the matrix.
-    /// Does not respect data on expansion.
-    #[inline]
-    pub fn resize<D>(&mut self, dims: D)
-    where
-        N: Copy + num_traits::Zero,
-        D: Into<MatrixDims>,
-    {
-        let dims: MatrixDims = dims.into();
-        if dims == self.dims() {
-            return;
-        }
-        self.data.data.resize(dims.len().get(), N::zero());
-        self.dims = dims;
+
+        Some(inv)
     }
     /// Calculates the reduced row echelon form of the matrix, in place.
     #[inline]
     pub fn reduced_row_echelon_form(&mut self)
     where
-        N: NumberFloat,
+        T: RawDataMut,
+        T::Elem: NumberFloat,
     {
         let dims = self.dims();
         let index = |row, col| row + col * dims.rows.get();
-        let data = &mut self.data.data;
+        let data = self.data.data_mut();
 
         let mut lead: usize = 0;
 
@@ -284,7 +354,7 @@ impl<N> Matrix<N> {
 
             let mut i: usize = row;
 
-            while data[index(i, lead)] == N::zero() {
+            while data[index(i, lead)] == T::Elem::ZERO {
                 i += 1;
 
                 if i == dims.rows.get() {
@@ -312,8 +382,8 @@ impl<N> Matrix<N> {
             {
                 let mut index_row = index(row, lead);
                 let lead_value = data[index_row];
-                if lead_value != N::one() {
-                    data[index_row] = N::one();
+                if lead_value != T::Elem::ONE {
+                    data[index_row] = T::Elem::ONE;
                     index_row += dims.rows.get();
 
                     for _ in (lead + 1)..dims.cols.get() {
@@ -332,11 +402,11 @@ impl<N> Matrix<N> {
                 let mut index_j = index(j, lead);
 
                 let lead_multiplicator = data[index_j];
-                if lead_multiplicator == N::zero() {
+                if lead_multiplicator == T::Elem::ZERO {
                     continue;
                 }
 
-                data[index_j] = N::zero();
+                data[index_j] = T::Elem::ZERO;
                 index_j += dims.rows.get();
                 let mut index_row = index(row, lead + 1);
 
@@ -363,8 +433,9 @@ impl<N> Matrix<N> {
     #[inline]
     pub fn lu_decomposition<E>(&mut self, eps: E) -> Option<Box<[usize]>>
     where
-        N: NumberFloat,
-        E: TryInto<Epsilon<N>>,
+        T: RawDataMut,
+        T::Elem: NumberFloat,
+        E: TryInto<Epsilon<T::Elem>>,
     {
         // Non-square
         if !self.dims().is_square() {
@@ -377,7 +448,7 @@ impl<N> Matrix<N> {
         for row in 0..nrows {
             // Find pivot_row, the row with the highest value in the row-column
             let mut pivot_row = row;
-            let mut max_val = N::ZERO;
+            let mut max_val = T::Elem::ZERO;
             for row_b in row..nrows {
                 let val = Float::abs(self[(row_b, row)]);
                 if !Float::is_finite(val) {
@@ -402,7 +473,7 @@ impl<N> Matrix<N> {
                     // guaranteed: row < pivot_row
                     let index_r = MatrixCoord::new(row, col).to_linear_unchecked(self.dims());
                     let index_p = index_r + (pivot_row - row);
-                    self.data.data.swap(index_r, index_p);
+                    self.data.data_mut().swap(index_r, index_p);
                 }
             }
 
@@ -423,125 +494,63 @@ impl<N> Matrix<N> {
 
         Some(p)
     }
-    /// Calculates the inverse of `self` using LU decomposition.
-    ///
-    /// Returns `None` if `self` isn't square, or if `self` is not invertible (as defined by `eps`).
-    #[expect(clippy::many_single_char_names, reason = "only within small scope")]
-    #[must_use]
-    #[inline]
-    pub fn inverse<E>(&self, eps: E) -> Option<Self>
-    where
-        N: NumberFloat,
-        E: TryInto<Epsilon<N>>,
-    {
-        // Non-square
-        if !self.dims().is_square() {
-            return None;
-        }
-        let eps = eps.try_into().ok()?;
-        let nrow = self.nrow().get();
-
-        if nrow == 2 {
-            const NZ2: NonZeroUsize = NonZeroUsize::new(2).expect("2 > 0");
-            // ab cd => 02 13
-            #[expect(clippy::unreachable, reason = "panic implies bug")]
-            let &[a, c, b, d] = self.internal_data() else {
-                unreachable!("2x2 = 4")
-            };
-            // ad-bc
-            let det = a * d - b * c;
-            if eps.is_zero(det) {
-                return None;
-            };
-            // d -c -b a
-            let inv = vec![d / det, -c / det, -b / det, a / det];
-            return Self::new(inv, NZ2);
-        } else if nrow == 3 {
-            const NZ3: NonZeroUsize = NonZeroUsize::new(3).expect("3 > 0");
-            // abc def ghi => 036 147 258
-            #[expect(clippy::unreachable, reason = "panic implies bug")]
-            let &[a, d, g, b, e, h, c, f, i] = self.internal_data() else {
-                unreachable!("3x3=9")
-            };
-            let mut inv = vec![
-                e * i - f * h,
-                -(d * i - f * g),
-                d * h - e * g, // ABC
-                -(b * i - c * h),
-                a * i - c * g,
-                -(a * h - b * g), // DEF
-                b * f - c * e,
-                -(a * f - c * d),
-                a * e - b * d, // GHI
-            ];
-            let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
-            if eps.is_zero(det) {
-                return None;
-            };
-            for v in &mut inv {
-                *v /= det;
-            }
-            return Self::new(inv, NZ3);
-        }
-
-        let (lu, p) = {
-            let mut lu = self.clone();
-            let p = lu.lu_decomposition(eps)?;
-            (lu, p)
-        };
-
-        let mut inv = Self::from_value(N::ZERO, self.dims());
-
-        // Solve for each column of the identity mat
-        for col in 0..nrow {
-            // Solve LY = P
-            for row in 0..nrow {
-                let mut sum = if p[row] == col { N::ONE } else { N::ZERO };
-                for k in 0..row {
-                    sum -= lu[(row, k)] * inv[(k, col)];
-                }
-                inv[(row, col)] = sum;
-            }
-
-            // Solve UX =  Y for X
-            for row in (0..nrow).rev() {
-                let mut sum = inv[(row, col)];
-                for k in (row + 1)..nrow {
-                    sum -= lu[(row, k)] * inv[(k, col)];
-                }
-                inv[(row, col)] = sum / lu[(row, row)];
-            }
-        }
-
-        Some(inv)
-    }
 }
 
-impl<'bdata, N> MatrixRef<'bdata, N> {
+impl<N> Matrix<N> {
+    /// Constructs a new owned matrix representation filled with some value `data`.
     #[inline]
-    pub fn new<NZ>(data: &'bdata [N], rows: NZ) -> Option<Self>
+    pub fn from_value<D>(data: N, dims: D) -> Self
     where
+        N: Copy,
+        D: Into<MatrixDims>,
+    {
+        let dims: MatrixDims = dims.into();
+        Self {
+            data: vec![data; dims.len().get()],
+            dims,
+        }
+    }
+    /// Constructs a new identity matrix
+    #[inline]
+    pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
+    where
+        N: Number,
         NZ: TryInto<NonZeroUsize>,
     {
         let rows = rows.try_into().ok()?;
-        let dims = MatrixDims::from_row_count(data.len(), rows)?;
-        let data = BorrowedMatrixData::new(data);
-        Some(Self { data, dims })
+        let dims = MatrixDims::new(rows, rows);
+        let mut m = Self::from_value(N::ZERO, dims);
+        for r in 0..rows.get() {
+            m[(r, r)] = N::ONE;
+        }
+        Some(m)
+    }
+    /// Resizes the matrix.
+    /// Does not respect data on expansion.
+    #[inline]
+    pub fn resize<D>(&mut self, dims: D)
+    where
+        N: Copy + num_traits::ConstZero,
+        D: Into<MatrixDims>,
+    {
+        let dims: MatrixDims = dims.into();
+        if dims == self.dims() {
+            return;
+        }
+        self.data.resize(dims.len().get(), N::ZERO);
+        self.dims = dims;
     }
 }
 
-impl<T, N> Dimensions for MatrixBase<T, N>
-where
-    T: RawData<Elem = N>,
-{
+impl<T> Dimensions for MatrixBase<T> {
     /// Returns the matrix dimension.
     #[inline]
     fn dims(&self) -> MatrixDims { self.dims }
 }
 
-impl<T, N, I> Index<I> for MatrixBase<T, N>
+impl<T, I> Index<I> for MatrixBase<T>
 where
-    T: RawData<Elem = N>,
+    T: RawData,
     I: Into<MatrixCoord>,
 {
     type Output = T::Elem;
@@ -551,42 +560,43 @@ where
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         let index = index.into().to_linear_unchecked(self.dims);
-        &self.internal_data()[index]
+        &self.data.data()[index]
     }
 }
-impl<N, I> IndexMut<I> for Matrix<N>
+impl<T, I> IndexMut<I> for MatrixBase<T>
 where
+    T: RawDataMut,
     I: Into<MatrixCoord>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         let index = index.into().to_linear_unchecked(self.dims());
-        &mut self.data.data[index]
+        &mut self.data.data_mut()[index]
     }
 }
 
-impl<T, N> From<&MatrixBase<T, N>> for Matrix<N>
+impl<T> From<&MatrixBase<T>> for Matrix<T::Elem>
 where
-    T: RawData<Elem = N>,
-    N: Copy,
+    T: RawData,
+    T::Elem: Copy,
 {
     #[inline]
-    fn from(matrix: &MatrixBase<T, N>) -> Self { matrix.to_matrix() }
+    fn from(matrix: &MatrixBase<T>) -> Self { matrix.to_matrix() }
 }
-impl<'bdata, T, N> From<&'bdata MatrixBase<T, N>> for MatrixRef<'bdata, N>
+impl<'bdata, T> From<&'bdata MatrixBase<T>> for MatrixRef<'bdata, T::Elem>
 where
-    T: RawData<Elem = N>,
+    T: RawData,
 {
     #[inline]
-    fn from(matrix: &'bdata MatrixBase<T, N>) -> Self { matrix.to_matrixref() }
+    fn from(matrix: &'bdata MatrixBase<T>) -> Self { matrix.to_matrixref() }
 }
 
-impl<T, N> PointSet for MatrixBase<T, N>
+impl<T> PointSet for MatrixBase<T>
 where
-    T: RawData<Elem = N>,
-    N: Number,
+    T: RawData,
+    T::Elem: Number,
 {
-    type Value = N;
+    type Value = T::Elem;
     type Id = usize;
     /// Returns the number of rows in the matrix
     #[inline]
@@ -605,34 +615,36 @@ where
     /// Panics on oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn coord(&self, row: usize, col: usize) -> N {
+    fn coord(&self, row: usize, col: usize) -> Self::Value {
         let idx = row + col * self.dims.rows.get();
-        self.internal_data()[idx]
+        self.data.data()[idx]
     }
     /// Returns the element at coordinates `(row, col)`.
     /// Returns `None` if the coordinates are oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn get_coord(&self, row: usize, col: usize) -> Option<N> { self.get((row, col)).copied() }
+    fn get_coord(&self, row: usize, col: usize) -> Option<Self::Value> {
+        self.get((row, col)).copied()
+    }
     /// Returns an iterator over the coords of `row`, or `None` if `row` does not exist.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[must_use]
     #[inline]
-    fn get_coords(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &N>> {
+    fn get_coords(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &Self::Value>> {
         self.row_iter(row)
     }
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Panics on oob.
     #[inline]
-    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> N {
+    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> Self::Value {
         if id_a == id_b {
-            return N::zero();
+            return <Self::Value as ConstZero>::ZERO;
         }
         let mut idx = id_a.min(id_b);
         let idx_diff = id_a.abs_diff(id_b);
-        let mut sum = N::zero();
+        let mut sum = <Self::Value as ConstZero>::ZERO;
         for _ in 0..self.ncol().get() {
-            let diff = self.internal_data()[idx] - self.internal_data()[idx + idx_diff];
+            let diff = self.data.data()[idx] - self.data.data()[idx + idx_diff];
             sum += diff * diff;
             idx += self.nrow().get();
         }
@@ -641,7 +653,7 @@ where
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
     /// Returns `None` if any row is oob.
     #[inline]
-    fn get_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<N> {
+    fn get_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<Self::Value> {
         (self.contains(id_a) && self.contains(id_b)).then(|| self.sq_distance_between(id_a, id_b))
     }
 }
