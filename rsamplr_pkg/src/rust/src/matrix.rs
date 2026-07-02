@@ -12,30 +12,59 @@
 
 //! Matrix utils
 
-use std::num::NonZeroUsize;
-
-pub use envisim_utils::matrix::Dimensions;
-use envisim_utils::matrix::MatrixRef;
+use envisim_samplr::SpreadingOptions;
+use envisim_utils::matrix::{
+    MatrixBase,
+    RawData,
+};
 use savvy::{
     RealSexp,
     savvy_err,
 };
 
-/// Returns the nrow attribute from a [`RealSexp`].
-/// # Panics
-/// Panics if Sexp is not a matrix, or the dimension is 0
-#[inline]
-pub fn get_nrow(mat: &RealSexp) -> savvy::Result<NonZeroUsize> {
-    let rows: usize = mat.get_dim().ok_or(savvy_err!("object is not matrix"))?[0]
-        .try_into()
-        .map_err(|_| savvy_err!("dimension must be positive"))?;
-    NonZeroUsize::new(rows).ok_or(savvy_err!("dimension must be positive"))
-}
+use crate::utils::{
+    to_nzusize,
+    to_usize,
+};
 
-/// Converts into a matrix
-/// # Panics
-/// Panics if the dimensions are invalid
-#[inline]
-pub fn to_matrix(mat: &[f64], nrow: NonZeroUsize) -> MatrixRef<'_, f64> {
-    MatrixRef::new(mat, nrow).expect("matrix to have valid dimensions")
+/// Wrapper for matrix data
+pub struct RMatrixData(RealSexp);
+/// Type alias for `Matrix` using
+pub type RMatrix = MatrixBase<RMatrixData>;
+impl RawData for RMatrixData {
+    type Elem = f64;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { self.0.as_slice() }
+}
+impl RMatrixData {
+    /// Constructs a `RMatrix` from `RealSexp`
+    #[inline]
+    pub fn to_matrix(sexp: RealSexp) -> savvy::Result<RMatrix> {
+        let rows = match sexp
+            .get_dim()
+            .ok_or_else(|| savvy_err!("object have no dimensions"))?
+        {
+            [_, _, _, ..] => Err(savvy_err!("object have too many dimensions")),
+            [r, ..] => to_usize(*r),
+            _ => Err(savvy_err!("object have no dimensions")),
+        }?;
+        Ok(MatrixBase::new(RMatrixData(sexp), rows).expect("rows to be NonZeroUsize"))
+    }
+    /// Constructs spreading options from `RealSexp`
+    #[inline]
+    pub fn to_spreading_options<BSZ>(
+        sexp: RealSexp,
+        bucket_size: BSZ,
+    ) -> savvy::Result<SpreadingOptions<RMatrix>>
+    where
+        BSZ: Into<Option<i32>>,
+    {
+        let data = Self::to_matrix(sexp)?;
+        let mut opts = SpreadingOptions::new(data);
+        if let Some(bucket_size) = bucket_size.into() {
+            let bucket_size = to_nzusize(bucket_size)?;
+            opts = opts.set_bucket_size(bucket_size)?;
+        }
+        Ok(opts)
+    }
 }
