@@ -10,77 +10,92 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Raw data -- internal data structure
+//! Internal data structure traits
+
+use std::borrow::Cow;
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// Data container trait
 pub trait RawData: Sized {
     type Elem;
+    /// Returns a reference (view) to the internal data, expected to be in column major order.
     #[must_use]
     fn data(&self) -> &[Self::Elem];
 }
-
-#[expect(
-    clippy::field_scoped_visibility_modifiers,
-    reason = "ok within matrix module"
-)]
-#[must_use]
-#[derive(Debug, Clone)]
-pub struct OwnedMatrixData<N> {
-    /// Internal data vector
-    pub(super) data: Vec<N>,
-}
-impl<N> OwnedMatrixData<N> {
-    /// Constructs a new owned matrix data
-    #[inline]
-    pub fn new(data: Vec<N>) -> Self { Self { data } }
+/// Mutable data container trait
+pub trait RawDataMut: RawData {
+    /// Returns a mutable reference to the internal data, expected to be in column major order.
+    #[must_use]
+    fn data_mut(&mut self) -> &mut [Self::Elem];
 }
 
-impl<N> RawData for OwnedMatrixData<N> {
+// View containers
+impl<N, const L: usize> RawData for [N; L] {
     type Elem = N;
     #[inline]
-    fn data(&self) -> &[Self::Elem] { &self.data }
+    fn data(&self) -> &[Self::Elem] { self }
 }
-impl<N> From<&BorrowedMatrixData<'_, N>> for OwnedMatrixData<N>
-where
-    N: Copy,
-{
-    #[inline]
-    fn from(data: &BorrowedMatrixData<N>) -> Self { Self::new(data.data().to_vec()) }
-}
-impl<N> From<&[N]> for OwnedMatrixData<N>
-where
-    N: Copy,
-{
-    #[inline]
-    fn from(data: &[N]) -> Self { Self::new(data.to_vec()) }
-}
-impl<N> From<Vec<N>> for OwnedMatrixData<N> {
-    #[inline]
-    fn from(data: Vec<N>) -> Self { Self::new(data) }
-}
-
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-pub struct BorrowedMatrixData<'bdata, N> {
-    /// Internal data reference
-    data: &'bdata [N],
-}
-impl<'bdata, N> BorrowedMatrixData<'bdata, N> {
-    /// Constructs a new borrowed matrix data
-    #[inline]
-    pub fn new(data: &'bdata [N]) -> Self { Self { data } }
-}
-
-impl<N> RawData for BorrowedMatrixData<'_, N> {
+impl<N> RawData for &[N] {
     type Elem = N;
     #[inline]
-    fn data(&self) -> &[Self::Elem] { self.data }
+    fn data(&self) -> &[Self::Elem] { self }
 }
-impl<'borrow, N> From<&'borrow OwnedMatrixData<N>> for BorrowedMatrixData<'borrow, N> {
+impl<N> RawData for &mut [N] {
+    type Elem = N;
     #[inline]
-    fn from(data: &'borrow OwnedMatrixData<N>) -> Self { Self::new(data.data()) }
+    fn data(&self) -> &[Self::Elem] { self }
 }
-impl<'bdata, N> From<&'bdata [N]> for BorrowedMatrixData<'bdata, N> {
+impl<N> RawData for Vec<N> {
+    type Elem = N;
     #[inline]
-    fn from(data: &'bdata [N]) -> Self { Self::new(data) }
+    fn data(&self) -> &[Self::Elem] { self }
+}
+impl<N> RawData for Box<[N]> {
+    type Elem = N;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { self }
+}
+impl<N> RawData for Cow<'_, [N]>
+where
+    N: Clone,
+{
+    type Elem = N;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { self }
+}
+impl<N> RawData for Rc<[N]> {
+    type Elem = N;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { self }
+}
+impl<N> RawData for Arc<[N]> {
+    type Elem = N;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { self }
+}
+
+// Mutable containers
+impl<N, const L: usize> RawDataMut for [N; L] {
+    #[inline]
+    fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+}
+impl<N> RawDataMut for &mut [N] {
+    #[inline]
+    fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+}
+impl<N> RawDataMut for Vec<N> {
+    #[inline]
+    fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+}
+impl<N> RawDataMut for Box<[N]> {
+    #[inline]
+    fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+}
+impl<N> RawDataMut for Cow<'_, [N]>
+where
+    N: Clone,
+{
+    #[inline]
+    fn data_mut(&mut self) -> &mut [Self::Elem] { self.to_mut() }
 }

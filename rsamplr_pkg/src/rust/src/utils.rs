@@ -14,8 +14,13 @@
 
 use std::num::NonZeroUsize;
 
+use envisim_samplr::{
+    SamplingOptions,
+    UnequalProbabilityOptions,
+};
 use num_traits::ToPrimitive;
 use savvy::{
+    IntegerSexp,
     OwnedIntegerSexp,
     Sexp,
     savvy_err,
@@ -74,4 +79,33 @@ pub fn return_sample(sample: Vec<usize>) -> savvy::Result<Sexp> {
     }
 
     Ok(Sexp::from(out))
+}
+
+/// Converts an 1-indexed sample from R (`IntegerSexp`) to a 0-indexed `Vec`.
+/// # Errors
+/// If any element cannot be converted to `usize`.
+pub fn to_sample(rsample: &IntegerSexp) -> savvy::Result<Vec<usize>> {
+    rsample.iter().map(|&x| to_usize(x - 1)).collect()
+}
+
+/// Constructs sampling options
+pub fn probs_to_sampling_options<EPS, MAX>(
+    prob: &[f64],
+    eps: EPS,
+    max_iter: MAX,
+) -> savvy::Result<SamplingOptions<UnequalProbabilityOptions<'_, f64>, (), ()>>
+where
+    EPS: Into<Option<f64>>,
+    MAX: Into<Option<i32>>,
+{
+    // let prob = prob.as_slice();
+    let mut opts = SamplingOptions::new(prob.into())?;
+    if let Some(eps) = eps.into() {
+        opts = opts.set_eps(eps)?;
+    }
+    if let Some(max_iter) = max_iter.into() {
+        let max_iter = to_nzusize(max_iter)?;
+        opts = opts.set_max_iterations(max_iter)?;
+    }
+    Ok(opts)
 }

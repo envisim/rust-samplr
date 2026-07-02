@@ -26,10 +26,7 @@ use envisim_samplr::dbd::DistributionalDesignEvaluators;
 use envisim_samplr::pivotal_method::hierarchical_lpm_2;
 use envisim_samplr::*;
 use envisim_utils::pips::pips_from_slice;
-use envisim_utils::sampling_options::{
-    SamplingOptions,
-    SpreadingOptions,
-};
+use envisim_utils::sampling_options::SamplingOptions;
 use savvy::{
     IntegerSexp,
     OwnedIntegerSexp,
@@ -56,9 +53,7 @@ fn rust_unequal(
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
     let prob = r_prob.as_slice();
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
-        .set_max_iterations(to_nzusize(r_max_iter)?)?;
+    let options = probs_to_sampling_options(prob, r_eps, r_max_iter)?;
 
     let s = match r_method {
         "spm" => options.spm(&mut rng),
@@ -88,14 +83,9 @@ fn rust_spatially_balanced(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
+    let aux = RMatrixData::to_spreading_options(r_data, r_bucket_size)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-
-    let bucket_size = to_usize(r_bucket_size)?;
-    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
-        .set_spreading(aux)?;
+    let options = probs_to_sampling_options(prob, r_eps, None)?.set_spreading(aux)?;
 
     let s = match r_method {
         "lpm_1" => options.lpm_1(&mut rng),
@@ -119,19 +109,15 @@ fn rust_distributionally_balanced_design(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
-    let population_size = get_nrow(&r_data)?;
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let sample_size = to_usize(r_sample_size)?;
-    let data = to_matrix(r_data.as_slice(), population_size);
     let iter = to_nzusize(r_iter)?;
 
     let dbs_options = DistributionalDesignOptions::new(r_temp)?
         .set_annealing_cooling_rate(r_cooling)?
         .set_spatial_initialization(r_spatial_init);
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new_equal(population_size, sample_size)?
-        .set_spreading(aux)?
-        .set_max_iterations(iter)?;
+    let options = SamplingOptions::with_spreading(aux, sample_size)?.set_max_iterations(iter)?;
 
     let s = match r_method {
         "dbd_tc" => options.dbd_tc(&mut rng, dbs_options)?.into_buckets(),
@@ -149,12 +135,9 @@ fn rust_balanced(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
+    let bal_data = RMatrixData::to_matrix(r_bal_data)?;
     let prob = r_prob.as_slice();
-    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
-
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
-        .set_balancing(bal_data)?;
+    let options = probs_to_sampling_options(prob, r_eps, None)?.set_balancing(bal_data)?;
 
     let s = match r_method {
         "sequential_cube" => options.sequential_cube(&mut rng),
@@ -174,14 +157,10 @@ fn rust_doubly_balanced(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
+    let aux = RMatrixData::to_spreading_options(r_data, r_bucket_size)?;
+    let bal_data = RMatrixData::to_matrix(r_bal_data)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
-
-    let bucket_size = to_usize(r_bucket_size)?;
-    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
+    let options = probs_to_sampling_options(prob, r_eps, None)?
         .set_balancing(bal_data)?
         .set_spreading(aux)?;
 
@@ -203,14 +182,9 @@ fn rust_spatially_balanced_hierarchical(
 ) -> savvy::Result<Sexp> {
     // Returns a matrix with sample indices (0) and groups (1)
     let mut rng = RRng::new();
+    let aux = RMatrixData::to_spreading_options(r_data, r_bucket_size)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-
-    let bucket_size = to_usize(r_bucket_size)?;
-    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
-        .set_spreading(aux)?;
+    let options = probs_to_sampling_options(prob, r_eps, None)?.set_spreading(aux)?;
 
     let sizes: Vec<usize> = r_sizes
         .iter()
@@ -246,13 +220,10 @@ fn rust_balanced_stratified(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
-    let prob = r_prob.as_slice();
-    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
+    let bal_data = RMatrixData::to_matrix(r_bal_data)?;
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
-
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
-        .set_balancing(bal_data)?;
+    let prob = r_prob.as_slice();
+    let options = probs_to_sampling_options(prob, r_eps, None)?.set_balancing(bal_data)?;
 
     let s = match r_method {
         "cube" | &_ => cube_stratified(&mut rng, &options, &strata)?,
@@ -272,17 +243,14 @@ fn rust_doubly_balanced_stratified(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
+    let aux = RMatrixData::to_spreading_options(r_data, r_bucket_size)?;
+    let bal_data = RMatrixData::to_matrix(r_bal_data)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let bal_data = to_matrix(r_bal_data.as_slice(), get_nrow(&r_bal_data)?);
-    let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
-
-    let bucket_size = to_usize(r_bucket_size)?;
-    let aux = SpreadingOptions::new(data).set_bucket_size(bucket_size)?;
-    let options = SamplingOptions::new(prob.into())?
-        .set_eps(r_eps)?
+    let options = probs_to_sampling_options(prob, r_eps, None)?
         .set_balancing(bal_data)?
         .set_spreading(aux)?;
+
+    let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
     let s = match r_method {
         "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata)?,
@@ -298,16 +266,13 @@ fn rust_local_mean_variance(
     r_data: RealSexp,
     r_neighbours: i32,
 ) -> savvy::Result<Sexp> {
-    if r_neighbours <= 0 {
-        return f64::NAN.try_into();
-    }
-
-    let neighbours = to_nzusize(r_neighbours)?;
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
+    let options = probs_to_sampling_options(prob, None, None)?.set_spreading(aux)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
+    let Ok(neighbours) = to_nzusize(r_neighbours) else {
+        return f64::NAN.try_into();
+    };
 
     local_mean_variance(r_values.as_slice(), &options, neighbours)?.try_into()
 }
@@ -319,15 +284,11 @@ fn rust_spatial_balance_measure(
     r_data: RealSexp,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let sample: Vec<usize> = r_sample
-        .iter()
-        .map(|&x| to_usize(x - 1))
-        .collect::<savvy::Result<_>>()?;
+    let options = probs_to_sampling_options(prob, None, None)?.set_spreading(aux)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
+    let sample = to_sample(&r_sample)?;
 
     let v = match r_method {
         "local" => options.local(&sample, true)?,
@@ -346,16 +307,11 @@ fn rust_spatial_balance_measure_equal(
     r_data: RealSexp,
     r_method: &str,
 ) -> savvy::Result<Sexp> {
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let sample: Vec<usize> = r_sample
-        .iter()
-        .map(|&x| to_usize(x - 1))
-        .collect::<savvy::Result<_>>()?;
     let sample_size = to_usize(r_sample_size)?;
-    let population_size = data.nrow();
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
+    let options = SamplingOptions::with_spreading(aux, sample_size)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
+    let sample = to_sample(&r_sample)?;
 
     let v = match r_method {
         "local" => options.local(&sample, true)?,
@@ -373,15 +329,11 @@ fn rust_balance_deviation(
     r_prob: RealSexp,
     r_data: RealSexp,
 ) -> savvy::Result<Sexp> {
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let sample: Vec<usize> = r_sample
-        .iter()
-        .map(|&x| to_usize(x - 1))
-        .collect::<savvy::Result<_>>()?;
+    let options = probs_to_sampling_options(prob, None, None)?.set_spreading(aux)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
+    let sample = to_sample(&r_sample)?;
 
     balance_deviation_spreading(&sample, &options)?.try_into()
 }
@@ -398,15 +350,11 @@ fn rust_spatial_balance_measure_all(
     r_prob: RealSexp,
     r_data: RealSexp,
 ) -> savvy::Result<Sexp> {
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let prob = r_prob.as_slice();
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let sample: Vec<usize> = r_sample
-        .iter()
-        .map(|&x| to_usize(x - 1))
-        .collect::<savvy::Result<_>>()?;
+    let options = probs_to_sampling_options(prob, None, None)?.set_spreading(aux)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new(prob.into())?.set_spreading(aux)?;
+    let sample = to_sample(&r_sample)?;
 
     let bms = vec![
         options.voronoi(&sample)?,
@@ -424,16 +372,11 @@ fn rust_spatial_balance_measure_all_equal(
     r_sample_size: i32,
     r_data: RealSexp,
 ) -> savvy::Result<Sexp> {
-    let data = to_matrix(r_data.as_slice(), get_nrow(&r_data)?);
-    let sample: Vec<usize> = r_sample
-        .iter()
-        .map(|&x| to_usize(x - 1))
-        .collect::<savvy::Result<_>>()?;
     let sample_size = to_usize(r_sample_size)?;
-    let population_size = data.nrow();
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
+    let options = SamplingOptions::with_spreading(aux, sample_size)?;
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
+    let sample = to_sample(&r_sample)?;
 
     let bms = vec![
         options.voronoi(&sample)?,
@@ -457,9 +400,9 @@ fn rust_distributionally_balanced_design_iter(
     r_method: &str,
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
-    let population_size = get_nrow(&r_data)?;
+    let aux = RMatrixData::to_spreading_options(r_data, None)?;
     let sample_size = to_usize(r_sample_size)?;
-    let data = to_matrix(r_data.as_slice(), population_size);
+
     let iter_to = to_nzusize(r_iter_to)?;
     let iter_by = to_nzusize(r_iter_by)?;
 
@@ -467,8 +410,7 @@ fn rust_distributionally_balanced_design_iter(
         .set_annealing_cooling_rate(r_cooling)?
         .set_spatial_initialization(r_spatial_init);
 
-    let aux = SpreadingOptions::new(data);
-    let options = SamplingOptions::new_equal(population_size, sample_size)?.set_spreading(aux)?;
+    let options = SamplingOptions::with_spreading(aux, sample_size)?;
 
     let s = match r_method {
         "dbd_tc" => options.dbd_tc_evaluator(&mut rng, dbs_options, iter_to, iter_by),
