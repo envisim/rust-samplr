@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Methods `SamplingOptions::with_spreading` and `with_balancing` for equal probability sampling, setting the population size from the provided data.
+
 ### Changed
 - Renamed methods in `PointSet`. Use prefix `get_` rather than `try_`, renamed `exists` to `contains`, `size` to `len`, `dim` to `dimensions`, `id_iter` to `ids`. Added methods `coords` and `get_coords`, returning an iterator over an id.
 - For searchers in `kd_tree::searcher`, renamed `from_slice`, `set_from_slice`, `reset_from_slice` to `_point`. These methods now accepts iterators instead of slices.
