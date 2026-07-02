@@ -14,7 +14,6 @@ vendor_crates <- function(path = ".") {
     "cargo",
     c(
       "vendor",
-      "--locked",
       "--manifest-path", file.path("rust", "Cargo.toml"),
       vendor_rel_path
     )

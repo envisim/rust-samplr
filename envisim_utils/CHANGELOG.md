@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Methods `SamplingOptions::with_spreading` and `with_balancing` for equal probability sampling, setting the population size from the provided data.
 - Added `Matrix::swap`, for swapping two elements in a `Matrix`.
 
 ### Changed

@@ -294,6 +294,58 @@ impl SamplingOptions<EqualProbabilityOptions> {
         let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
         Ok(Self::with_spec_equal(spec))
     }
+    /// Initializes `SamplingOptions` with spreading `data` and an equal probability specification
+    /// determined by the size of the spreading `data` and the `sample_size`.
+    ///
+    /// # Errors
+    /// If [`ProbabilitySpecEqual`] cannot be constructed, i.e. if `sample_size` is larger than the
+    /// population size.
+    #[inline]
+    pub fn with_spreading<AUXP, I>(
+        data: I,
+        sample_size: usize,
+    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilityOptions, SpreadingOptions<AUXP>, ()>>
+    where
+        AUXP: PointSet,
+        I: Into<SpreadingOptions<AUXP>>,
+    {
+        let data = data.into();
+        let population_size = data.data().len();
+        let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
+        Ok(SamplingOptions {
+            probabilities: spec,
+            eps: Epsilon::<f64>::default(),
+            max_iterations: MAX_ITERATIONS,
+            spreading: data,
+            balancing: (),
+        })
+    }
+    /// Initializes `SamplingOptions` with balancing `data` and an equal probability specification
+    /// determined by the size of the balancing `data` and the `sample_size`.
+    ///
+    /// # Errors
+    /// If [`ProbabilitySpecEqual`] cannot be constructed, i.e. if `sample_size` is larger than the
+    /// population size.
+    #[inline]
+    pub fn with_balancing<BALP, I>(
+        data: I,
+        sample_size: usize,
+    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilityOptions, (), BalancingOptions<BALP>>>
+    where
+        BALP: Dimensions,
+        I: Into<BalancingOptions<BALP>>,
+    {
+        let data = data.into();
+        let population_size = data.data().nrow();
+        let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
+        Ok(SamplingOptions {
+            probabilities: spec,
+            eps: Epsilon::<f64>::default(),
+            max_iterations: MAX_ITERATIONS,
+            spreading: (),
+            balancing: data,
+        })
+    }
     /// Initializes `SamplingOptions` with equal probability options
     #[inline]
     pub fn with_spec_equal(
