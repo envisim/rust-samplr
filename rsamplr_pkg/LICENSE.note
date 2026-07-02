@@ -19,11 +19,27 @@ License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
 
-Name:        cfg-if
-Version:     1.0.4
-Repository:  https://github.com/rust-lang/cfg-if
-Authors:     Alex Crichton
-License:     Apache-2.0 OR MIT
+Name:        envisim_estimate
+Version:     0.6.0
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius
+License:     AGPL-3.0
+
+-------------------------------------------------------------
+
+Name:        envisim_samplr
+Version:     0.7.0
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius
+License:     AGPL-3.0
+
+-------------------------------------------------------------
+
+Name:        envisim_utils
+Version:     0.6.0
+Repository:  https://github.com/envisim/rust-samplr
+Authors:     Wilmer Prentius
+License:     AGPL-3.0
 
 -------------------------------------------------------------
 
@@ -31,22 +47,6 @@ Name:        find-msvc-tools
 Version:     0.1.9
 Repository:  https://github.com/rust-lang/cc-rs
 Authors:     find-msvc-tools authors
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        getrandom
-Version:     0.4.3
-Repository:  https://github.com/rust-random/getrandom
-Authors:     The Rand Project Developers
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        libc
-Version:     0.2.186
-Repository:  https://github.com/rust-lang/libc
-Authors:     The Rust Project Developers
 License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
@@ -79,22 +79,6 @@ Name:        quote
 Version:     1.0.46
 Repository:  https://github.com/dtolnay/quote
 Authors:     David Tolnay
-License:     Apache-2.0 OR MIT
-
--------------------------------------------------------------
-
-Name:        r-efi
-Version:     6.0.0
-Repository:  https://github.com/r-efi/r-efi
-Authors:     r-efi authors
-License:     Apache-2.0 OR LGPL-2.1-or-later OR MIT
-
--------------------------------------------------------------
-
-Name:        rand
-Version:     0.10.2
-Repository:  https://github.com/rust-random/rand
-Authors:     The Rand Project Developers, The Rust Project Developers
 License:     Apache-2.0 OR MIT
 
 -------------------------------------------------------------
