@@ -159,11 +159,25 @@ impl<T> MatrixBase<T> {
         let coord = coord.into();
         self.dims.contains(coord).then(|| &mut self[coord])
     }
+    /// Swaps the element at `coord_a` with the element at `coord_b`.
+    #[inline]
+    pub fn swap<CA, CB>(&mut self, coord_a: CA, coord_b: CB) -> Option<()>
+    where
+        T: RawDataMut,
+        T::Elem: Copy,
+        CA: Into<MatrixCoord>,
+        CB: Into<MatrixCoord>,
+    {
+        let idx_a = coord_a.into().to_linear(self.dims)?;
+        let idx_b = coord_b.into().to_linear(self.dims)?;
+        self.data.data_mut().swap(idx_a, idx_b);
+        Some(())
+    }
     /// Returns an iterator of the elements in a row.
     /// Returns `None` if the row is invalid.
     #[must_use]
     #[inline]
-    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem>>
+    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
     where
         T: RawData,
     {
@@ -192,7 +206,7 @@ impl<T> MatrixBase<T> {
     /// Returns `None` if the column is invalid.
     #[must_use]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem>>
+    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
     where
         T: RawData,
     {

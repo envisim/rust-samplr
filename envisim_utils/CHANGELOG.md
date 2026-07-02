@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Methods `SamplingOptions::with_spreading` and `with_balancing` for equal probability sampling, setting the population size from the provided data.
+- Added `Matrix::swap`, for swapping two elements in a `Matrix`.
 
 ### Changed
 - Renamed methods in `PointSet`. Use prefix `get_` rather than `try_`, renamed `exists` to `contains`, `size` to `len`, `dim` to `dimensions`, `id_iter` to `ids`. Added methods `coords` and `get_coords`, returning an iterator over an id.
