@@ -12,6 +12,7 @@
 
 //! Distributionally balanced designs using tactical configurations
 
+use std::iter::repeat_n;
 use std::num::NonZeroUsize;
 
 pub use config::*;
@@ -37,6 +38,10 @@ use crate::utils::shuffled_indices;
 mod config {
     //! Tactical configuration DBD config
 
+    use envisim_utils::matrix::{
+        Dimensions,
+        MatrixBase,
+    };
     use envisim_utils::spatial::PointSet;
 
     use crate::dbd::energy_distance::EnergyDistance;
@@ -45,12 +50,15 @@ mod config {
         TacticalConfigurationParameters,
     };
 
+    /// Storage for the buckets used in a Tactical Configuration
+    pub type TcBuckets = MatrixBase<Box<[usize]>>;
+
     #[must_use]
     #[derive(Clone, Debug)]
     pub struct TacticalConfiguration {
         /// Internal storage of sequence (`sample_size` * `n_samples` matrix)
         // An n * M matrix
-        buckets: Vec<usize>,
+        buckets: TcBuckets,
         /// Total energy multiplied by sample size
         total_nenergy: f64,
         /// Tactical configuration parameters
@@ -65,7 +73,7 @@ mod config {
         /// `n_samples * sample_size`.
         #[inline]
         pub fn new<P>(
-            sequence: Vec<usize>,
+            buckets: TcBuckets,
             tcp: TacticalConfigurationParameters,
             ed: &EnergyDistance<P>,
         ) -> Self
@@ -73,13 +81,13 @@ mod config {
             P: PointSet<Id = usize, Value = f64>,
         {
             assert_eq!(
-                sequence.len(),
-                tcp.n_samples().get() * tcp.sample_size().get(),
+                buckets.dims(),
+                (tcp.sample_size(), tcp.n_samples()).into(),
                 "invalid sequence length"
             );
 
             let mut cc = Self {
-                buckets: sequence,
+                buckets,
                 total_nenergy: 0.0,
                 tcp,
             };
@@ -88,37 +96,14 @@ mod config {
             cc
         }
         /// Returns a reference to the internal storage
-        #[must_use]
         #[inline]
-        pub fn buckets(&self) -> &[usize] { &self.buckets }
+        pub fn buckets(&self) -> &TcBuckets { &self.buckets }
         /// Consumes `self` and returns the internal storage
-        #[must_use]
         #[inline]
-        pub fn into_buckets(self) -> Vec<usize> { self.buckets }
+        pub fn into_buckets(self) -> TcBuckets { self.buckets }
         /// Returns a mutable reference to the internal storage
-        #[must_use]
         #[inline]
-        pub fn buckets_mut(&mut self) -> &mut [usize] { &mut self.buckets }
-        /// Returns the element at position `k` from a sample `sample_id`
-        #[must_use]
-        #[inline]
-        pub fn bucket_get(&self, sample_id: usize, k: usize) -> Option<usize> {
-            self.buckets.get(self.index(sample_id, k)).copied()
-        }
-        /// Returns the internal index of an element at position `k` in sample `sample_id`
-        ///
-        /// # Panics
-        /// Panics if `sample_id` or `k` is oob.
-        #[must_use]
-        #[inline]
-        pub(crate) fn index(&self, sample_id: usize, k: usize) -> usize {
-            assert!(sample_id < self.tcp.n_samples().get(), "invalid sample_id");
-            assert!(
-                k < self.tcp.sample_size().get(),
-                "invalid sample unit index"
-            );
-            sample_id * self.tcp.sample_size().get() + k
-        }
+        pub fn buckets_mut(&mut self) -> &mut TcBuckets { &mut self.buckets }
         /// Add a delta to the nenergy
         #[must_use]
         #[inline]
@@ -149,11 +134,9 @@ mod config {
         /// Panics if `sample_id` is oob.
         #[inline]
         fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_ {
-            assert!(sample_id < self.tcp.n_samples().get(), "invalid sample_id");
             self.buckets
-                .iter()
-                .skip(sample_id * self.tcp.sample_size().get())
-                .take(self.tcp.sample_size().get())
+                .col_iter(sample_id)
+                .expect("valid sample id")
                 .copied()
         }
     }
@@ -224,12 +207,12 @@ impl<P> DbdTacticalConfiguration<P> {
         let sample_size = sample_size.min(population_size);
         let tcp = TacticalConfigurationParameters::new_minimal(population_size, sample_size);
 
-        let sequence = if dbs_options.spatial_initialization() {
+        let mut buckets = TcBuckets::from_value(0, (sample_size, tcp.n_samples()));
+
+        if dbs_options.spatial_initialization() {
             // Initial budget
             let mut b = vec![tcp.n_repeats().get(); tcp.population_size().get()];
             // Offset to samples
-            let mut offset = 0;
-            let mut samples: Vec<usize> = vec![0; sample_size.get() * tcp.n_samples().get()];
 
             for k in 0..tcp.n_samples().get() {
                 // Construct lpm opts
@@ -250,35 +233,35 @@ impl<P> DbdTacticalConfiguration<P> {
                 );
 
                 // For each unit in the sample, reduce the budget
-                for (i, &id) in s.iter().enumerate() {
-                    samples[offset + i] = id;
+                for (c, id) in buckets
+                    .col_iter_mut(k)
+                    .expect("column to exist")
+                    .zip(s.into_iter())
+                {
+                    *c = id;
                     b[id] -= 1;
                 }
-
-                offset += tcp.sample_size().get();
             }
-
-            samples
         } else {
             // Add random sequence in next version
-            let sequence = shuffled_indices(rng, tcp.population_size());
-            let mut samples: Vec<usize> = vec![0; sample_size.get() * tcp.n_samples().get()];
-            let mut i: usize = 0;
-            for &id in &sequence {
-                for _ in 0..tcp.n_repeats().get() {
-                    samples[(i % tcp.n_samples()) * sample_size.get() + i / tcp.n_samples()] = id;
-                    i += 1;
+            let initial_sequence = shuffled_indices(rng, tcp.population_size());
+            // Iterate over ther sequence, repeating each element n_repeats times
+            let mut sequence_iter = initial_sequence
+                .into_iter()
+                .flat_map(|id| repeat_n(id, tcp.n_repeats().get()));
+            // Iterate over the matrix row-wise
+            for row in 0..sample_size.get() {
+                for c in buckets.row_iter_mut(row).expect("row to exist") {
+                    *c = sequence_iter.next().expect("sequence to have a unit");
                 }
             }
-
-            samples
         };
 
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
         let ed = EnergyDistance::new(matrix, sample_size);
 
         let pair = ((0, 0), (1, 0));
-        let configuration = TacticalConfiguration::new(sequence, tcp, &ed);
+        let configuration = TacticalConfiguration::new(buckets, tcp, &ed);
 
         if configuration.tcp().n_samples().get() <= 1 {
             return Err(configuration);
@@ -322,8 +305,16 @@ where
                 b_unit.0 = n_samples - 1;
             }
 
-            let a_id = self.configuration.bucket_get(a_unit.0, a_unit.1);
-            let b_id = self.configuration.bucket_get(b_unit.0, b_unit.1);
+            let a_id = self
+                .configuration
+                .buckets()
+                .get((a_unit.1, a_unit.0))
+                .copied();
+            let b_id = self
+                .configuration
+                .buckets()
+                .get((b_unit.1, b_unit.0))
+                .copied();
             if a_id != b_id {
                 self.pair = (a_unit, b_unit);
                 self.total_nenergy_delta = None;
@@ -336,13 +327,15 @@ where
         self.total_nenergy_delta = None;
 
         let ((gr1, k1), (gr2, k2)) = self.pair;
-        let id1 = self
+        let id1 = *self
             .configuration
-            .bucket_get(gr1, k1)
+            .buckets()
+            .get((k1, gr1))
             .expect("first unit to be valid");
-        let id2 = self
+        let id2 = *self
             .configuration
-            .bucket_get(gr2, k2)
+            .buckets()
+            .get((k2, gr2))
             .expect("second unit to be valid");
 
         let delta = self.ed.delta(self.configuration.sample(gr1), id2, id1)?
@@ -357,9 +350,10 @@ where
             return;
         };
 
-        let k1 = self.configuration.index(self.pair.0.0, self.pair.0.1);
-        let k2 = self.configuration.index(self.pair.1.0, self.pair.1.1);
-        self.configuration.buckets_mut().swap(k1, k2);
+        self.configuration.buckets_mut().swap(
+            (self.pair.0.1, self.pair.0.0),
+            (self.pair.1.1, self.pair.1.0),
+        );
         let _total_energy = self.configuration.add_nenergy_delta(delta);
     }
 

@@ -133,12 +133,15 @@ fn rust_distributionally_balanced_design(
         .set_spreading(aux)?
         .set_max_iterations(iter)?;
 
-    let s = match r_method {
-        "dbd_tc" => options.dbd_tc(&mut rng, dbs_options)?.into_buckets(),
-        "dbd_circular" | &_ => options.dbd_circular(&mut rng, dbs_options)?.into_sequence(),
-    };
-
-    return_sample(s)
+    match r_method {
+        "dbd_tc" => return_sample(options.dbd_tc(&mut rng, dbs_options)?.into_buckets().data()),
+        "dbd_circular" | &_ => return_sample(
+            options
+                .dbd_circular(&mut rng, dbs_options)?
+                .into_sequence()
+                .as_ref(),
+        ),
+    }
 }
 
 #[savvy]
