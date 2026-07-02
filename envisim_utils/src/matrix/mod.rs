@@ -74,6 +74,40 @@ impl<T> MatrixBase<T> {
         let dims = MatrixDims::from_row_count(data.data().len(), rows)?;
         Some(Self { data, dims })
     }
+    /// Constructs a new owned matrix representation filled with some value `data`.
+    #[inline]
+    pub fn from_value<D>(value: T::Elem, dims: D) -> Self
+    where
+        T: RawData + From<Vec<T::Elem>>,
+        T::Elem: Copy,
+        D: Into<MatrixDims>,
+    {
+        let dims: MatrixDims = dims.into();
+        let data = vec![value; dims.len().get()];
+        Self {
+            data: data.into(),
+            dims,
+        }
+    }
+    /// Constructs a new identity matrix
+    #[inline]
+    pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
+    where
+        T: RawData + From<Vec<T::Elem>>,
+        T::Elem: ConstZero + ConstOne + Copy,
+        NZ: TryInto<NonZeroUsize>,
+    {
+        let rows = rows.try_into().ok()?;
+        let dims = MatrixDims::new(rows, rows);
+        let mut data = vec![T::Elem::ZERO; dims.len().get()];
+        for e in data.iter_mut().step_by(rows.get() + 1) {
+            *e = T::Elem::ONE;
+        }
+        Some(Self {
+            data: data.into(),
+            dims,
+        })
+    }
     /// Constructs a borrowed matrix representation from a matrix.
     #[inline]
     pub fn to_matrixref(&self) -> MatrixRef<'_, T::Elem>
@@ -497,34 +531,6 @@ impl<T> MatrixBase<T> {
 }
 
 impl<N> Matrix<N> {
-    /// Constructs a new owned matrix representation filled with some value `data`.
-    #[inline]
-    pub fn from_value<D>(data: N, dims: D) -> Self
-    where
-        N: Copy,
-        D: Into<MatrixDims>,
-    {
-        let dims: MatrixDims = dims.into();
-        Self {
-            data: vec![data; dims.len().get()],
-            dims,
-        }
-    }
-    /// Constructs a new identity matrix
-    #[inline]
-    pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
-    where
-        N: Number,
-        NZ: TryInto<NonZeroUsize>,
-    {
-        let rows = rows.try_into().ok()?;
-        let dims = MatrixDims::new(rows, rows);
-        let mut m = Self::from_value(N::ZERO, dims);
-        for r in 0..rows.get() {
-            m[(r, r)] = N::ONE;
-        }
-        Some(m)
-    }
     /// Resizes the matrix.
     /// Does not respect data on expansion.
     #[inline]
