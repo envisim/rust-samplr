@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed methods in `PointSet`. Use prefix `get_` rather than `try_`, renamed `exists` to `contains`, `size` to `len`, `dim` to `dimensions`, `id_iter` to `ids`. Added methods `coords` and `get_coords`, returning an iterator over an id.
 - For searchers in `kd_tree::searcher`, renamed `from_slice`, `set_from_slice`, `reset_from_slice` to `_point`. These methods now accepts iterators instead of slices.
+- Matrix storage: Removed `OwnedMatrixData`, `BorrowedMatrixData` and added `RawDataMut`. Implemented `RawData` and `RawDataMut` for array-like types in `std`.
 
+### Removed
+- Removed second (ergonomic) generic for data type in `Matrix`. Defaulted to `RawData::Elem`, now derived from the same.
 
 ## [0.6.0] - 2026-06-02
 ### Changed
