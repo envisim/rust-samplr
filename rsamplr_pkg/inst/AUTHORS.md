@@ -1,53 +1,25 @@
 # Authors of vendored cargo crates
-- anyhow 1.0.102: David Tolnay
-- autocfg 1.5.0: Josh Stone
-- bitflags 2.11.1: The Rust Project Developers
-- cc 1.2.61: Alex Crichton
+- autocfg 1.5.1: Josh Stone
+- cc 1.2.65: Alex Crichton
 - cfg-if 1.0.4: Alex Crichton
-- chacha20 0.10.0: RustCrypto Developers
-- cpufeatures 0.3.0: RustCrypto Developers
 - envisim_estimate 0.6.0: Wilmer Prentius
 - envisim_samplr 0.7.0: Wilmer Prentius
 - envisim_utils 0.6.0: Wilmer Prentius
-- foldhash 0.1.5: Orson Peters
-- getrandom 0.4.2: The Rand Project Developers
-- hashbrown 0.15.5: Amanieu d'Antras
-- id-arena 2.3.0: Nick Fitzgerald, Aleksey Kladov
-- itoa 1.0.18: David Tolnay
-- leb128fmt 0.1.0: Bryant Luk
+- getrandom 0.4.3: The Rand Project Developers
 - libc 0.2.186: The Rust Project Developers
-- log 0.4.29: The Rust Project Developers
-- memchr 2.8.0: Andrew Gallant, bluss
 - num-integer 0.1.46: The Rust Project Developers
 - num-traits 0.2.19: The Rust Project Developers
-- prettyplease 0.2.37: David Tolnay
 - proc-macro2 1.0.106: David Tolnay, Alex Crichton
-- quote 1.0.45: David Tolnay
-- rand 0.10.1: The Rand Project Developers, The Rust Project Developers
+- quote 1.0.46: David Tolnay
+- rand 0.10.2: The Rand Project Developers, The Rust Project Developers
 - rand_core 0.10.1: The Rand Project Developers
 - rustc-hash 2.1.2: The Rust Project Developers
 - savvy 0.9.4: Hiroaki Yutani
 - savvy-bindgen 0.9.4: Hiroaki Yutani
 - savvy-ffi 0.9.4: Hiroaki Yutani
 - savvy-macro 0.9.4: Hiroaki Yutani
-- semver 1.0.28: David Tolnay
-- serde 1.0.228: Erick Tryzelaar, David Tolnay
-- serde_core 1.0.228: Erick Tryzelaar, David Tolnay
-- serde_derive 1.0.228: Erick Tryzelaar, David Tolnay
-- serde_json 1.0.149: Erick Tryzelaar, David Tolnay
-- shlex 1.3.0: comex, Fenhl, Adrian Taylor, Alex Touchet, Daniel Parks, Garrett Berg
-- syn 2.0.117: David Tolnay
+- shlex 2.0.1: comex, Fenhl, Adrian Taylor, Alex Touchet, Daniel Parks, Garrett Berg
+- syn 2.0.118: David Tolnay
 - unicode-ident 1.0.24: David Tolnay
-- unicode-xid 0.2.6: erick.tryzelaar, kwantam, Manish Goregaokar
-- wasm-encoder 0.244.0: Nick Fitzgerald
-- wasmparser 0.244.0: Yury Delendik
-- wit-bindgen 0.51.0: Alex Crichton
-- wit-bindgen 0.57.1: Alex Crichton
-- wit-bindgen-core 0.51.0: Alex Crichton
-- wit-bindgen-rust 0.51.0: Alex Crichton
-- wit-bindgen-rust-macro 0.51.0: Alex Crichton
-- wit-component 0.244.0: Peter Huene
-- wit-parser 0.244.0: Alex Crichton
-- zmij 1.0.21: David Tolnay
 
 (This file was auto-generated from 'cargo metadata' on 2026-07-02)

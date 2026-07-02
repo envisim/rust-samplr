@@ -11,11 +11,10 @@ vendor_crates <- function(path = ".") {
   withr::local_dir(src_dir)
 
   config_toml_content <- processx::run(
-    "cargo",
+    "cargo-vendor-filterer",
     c(
-      "vendor",
-      "--locked",
       "--manifest-path", file.path("rust", "Cargo.toml"),
+      "--keep-dep-kinds", "no-dev",
       vendor_rel_path
     )
   )$stdout
