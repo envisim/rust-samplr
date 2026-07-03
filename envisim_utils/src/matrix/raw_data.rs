@@ -19,13 +19,13 @@ use std::sync::Arc;
 /// Data container trait
 pub trait RawData: Sized {
     type Elem;
-    /// Returns a reference (view) to the internal data, expected to be in column major order.
+    /// Returns a reference (view) to the internal data.
     #[must_use]
     fn data(&self) -> &[Self::Elem];
 }
 /// Mutable data container trait
 pub trait RawDataMut: RawData {
-    /// Returns a mutable reference to the internal data, expected to be in column major order.
+    /// Returns a mutable reference to the internal data.
     #[must_use]
     fn data_mut(&mut self) -> &mut [Self::Elem];
 }

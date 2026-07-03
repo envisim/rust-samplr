@@ -28,13 +28,18 @@ use crate::utils::ypi_quotient;
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "iterator pass by value is ok"
+)]
 #[inline]
-fn balance_deviation<P>(
+fn balance_deviation<I, P>(
     sample: &[usize],
-    probabilities: &[f64],
+    probabilities: I,
     data: &P,
 ) -> EstimationResult<Vec<f64>>
 where
+    I: ExactSizeIterator<Item = f64> + Clone,
     P: PointSet<Id = usize, Value = f64>,
 {
     let population_size = probabilities.len();
@@ -50,8 +55,9 @@ where
             let sample_sum: f64 = sample
                 .iter()
                 .map(|&i| {
+                    let p = probabilities.clone().nth(i);
                     data.get_coord(i, j)
-                        .zip(probabilities.get(i))
+                        .zip(p)
                         .ok_or(EstimationError::InvalidSample)
                         .and_then(ypi_quotient)
                 })
@@ -69,7 +75,7 @@ where
 /// # use envisim_utils::matrix::Matrix;
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 /// let sb = balance_deviation_spreading(&s, &options)?;
 /// # Ok::<(), EstimationError>(())
@@ -86,8 +92,11 @@ where
     PO: ProbabilityOptions<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    let p = options.probabilities().to_slice_real();
-    balance_deviation(sample, &p, options.spreading().data())
+    balance_deviation(
+        sample,
+        options.probabilities().iter_real(),
+        options.spreading().data(),
+    )
 }
 
 /// Calculates the deviation from the balancing matrix.
@@ -98,7 +107,7 @@ where
 /// # use envisim_utils::matrix::Matrix;
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_balancing(m)?;
+/// let options = SamplingOptions::new(p)?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
 /// let sb = balance_deviation_balancing(&s, &options)?;
 /// # Ok::<(), EstimationError>(())
@@ -115,8 +124,11 @@ where
     PO: ProbabilityOptions<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    let p = options.probabilities().to_slice_real();
-    balance_deviation(sample, &p, options.balancing().data())
+    balance_deviation(
+        sample,
+        options.probabilities().iter_real(),
+        options.balancing().data(),
+    )
 }
 
 #[cfg(test)]

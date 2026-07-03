@@ -365,7 +365,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -383,7 +383,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1s(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -401,7 +401,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_2(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -438,7 +438,7 @@ where
 /// let mut rng = try_sys_rng().unwrap();
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 /// assert_eq!(s.len(), 2);

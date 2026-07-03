@@ -1,5 +1,6 @@
 use envisim_samplr::{
     ProbabilityOptions,
+    RealUnequalProbabilityOptions,
     SamplingOptions,
     UnequalProbabilityOptions,
 };
@@ -11,9 +12,12 @@ use num_traits::ToPrimitive;
 fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
 #[allow(dead_code)]
-pub fn matrix_big_balanced() -> (UnequalProbabilityOptions<'static, f64>, Matrix<f64>) {
+pub fn matrix_big_balanced() -> (
+    UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>>,
+    Matrix<f64>,
+) {
     const P_VEC: [f64; 1000] = [0.1; 1000];
-    let spec = UnequalProbabilityOptions::new((&P_VEC).into()).unwrap();
+    let spec = UnequalProbabilityOptions::new(P_VEC.as_ref()).unwrap();
 
     let mut b_vec: Vec<f64> = Vec::with_capacity(2000);
     b_vec.extend_from_slice(&P_VEC);
@@ -86,8 +90,7 @@ pub fn test_wor<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .to_slice_real()
-        .iter()
+        .iter_real()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();
@@ -126,8 +129,7 @@ pub fn test_wor_random_n<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .to_slice_real()
-        .iter()
+        .iter_real()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();

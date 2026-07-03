@@ -225,7 +225,6 @@ where
         return Ok(0.0);
     }
 
-    let probabilities = options.probabilities().to_slice_real();
     let tree = options.spreading().to_tree();
     // +1 since we search for self also
     let mut searcher = KNearestNeighbourSearcher::new(
@@ -235,7 +234,7 @@ where
         tree.data(),
     );
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities.iter()))?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(options.probabilities().iter_real()))?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {

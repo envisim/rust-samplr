@@ -14,7 +14,6 @@
 
 use std::iter::once;
 
-use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
@@ -235,13 +234,14 @@ where
 /// Returns (phi-vec, phi-sumish)
 #[must_use]
 #[inline]
-fn energy_distance_phi_unequal<P>(
+fn energy_distance_phi_unequal<P, I>(
     matrix: P,
-    probabilities: &[P::Value],
+    probabilities: I,
     s_size: f64,
 ) -> (FxHashMap<P::Id, P::Value>, P::Value)
 where
     P: PointSet<Id = usize, Value = f64>,
+    I: ExactSizeIterator<Item = f64>,
 {
     let population_size = probabilities.len();
     assert!(
@@ -251,7 +251,7 @@ where
     let mut phi =
         FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(population_size, FxBuildHasher);
 
-    let probs: Vec<f64> = probabilities.iter().map(|&p| p / s_size).collect();
+    let probs: Vec<f64> = probabilities.map(|p| p / s_size).collect();
 
     for id1 in 0..population_size {
         let mut phi1 = <P::Value as ConstZero>::ZERO;
@@ -319,7 +319,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.voronoi(&s)?;
     /// # Ok::<(), EstimationError>(())
@@ -342,7 +342,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.local(&s, true)?;
     /// # Ok::<(), EstimationError>(())
@@ -365,7 +365,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.energy_distance(&s);
     /// # Ok::<(), EstimationError>(())
@@ -444,12 +444,11 @@ where
     }
 }
 
-impl<'bprob, PROB, P, BAL> SpatialBalance<P>
-    for SamplingOptions<UnequalProbabilityOptions<'bprob, PROB>, SpreadingOptions<P>, BAL>
+impl<UPO, P, BAL> SpatialBalance<P>
+    for SamplingOptions<UnequalProbabilityOptions<UPO>, SpreadingOptions<P>, BAL>
 where
-    PROB: Number,
+    UPO: ProbabilityOptions<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
-    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB, Real = P::Value>,
 {
     #[inline]
     fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
@@ -457,7 +456,7 @@ where
             return Ok(f64::NAN);
         }
 
-        let probs = self.probabilities().to_slice_real();
+        let probs: Box<[f64]> = self.probabilities().iter_real().collect();
         let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| probs[id])?;
         let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
             / sample.len().to_f64().expect("sample len to convert to f64");
@@ -474,7 +473,7 @@ where
         let cols = data
             .dimensions()
             .saturating_add(usize::from(balance_probabilities));
-        let probs = self.probabilities().to_slice_real();
+        let probs: Box<[f64]> = self.probabilities().iter_real().collect();
         let voronoi_means = voronoi_means(
             self.spreading(),
             sample,
@@ -513,12 +512,12 @@ where
     #[inline]
     fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
         let matrix = self.spreading().data();
-        let probs = self.probabilities().to_slice_real();
         let s_size = sample
             .len()
             .to_f64()
             .expect("sample size to convert to f64");
-        let (phi, u_spread) = energy_distance_phi_unequal(matrix, &probs, s_size);
+        let (phi, u_spread) =
+            energy_distance_phi_unequal(matrix, self.probabilities().iter_real(), s_size);
         let edi = energy_distance_internal(sample, matrix, &phi);
         edi - u_spread
     }

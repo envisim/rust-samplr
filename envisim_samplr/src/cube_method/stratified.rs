@@ -12,7 +12,6 @@
 
 //! Cube stratified methods
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -63,7 +62,7 @@ pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
     /// The original vector of strata
     strata_vec: &'bopts [STRATA],
     /// The original inclusion probabilities
-    org_probabilities: Cow<'bopts, [f64]>,
+    org_probabilities: Box<[f64]>,
     /// The original balancing data
     balancing_data: MatrixRef<'bopts, f64>,
 }
@@ -87,7 +86,7 @@ where
         R: Rand<usize>,
         T: RawData<Elem = f64>,
     {
-        let org_probabilities = options.probabilities().to_slice_real();
+        let org_probabilities: Box<[f64]> = options.probabilities().iter_real().collect();
         let balancing_data = options.balancing().data().to_matrixref();
 
         let a_dims = MatrixDims::new(

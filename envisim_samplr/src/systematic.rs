@@ -14,7 +14,6 @@
 //!
 //! Implements [`SystematicSampling`] for [`SamplingOptions`].
 
-use envisim_utils::Number;
 use envisim_utils::random::{
     Rand,
     Rng,
@@ -25,7 +24,9 @@ use envisim_utils::sampling_options::{
     ProbabilityOptions,
     SamplingOptionsRng,
     UnequalProbabilityOptions,
+    UnequalProbabilityOptionsAccess,
 };
+use num_traits::ConstZero;
 
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;
@@ -60,20 +61,20 @@ where
 /// Draws a systematic sample from the provided order using unequal probabilities
 #[must_use]
 #[inline]
-fn from_order<'bprob, R, N>(
+fn from_order<R, UPO>(
     rng: &mut R,
-    options: &UnequalProbabilityOptions<'bprob, N>,
+    options: &UnequalProbabilityOptions<UPO>,
     order: &[usize],
 ) -> Vec<usize>
 where
-    R: Rand<N>,
-    N: Number,
-    UnequalProbabilityOptions<'bprob, N>: ProbabilityOptions<Native = N>,
+    UPO: UnequalProbabilityOptionsAccess,
+    R: Rand<UPO::Native>,
 {
-    let (probs, pmax) = options.to_slice();
+    let probs = options.as_slice();
+    let pmax = options.max();
     let mut sample = Vec::<usize>::with_capacity(options.sample_size());
     let mut r = rng.rand_to(pmax);
-    let mut psum: N = N::ZERO;
+    let mut psum = <UPO as ProbabilityOptions>::Native::ZERO;
 
     for &id in order {
         let pnext = psum + probs[id];
@@ -100,7 +101,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.systematic(&mut rng);
+    /// let s = SamplingOptions::new(p)?.systematic(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -113,7 +114,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p.into())?.systematic_random_order(&mut rng);
+    /// let s = SamplingOptions::new(p)?.systematic_random_order(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
@@ -136,12 +137,11 @@ where
         from_order_equal(rng, self.probabilities(), &order)
     }
 }
-impl<'bprob, R, PROB, AUX, BAL> SystematicSampling<R>
-    for SamplingOptions<UnequalProbabilityOptions<'bprob, PROB>, AUX, BAL>
+impl<R, UPO, AUX, BAL> SystematicSampling<R>
+    for SamplingOptions<UnequalProbabilityOptions<UPO>, AUX, BAL>
 where
-    R: SamplingOptionsRng<UnequalProbabilityOptions<'bprob, PROB>>,
-    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB>,
-    PROB: Number,
+    R: SamplingOptionsRng<UPO>,
+    UPO: UnequalProbabilityOptionsAccess,
 {
     #[inline]
     fn systematic(&self, rng: &mut R) -> Vec<usize> {

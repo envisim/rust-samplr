@@ -16,10 +16,7 @@ use std::fmt::{
     Formatter,
     Result as FmtResult,
 };
-use std::num::{
-    NonZero,
-    NonZeroUsize,
-};
+use std::num::NonZeroUsize;
 use std::ops::{
     Index,
     IndexMut,
@@ -467,53 +464,24 @@ impl<N> IndexMut<usize> for ProbabilitySet<N> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut self.data[index] }
 }
 
-/// Implements probability representations and sets for floats
-macro_rules! prob_repr_impl_float {
-    ($t:ty) => {
-        impl ProbabilitySet<$t> {
-            /// Constructs a new probability set
-            #[inline]
-            pub fn new<I>(probs: I, eps: Epsilon<$t>) -> Self
-            where
-                I: IntoIterator<Item = $t>,
-            {
-                let max = 1.0;
-                let data: Box<[Probability<$t>]> = probs
-                    .into_iter()
-                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
-                    .collect();
-                Self { data, max, eps }
-            }
+impl<N> ProbabilitySet<N> {
+    /// Constructs a new probability set.
+    ///
+    /// If `max` is not positive, or if any probability cannot be contained in `[0..max]`, the
+    /// function returns `None`.
+    #[inline]
+    pub fn try_new<I>(probs: I, max: N, eps: Epsilon<N>) -> Option<Self>
+    where
+        I: IntoIterator<Item = N>,
+        N: Number,
+    {
+        if !max.is_pos_finite() {
+            return None;
         }
-    };
+        let data: Box<[Probability<N>]> = probs
+            .into_iter()
+            .map(|p| Probability::new(p, max, eps))
+            .collect::<Option<Box<[Probability<N>]>>>()?;
+        Some(Self { data, max, eps })
+    }
 }
-/// Implements probability representations and sets for ints
-macro_rules! prob_repr_impl_int {
-    ($t:ty) => {
-        impl ProbabilitySet<$t> {
-            /// Constructs a new probability set
-            #[inline]
-            pub fn new<I>(probs: I, max: NonZero<$t>) -> Self
-            where
-                I: IntoIterator<Item = $t>,
-            {
-                let max = max.get();
-                let eps = Epsilon::<$t>::default();
-                let data: Box<[Probability<$t>]> = probs
-                    .into_iter()
-                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
-                    .collect();
-                Self { data, max, eps }
-            }
-        }
-    };
-}
-
-prob_repr_impl_int!(usize);
-prob_repr_impl_int!(u8);
-prob_repr_impl_int!(u16);
-prob_repr_impl_int!(u32);
-prob_repr_impl_int!(u64);
-prob_repr_impl_int!(u128);
-
-prob_repr_impl_float!(f64);

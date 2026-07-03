@@ -3,6 +3,7 @@ use crate::matrix::MatrixRef;
 use crate::sampling_options::{
     BalancingOptions,
     EqualProbabilityOptions,
+    RealUnequalProbabilityOptions,
     SamplingOptions,
     SpreadingOptions,
     UnequalProbabilityOptions,
@@ -54,8 +55,8 @@ impl Data10 {
     ];
 
     #[inline]
-    pub fn prob_u() -> UnequalProbabilityOptions<'static, f64> {
-        UnequalProbabilityOptions::new((&Self::PROB_U).into()).unwrap()
+    pub fn prob_u() -> UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>> {
+        UnequalProbabilityOptions::new(Self::PROB_U.as_slice()).unwrap()
     }
     #[inline]
     pub fn prob_e() -> EqualProbabilityOptions { EqualProbabilityOptions::new(10, 2).unwrap() }
@@ -69,7 +70,7 @@ impl Data10 {
     pub fn bmatrix_ep() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_EP1, 10).unwrap() }
     #[inline]
     pub fn options_u() -> SamplingOptions<
-        UnequalProbabilityOptions<'static, f64>,
+        UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>>,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {

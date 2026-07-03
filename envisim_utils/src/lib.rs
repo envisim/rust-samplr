@@ -33,4 +33,5 @@ pub use epsilon::Epsilon;
 pub use number_traits::{
     Number,
     NumberFloat,
+    NumberInt,
 };
