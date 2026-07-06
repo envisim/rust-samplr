@@ -29,6 +29,7 @@ use crate::utils::Epsilon;
 ///
 /// # Errors
 /// Returns an error if any value is non-positive.
+#[expect(clippy::missing_panics_doc, reason = "impossible")]
 #[inline]
 pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
     if arr.is_empty() {
@@ -45,10 +46,10 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
         sum += *x;
     }
 
-    Ok(ProbabilitySet::<f64>::new(
-        arr.iter().map(|&x| x / sum),
-        Epsilon::default(),
-    ))
+    Ok(
+        ProbabilitySet::<f64>::try_new(arr.iter().map(|&x| x / sum), 1.0, Epsilon::default())
+            .expect("1.0 > 0"),
+    )
 }
 
 /// Inclusion probabilities proportional to size (approximate).
@@ -66,10 +67,12 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     }
 
     if arr.len() < sample_size {
-        return Ok(ProbabilitySet::<f64>::new(
+        return Ok(ProbabilitySet::<f64>::try_new(
             repeat_n(1.0, arr.len()),
+            1.0,
             Epsilon::default(),
-        ));
+        )
+        .expect("1.0 > 0"));
     }
 
     if arr.iter().any(|x| !x.is_normal() || (..0.0).contains(x)) {
@@ -78,7 +81,9 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
 
     let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
-    let mut pips = ProbabilitySet::<f64>::new(repeat_n(0.0, arr.len()), Epsilon::default());
+    let mut pips =
+        ProbabilitySet::<f64>::try_new(repeat_n(0.0, arr.len()), 1.0, Epsilon::default())
+            .expect("1.0 > 0");
     let mut failed = true;
 
     while failed && n > 0.0 {

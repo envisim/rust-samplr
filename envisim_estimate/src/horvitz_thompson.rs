@@ -23,7 +23,7 @@ use envisim_utils::matrix::{
 };
 use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -216,7 +216,7 @@ pub fn local_mean_variance<PO, P, BAL>(
     n_neighbours: NonZeroUsize,
 ) -> EstimationResult<f64>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
     let sample_size = y_values.len();
@@ -225,7 +225,6 @@ where
         return Ok(0.0);
     }
 
-    let probabilities = options.probabilities().to_slice_real();
     let tree = options.spreading().to_tree();
     // +1 since we search for self also
     let mut searcher = KNearestNeighbourSearcher::new(
@@ -235,7 +234,7 @@ where
         tree.data(),
     );
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities.iter()))?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(options.probabilities().iter_real()))?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {

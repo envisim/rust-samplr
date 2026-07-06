@@ -18,10 +18,10 @@ use std::num::NonZeroUsize;
 pub use config::*;
 use envisim_utils::random::Rand;
 use envisim_utils::sampling_options::{
-    EqualProbabilityOptions,
+    EqualProbabilities,
     SamplingOptions,
     SamplingOptionsRng,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
 };
 use envisim_utils::utils::{
     Epsilon,
@@ -203,7 +203,7 @@ impl<P> DbdTacticalConfiguration<P> {
     ) -> Result<Self, TacticalConfiguration>
     where
         P: PointSet<Id = usize, Value = f64>,
-        R: SamplingOptionsRng<EqualProbabilityOptions>,
+        R: SamplingOptionsRng<EqualProbabilities>,
     {
         let population_size = matrix.len();
         let sample_size = sample_size.min(population_size);
@@ -218,15 +218,12 @@ impl<P> DbdTacticalConfiguration<P> {
 
             for k in 0..tcp.n_samples().get() {
                 // Construct lpm opts
-                let p_max = NonZeroUsize::new(tcp.n_samples().get() - k).expect("k < n_samples");
-                let p_spec = UnequalProbabilityOptions::<usize>::new_int((&b).into(), p_max)
-                    // let p_spec = UnequalProbabilityOptions::new_int(b.into(), p_max)
+                let p_max = tcp.n_samples().get() - k;
+                let p_spec = UnequalProbabilities::new_int(b.as_slice(), p_max)
                     .expect("b to be non-empty and limited by p_max");
-                let lpm_opts =
-                    // SamplingOptions::<UnequalProbabilityOptions<usize>>::with_spec(p_spec)
-                    SamplingOptions::with_spec(p_spec)
-                        .set_spreading(&matrix)
-                        .expect("matrix to match population size");
+                let lpm_opts = SamplingOptions::with_spec(p_spec)
+                    .set_spreading(&matrix)
+                    .expect("matrix to match population size");
                 let s = lpm_opts.lpm_2(rng);
                 assert_eq!(
                     s.len(),

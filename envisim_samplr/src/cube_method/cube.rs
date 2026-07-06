@@ -37,7 +37,7 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
@@ -182,7 +182,7 @@ where
         strategy: S,
     ) -> Self
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         T: SliceView<Elem = f64>,
     {
         let balancing_data = options.balancing().data();
@@ -284,7 +284,7 @@ impl SequentialCubeStrategy {
         options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, ()>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         T: SliceView<Elem = f64>,
     {
         let controller = options.to_controller_real();
@@ -331,7 +331,7 @@ impl RandomCubeStrategy {
         options: &SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, ()>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         T: SliceView<Elem = f64>,
     {
         let controller = options.to_controller_real();
@@ -392,7 +392,7 @@ where
         options: &'btree SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>,
     ) -> CubeRunner<Self, Tree<'btree, P>>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         T: SliceView<Elem = f64>,
     {
         let controller = options.to_spreading_controller_real();
@@ -534,7 +534,7 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_balancing(m)?
     ///     .cube(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -559,7 +559,7 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_balancing(m)?
     ///     .cube(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -578,7 +578,7 @@ where
 impl<R, PO, AUX, T> CubeSampling<R> for SamplingOptions<PO, AUX, BalancingOptions<MatrixBase<T>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     T: SliceView<Elem = f64>,
 {
     #[inline]
@@ -592,7 +592,7 @@ impl<R, PO, P, T> LocalCubeSampling<R>
     for SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<MatrixBase<T>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
     T: SliceView<Elem = f64>,
 {

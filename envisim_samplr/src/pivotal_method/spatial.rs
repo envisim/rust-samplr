@@ -29,7 +29,7 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
@@ -87,7 +87,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -182,7 +182,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -302,7 +302,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -363,7 +363,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -381,7 +381,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1s(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -399,7 +399,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_2(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -410,7 +410,7 @@ where
 impl<R, PO, P, BAL> LocalPivotalSampling<R> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
     P: PointSet<Id = usize>,
 {
     #[inline]
@@ -436,7 +436,7 @@ where
 /// let mut rng = try_sys_rng().unwrap();
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 /// assert_eq!(s.len(), 2);
@@ -467,7 +467,7 @@ pub fn hierarchical_lpm_2<R, PO, P, BAL>(
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
 {
     // Check validity of probabilities and sizes

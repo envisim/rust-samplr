@@ -19,7 +19,7 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
 };
@@ -38,7 +38,7 @@ impl SequentialStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -67,7 +67,7 @@ impl RandomStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -119,7 +119,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p.into())?;
+    /// let opts = SamplingOptions::new(p)?;
     /// let s = opts.spm(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -134,7 +134,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p.into())?;
+    /// let opts = SamplingOptions::new(p)?;
     /// let s = opts.rpm(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -145,7 +145,7 @@ where
 impl<R, PO, AUX, BAL> PivotalSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     fn spm(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }

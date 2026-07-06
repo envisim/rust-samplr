@@ -176,7 +176,10 @@ impl<T> MatrixBase<T> {
     /// Returns `None` if the row is invalid.
     #[must_use]
     #[inline]
-    pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
+    pub fn row_iter(
+        &self,
+        row: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + Clone>
     where
         T: SliceView,
     {
@@ -192,7 +195,7 @@ impl<T> MatrixBase<T> {
     pub fn row_iter_mut(
         &mut self,
         row: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator>
     where
         T: SliceViewMut,
     {
@@ -205,7 +208,10 @@ impl<T> MatrixBase<T> {
     /// Returns `None` if the column is invalid.
     #[must_use]
     #[inline]
-    pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
+    pub fn col_iter(
+        &self,
+        col: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + Clone>
     where
         T: SliceView,
     {
@@ -222,7 +228,7 @@ impl<T> MatrixBase<T> {
     pub fn col_iter_mut(
         &mut self,
         col: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator>
     where
         T: SliceViewMut,
     {
@@ -622,7 +628,9 @@ where
     fn len(&self) -> NonZeroUsize { self.dims.rows }
     /// Returns an iterator of the rows in the matrix.
     #[inline]
-    fn ids(&self) -> impl Iterator<Item = usize> { 0..self.dims.rows.get() }
+    fn ids(&self) -> impl ExactSizeIterator<Item = usize> + DoubleEndedIterator {
+        0..self.dims.rows.get()
+    }
     /// Returns the number of columns in the matrix
     #[inline]
     fn dimensions(&self) -> NonZeroUsize { self.dims.cols }
@@ -649,7 +657,10 @@ where
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[must_use]
     #[inline]
-    fn get_coords(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &Self::Value>> {
+    fn get_coords(
+        &self,
+        row: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator> {
         self.row_iter(row)
     }
     /// Returns the squared euclidean distance between rows `id_a` and `id_b`.

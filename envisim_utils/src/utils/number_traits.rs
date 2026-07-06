@@ -17,6 +17,7 @@ use std::fmt::{
     Debug,
     Display,
 };
+use std::iter::Sum;
 
 use num_integer::Integer;
 use num_traits::{
@@ -31,7 +32,17 @@ use super::Epsilon;
 
 /// An extension of [`num_traits::NumAssign`]
 pub trait Number:
-    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Debug + Display
+    Sized
+    + Copy
+    + PartialOrd
+    + PartialEq
+    + NumAssign
+    + NumCast
+    + ConstZero
+    + ConstOne
+    + Debug
+    + Display
+    + Sum
 {
     const DEFAULT_EPSILON_VALUE: Self;
 
