@@ -27,7 +27,6 @@ pub use error::{
 pub use probability_opts::{
     EqualProbabilities,
     ProbabilitiesSpec,
-    ProbabilitiesView,
     UnequalProbabilities,
     UnequalProbabilitiesInt,
     UnequalProbabilitiesReal,

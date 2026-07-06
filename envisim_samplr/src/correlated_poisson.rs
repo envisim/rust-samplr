@@ -55,6 +55,7 @@ use envisim_utils::sampling_options::{
 use envisim_utils::utils::{
     Number,
     PointSet,
+    SliceView,
 };
 use num_traits::ToPrimitive;
 
@@ -141,13 +142,13 @@ where
 }
 
 #[must_use]
-pub struct SequentialStrategy<'bcoord> {
+pub struct SequentialStrategy<CD> {
     /// Random values to be used
-    random_values: CoordinationOptions<'bcoord>,
+    random_values: Option<CoordinationOptions<CD>>,
     /// Selected unit, used to control the decision order if random values were provided
     unit: usize,
 }
-impl<'bcoord> SequentialStrategy<'bcoord> {
+impl SequentialStrategy<[f64; 0]> {
     /// Constructs a new CPS runner using the sequential strategy
     #[inline]
     pub fn new<PO, AUX, BAL>(
@@ -160,11 +161,13 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values: CoordinationOptions::new_empty(),
+                random_values: None,
                 unit: 0,
             },
         }
     }
+}
+impl<CD> SequentialStrategy<CD> {
     /// Constructs a new coordinated CPS runner using the sequential strategy
     ///
     /// # Errors
@@ -175,8 +178,9 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, ()>>
     where
+        CD: SliceView<Elem = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
-        C: Into<CoordinationOptions<'bcoord>>,
+        C: Into<CoordinationOptions<CD>>,
     {
         let controller = options.to_controller_real();
         let random_values = random_values.into();
@@ -184,19 +188,25 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values,
+                random_values: Some(random_values),
                 unit: 0,
             },
         })
     }
 }
-impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
+impl<CD> CorrelatedPoissonStrategy<()> for SequentialStrategy<CD>
+where
+    CD: SliceView<Elem = f64>,
+{
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
         R: Rand<f64>,
     {
-        self.random_values.get_or(id, rng)
+        self.random_values
+            .as_ref()
+            .and_then(|rv| rv.get(id))
+            .unwrap_or_else(|| rng.rand())
     }
     #[inline]
     fn select_unit<R>(
@@ -248,19 +258,19 @@ impl CorrelatedPoissonStrategy<()> for SequentialStrategy<'_> {
     }
 }
 
-pub struct SpatialStrategy<'bcoord, P>
+pub struct SpatialStrategy<CD, P>
 where
     P: PointSet,
 {
     /// Sample controller
-    random_values: CoordinationOptions<'bcoord>,
+    random_values: Option<CoordinationOptions<CD>>,
     /// Order is used together with `random_values`, in order to ensure that the selection order is
     /// the same. If no random values (no coordination), the order is random.
     order: usize,
     /// The searcher to be used to find the neighbours of the selected unit
     searcher: WeightedSearcher<P>,
 }
-impl<'bcoord, P> SpatialStrategy<'bcoord, P>
+impl<P> SpatialStrategy<[f64; 0], P>
 where
     P: PointSet<Id = usize>,
 {
@@ -277,12 +287,17 @@ where
         CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values: CoordinationOptions::new_empty(),
+                random_values: None,
                 order: 0,
                 searcher,
             },
         }
     }
+}
+impl<CD, P> SpatialStrategy<CD, P>
+where
+    P: PointSet<Id = usize>,
+{
     /// Constructs a new coordinated CPS runner using the spatial strategy
     ///
     /// # Errors
@@ -293,8 +308,9 @@ where
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, Tree<'_, P>>>
     where
+        CD: SliceView<Elem = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
-        C: Into<CoordinationOptions<'bcoord>>,
+        C: Into<CoordinationOptions<CD>>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
@@ -303,7 +319,7 @@ where
         Ok(CorrelatedPoissonRunner {
             controller,
             strategy: Self {
-                random_values,
+                random_values: Some(random_values),
                 order: 0,
                 searcher,
             },
@@ -382,8 +398,9 @@ fn spatial_update_probabilities<P>(
     }
 }
 
-impl<P> CorrelatedPoissonStrategy<Tree<'_, P>> for SpatialStrategy<'_, P>
+impl<CD, P> CorrelatedPoissonStrategy<Tree<'_, P>> for SpatialStrategy<CD, P>
 where
+    CD: SliceView<Elem = f64>,
     P: PointSet<Id = usize>,
 {
     #[must_use]
@@ -392,7 +409,10 @@ where
     where
         R: Rand<f64>,
     {
-        self.random_values.get_or(id, rng)
+        self.random_values
+            .as_ref()
+            .and_then(|rv| rv.get(id))
+            .unwrap_or_else(|| rng.rand())
     }
     #[must_use]
     #[inline]
@@ -408,7 +428,7 @@ where
             return None;
         }
 
-        if self.random_values.is_empty() {
+        if self.random_values.is_none() {
             return controller.indices().draw(rng);
         }
 
@@ -581,9 +601,10 @@ where
     /// Returns an error if fewer than `population_size` random values is provided.
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn cps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn cps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<'bcoord>>;
+        C: Into<CoordinationOptions<CD>>,
+        CD: SliceView<Elem = f64>;
 }
 pub trait SpatiallyCorrelatedPoissonSampling<R>
 where
@@ -629,9 +650,10 @@ where
     ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn scps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<'bcoord>>;
+        C: Into<CoordinationOptions<CD>>,
+        CD: SliceView<Elem = f64>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -658,10 +680,11 @@ where
     #[inline]
     fn cps(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }
     #[inline]
-    fn cps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn cps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         R: FloatRng,
-        C: Into<CoordinationOptions<'bcoord>>,
+        C: Into<CoordinationOptions<CD>>,
+        CD: SliceView<Elem = f64>,
     {
         Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
     }
@@ -676,9 +699,10 @@ where
     #[inline]
     fn scps(&self, rng: &mut R) -> Vec<usize> { SpatialStrategy::new(self).sample(rng) }
     #[inline]
-    fn scps_coord<'bcoord, C>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
+    fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<'bcoord>>,
+        C: Into<CoordinationOptions<CD>>,
+        CD: SliceView<Elem = f64>,
     {
         Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
     }
@@ -688,8 +712,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
     use envisim_utils::random::*;
     use envisim_utils::sampling_options::CoordinationOptions;
     use envisim_utils::test_utils::*;
@@ -699,8 +721,8 @@ mod tests {
     const RV_0: [f64; 10] = [0.0; 10];
     const RV_1: [f64; 10] = [1.0; 10];
 
-    fn coord_0() -> CoordinationOptions<'static> { Cow::from(&RV_0).into() }
-    fn coord_1() -> CoordinationOptions<'static> { Cow::from(&RV_1).into() }
+    fn coord_0() -> CoordinationOptions<[f64; 10]> { RV_0.into() }
+    fn coord_1() -> CoordinationOptions<[f64; 10]> { RV_1.into() }
 
     #[test]
     fn cps_sampler() -> SamplingResult<()> {

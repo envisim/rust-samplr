@@ -116,7 +116,7 @@ pub trait ProbabilitiesSpec {
 pub trait ProbabilitiesView: ProbabilitiesSpec {
     /// Returns a slice of the internal data
     #[must_use]
-    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native];
+    fn data(&self) -> &[<Self as ProbabilitiesSpec>::Native];
 }
 
 /// Probability options for an equal probability design
@@ -270,7 +270,7 @@ where
     PD::Elem: NumberFloat,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.data.data() }
+    fn data(&self) -> &[PD::Elem] { self.data.data() }
 }
 impl<PD> ProbabilitiesView for UnequalProbabilitiesInt<PD>
 where
@@ -278,14 +278,14 @@ where
     PD::Elem: NumberInt,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.data.data() }
+    fn data(&self) -> &[PD::Elem] { self.data.data() }
 }
 impl<PO> ProbabilitiesView for UnequalProbabilities<PO>
 where
     PO: ProbabilitiesView,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.store.as_slice() }
+    fn data(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.store.data() }
 }
 
 impl<PO> ProbabilitiesSpec for UnequalProbabilities<PO>

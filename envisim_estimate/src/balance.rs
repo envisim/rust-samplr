@@ -28,10 +28,6 @@ use crate::utils::ypi_quotient;
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "iterator pass by value is ok"
-)]
 #[inline]
 fn balance_deviation<PROB, DATA>(
     sample: &[usize],
