@@ -33,16 +33,16 @@ use crate::utils::ypi_quotient;
     reason = "iterator pass by value is ok"
 )]
 #[inline]
-fn balance_deviation<I, P>(
+fn balance_deviation<PROB, DATA>(
     sample: &[usize],
-    probabilities: I,
-    data: &P,
+    probabilities: &PROB,
+    data: &DATA,
 ) -> EstimationResult<Vec<f64>>
 where
-    I: ExactSizeIterator<Item = f64> + Clone,
-    P: PointSet<Id = usize, Value = f64>,
+    PROB: ProbabilitiesSpec<Real = f64>,
+    DATA: PointSet<Id = usize, Value = f64>,
 {
-    let population_size = probabilities.len();
+    let population_size = probabilities.population_size().get();
 
     (0..data.dimensions().get())
         .map(|j| {
@@ -55,7 +55,7 @@ where
             let sample_sum: f64 = sample
                 .iter()
                 .map(|&i| {
-                    let p = probabilities.clone().nth(i);
+                    let p = probabilities.nth_real(i);
                     data.get_coord(i, j)
                         .zip(p)
                         .ok_or(EstimationError::InvalidSample)
@@ -92,11 +92,7 @@ where
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    balance_deviation(
-        sample,
-        options.probabilities().iter_real(),
-        options.spreading().data(),
-    )
+    balance_deviation(sample, options.probabilities(), options.spreading().data())
 }
 
 /// Calculates the deviation from the balancing matrix.
@@ -124,11 +120,7 @@ where
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    balance_deviation(
-        sample,
-        options.probabilities().iter_real(),
-        options.balancing().data(),
-    )
+    balance_deviation(sample, options.probabilities(), options.balancing().data())
 }
 
 #[cfg(test)]

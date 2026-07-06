@@ -59,10 +59,10 @@ pub trait ProbabilitiesSpec {
     // fn eps(&self) -> Epsilon<Self::Native> { Epsilon::default() }
     /// Returns an iterator to the probabilities in its native representation.
     #[must_use]
-    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone;
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone;
     /// Returns the probability at `idx`.
     #[must_use]
-    fn nth(&self, idx: usize) -> Self::Native;
+    fn nth(&self, idx: usize) -> Option<Self::Native>;
     /// Returns the probability set
     #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
@@ -93,15 +93,16 @@ pub trait ProbabilitiesSpec {
     /// Returns an iterator to the probabilities in its real-valued representation.
     #[must_use]
     #[inline]
-    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone {
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
         self.iter()
             .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
     }
     /// Returns the probability at `idx`.
     #[must_use]
     #[inline]
-    fn nth_real(&self, idx: usize) -> Self::Real {
-        <Self::Real as NumCast>::from(self.nth(idx)).expect("native -> real") / self.max_real()
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> {
+        self.nth(idx)
+            .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
     }
     /// Returns a probability set with the real-valued representation.
     #[inline]
@@ -165,13 +166,15 @@ impl ProbabilitiesSpec for EqualProbabilities {
     #[inline]
     fn max(&self) -> Self::Native { self.population_size.get() }
     #[inline]
-    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone {
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
         repeat_n(self.sample_size, self.population_size.get())
     }
     #[inline]
-    fn nth(&self, _idx: usize) -> Self::Native { self.sample_size }
+    fn nth(&self, idx: usize) -> Option<Self::Native> {
+        (idx < self.population_size.get()).then_some(self.sample_size)
+    }
     #[inline]
-    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone {
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
         repeat_n(self.as_real(), self.population_size.get())
     }
 }
@@ -298,9 +301,11 @@ where
     #[inline]
     fn max(&self) -> Self::Native { self.store.max() }
     #[inline]
-    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone { self.store.iter() }
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
+        self.store.iter()
+    }
     #[inline]
-    fn nth(&self, idx: usize) -> Self::Native { self.store.nth(idx) }
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.store.nth(idx) }
     #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         self.store.to_probabilityset(eps)
@@ -312,11 +317,11 @@ where
     #[inline]
     fn max_real(&self) -> Self::Real { self.store.max_real() }
     #[inline]
-    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone {
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
         self.store.iter_real()
     }
     #[inline]
-    fn nth_real(&self, idx: usize) -> Self::Real { self.store.nth_real(idx) }
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> { self.store.nth_real(idx) }
     #[inline]
     fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
         self.store.to_probabilityset_real(eps)
@@ -343,11 +348,11 @@ where
     #[inline]
     fn max(&self) -> Self::Native { <Self::Native>::ONE }
     #[inline]
-    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone {
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
         self.data.data().iter().copied()
     }
     #[inline]
-    fn nth(&self, idx: usize) -> Self::Native { self.data.data()[idx] }
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.data.data().get(idx).copied() }
     #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         ProbabilitySet::try_new(self.iter(), self.max(), eps)
@@ -356,9 +361,11 @@ where
     #[inline]
     fn sample_size_real(&self) -> Self::Real { self.iter_real().sum() }
     #[inline]
-    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone { self.iter() }
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        self.iter()
+    }
     #[inline]
-    fn nth_real(&self, idx: usize) -> Self::Real { self.nth(idx) }
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> { self.nth(idx) }
 }
 
 impl<PD> ProbabilitiesSpec for UnequalProbabilitiesInt<PD>
@@ -393,11 +400,11 @@ where
     #[inline]
     fn max(&self) -> Self::Native { self.max }
     #[inline]
-    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone {
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
         self.data.data().iter().copied()
     }
     #[inline]
-    fn nth(&self, idx: usize) -> Self::Native { self.data.data()[idx] }
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.data.data().get(idx).copied() }
     #[inline]
     fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         ProbabilitySet::try_new(self.iter(), self.max(), Epsilon::default())
@@ -413,7 +420,7 @@ where
             / self.population_size_real()
     }
     #[inline]
-    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone {
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
         self.iter()
             .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
     }

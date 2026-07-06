@@ -29,10 +29,7 @@ use envisim_utils::sampling_options::{
     SpreadingOptions,
     UnequalProbabilities,
 };
-use envisim_utils::utils::{
-    Number,
-    PointSet,
-};
+use envisim_utils::utils::PointSet;
 use num_traits::{
     ConstZero,
     ToPrimitive,
@@ -458,8 +455,9 @@ where
             return Ok(f64::NAN);
         }
 
-        let probs: Box<[f64]> = self.probabilities().iter_real().collect();
-        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| probs[id])?;
+        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| {
+            self.probabilities().nth_real(id).expect("id to exist")
+        })?;
         let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
             / sample.len().to_f64().expect("sample len to convert to f64");
 
@@ -475,12 +473,11 @@ where
         let cols = data
             .dimensions()
             .saturating_add(usize::from(balance_probabilities));
-        let probs: Box<[f64]> = self.probabilities().iter_real().collect();
         let voronoi_means = voronoi_means(
             self.spreading(),
             sample,
             |id| {
-                let p = probs[id];
+                let p = self.probabilities().nth_real(id).expect("id to exist");
                 (1.0 - p) / p
             },
             balance_probabilities,

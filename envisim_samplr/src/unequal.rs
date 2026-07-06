@@ -31,7 +31,6 @@ use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SamplingOptionsRng,
 };
-use envisim_utils::utils::Number;
 use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;
@@ -303,13 +302,12 @@ where
     #[inline]
     fn brewer(&self, rng: &mut R) -> SamplingResult<Vec<usize>> {
         let population_size = self.population_size().get();
-        let probabilities: Box<[f64]> = self.probabilities().iter_real().collect();
         let eps = self.eps();
         let mut indices = Indices::new(population_size);
         let mut sample = Sample::new(population_size);
 
         let mut psum: f64 = 0.0;
-        for (i, &p) in probabilities.iter().enumerate().rev() {
+        for (i, p) in self.probabilities().iter_real().enumerate().rev() {
             if eps.is_zero(p) {
             } else if eps.is_zero(1.0 - p) {
                 sample.add(i);
@@ -341,7 +339,7 @@ where
 
             // Set q_probs
             for &id in indices.list() {
-                let p = probabilities[id];
+                let p = self.probabilities().nth_real(id).expect("id to exist");
                 let q = p * (psum - p) / (psum - p * rem_sample_size_f64);
                 q_probs[id] = q;
                 qsum += q;
@@ -363,7 +361,10 @@ where
             indices.remove(a_unit);
             sample.add(a_unit);
             q_probs[a_unit] = 0.0;
-            psum -= probabilities[a_unit];
+            psum -= self
+                .probabilities()
+                .nth_real(a_unit)
+                .expect("a_unit to exist");
             rem_sample_size -= 1;
         }
 
