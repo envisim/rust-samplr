@@ -28,13 +28,13 @@ use num_traits::{
 };
 
 use crate::kd_tree::searcher::WeightCollection;
-use crate::number_traits::{
+use crate::random::Rand;
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
 };
-use crate::random::Rand;
-use crate::sampling_options::Epsilon;
 
 pub trait ProbabilityValue {
     type N: Number;

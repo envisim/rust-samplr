@@ -19,7 +19,7 @@ use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
 use envisim_utils::matrix::{
     Dimensions,
     MatrixBase,
-    RawData,
+    SliceView,
 };
 use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
@@ -86,7 +86,7 @@ pub fn variance<T>(
     probabilities_second_order: &MatrixBase<T>,
 ) -> EstimationResult<f64>
 where
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     let sample_size = y_values.len();
 
@@ -135,7 +135,7 @@ pub fn syg_variance<T>(
     probabilities_second_order: &MatrixBase<T>,
 ) -> EstimationResult<f64>
 where
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     let sample_size = y_values.len();
 

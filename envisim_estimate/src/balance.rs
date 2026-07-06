@@ -18,7 +18,7 @@ use envisim_utils::sampling_options::{
     ProbabilityOptions,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::PointSet;
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;

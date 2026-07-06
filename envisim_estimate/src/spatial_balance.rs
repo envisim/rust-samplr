@@ -20,7 +20,6 @@ use envisim_utils::matrix::{
     Matrix,
     MatrixDims,
     MatrixRef,
-    PointSet,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -29,6 +28,10 @@ use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SpreadingOptions,
     UnequalProbabilityOptions,
+};
+use envisim_utils::utils::{
+    Number,
+    PointSet,
 };
 use num_traits::{
     ConstZero,

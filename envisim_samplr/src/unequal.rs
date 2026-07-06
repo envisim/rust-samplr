@@ -31,6 +31,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SamplingOptionsRng,
 };
+use envisim_utils::utils::Number;
 use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;

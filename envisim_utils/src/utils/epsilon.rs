@@ -18,7 +18,7 @@ use std::fmt::{
     Result as FmtResult,
 };
 
-use crate::number_traits::Number;
+use super::Number;
 use crate::sampling_options::{
     SamplingOptionsError,
     SamplingOptionsResult,
@@ -33,6 +33,7 @@ use crate::sampling_options::{
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone)]
 pub struct Epsilon<N = f64>(N);
+
 impl<N> Epsilon<N> {
     /// Gets the internal epsilon value
     #[must_use]

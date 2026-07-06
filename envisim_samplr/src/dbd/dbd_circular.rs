@@ -16,8 +16,10 @@ use std::num::NonZeroUsize;
 
 pub use config::*;
 use envisim_utils::random::Rand;
-use envisim_utils::sampling_options::Epsilon;
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    Epsilon,
+    PointSet,
+};
 use num_traits::ToPrimitive;
 
 use super::DistributionalDesignOptions;
@@ -32,7 +34,7 @@ mod config {
 
     use std::num::NonZeroUsize;
 
-    use envisim_utils::spatial::PointSet;
+    use envisim_utils::utils::PointSet;
 
     use crate::dbd::energy_distance::EnergyDistance;
     pub use crate::dbd::tc_parameters::{

@@ -28,7 +28,7 @@ pub use rand_core::{
     TryRng,
 };
 
-use crate::number_traits::Number;
+use crate::utils::Number;
 
 pub trait FloatRng: Rng {
     /// Generates the next uniform number in $[0.0, 1.0)$

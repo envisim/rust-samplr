@@ -20,14 +20,18 @@ pub use split::{
     SplitUnit,
 };
 
-use crate::number_traits::Number;
-use crate::spatial::PointSet;
+use crate::utils::{
+    Number,
+    PointSet,
+};
 
 mod split {
     //! Defines a split, and a split with a unit
 
-    use crate::number_traits::Number;
-    use crate::spatial::PointSet;
+    use crate::utils::{
+        Number,
+        PointSet,
+    };
 
     /// Defines a split in a tree [`Branch`].
     #[must_use]

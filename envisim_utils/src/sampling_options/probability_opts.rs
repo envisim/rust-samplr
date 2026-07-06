@@ -31,14 +31,13 @@ use super::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::Epsilon;
-use crate::matrix::RawData;
-use crate::number_traits::{
+use crate::probabilities::ProbabilitySet;
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
 };
-use crate::probabilities::ProbabilitySet;
 
 /// Interface for constructing probability sets from probability options
 pub trait ProbabilityOptions {

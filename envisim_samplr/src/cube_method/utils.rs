@@ -142,7 +142,7 @@ pub fn find_vector_in_null_space(mat: &mut Matrix<f64>) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use envisim_utils::matrix::RawData;
+    use envisim_utils::matrix::SliceView;
     use envisim_utils::test_utils::*;
 
     use super::*;

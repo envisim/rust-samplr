@@ -58,7 +58,7 @@ mod dbd_trait {
         SamplingOptionsRng,
         SpreadingOptions,
     };
-    use envisim_utils::spatial::PointSet;
+    use envisim_utils::utils::PointSet;
     use num_traits::ToPrimitive;
 
     use super::annealing::AnnealingDistributionalDesign;

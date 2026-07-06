@@ -28,7 +28,7 @@ use num_traits::{
     NumCast,
 };
 
-use crate::Epsilon;
+use super::Epsilon;
 
 /// An extension of [`num_traits::NumAssign`]
 pub trait Number:

@@ -31,7 +31,6 @@
 //! Environmetrics, 35(2), e2832.
 //! <https://doi.org/10.1002/env.2832>
 
-use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::WeightedSearcher;
 use envisim_utils::kd_tree::searcher::neighbour::WeightedNeighbour;
@@ -53,7 +52,10 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    Number,
+    PointSet,
+};
 use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;

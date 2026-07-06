@@ -18,13 +18,15 @@ use std::num::NonZeroUsize;
 pub use config::*;
 use envisim_utils::random::Rand;
 use envisim_utils::sampling_options::{
-    Epsilon,
     EqualProbabilityOptions,
     SamplingOptions,
     SamplingOptionsRng,
     UnequalProbabilityOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    Epsilon,
+    PointSet,
+};
 
 use super::DistributionalDesignOptions;
 use super::annealing::{
@@ -42,7 +44,7 @@ mod config {
         Dimensions,
         MatrixBase,
     };
-    use envisim_utils::spatial::PointSet;
+    use envisim_utils::utils::PointSet;
 
     use crate::dbd::energy_distance::EnergyDistance;
     pub use crate::dbd::tc_parameters::{

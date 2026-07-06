@@ -12,13 +12,13 @@
 
 //! Runners and base traits for pivotal methods
 
-use envisim_utils::Number;
 use envisim_utils::indices::Pair;
 use envisim_utils::random::Rand;
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
+use envisim_utils::utils::Number;
 
 pub trait PivotalStrategy<PROB, TREE> {
     fn select_pair<R>(

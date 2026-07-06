@@ -15,11 +15,7 @@ use std::num::NonZeroUsize;
 use num_traits::Signed;
 
 use crate::indices::Indices;
-use crate::kd_tree::{
-    PointSet,
-    Tree,
-};
-use crate::number_traits::Number;
+use crate::kd_tree::Tree;
 use crate::probabilities::{
     Probability,
     ProbabilitySet,
@@ -27,6 +23,10 @@ use crate::probabilities::{
 use crate::random::Rand;
 use crate::sample::Sample;
 use crate::sampling_options::SpreadingOptions;
+use crate::utils::{
+    Number,
+    PointSet,
+};
 
 /// A controller used in sampling designs
 #[must_use]
