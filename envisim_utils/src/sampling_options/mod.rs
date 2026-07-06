@@ -25,20 +25,17 @@ pub use error::{
     SamplingOptionsResult,
 };
 pub use probability_opts::{
-    EqualProbabilityOptions,
-    IntUnequalProbabilityOptions,
-    ProbabilityOptions,
-    RealUnequalProbabilityOptions,
-    UnequalProbabilityOptions,
-    UnequalProbabilityOptionsAccess,
+    EqualProbabilities,
+    ProbabilitiesSpec,
+    ProbabilitiesView,
+    UnequalProbabilities,
+    UnequalProbabilitiesInt,
+    UnequalProbabilitiesReal,
 };
 pub use spreading_opts::SpreadingOptions;
 
 use crate::kd_tree::Tree;
-use crate::matrix::{
-    Dimensions,
-    RawData,
-};
+use crate::matrix::Dimensions;
 use crate::probabilities::ProbabilitySet;
 use crate::random::{
     FloatRng,
@@ -51,16 +48,17 @@ use crate::utils::{
     NumberFloat,
     NumberInt,
     PointSet,
+    SliceView,
 };
 
 pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
 }
 impl<PO, R> SamplingOptionsRng<PO> for R
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
     R: FloatRng + Rand<PO::Native> + Rand<PO::Real>,
 {
 }
@@ -71,7 +69,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SamplingOptions<PO, AUX = (), BAL = ()>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     /// Probability specification
     probabilities: PO,
@@ -88,7 +86,7 @@ where
 // ACCESSORS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     /// Returns a reference to the provided probability specification
     #[inline]
@@ -111,14 +109,14 @@ where
 }
 impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     pub fn spreading(&self) -> &SpreadingOptions<AUXP> { &self.spreading }
 }
 impl<PO, AUX, BALP> SamplingOptions<PO, AUX, BalancingOptions<BALP>>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     pub fn balancing(&self) -> &BalancingOptions<BALP> { &self.balancing }
@@ -127,7 +125,7 @@ where
 // SETTERS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     /// Sets the epsilon value, a value to be used for float comparisons.
     ///
@@ -210,7 +208,7 @@ where
 // BUILDERS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     /// Constructs a [`ProbabilitySet`] from the probability specification
     #[inline]
@@ -237,7 +235,7 @@ where
 }
 impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
     AUXP: PointSet<Id = usize>,
 {
     /// Constructs a [`SampleController`] containing a KD-tree from the probability specification.
@@ -260,15 +258,15 @@ where
 /// Default maximum iterations value
 const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible");
 
-impl<UPO> SamplingOptions<UnequalProbabilityOptions<UPO>>
+impl<UPO> SamplingOptions<UnequalProbabilities<UPO>>
 where
-    UPO: ProbabilityOptions,
+    UPO: ProbabilitiesSpec,
 {
     /// Initializes `SamplingOptions` with unequal probability options
     #[inline]
     pub fn with_spec(
-        spec: UnequalProbabilityOptions<UPO>,
-    ) -> SamplingOptions<UnequalProbabilityOptions<UPO>, (), ()> {
+        spec: UnequalProbabilities<UPO>,
+    ) -> SamplingOptions<UnequalProbabilities<UPO>, (), ()> {
         SamplingOptions {
             probabilities: spec,
             eps: Epsilon::<UPO::Real>::default(),
@@ -278,9 +276,9 @@ where
         }
     }
 }
-impl<PD> SamplingOptions<UnequalProbabilityOptions<RealUnequalProbabilityOptions<PD>>>
+impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesReal<PD>>>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberFloat,
 {
     /// Initializes `SamplingOptions` by some probability container.
@@ -289,13 +287,13 @@ where
     /// If `probabilities` cannot be turned into [`ProbabilitySpecUnequal`].
     #[inline]
     pub fn new(probabilities: PD) -> SamplingOptionsResult<Self> {
-        let spec = UnequalProbabilityOptions::new(probabilities)?;
+        let spec = UnequalProbabilities::new(probabilities)?;
         Ok(Self::with_spec(spec))
     }
 }
-impl<PD> SamplingOptions<UnequalProbabilityOptions<IntUnequalProbabilityOptions<PD>>>
+impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesInt<PD>>>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberInt,
 {
     /// Initializes `SamplingOptions` by some probability container.
@@ -307,12 +305,12 @@ where
         if !max.is_pos_finite() {
             return Err(SamplingOptionsError::InvalidProbability);
         }
-        let spec = UnequalProbabilityOptions::new_int(probabilities, max)?;
+        let spec = UnequalProbabilities::new_int(probabilities, max)?;
         Ok(Self::with_spec(spec))
     }
 }
 
-impl SamplingOptions<EqualProbabilityOptions> {
+impl SamplingOptions<EqualProbabilities> {
     /// Initializes `SamplingOptions` by some `population_size`, `sample_size` pair.
     ///
     /// # Errors
@@ -322,7 +320,7 @@ impl SamplingOptions<EqualProbabilityOptions> {
     where
         NZ: TryInto<NonZeroUsize>,
     {
-        let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
+        let spec = EqualProbabilities::new(population_size, sample_size)?;
         Ok(Self::with_spec_equal(spec))
     }
     /// Initializes `SamplingOptions` with spreading `data` and an equal probability specification
@@ -335,14 +333,14 @@ impl SamplingOptions<EqualProbabilityOptions> {
     pub fn with_spreading<AUXP, I>(
         data: I,
         sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilityOptions, SpreadingOptions<AUXP>, ()>>
+    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilities, SpreadingOptions<AUXP>, ()>>
     where
         AUXP: PointSet,
         I: Into<SpreadingOptions<AUXP>>,
     {
         let data = data.into();
         let population_size = data.data().len();
-        let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
+        let spec = EqualProbabilities::new(population_size, sample_size)?;
         Ok(SamplingOptions {
             probabilities: spec,
             eps: Epsilon::<f64>::default(),
@@ -361,14 +359,14 @@ impl SamplingOptions<EqualProbabilityOptions> {
     pub fn with_balancing<BALP, I>(
         data: I,
         sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilityOptions, (), BalancingOptions<BALP>>>
+    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilities, (), BalancingOptions<BALP>>>
     where
         BALP: Dimensions,
         I: Into<BalancingOptions<BALP>>,
     {
         let data = data.into();
         let population_size = data.data().nrow();
-        let spec = EqualProbabilityOptions::new(population_size, sample_size)?;
+        let spec = EqualProbabilities::new(population_size, sample_size)?;
         Ok(SamplingOptions {
             probabilities: spec,
             eps: Epsilon::<f64>::default(),
@@ -380,8 +378,8 @@ impl SamplingOptions<EqualProbabilityOptions> {
     /// Initializes `SamplingOptions` with equal probability options
     #[inline]
     pub fn with_spec_equal(
-        spec: EqualProbabilityOptions,
-    ) -> SamplingOptions<EqualProbabilityOptions, (), ()> {
+        spec: EqualProbabilities,
+    ) -> SamplingOptions<EqualProbabilities, (), ()> {
         SamplingOptions {
             probabilities: spec,
             eps: Epsilon::<f64>::default(),

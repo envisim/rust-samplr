@@ -37,10 +37,11 @@ use crate::utils::{
     Number,
     NumberFloat,
     NumberInt,
+    SliceView,
 };
 
 /// Interface for constructing probability sets from probability options
-pub trait ProbabilityOptions {
+pub trait ProbabilitiesSpec {
     /// The native representation of the probabilities
     type Native: Number;
     /// The real-valued representation of the probabilities
@@ -59,6 +60,9 @@ pub trait ProbabilityOptions {
     /// Returns an iterator to the probabilities in its native representation.
     #[must_use]
     fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone;
+    /// Returns the probability at `idx`.
+    #[must_use]
+    fn nth(&self, idx: usize) -> Self::Native;
     /// Returns the probability set
     #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
@@ -93,6 +97,12 @@ pub trait ProbabilityOptions {
         self.iter()
             .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
     }
+    /// Returns the probability at `idx`.
+    #[must_use]
+    #[inline]
+    fn nth_real(&self, idx: usize) -> Self::Real {
+        <Self::Real as NumCast>::from(self.nth(idx)).expect("native -> real") / self.max_real()
+    }
     /// Returns a probability set with the real-valued representation.
     #[inline]
     fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
@@ -101,15 +111,22 @@ pub trait ProbabilityOptions {
     }
 }
 
+/// Access the internal data of a probabilities specification
+pub trait ProbabilitiesView: ProbabilitiesSpec {
+    /// Returns a slice of the internal data
+    #[must_use]
+    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native];
+}
+
 /// Probability options for an equal probability design
 #[must_use]
-pub struct EqualProbabilityOptions {
+pub struct EqualProbabilities {
     /// Population size
     population_size: NonZeroUsize,
     /// Sample size
     sample_size: usize,
 }
-impl EqualProbabilityOptions {
+impl EqualProbabilities {
     /// Constructs a new equal probability specification
     ///
     /// # Errors
@@ -138,7 +155,7 @@ impl EqualProbabilityOptions {
     #[inline]
     pub fn as_real(&self) -> f64 { self.sample_size_real() / self.population_size_real() }
 }
-impl ProbabilityOptions for EqualProbabilityOptions {
+impl ProbabilitiesSpec for EqualProbabilities {
     type Native = usize;
     type Real = f64;
     #[inline]
@@ -152,24 +169,26 @@ impl ProbabilityOptions for EqualProbabilityOptions {
         repeat_n(self.sample_size, self.population_size.get())
     }
     #[inline]
+    fn nth(&self, _idx: usize) -> Self::Native { self.sample_size }
+    #[inline]
     fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone {
         repeat_n(self.as_real(), self.population_size.get())
     }
 }
 
 /// Stores real-valued probabilities in some slice format
-pub struct RealUnequalProbabilityOptions<PD>
+pub struct UnequalProbabilitiesReal<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberFloat,
 {
     /// Slicy data
     data: PD,
 }
 /// Stores integer-valued probabilities in some slice format
-pub struct IntUnequalProbabilityOptions<PD>
+pub struct UnequalProbabilitiesInt<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberInt,
 {
     /// Slicy data
@@ -178,20 +197,14 @@ where
     max: PD::Elem,
 }
 
-/// Access the internal data of an unequal probability options
-pub trait UnequalProbabilityOptionsAccess: ProbabilityOptions {
-    /// Returns a slice of the internal data
-    #[must_use]
-    fn as_slice(&self) -> &[<Self as ProbabilityOptions>::Native];
-}
 /// Stores unequal probability options data
-pub struct UnequalProbabilityOptions<PO> {
+pub struct UnequalProbabilities<PO> {
     /// Store
     store: PO,
 }
-impl<PD> UnequalProbabilityOptions<RealUnequalProbabilityOptions<PD>>
+impl<PD> UnequalProbabilities<UnequalProbabilitiesReal<PD>>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberFloat,
 {
     /// Constructs a new unequal probability specification
@@ -211,15 +224,15 @@ where
             return Err(SamplingOptionsError::InvalidProbability);
         }
         Ok(Self {
-            store: RealUnequalProbabilityOptions {
+            store: UnequalProbabilitiesReal {
                 data: probabilities,
             },
         })
     }
 }
-impl<PD> UnequalProbabilityOptions<IntUnequalProbabilityOptions<PD>>
+impl<PD> UnequalProbabilities<UnequalProbabilitiesInt<PD>>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberInt,
 {
     /// Constructs a new unequal probability specification
@@ -240,7 +253,7 @@ where
             return Err(SamplingOptionsError::InvalidProbability);
         }
         Ok(Self {
-            store: IntUnequalProbabilityOptions {
+            store: UnequalProbabilitiesInt {
                 data: probabilities,
                 max,
             },
@@ -248,33 +261,33 @@ where
     }
 }
 
-impl<PD> UnequalProbabilityOptionsAccess for RealUnequalProbabilityOptions<PD>
+impl<PD> ProbabilitiesView for UnequalProbabilitiesReal<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberFloat,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilityOptions>::Native] { self.data.data() }
+    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.data.data() }
 }
-impl<PD> UnequalProbabilityOptionsAccess for IntUnequalProbabilityOptions<PD>
+impl<PD> ProbabilitiesView for UnequalProbabilitiesInt<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberInt,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilityOptions>::Native] { self.data.data() }
+    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.data.data() }
 }
-impl<PO> UnequalProbabilityOptionsAccess for UnequalProbabilityOptions<PO>
+impl<PO> ProbabilitiesView for UnequalProbabilities<PO>
 where
-    PO: UnequalProbabilityOptionsAccess,
+    PO: ProbabilitiesView,
 {
     #[inline]
-    fn as_slice(&self) -> &[<Self as ProbabilityOptions>::Native] { self.store.as_slice() }
+    fn as_slice(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.store.as_slice() }
 }
 
-impl<PO> ProbabilityOptions for UnequalProbabilityOptions<PO>
+impl<PO> ProbabilitiesSpec for UnequalProbabilities<PO>
 where
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     type Native = PO::Native;
     type Real = PO::Real;
@@ -286,6 +299,8 @@ where
     fn max(&self) -> Self::Native { self.store.max() }
     #[inline]
     fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone { self.store.iter() }
+    #[inline]
+    fn nth(&self, idx: usize) -> Self::Native { self.store.nth(idx) }
     #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         self.store.to_probabilityset(eps)
@@ -301,13 +316,15 @@ where
         self.store.iter_real()
     }
     #[inline]
+    fn nth_real(&self, idx: usize) -> Self::Real { self.store.nth_real(idx) }
+    #[inline]
     fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
         self.store.to_probabilityset_real(eps)
     }
 }
-impl<PD> ProbabilityOptions for RealUnequalProbabilityOptions<PD>
+impl<PD> ProbabilitiesSpec for UnequalProbabilitiesReal<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberFloat,
 {
     type Native = PD::Elem;
@@ -330,6 +347,8 @@ where
         self.data.data().iter().copied()
     }
     #[inline]
+    fn nth(&self, idx: usize) -> Self::Native { self.data.data()[idx] }
+    #[inline]
     fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         ProbabilitySet::try_new(self.iter(), self.max(), eps)
             .expect("ProbabilitySet to be constructable")
@@ -338,11 +357,13 @@ where
     fn sample_size_real(&self) -> Self::Real { self.iter_real().sum() }
     #[inline]
     fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + Clone { self.iter() }
+    #[inline]
+    fn nth_real(&self, idx: usize) -> Self::Real { self.nth(idx) }
 }
 
-impl<PD> ProbabilityOptions for IntUnequalProbabilityOptions<PD>
+impl<PD> ProbabilitiesSpec for UnequalProbabilitiesInt<PD>
 where
-    PD: RawData,
+    PD: SliceView,
     PD::Elem: NumberInt,
 {
     type Native = PD::Elem;
@@ -375,6 +396,8 @@ where
     fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + Clone {
         self.data.data().iter().copied()
     }
+    #[inline]
+    fn nth(&self, idx: usize) -> Self::Native { self.data.data()[idx] }
     #[inline]
     fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
         ProbabilitySet::try_new(self.iter(), self.max(), Epsilon::default())

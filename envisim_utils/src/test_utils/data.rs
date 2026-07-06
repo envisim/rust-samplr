@@ -2,11 +2,11 @@ pub use crate::matrix::Dimensions;
 use crate::matrix::MatrixRef;
 use crate::sampling_options::{
     BalancingOptions,
-    EqualProbabilityOptions,
-    RealUnequalProbabilityOptions,
+    EqualProbabilities,
     SamplingOptions,
     SpreadingOptions,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
+    UnequalProbabilitiesReal,
 };
 
 // DISTS:
@@ -55,11 +55,11 @@ impl Data10 {
     ];
 
     #[inline]
-    pub fn prob_u() -> UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>> {
-        UnequalProbabilityOptions::new(Self::PROB_U.as_slice()).unwrap()
+    pub fn prob_u() -> UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>> {
+        UnequalProbabilities::new(Self::PROB_U.as_slice()).unwrap()
     }
     #[inline]
-    pub fn prob_e() -> EqualProbabilityOptions { EqualProbabilityOptions::new(10, 2).unwrap() }
+    pub fn prob_e() -> EqualProbabilities { EqualProbabilities::new(10, 2).unwrap() }
     #[inline]
     pub fn matrix() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::DATA_2, 10).unwrap() }
     #[inline]
@@ -70,7 +70,7 @@ impl Data10 {
     pub fn bmatrix_ep() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_EP1, 10).unwrap() }
     #[inline]
     pub fn options_u() -> SamplingOptions<
-        UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>>,
+        UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>>,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {
@@ -82,7 +82,7 @@ impl Data10 {
     }
     #[inline]
     pub fn options_e() -> SamplingOptions<
-        EqualProbabilityOptions,
+        EqualProbabilities,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {

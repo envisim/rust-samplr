@@ -48,7 +48,7 @@ use envisim_utils::sample_controller::{
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     CoordinationOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptionsRng,
     SpreadingOptions,
 };
@@ -154,7 +154,7 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> CorrelatedPoissonRunner<Self, ()>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
     {
         let controller = options.to_controller_real();
         CorrelatedPoissonRunner {
@@ -175,7 +175,7 @@ impl<'bcoord> SequentialStrategy<'bcoord> {
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, ()>>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         C: Into<CoordinationOptions<'bcoord>>,
     {
         let controller = options.to_controller_real();
@@ -270,7 +270,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> CorrelatedPoissonRunner<Self, Tree<'_, P>>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
@@ -293,7 +293,7 @@ where
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, Tree<'_, P>>>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         C: Into<CoordinationOptions<'bcoord>>,
     {
         let controller = options.to_spreading_controller_real();
@@ -453,7 +453,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> CorrelatedPoissonRunner<Self, Tree<'_, P>>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
@@ -653,7 +653,7 @@ where
 impl<R, PO, AUX, BAL> CorrelatedPoissonSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
     fn cps(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }
@@ -670,7 +670,7 @@ impl<R, PO, P, BAL> SpatiallyCorrelatedPoissonSampling<R>
     for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
 {
     #[inline]

@@ -23,11 +23,11 @@ use envisim_utils::matrix::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    EqualProbabilityOptions,
-    ProbabilityOptions,
+    EqualProbabilities,
+    ProbabilitiesSpec,
     SamplingOptionsError,
     SpreadingOptions,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
 };
 use envisim_utils::utils::{
     Number,
@@ -377,8 +377,7 @@ where
     fn energy_distance(&self, sample: &[P::Id]) -> P::Value;
 }
 
-impl<P, BAL> SpatialBalance<P>
-    for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
+impl<P, BAL> SpatialBalance<P> for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
 where
     P: PointSet<Value = f64>,
 {
@@ -448,9 +447,9 @@ where
 }
 
 impl<UPO, P, BAL> SpatialBalance<P>
-    for SamplingOptions<UnequalProbabilityOptions<UPO>, SpreadingOptions<P>, BAL>
+    for SamplingOptions<UnequalProbabilities<UPO>, SpreadingOptions<P>, BAL>
 where
-    UPO: ProbabilityOptions<Real = f64>,
+    UPO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
     #[inline]

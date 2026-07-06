@@ -1,8 +1,8 @@
 use envisim_samplr::{
-    ProbabilityOptions,
-    RealUnequalProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
+    UnequalProbabilitiesReal,
 };
 use envisim_utils::matrix::Matrix;
 use envisim_utils::random::*;
@@ -13,11 +13,11 @@ fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
 #[allow(dead_code)]
 pub fn matrix_big_balanced() -> (
-    UnequalProbabilityOptions<RealUnequalProbabilityOptions<&'static [f64]>>,
+    UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>>,
     Matrix<f64>,
 ) {
     const P_VEC: [f64; 1000] = [0.1; 1000];
-    let spec = UnequalProbabilityOptions::new(P_VEC.as_ref()).unwrap();
+    let spec = UnequalProbabilities::new(P_VEC.as_ref()).unwrap();
 
     let mut b_vec: Vec<f64> = Vec::with_capacity(2000);
     b_vec.extend_from_slice(&P_VEC);
@@ -66,7 +66,7 @@ pub fn test_wor<F, PO, SOP, BOP>(
     runs: usize,
 ) where
     F: FnMut(&mut SmallRng) -> Vec<usize>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
     let sample_size = options.sample_size();
@@ -113,7 +113,7 @@ pub fn test_wor_random_n<F, PO, SOP, BOP>(
     runs: usize,
 ) where
     F: FnMut(&mut SmallRng) -> Vec<usize>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     let mut sel: Vec<usize> = vec![0; options.population_size().get()];
 

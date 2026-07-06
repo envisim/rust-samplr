@@ -20,11 +20,11 @@ use envisim_utils::random::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    EqualProbabilityOptions,
-    ProbabilityOptions,
+    EqualProbabilities,
+    ProbabilitiesSpec,
+    ProbabilitiesView,
     SamplingOptionsRng,
-    UnequalProbabilityOptions,
-    UnequalProbabilityOptionsAccess,
+    UnequalProbabilities,
 };
 use num_traits::ConstZero;
 
@@ -34,11 +34,7 @@ use crate::utils::shuffled_indices;
 /// Draws a systematic sample from the provided order using equal probabilities
 #[must_use]
 #[inline]
-fn from_order_equal<R>(
-    rng: &mut R,
-    options: &EqualProbabilityOptions,
-    order: &[usize],
-) -> Vec<usize>
+fn from_order_equal<R>(rng: &mut R, options: &EqualProbabilities, order: &[usize]) -> Vec<usize>
 where
     R: Rand<usize>,
 {
@@ -63,18 +59,18 @@ where
 #[inline]
 fn from_order<R, UPO>(
     rng: &mut R,
-    options: &UnequalProbabilityOptions<UPO>,
+    options: &UnequalProbabilities<UPO>,
     order: &[usize],
 ) -> Vec<usize>
 where
-    UPO: UnequalProbabilityOptionsAccess,
+    UPO: ProbabilitiesView,
     R: Rand<UPO::Native>,
 {
     let probs = options.as_slice();
     let pmax = options.max();
     let mut sample = Vec::<usize>::with_capacity(options.sample_size());
     let mut r = rng.rand_to(pmax);
-    let mut psum = <UPO as ProbabilityOptions>::Native::ZERO;
+    let mut psum = <UPO as ProbabilitiesSpec>::Native::ZERO;
 
     for &id in order {
         let pnext = psum + probs[id];
@@ -120,9 +116,9 @@ where
     /// ```
     fn systematic_random_order(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<R, AUX, BAL> SystematicSampling<R> for SamplingOptions<EqualProbabilityOptions, AUX, BAL>
+impl<R, AUX, BAL> SystematicSampling<R> for SamplingOptions<EqualProbabilities, AUX, BAL>
 where
-    R: SamplingOptionsRng<EqualProbabilityOptions>,
+    R: SamplingOptionsRng<EqualProbabilities>,
 {
     #[inline]
     fn systematic(&self, rng: &mut R) -> Vec<usize> {
@@ -138,10 +134,10 @@ where
     }
 }
 impl<R, UPO, AUX, BAL> SystematicSampling<R>
-    for SamplingOptions<UnequalProbabilityOptions<UPO>, AUX, BAL>
+    for SamplingOptions<UnequalProbabilities<UPO>, AUX, BAL>
 where
     R: SamplingOptionsRng<UPO>,
-    UPO: UnequalProbabilityOptionsAccess,
+    UPO: ProbabilitiesView,
 {
     #[inline]
     fn systematic(&self, rng: &mut R) -> Vec<usize> {

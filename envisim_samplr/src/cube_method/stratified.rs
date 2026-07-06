@@ -33,7 +33,7 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
@@ -84,7 +84,7 @@ where
         strata_vec: &'bopts [STRATA],
     ) -> SamplingResult<Self>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         R: Rand<usize>,
         T: SliceView<Elem = f64>,
     {
@@ -350,7 +350,7 @@ pub fn cube_stratified<R, PO, AUX, T, STRATA>(
 ) -> SamplingResult<Vec<usize>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
@@ -399,7 +399,7 @@ pub fn local_cube_stratified<R, PO, P, T, STRATA>(
 ) -> SamplingResult<Vec<usize>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
     T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,

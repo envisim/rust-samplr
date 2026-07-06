@@ -29,7 +29,7 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
@@ -87,7 +87,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -182,7 +182,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -302,7 +302,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -410,7 +410,7 @@ where
 impl<R, PO, P, BAL> LocalPivotalSampling<R> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
     P: PointSet<Id = usize>,
 {
     #[inline]
@@ -467,7 +467,7 @@ pub fn hierarchical_lpm_2<R, PO, P, BAL>(
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
 {
     // Check validity of probabilities and sizes

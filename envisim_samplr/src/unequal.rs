@@ -27,7 +27,7 @@ use envisim_utils::random::{
 use envisim_utils::sample::Sample;
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptionsError,
     SamplingOptionsRng,
 };
@@ -168,7 +168,7 @@ where
 impl<R, PO, AUX, BAL> UnequalProbabilitySampling<R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
     fn with_replacement(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<usize>> {

@@ -19,7 +19,7 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
 };
@@ -38,7 +38,7 @@ impl SequentialStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -67,7 +67,7 @@ impl RandomStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -145,7 +145,7 @@ where
 impl<R, PO, AUX, BAL> PivotalSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     fn spm(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }

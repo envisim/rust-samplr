@@ -15,7 +15,7 @@
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SpreadingOptions,
 };
 use envisim_utils::utils::PointSet;
@@ -89,7 +89,7 @@ pub fn balance_deviation_spreading<PO, P, BAL>(
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
     balance_deviation(
@@ -121,7 +121,7 @@ pub fn balance_deviation_balancing<PO, AUX, P>(
     options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
     balance_deviation(
