@@ -32,7 +32,7 @@ pub trait PointSet {
     fn len(&self) -> NonZeroUsize;
     /// Iterator over point ids
     #[must_use]
-    fn ids(&self) -> impl Iterator<Item = Self::Id>;
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + DoubleEndedIterator;
     /// Dimensions of point
     #[must_use]
     fn dimensions(&self) -> NonZeroUsize;
@@ -51,12 +51,18 @@ pub trait PointSet {
     /// Returns an iterator over the coords of `id`.
     #[must_use]
     #[inline]
-    fn coords(&self, id: Self::Id) -> impl ExactSizeIterator<Item = &Self::Value> {
+    fn coords(
+        &self,
+        id: Self::Id,
+    ) -> impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator {
         self.get_coords(id).expect("valid id")
     }
     /// Returns an iterator over the coords of `id`, or `None` if `id` does not exist.
     #[must_use]
-    fn get_coords(&self, id: Self::Id) -> Option<impl ExactSizeIterator<Item = &Self::Value>>;
+    fn get_coords(
+        &self,
+        id: Self::Id,
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator>;
     /// Returns the squared distance between `id` and `point`.
     #[must_use]
     #[inline]
@@ -124,7 +130,9 @@ where
     #[inline]
     fn len(&self) -> NonZeroUsize { (**self).len() }
     #[inline]
-    fn ids(&self) -> impl Iterator<Item = Self::Id> { (**self).ids() }
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + DoubleEndedIterator {
+        (**self).ids()
+    }
     #[inline]
     fn dimensions(&self) -> NonZeroUsize { (**self).dimensions() }
     #[inline]
@@ -136,11 +144,17 @@ where
         (**self).get_coord(id, dim)
     }
     #[inline]
-    fn coords(&self, id: Self::Id) -> impl ExactSizeIterator<Item = &Self::Value> {
+    fn coords(
+        &self,
+        id: Self::Id,
+    ) -> impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator {
         (**self).coords(id)
     }
     #[inline]
-    fn get_coords(&self, id: Self::Id) -> Option<impl ExactSizeIterator<Item = &Self::Value>> {
+    fn get_coords(
+        &self,
+        id: Self::Id,
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator> {
         (**self).get_coords(id)
     }
     #[inline]
