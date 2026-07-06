@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - For searchers in `kd_tree::searcher`, renamed `from_slice`, `set_from_slice`, `reset_from_slice` to `_point`. These methods now accepts iterators instead of slices.
 - Matrix storage: Removed `OwnedMatrixData` and `BorrowedMatrixData`. Implemented `SliceView` and `SliceViewMut` for array-like types in `std`.
 - Moved utility exports to `utils`.
+- `Matrix` and `PointSet` iterators satisfy `ExactSizeIterator + DoubleEndedIterator + Clone`.
+- Renamed `CoordinationOptions` as `CoordinationRandomValues`, and made it generic over `SliceView` containers.
+- Renamed `ProbabilityOptions` as `ProbabilitiesSpec`, and refactored the trait. Renamed `EqualProbabilityOptions` as `EqualProbabilities`. Renamed `UnequalProbabilityOptions` as `UnequalProbabilities`, and refactored it, using two different representations for real-valued and integer-valued probabilityspecifications.
+- Added `std::iter::Sum` as a supertrait of `Number`.
+- Individual implementations of `ProbabilitySet` replaced in favor of generic `try_new`.
 
 ### Removed
 - Removed second (ergonomic) generic for data type in `Matrix`. Defaulted to `SliceView::Elem`, now derived from the same.
