@@ -24,13 +24,15 @@ use neighbour::{
 use num_traits::ConstZero;
 
 use super::Tree;
-use crate::number_traits::Number;
-use crate::spatial::PointSet;
+use crate::utils::{
+    Number,
+    PointSet,
+};
 
 pub mod neighbour {
     use std::cmp::Ordering;
 
-    use crate::number_traits::Number;
+    use crate::utils::Number;
 
     /// A neighbouring unit, some squared euclidean distance away
     ///

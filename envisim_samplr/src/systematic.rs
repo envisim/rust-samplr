@@ -14,7 +14,6 @@
 //!
 //! Implements [`SystematicSampling`] for [`SamplingOptions`].
 
-use envisim_utils::Number;
 use envisim_utils::random::{
     Rand,
     Rng,
@@ -26,6 +25,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     UnequalProbabilityOptions,
 };
+use envisim_utils::utils::Number;
 
 pub use crate::error::SamplingError;
 use crate::utils::shuffled_indices;

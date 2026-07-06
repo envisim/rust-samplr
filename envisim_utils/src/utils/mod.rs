@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Wilmer Prentius.
+// Copyright (C) 2026 Wilmer Prentius.
 //
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -10,18 +10,22 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions for envisim
+//! Small utility functions
 
-pub mod indices;
-pub mod kd_tree;
-pub mod matrix;
-pub mod pips;
-pub mod probabilities;
-pub mod random;
-pub mod sample;
-pub mod sample_controller;
-pub mod sampling_options;
-pub mod utils;
+mod epsilon;
+mod number_traits;
+mod slice_view;
+mod spatial;
+pub mod summary_statistics;
 
-#[cfg(any(test, feature = "test-utils"))]
-pub mod test_utils;
+pub use epsilon::Epsilon;
+pub use number_traits::{
+    Number,
+    NumberFloat,
+    NumberInt,
+};
+pub use slice_view::{
+    SliceView,
+    SliceViewMut,
+};
+pub use spatial::PointSet;

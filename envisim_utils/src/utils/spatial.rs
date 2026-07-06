@@ -18,7 +18,7 @@ use std::num::NonZeroUsize;
 
 use num_traits::ConstZero;
 
-use crate::number_traits::Number;
+use super::Number;
 
 /// Methods for accessing containers of points in some coordinate system.
 /// The container must not be empty.

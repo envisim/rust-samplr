@@ -19,7 +19,6 @@
 //! A user’s guide to Pareto pi-ps sampling. R & D Report 2000:6.
 //! Stockholm: Statistiska Centralbyrån.
 
-use envisim_utils::Number;
 use envisim_utils::indices::Indices;
 use envisim_utils::random::{
     Rand,
@@ -33,6 +32,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     UnequalProbabilityOptions,
 };
+use envisim_utils::utils::Number;
 use num_traits::ToPrimitive;
 
 pub use crate::error::SamplingError;

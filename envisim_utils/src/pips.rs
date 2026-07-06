@@ -22,7 +22,7 @@ use crate::probabilities::{
     ProbabilitySet,
     RealProbabilityValue,
 };
-use crate::sampling_options::Epsilon;
+use crate::utils::Epsilon;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.

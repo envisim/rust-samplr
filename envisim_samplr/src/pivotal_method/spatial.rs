@@ -13,13 +13,10 @@
 //! Spatial pivotal methods
 
 use envisim_utils::indices::Pair;
+use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     NearestNeighbourSearcher,
     NeighbourSlice,
-};
-use envisim_utils::kd_tree::{
-    PointSet,
-    Tree,
 };
 use envisim_utils::probabilities::{
     Probability,
@@ -37,6 +34,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     SpreadingOptions,
 };
+use envisim_utils::utils::PointSet;
 use num_traits::ToPrimitive;
 use rustc_hash::FxHashSet;
 

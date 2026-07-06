@@ -14,7 +14,7 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::PointSet;
 use num_traits::ToPrimitive;
 
 /// Energy distance engine (or n-energy distance)

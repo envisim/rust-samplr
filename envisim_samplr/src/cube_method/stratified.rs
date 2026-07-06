@@ -23,7 +23,6 @@ use envisim_utils::matrix::{
     MatrixBase,
     MatrixDims,
     MatrixRef,
-    RawData,
 };
 use envisim_utils::random::{
     FloatRng,
@@ -40,7 +39,10 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    PointSet,
+    SliceView,
+};
 use rustc_hash::FxSeededState;
 
 use super::cube::{
@@ -85,7 +87,7 @@ where
     where
         PO: ProbabilityOptions<Real = f64>,
         R: Rand<usize>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
         let org_probabilities = options.probabilities().to_slice_real();
         let balancing_data = options.balancing().data().to_matrixref();
@@ -350,7 +352,7 @@ pub fn cube_stratified<R, PO, AUX, T, STRATA>(
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_controller_real();
@@ -400,7 +402,7 @@ where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
     P: PointSet<Id = usize>,
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_spreading_controller_real();

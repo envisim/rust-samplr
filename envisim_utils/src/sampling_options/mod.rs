@@ -35,7 +35,6 @@ pub use probability_opts::{
 };
 pub use spreading_opts::SpreadingOptions;
 
-pub use crate::Epsilon;
 use crate::kd_tree::Tree;
 use crate::matrix::Dimensions;
 use crate::probabilities::ProbabilitySet;
@@ -44,10 +43,11 @@ use crate::random::{
     Rand,
 };
 use crate::sample_controller::SampleController;
-use crate::spatial::PointSet;
-use crate::{
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
+    PointSet,
 };
 
 pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>

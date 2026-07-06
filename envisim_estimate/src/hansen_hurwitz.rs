@@ -15,7 +15,7 @@
 use envisim_utils::matrix::{
     Dimensions,
     MatrixBase,
-    RawData,
+    SliceView,
 };
 
 pub use crate::error::EstimationError;
@@ -75,7 +75,7 @@ pub fn variance<T>(
     expected_second_order: &MatrixBase<T>,
 ) -> EstimationResult<f64>
 where
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     let sample_size = y_values.len();
 

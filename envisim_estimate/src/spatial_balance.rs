@@ -14,14 +14,12 @@
 
 use std::iter::once;
 
-use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
 use envisim_utils::matrix::{
     Matrix,
     MatrixDims,
     MatrixRef,
-    PointSet,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -30,6 +28,10 @@ use envisim_utils::sampling_options::{
     SamplingOptionsError,
     SpreadingOptions,
     UnequalProbabilityOptions,
+};
+use envisim_utils::utils::{
+    Number,
+    PointSet,
 };
 use num_traits::{
     ConstZero,
