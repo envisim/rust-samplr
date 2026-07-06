@@ -13,10 +13,8 @@
 //! Matrix utils
 
 use envisim_samplr::SpreadingOptions;
-use envisim_utils::matrix::{
-    MatrixBase,
-    SliceView,
-};
+use envisim_utils::matrix::MatrixBase;
+use envisim_utils::utils::SliceView;
 use savvy::{
     RealSexp,
     savvy_err,
@@ -29,13 +27,16 @@ use crate::utils::{
 
 /// Wrapper for matrix data
 pub struct RMatrixData(RealSexp);
-/// Type alias for `Matrix` using
+
+/// Type alias for `Matrix` using `RMatrixData`.
 pub type RMatrix = MatrixBase<RMatrixData>;
+
 impl SliceView for RMatrixData {
     type Elem = f64;
     #[inline]
     fn data(&self) -> &[Self::Elem] { self.0.as_slice() }
 }
+
 impl RMatrixData {
     /// Constructs a `RMatrix` from `RealSexp`
     #[inline]
