@@ -22,12 +22,12 @@ use crate::utils::SliceView;
 
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct CoordinationOptions<CD> {
+pub struct CoordinationRandomValues<CD> {
     /// Random value data
     data: CD,
 }
 
-impl<CD> CoordinationOptions<CD> {
+impl<CD> CoordinationRandomValues<CD> {
     /// Constructs a new random value container
     #[inline]
     pub fn new(data: CD) -> Self { Self { data } }
@@ -67,7 +67,7 @@ impl<CD> CoordinationOptions<CD> {
     }
 }
 
-impl<CD> From<CD> for CoordinationOptions<CD>
+impl<CD> From<CD> for CoordinationRandomValues<CD>
 where
     CD: SliceView,
 {

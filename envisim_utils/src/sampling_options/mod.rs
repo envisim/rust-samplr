@@ -19,7 +19,7 @@ mod spreading_opts;
 use std::num::NonZeroUsize;
 
 pub use balancing_opts::BalancingOptions;
-pub use coordination_opts::CoordinationOptions;
+pub use coordination_opts::CoordinationRandomValues;
 pub use error::{
     SamplingOptionsError,
     SamplingOptionsResult,

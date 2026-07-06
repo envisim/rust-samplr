@@ -47,7 +47,7 @@ use envisim_utils::sample_controller::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    CoordinationOptions,
+    CoordinationRandomValues,
     ProbabilitiesSpec,
     SamplingOptionsRng,
     SpreadingOptions,
@@ -144,7 +144,7 @@ where
 #[must_use]
 pub struct SequentialStrategy<CD> {
     /// Random values to be used
-    random_values: Option<CoordinationOptions<CD>>,
+    random_values: Option<CoordinationRandomValues<CD>>,
     /// Selected unit, used to control the decision order if random values were provided
     unit: usize,
 }
@@ -180,7 +180,7 @@ impl<CD> SequentialStrategy<CD> {
     where
         CD: SliceView<Elem = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
     {
         let controller = options.to_controller_real();
         let random_values = random_values.into();
@@ -263,7 +263,7 @@ where
     P: PointSet,
 {
     /// Sample controller
-    random_values: Option<CoordinationOptions<CD>>,
+    random_values: Option<CoordinationRandomValues<CD>>,
     /// Order is used together with `random_values`, in order to ensure that the selection order is
     /// the same. If no random values (no coordination), the order is random.
     order: usize,
@@ -310,7 +310,7 @@ where
     where
         CD: SliceView<Elem = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = WeightedSearcher::new(controller.tree().data());
@@ -603,7 +603,7 @@ where
     /// Returns an error if fewer than `population_size` random values is provided.
     fn cps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
         CD: SliceView<Elem = f64>;
 }
 pub trait SpatiallyCorrelatedPoissonSampling<R>
@@ -652,7 +652,7 @@ where
     /// Returns an error if fewer than `population_size` random values is provided.
     fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
         CD: SliceView<Elem = f64>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
@@ -683,7 +683,7 @@ where
     fn cps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         R: FloatRng,
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
         CD: SliceView<Elem = f64>,
     {
         Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
@@ -701,7 +701,7 @@ where
     #[inline]
     fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
-        C: Into<CoordinationOptions<CD>>,
+        C: Into<CoordinationRandomValues<CD>>,
         CD: SliceView<Elem = f64>,
     {
         Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
@@ -713,7 +713,7 @@ where
 #[cfg(test)]
 mod tests {
     use envisim_utils::random::*;
-    use envisim_utils::sampling_options::CoordinationOptions;
+    use envisim_utils::sampling_options::CoordinationRandomValues;
     use envisim_utils::test_utils::*;
 
     use super::*;
@@ -721,8 +721,8 @@ mod tests {
     const RV_0: [f64; 10] = [0.0; 10];
     const RV_1: [f64; 10] = [1.0; 10];
 
-    fn coord_0() -> CoordinationOptions<[f64; 10]> { RV_0.into() }
-    fn coord_1() -> CoordinationOptions<[f64; 10]> { RV_1.into() }
+    fn coord_0() -> CoordinationRandomValues<[f64; 10]> { RV_0.into() }
+    fn coord_1() -> CoordinationRandomValues<[f64; 10]> { RV_1.into() }
 
     #[test]
     fn cps_sampler() -> SamplingResult<()> {
