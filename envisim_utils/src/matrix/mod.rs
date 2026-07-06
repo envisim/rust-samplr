@@ -16,7 +16,6 @@
 //! Both are derived from [`MatrixBase`].
 
 mod dims;
-mod raw_data;
 
 use std::num::NonZeroUsize;
 use std::ops::{
@@ -34,10 +33,6 @@ use num_traits::{
     ConstZero,
     Float,
 };
-pub use raw_data::{
-    RawData,
-    RawDataMut,
-};
 
 use crate::number_traits::{
     Number,
@@ -45,6 +40,10 @@ use crate::number_traits::{
 };
 use crate::sampling_options::Epsilon;
 pub use crate::spatial::PointSet;
+pub use crate::utils::{
+    SliceView,
+    SliceViewMut,
+};
 
 /// Base matrix representation
 #[must_use]
@@ -67,7 +66,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn new<NZ>(data: T, rows: NZ) -> Option<Self>
     where
-        T: RawData,
+        T: SliceView,
         NZ: TryInto<NonZeroUsize>,
     {
         let rows = rows.try_into().ok()?;
@@ -78,7 +77,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn from_value<D>(value: T::Elem, dims: D) -> Self
     where
-        T: RawData + From<Vec<T::Elem>>,
+        T: SliceView + From<Vec<T::Elem>>,
         T::Elem: Copy,
         D: Into<MatrixDims>,
     {
@@ -93,7 +92,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
     where
-        T: RawData + From<Vec<T::Elem>>,
+        T: SliceView + From<Vec<T::Elem>>,
         T::Elem: ConstZero + ConstOne + Copy,
         NZ: TryInto<NonZeroUsize>,
     {
@@ -112,7 +111,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn to_matrixref(&self) -> MatrixRef<'_, T::Elem>
     where
-        T: RawData,
+        T: SliceView,
     {
         MatrixRef {
             data: self.data.data(),
@@ -123,7 +122,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn to_matrix(&self) -> Matrix<T::Elem>
     where
-        T: RawData,
+        T: SliceView,
         T::Elem: Copy,
     {
         Matrix {
@@ -141,7 +140,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn get<C>(&self, coord: C) -> Option<&T::Elem>
     where
-        T: RawData,
+        T: SliceView,
         C: Into<MatrixCoord>,
     {
         let coord = coord.into();
@@ -153,7 +152,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut T::Elem>
     where
-        T: RawDataMut,
+        T: SliceViewMut,
         C: Into<MatrixCoord>,
     {
         let coord = coord.into();
@@ -163,7 +162,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn swap<CA, CB>(&mut self, coord_a: CA, coord_b: CB) -> Option<()>
     where
-        T: RawDataMut,
+        T: SliceViewMut,
         T::Elem: Copy,
         CA: Into<MatrixCoord>,
         CB: Into<MatrixCoord>,
@@ -179,7 +178,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn row_iter(&self, row: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
     where
-        T: RawData,
+        T: SliceView,
     {
         let nrow = self.nrow().get();
         self.dims()
@@ -195,7 +194,7 @@ impl<T> MatrixBase<T> {
         row: usize,
     ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
     where
-        T: RawDataMut,
+        T: SliceViewMut,
     {
         let nrow = self.nrow().get();
         self.dims()
@@ -208,7 +207,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn col_iter(&self, col: usize) -> Option<impl ExactSizeIterator<Item = &T::Elem> + Clone>
     where
-        T: RawData,
+        T: SliceView,
     {
         let nrow = self.nrow().get();
         let start = nrow * col;
@@ -225,7 +224,7 @@ impl<T> MatrixBase<T> {
         col: usize,
     ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem>>
     where
-        T: RawDataMut,
+        T: SliceViewMut,
     {
         let nrow = self.nrow().get();
         let start = nrow * col;
@@ -240,7 +239,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn mul_vec(&self, rhs: &[T::Elem]) -> Option<Matrix<T::Elem>>
     where
-        T: RawData,
+        T: SliceView,
         T::Elem: Number,
     {
         if self.ncol().get() != rhs.len() {
@@ -263,9 +262,9 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2>) -> Option<Matrix<T::Elem>>
     where
-        T: RawData,
+        T: SliceView,
         T::Elem: Number,
-        T2: RawData<Elem = T::Elem>,
+        T2: SliceView<Elem = T::Elem>,
     {
         if self.ncol() != rhs.nrow() {
             return None;
@@ -291,7 +290,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn inverse<E>(&self, eps: E) -> Option<Matrix<T::Elem>>
     where
-        T: RawData,
+        T: SliceView,
         T::Elem: NumberFloat,
         E: TryInto<Epsilon<T::Elem>>,
     {
@@ -384,7 +383,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn reduced_row_echelon_form(&mut self)
     where
-        T: RawDataMut,
+        T: SliceViewMut,
         T::Elem: NumberFloat,
     {
         let dims = self.dims();
@@ -481,7 +480,7 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn lu_decomposition<E>(&mut self, eps: E) -> Option<Box<[usize]>>
     where
-        T: RawDataMut,
+        T: SliceViewMut,
         T::Elem: NumberFloat,
         E: TryInto<Epsilon<T::Elem>>,
     {
@@ -570,7 +569,7 @@ impl<T> Dimensions for MatrixBase<T> {
 
 impl<T, I> Index<I> for MatrixBase<T>
 where
-    T: RawData,
+    T: SliceView,
     I: Into<MatrixCoord>,
 {
     type Output = T::Elem;
@@ -585,7 +584,7 @@ where
 }
 impl<T, I> IndexMut<I> for MatrixBase<T>
 where
-    T: RawDataMut,
+    T: SliceViewMut,
     I: Into<MatrixCoord>,
 {
     #[inline]
@@ -597,7 +596,7 @@ where
 
 impl<T> From<&MatrixBase<T>> for Matrix<T::Elem>
 where
-    T: RawData,
+    T: SliceView,
     T::Elem: Copy,
 {
     #[inline]
@@ -605,7 +604,7 @@ where
 }
 impl<'bdata, T> From<&'bdata MatrixBase<T>> for MatrixRef<'bdata, T::Elem>
 where
-    T: RawData,
+    T: SliceView,
 {
     #[inline]
     fn from(matrix: &'bdata MatrixBase<T>) -> Self { matrix.to_matrixref() }
@@ -613,7 +612,7 @@ where
 
 impl<T> PointSet for MatrixBase<T>
 where
-    T: RawData,
+    T: SliceView,
     T::Elem: Number,
 {
     type Value = T::Elem;

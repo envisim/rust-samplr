@@ -5,7 +5,7 @@ pub use data::*;
 pub use crate::epsilon::Epsilon;
 pub use crate::matrix::{
     MatrixBase,
-    RawData,
+    SliceView,
 };
 pub use crate::number_traits::{
     Number,

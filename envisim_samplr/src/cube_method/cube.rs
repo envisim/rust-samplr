@@ -27,7 +27,7 @@ use envisim_utils::matrix::{
     Matrix,
     MatrixBase,
     MatrixDims,
-    RawData,
+    SliceView,
 };
 use envisim_utils::random::{
     FloatRng,
@@ -183,7 +183,7 @@ where
     ) -> Self
     where
         PO: ProbabilityOptions<Real = f64>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
         let balancing_data = options.balancing().data();
         let b_dims = balancing_data.dims();
@@ -285,7 +285,7 @@ impl SequentialCubeStrategy {
     ) -> CubeRunner<Self, ()>
     where
         PO: ProbabilityOptions<Real = f64>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
         let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
@@ -332,7 +332,7 @@ impl RandomCubeStrategy {
     ) -> CubeRunner<Self, ()>
     where
         PO: ProbabilityOptions<Real = f64>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
         let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
@@ -393,7 +393,7 @@ where
     ) -> CubeRunner<Self, Tree<'btree, P>>
     where
         PO: ProbabilityOptions<Real = f64>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = KNearestNeighbourSearcher::new(
@@ -579,7 +579,7 @@ impl<R, PO, AUX, T> CubeSampling<R> for SamplingOptions<PO, AUX, BalancingOption
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     #[inline]
     fn cube(&self, rng: &mut R) -> Vec<usize> { RandomCubeStrategy::new(self).sample(rng) }
@@ -594,7 +594,7 @@ where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilityOptions<Real = f64>,
     P: PointSet<Id = usize>,
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     #[inline]
     fn local_cube(&self, rng: &mut R) -> Vec<usize> { LocalCubeStrategy::new(self).sample(rng) }

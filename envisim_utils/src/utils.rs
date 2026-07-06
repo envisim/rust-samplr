@@ -13,6 +13,10 @@
 //! Small utility functions
 
 use num_traits::ToPrimitive;
+pub use slice_view::{
+    SliceView,
+    SliceViewMut,
+};
 
 /// Calculates the mean of a vector.
 /// Panics if the length of the vector is larger than [`u32::MAX`].
@@ -51,3 +55,97 @@ pub fn variance(vec: &[f64]) -> f64 {
 #[must_use]
 #[inline]
 pub fn standard_deviance(vec: &[f64]) -> f64 { variance(vec).sqrt() }
+
+mod slice_view {
+    //! Views for sliceables
+    //!
+    //! Mirroring `AsRef` and `AsMut`, but using associated type.
+
+    use std::borrow::Cow;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
+    /// Data container trait
+    pub trait SliceView {
+        type Elem;
+        /// Returns a reference (view) to the internal data.
+        #[must_use]
+        fn data(&self) -> &[Self::Elem];
+    }
+    /// Mutable data container trait
+    pub trait SliceViewMut: SliceView {
+        /// Returns a mutable reference to the internal data.
+        #[must_use]
+        fn data_mut(&mut self) -> &mut [Self::Elem];
+    }
+
+    // View containers
+    impl<N, const L: usize> SliceView for [N; L] {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for &[N] {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for &mut [N] {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for Vec<N> {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for Box<[N]> {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for Cow<'_, [N]>
+    where
+        N: Clone,
+    {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for Rc<[N]> {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+    impl<N> SliceView for Arc<[N]> {
+        type Elem = N;
+        #[inline]
+        fn data(&self) -> &[Self::Elem] { self }
+    }
+
+    // Mutable containers
+    impl<N, const L: usize> SliceViewMut for [N; L] {
+        #[inline]
+        fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+    }
+    impl<N> SliceViewMut for &mut [N] {
+        #[inline]
+        fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+    }
+    impl<N> SliceViewMut for Vec<N> {
+        #[inline]
+        fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+    }
+    impl<N> SliceViewMut for Box<[N]> {
+        #[inline]
+        fn data_mut(&mut self) -> &mut [Self::Elem] { self }
+    }
+    impl<N> SliceViewMut for Cow<'_, [N]>
+    where
+        N: Clone,
+    {
+        #[inline]
+        fn data_mut(&mut self) -> &mut [Self::Elem] { self.to_mut() }
+    }
+}
