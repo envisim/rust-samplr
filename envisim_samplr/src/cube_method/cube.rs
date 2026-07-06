@@ -14,20 +14,16 @@
 
 use std::num::NonZeroUsize;
 
+use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     KNearestNeighbourSearcher,
     NeighbourSlice,
-};
-use envisim_utils::kd_tree::{
-    PointSet,
-    Tree,
 };
 use envisim_utils::matrix::{
     Dimensions,
     Matrix,
     MatrixBase,
     MatrixDims,
-    SliceView,
 };
 use envisim_utils::random::{
     FloatRng,
@@ -45,6 +41,10 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
+};
+use envisim_utils::utils::{
+    PointSet,
+    SliceView,
 };
 
 use super::utils::{

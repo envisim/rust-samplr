@@ -30,7 +30,7 @@ use split_methods::{
     Split,
 };
 
-pub use crate::spatial::PointSet;
+pub use crate::utils::PointSet;
 
 /// Tree construction trait
 ///

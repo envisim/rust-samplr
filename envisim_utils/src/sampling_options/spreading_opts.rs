@@ -20,10 +20,10 @@ use super::{
 };
 use crate::kd_tree::split_methods::MidpointSlide;
 use crate::kd_tree::{
-    PointSet,
     Tree,
     TreeConfig,
 };
+use crate::utils::PointSet;
 
 #[must_use]
 #[derive(Clone, Debug)]

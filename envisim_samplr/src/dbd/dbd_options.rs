@@ -12,7 +12,7 @@
 
 //! Distributionally balanced design options
 
-use envisim_utils::Epsilon;
+use envisim_utils::utils::Epsilon;
 
 use super::annealing::AnnealingTemperature;
 use crate::{

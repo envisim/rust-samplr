@@ -23,7 +23,6 @@ use envisim_utils::matrix::{
     MatrixBase,
     MatrixDims,
     MatrixRef,
-    SliceView,
 };
 use envisim_utils::random::{
     FloatRng,
@@ -40,7 +39,10 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    PointSet,
+    SliceView,
+};
 use rustc_hash::FxSeededState;
 
 use super::cube::{

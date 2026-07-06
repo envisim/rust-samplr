@@ -15,7 +15,7 @@
 use envisim_samplr::SpreadingOptions;
 use envisim_utils::matrix::{
     MatrixBase,
-    RawData,
+    SliceView,
 };
 use savvy::{
     RealSexp,
@@ -31,7 +31,7 @@ use crate::utils::{
 pub struct RMatrixData(RealSexp);
 /// Type alias for `Matrix` using
 pub type RMatrix = MatrixBase<RMatrixData>;
-impl RawData for RMatrixData {
+impl SliceView for RMatrixData {
     type Elem = f64;
     #[inline]
     fn data(&self) -> &[Self::Elem] { self.0.as_slice() }

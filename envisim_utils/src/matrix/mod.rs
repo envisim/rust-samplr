@@ -34,13 +34,13 @@ use num_traits::{
     Float,
 };
 
-use crate::number_traits::{
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
 };
-use crate::sampling_options::Epsilon;
-pub use crate::spatial::PointSet;
 pub use crate::utils::{
+    PointSet,
     SliceView,
     SliceViewMut,
 };

@@ -27,12 +27,12 @@ use super::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::Epsilon;
-use crate::number_traits::{
+use crate::probabilities::ProbabilitySet;
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
 };
-use crate::probabilities::ProbabilitySet;
 
 /// Interface for constructing probability sets from probability options
 pub trait ProbabilityOptions {

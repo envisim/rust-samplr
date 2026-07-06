@@ -2,15 +2,13 @@ mod data;
 
 pub use data::*;
 
-pub use crate::epsilon::Epsilon;
-pub use crate::matrix::{
-    MatrixBase,
-    SliceView,
-};
-pub use crate::number_traits::{
+pub use crate::matrix::MatrixBase;
+pub use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
+    SliceView,
 };
 
 /// Helper for NonZeroUsize
