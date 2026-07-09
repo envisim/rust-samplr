@@ -12,6 +12,7 @@ crate-type = ["staticlib", "lib"]
 [dependencies]
 num-traits = "0.2.19"
 savvy = "0.9.4"
+savvy-ffi = "0.9.4"
 # envisim_estimate = {version="0.6.0"}
 # envisim_samplr = {version="0.7.0"}
 # envisim_utils = {version="0.6.0", default-features=false}
