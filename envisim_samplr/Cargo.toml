@@ -21,6 +21,7 @@ envisim_utils = {version="0.6.0", path="../envisim_utils", default-features=fals
 num-integer = "0.1.46"
 num-traits = "0.2.19"
 rustc-hash = "2.1.1"
+thiserror = "2.0.18"
 
 [dev-dependencies]
 envisim_utils = {path="../envisim_utils", default-features=false, features=["rand", "test-utils"]}

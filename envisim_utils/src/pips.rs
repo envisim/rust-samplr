@@ -15,8 +15,8 @@
 use std::iter::repeat_n;
 
 use num_traits::ToPrimitive;
+use thiserror::Error;
 
-pub use self::error::PipsError;
 use crate::probabilities::{
     Probability,
     ProbabilitySet,
@@ -119,29 +119,13 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     Ok(pips)
 }
 
-mod error {
-    //! Pips errors
-
-    #[non_exhaustive]
-    #[derive(Debug)]
-    pub enum PipsError {
-        InvalidAuxiliary,
-        NoAuxiliaries,
-    }
-    #[expect(clippy::absolute_paths, reason = "possible override")]
-    impl std::error::Error for PipsError {}
-    #[expect(clippy::absolute_paths, reason = "possible override")]
-    impl std::fmt::Display for PipsError {
-        #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
-        #[inline]
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            use PipsError::*;
-            match *self {
-                InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
-                NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
-            }
-        }
-    }
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum PipsError {
+    #[error("auxiliaries must be positive")]
+    InvalidAuxiliary,
+    #[error("slice contains no auxiliaries")]
+    NoAuxiliaries,
 }
 
 #[cfg(test)]

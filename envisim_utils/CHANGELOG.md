@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Added dependency [`thiserror`](https://crates.io/crates/thiserror).
+
 ### Added
 - Methods `SamplingOptions::with_spreading` and `with_balancing` for equal probability sampling, setting the population size from the provided data.
 - Added `Matrix::swap`, for swapping two elements in a `Matrix`.
@@ -35,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2026-05-25
 - MSRV: 1.85.1
-- Added dependency [`num-traits`](https://crates.io/crates/num-integer).
+- Added dependency [`num-integer`](https://crates.io/crates/num-integer).
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
 - Added dependency [`rand_core`](https://crates.io/crates/rand_core).
 - Bumped optional dependency [`rand`](https://crates.io/crates/rand) to 0.10.1.
