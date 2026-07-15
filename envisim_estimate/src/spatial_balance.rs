@@ -15,7 +15,10 @@
 use std::iter::once;
 
 use envisim_utils::kd_tree::Tree;
-use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
+use envisim_utils::kd_tree::searcher::{
+    NearestNeighbourSearcher,
+    NeighbourView,
+};
 use envisim_utils::matrix::{
     Matrix,
     MatrixDims,
@@ -64,7 +67,7 @@ where
             .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec());
+    let tree = Tree::new(opts, &mut sample.to_vec())?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
     for id in data.ids() {
@@ -73,7 +76,7 @@ where
             continue;
         }
 
-        searcher.reset_from_point(data.get_coords(id).expect("id to exist in data by iter"));
+        searcher.reset_from_point(data.coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = prob(id)
@@ -85,7 +88,7 @@ where
 
         for n in searcher.neighbours() {
             *pi_sums
-                .get_mut(&n.id())
+                .get_mut(n.id())
                 .expect("neighbours to exist amongst means") += share;
         }
     }
@@ -113,15 +116,26 @@ where
         FxHashMap::<P::Id, Box<[P::Value]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     for &id in sample {
+        if !data.contains(id) {
+            return Err(EstimationError::InvalidSample);
+        }
         let p_factor = prob(id);
         let id_mean: Box<[f64]> = if balance_probabilities {
             (0..data_cols)
-                .map(|k| p_factor * data.coord(id, k))
+                .map(|k| {
+                    p_factor *
+                     // SAFETY: id an k guaranteed to be in set
+                     unsafe {data.coord_unchecked(id, k)}
+                })
                 .chain(once(p_factor))
                 .collect()
         } else {
             (0..data_cols)
-                .map(|k| p_factor * data.coord(id, k))
+                .map(|k| {
+                    p_factor *
+                     // SAFETY: id an k guaranteed to be in set
+                     unsafe {data.coord_unchecked(id, k)}
+                })
                 .collect()
         };
         means
@@ -129,7 +143,7 @@ where
             .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec());
+    let tree = Tree::new(opts, &mut sample.to_vec())?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
     for id in data.ids() {
@@ -138,7 +152,7 @@ where
             continue;
         }
 
-        searcher.reset_from_point(data.get_coords(id).expect("id to exist in data by iter"));
+        searcher.reset_from_point(data.coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = searcher
@@ -149,11 +163,12 @@ where
 
         for &n in searcher.neighbours() {
             let mean = means
-                .get_mut(&n.id())
+                .get_mut(n.id())
                 .expect("neighbours to exist amongst means");
 
             for (j, m) in mean.iter_mut().enumerate().take(data_cols) {
-                *m -= data.coord(id, j) / share;
+                // SAFETY: id and j guaranteed to be in set
+                *m -= unsafe { data.coord_unchecked(id, j) } / share;
             }
 
             if balance_probabilities {
@@ -183,7 +198,8 @@ where
         }
 
         for i in 0..data_cols {
-            let vi = data.coord(id, i);
+            // SAFETY: id and i guaranteed to be in set
+            let vi = unsafe { *data.coord_unchecked(id, i) };
             norm_matrix[(i, i)] += vi.powi(2);
 
             if balance_probabilities {
@@ -192,7 +208,8 @@ where
             }
 
             for j in 0..i {
-                let v = vi * data.coord(id, j);
+                // SAFETY: id and i guaranteed to be in set
+                let v = vi * unsafe { *data.coord_unchecked(id, j) };
                 norm_matrix[(i, j)] += v;
                 norm_matrix[(j, i)] += v;
             }
@@ -215,7 +232,10 @@ where
     for (i, id1) in matrix.ids().enumerate() {
         let mut phi1 = <P::Value as ConstZero>::ZERO;
         for id2 in matrix.ids().take(i) {
-            let dist = matrix.sq_distance_between(id1, id2).sqrt();
+            let dist = matrix
+                .sq_distance_between(id1, id2)
+                .expect("id1 and id2 to exist in matrix")
+                .sqrt();
             phi1 += dist;
             *phi.get_mut(&id2).expect("id2 to exist in map") += dist;
         }
@@ -257,7 +277,10 @@ where
         let mut phi1 = <P::Value as ConstZero>::ZERO;
 
         for id2 in 0..id1 {
-            let dist = matrix.sq_distance_between(id1, id2).sqrt();
+            let dist = matrix
+                .sq_distance_between(id1, id2)
+                .expect("id1 and id2 to exist in data")
+                .sqrt();
             phi1 += dist * probs[id2];
             *phi.get_mut(&id2).expect("id2 to exist in map") += dist * probs[id1];
         }
@@ -297,7 +320,10 @@ where
 
         // Iterate over 0..i
         for id2 in sample.iter().take(i) {
-            let dist = matrix.sq_distance_between(*id1, *id2).sqrt();
+            let dist = matrix
+                .sq_distance_between(*id1, *id2)
+                .expect("id1 and id2 to exist in data")
+                .sqrt();
             s_spread += 2.0 * dist;
         }
     }
@@ -307,6 +333,7 @@ where
     inter_spread * 2.0 - s_spread
 }
 
+/// Provides methods for calculating the spatial balance of a sample
 pub trait SpatialBalance<P>
 where
     P: PointSet,

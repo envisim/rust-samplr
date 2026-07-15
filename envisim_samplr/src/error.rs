@@ -14,6 +14,7 @@
 
 use std::num::NonZeroUsize;
 
+use envisim_utils::kd_tree::TreeError;
 use envisim_utils::sampling_options::SamplingOptionsError;
 use thiserror::Error;
 
@@ -21,22 +22,34 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SamplingError {
+    /// Error derived from [`SamplingOptions`]
     #[error("SamplingOptionsError: {0}")]
     Options(#[from] SamplingOptionsError),
-    // max iterations reached
+    /// Error derived from [`Tree`]
+    #[error("TreeError: {0}")]
+    Tree(#[from] TreeError),
+    /// Max iterations reached
     #[error("max iterations ({0}) reached")]
     MaxIterations(NonZeroUsize),
+    /// Invalid stratification
     #[error("invalid stratification")]
     IncorrectStratification,
+    /// Draw probabilities must sum nominally to 1
     #[error("draw probabilities must sum nominally to 1.0")]
     IncorrectDrawProbabilities,
+    /// Probabilities must sum to a nominal integer value
     #[error("probabilities must sum to a nominal integer value")]
     IncorrectProbabilitiesIntegerSum,
+    /// Annealing temperatures must be positive
     #[error("annealing temperature must be positive")]
     IncorrectAnnealingTemperature,
+    /// Anneling temperature cooling rate must be in (0.0, 1.0)
     #[error("annealing temperature cooling rate must be in (0.0, 1.0)")]
     IncorrectAnnealingRate,
+    /// Sample size must be positive
     #[error("sample size must be positive")]
     ZeroSampleSize,
 }
+
+/// An alias for an `Result` returning a [`SamplingError`].
 pub type SamplingResult<T> = Result<T, SamplingError>;

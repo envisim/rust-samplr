@@ -25,6 +25,7 @@ use crate::kd_tree::{
 };
 use crate::utils::PointSet;
 
+/// Spreading options
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct SpreadingOptions<P> {
@@ -34,11 +35,14 @@ pub struct SpreadingOptions<P> {
     bucket_size: NonZeroUsize,
 }
 impl<P> SpreadingOptions<P> {
+    /// Returns a reference to the provided data
     #[inline]
     pub fn data(&self) -> &P { &self.data }
+    /// Returns the set bucket size
     #[must_use]
     #[inline]
     pub fn bucket_size(&self) -> NonZeroUsize { self.bucket_size }
+    /// Constructs a new options object
     #[inline]
     pub fn new(data: P) -> Self
     where
@@ -79,13 +83,15 @@ impl<P> SpreadingOptions<P> {
         };
         NonZeroUsize::new(bucket_size).expect("infallible")
     }
+    /// Constructs a tree from the options.
+    #[expect(clippy::missing_panics_doc, reason = "data must contain its own units")]
     #[inline]
     pub fn to_tree(&self) -> Tree<'_, P>
     where
         P: PointSet,
     {
         let mut units: Vec<P::Id> = self.data.ids().collect();
-        Tree::new(self, &mut units)
+        Tree::new(self, &mut units).expect("data to contain units collected from the data")
     }
 }
 

@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Sample controller, utility function for sampling algorithms.
+
 use std::num::NonZeroUsize;
 
 use num_traits::Signed;
@@ -28,7 +30,8 @@ use crate::utils::{
     PointSet,
 };
 
-/// A controller used in sampling designs
+/// A controller enabing algorithms to keep track of conditional probabilities, units, the sample
+/// and some auxiliary information.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct SampleController<PROB, TREE = ()> {
@@ -58,6 +61,7 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     /// Returns a reference to the sample
     #[inline]
     pub fn sample(&self) -> &Sample { &self.sample }
+    /// Returns a mutable reference to the sample
     #[inline]
     pub fn sample_mut(&mut self) -> &mut Sample { &mut self.sample }
     /// Moves self and returns the sorted vector of sample indices
@@ -218,6 +222,7 @@ impl<PROB> SampleController<PROB, ()> {
             tree: (),
         }
     }
+    /// Removes a unit from the controller
     #[inline]
     pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
 }
@@ -226,6 +231,8 @@ impl<'bspread, PROB, P> SampleController<PROB, Tree<'bspread, P>>
 where
     P: PointSet<Id = usize>,
 {
+    /// Constructs a new `SampleController` with a tree.
+    #[expect(clippy::missing_panics_doc, reason = "units are based on self indices")]
     #[inline]
     pub fn new_spreading(
         probabilities: ProbabilitySet<PROB>,
@@ -233,7 +240,7 @@ where
     ) -> Self {
         let base_controller = SampleController::new(probabilities);
         let mut units = base_controller.indices.to_vec();
-        let tree = Tree::new(spreading, &mut units);
+        let tree = Tree::new(spreading, &mut units).expect("units based on indices to exist");
         Self {
             probabilities: base_controller.probabilities,
             indices: base_controller.indices,
@@ -241,18 +248,18 @@ where
             tree,
         }
     }
+    /// Returns a reference to the tree
     #[inline]
     pub fn tree(&self) -> &Tree<'bspread, P> { &self.tree }
+    /// Returns a mutable reference to the tree
     #[inline]
     pub fn tree_mut(&mut self) -> &mut Tree<'bspread, P> { &mut self.tree }
-    #[inline]
-    pub fn reset_tree(&mut self, spreading: &'bspread SpreadingOptions<P>, units: &mut [usize]) {
-        self.tree = Tree::new(spreading, units);
-    }
+    /// Removes a unit from the controller
     #[inline]
     pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
 }
 
+/// Trait for sample controllers that can remove a unit
 pub trait UnitRemoving {
     /// Returns `true` if `idx` was present and removed, `false` if `idx` wasn't found.
     fn unit_remove(&mut self, idx: usize) -> bool;
@@ -267,7 +274,8 @@ where
 {
     #[inline]
     fn unit_remove(&mut self, idx: usize) -> bool {
-        self.tree.remove_unit(idx);
+        // Removing a non-existing unit seems like a bug, but should be caught by indices remove
+        let _res = self.tree.remove_unit(idx);
         self.indices.remove(idx)
     }
 }

@@ -16,15 +16,15 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::num::NonZeroUsize;
 
-use num_traits::ConstZero;
-
 use super::Number;
 
 /// Methods for accessing containers of points in some coordinate system.
 /// The container must not be empty.
 #[expect(clippy::len_without_is_empty, reason = "cannot be empty")]
 pub trait PointSet {
+    /// The type of the identifiers
     type Id: Sized + Eq + Hash + Ord + Copy + Debug;
+    /// The type of the values
     type Value: Number;
 
     /// Number of points in set
@@ -32,141 +32,172 @@ pub trait PointSet {
     fn len(&self) -> NonZeroUsize;
     /// Iterator over point ids
     #[must_use]
-    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + DoubleEndedIterator;
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone;
     /// Dimensions of point
     #[must_use]
     fn dimensions(&self) -> NonZeroUsize;
     /// Returns true of point id exists
     #[must_use]
     fn contains(&self, id: Self::Id) -> bool;
-    /// Returns the dimension value of point `id`
-    #[must_use]
-    #[inline]
-    fn coord(&self, id: Self::Id, dim: usize) -> Self::Value {
-        self.get_coord(id, dim).expect("valid id and dim")
-    }
     /// Returns the dimension value of point `id`, or `None` if `id` does not exist.
     #[must_use]
-    fn get_coord(&self, id: Self::Id, dim: usize) -> Option<Self::Value>;
-    /// Returns an iterator over the coords of `id`.
+    fn coord(&self, id: Self::Id, dim: usize) -> Option<&Self::Value>;
+    /// Returns the dimension value of point `id`
+    /// # Safety
+    /// The `id` or `dim` is not checked, and may be out of bounds.
     #[must_use]
     #[inline]
-    fn coords(
-        &self,
-        id: Self::Id,
-    ) -> impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator {
-        self.get_coords(id).expect("valid id")
+    unsafe fn coord_unchecked(&self, id: Self::Id, dim: usize) -> &Self::Value {
+        self.coord(id, dim).expect("valid id and dim")
     }
     /// Returns an iterator over the coords of `id`, or `None` if `id` does not exist.
     #[must_use]
-    fn get_coords(
+    fn coords(
         &self,
         id: Self::Id,
-    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator>;
-    /// Returns the squared distance between `id` and `point`.
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone>;
+    /// Returns an iterator over the coordinates of each id in the set
     #[must_use]
     #[inline]
-    fn sq_distance(&self, id: Self::Id, point: &[Self::Value]) -> Self::Value {
-        assert_eq!(
-            point.len(),
-            self.dimensions().get(),
-            "point dimensions must match set dimension"
-        );
-        let mut sum = <Self::Value as ConstZero>::ZERO;
-        for (d, &p) in point.iter().enumerate() {
-            let diff = p - self.coord(id, d);
-            sum += diff * diff;
-        }
-        sum
+    fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = impl ExactSizeIterator<Item = (Self::Id, usize, &Self::Value)>
+               + DoubleEndedIterator
+               + Clone,
+    > + Clone {
+        self.ids().map(move |id| {
+            (0..self.dimensions().get()).map(move |c| {
+                // SAFETY:
+                // id and dimensions come from the trait impl
+                (id, c, unsafe { self.coord_unchecked(id, c) })
+            })
+        })
+    }
+    /// Returns an iterator over the ids of each dimension in the set
+    #[must_use]
+    #[inline]
+    fn columns(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = impl ExactSizeIterator<Item = (Self::Id, usize, &Self::Value)> + Clone,
+    > + DoubleEndedIterator
+    + Clone {
+        (0..self.dimensions().get()).map(move |c| {
+            self.ids().map(move |id| {
+                // SAFETY:
+                // id and dimensions come from the trait impl
+                (id, c, unsafe { self.coord_unchecked(id, c) })
+            })
+        })
     }
     /// Returns the squared distance between `id` and `point`, or `None` if `id` does not exist or
     /// `point` does not match the collections dimensions.
     #[must_use]
     #[inline]
-    fn get_sq_distance(&self, id: Self::Id, point: &[Self::Value]) -> Option<Self::Value> {
-        if !self.contains(id) || point.len() != self.dimensions().get() {
+    fn sq_distance<'bitem, P, ITER>(&self, id: Self::Id, point: P) -> Option<Self::Value>
+    where
+        P: IntoIterator<Item = &'bitem Self::Value, IntoIter = ITER>,
+        ITER: ExactSizeIterator<Item = &'bitem Self::Value>,
+        Self: 'bitem,
+    {
+        let point = point.into_iter();
+        if point.len() != self.dimensions().get() {
             return None;
         }
-        self.sq_distance(id, point).into()
+        Some(
+            self.coords(id)?
+                .zip(point)
+                .map(|(a, b)| {
+                    let diff = *a - *b;
+                    diff * diff
+                })
+                .sum(),
+        )
     }
-    /// Returns the squared distance between `id_a` and `id_b`.
+    /// Returns the squared distance between `id` and `point`.
+    /// # Safety
+    /// The `id` or `point` dimension is not checked, and may be out of bounds.
     #[must_use]
     #[inline]
-    fn sq_distance_between(&self, id_a: Self::Id, id_b: Self::Id) -> Self::Value {
-        let mut sum = <Self::Value as ConstZero>::ZERO;
-        for d in 0..self.dimensions().get() {
-            let diff = self.coord(id_a, d) - self.coord(id_b, d);
-            sum += diff * diff;
-        }
-        sum
+    unsafe fn sq_distance_unchecked<'bitem, P>(&self, id: Self::Id, point: P) -> Self::Value
+    where
+        P: IntoIterator<Item = &'bitem Self::Value>,
+        Self: 'bitem,
+    {
+        let point = point.into_iter();
+        self.coords(id)
+            .expect("valid id")
+            .zip(point)
+            .map(|(a, b)| {
+                let diff = *a - *b;
+                diff * diff
+            })
+            .sum()
     }
     /// Returns the squared distance between `id_a` and `id_b`, or `None` if `id_a` or `id_b` does
     /// not exist.
     #[must_use]
     #[inline]
-    fn get_sq_distance_between(&self, id_a: Self::Id, id_b: Self::Id) -> Option<Self::Value> {
-        if !self.contains(id_a) || !self.contains(id_b) {
-            return None;
-        }
-        self.sq_distance_between(id_a, id_b).into()
-    }
-    /// Returns `id` as a boxed slice.
-    #[must_use]
-    #[inline]
-    fn to_boxed_slice(&self, id: Self::Id) -> Option<Box<[Self::Value]>> {
-        self.contains(id).then(|| {
-            (0..self.dimensions().get())
-                .map(|d| self.coord(id, d))
-                .collect()
-        })
+    fn sq_distance_between(&self, id_a: Self::Id, id_b: Self::Id) -> Option<Self::Value> {
+        Some(
+            self.coords(id_a)?
+                .zip(self.coords(id_b)?)
+                .map(|(a, b)| {
+                    let diff = *a - *b;
+                    diff * diff
+                })
+                .sum(),
+        )
     }
 }
-impl<P> PointSet for &P
+
+impl<PS> PointSet for &PS
 where
-    P: PointSet + ?Sized,
+    PS: PointSet + ?Sized,
 {
-    type Id = P::Id;
-    type Value = P::Value;
+    type Id = PS::Id;
+    type Value = PS::Value;
     #[inline]
     fn len(&self) -> NonZeroUsize { (**self).len() }
     #[inline]
-    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + DoubleEndedIterator {
-        (**self).ids()
-    }
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone { (**self).ids() }
     #[inline]
     fn dimensions(&self) -> NonZeroUsize { (**self).dimensions() }
     #[inline]
     fn contains(&self, id: Self::Id) -> bool { (**self).contains(id) }
     #[inline]
-    fn coord(&self, id: Self::Id, dim: usize) -> Self::Value { (**self).coord(id, dim) }
+    fn coord(&self, id: Self::Id, dim: usize) -> Option<&Self::Value> { (**self).coord(id, dim) }
     #[inline]
-    fn get_coord(&self, id: Self::Id, dim: usize) -> Option<Self::Value> {
-        (**self).get_coord(id, dim)
+    unsafe fn coord_unchecked(&self, id: Self::Id, dim: usize) -> &Self::Value {
+        // SAFETY:
+        // See Safety-section on `PointSet`
+        unsafe { (**self).coord_unchecked(id, dim) }
     }
     #[inline]
     fn coords(
         &self,
         id: Self::Id,
-    ) -> impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator {
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone> {
         (**self).coords(id)
     }
     #[inline]
-    fn get_coords(
-        &self,
-        id: Self::Id,
-    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator> {
-        (**self).get_coords(id)
-    }
-    #[inline]
-    fn sq_distance(&self, id: Self::Id, point: &[Self::Value]) -> Self::Value {
+    fn sq_distance<'bitem, P, ITER>(&self, id: Self::Id, point: P) -> Option<Self::Value>
+    where
+        P: IntoIterator<Item = &'bitem Self::Value, IntoIter = ITER>,
+        ITER: ExactSizeIterator<Item = &'bitem Self::Value>,
+        Self: 'bitem,
+    {
         (**self).sq_distance(id, point)
     }
     #[inline]
-    fn get_sq_distance(&self, id: Self::Id, point: &[Self::Value]) -> Option<Self::Value> {
-        (**self).get_sq_distance(id, point)
-    }
-    #[inline]
-    fn to_boxed_slice(&self, id: Self::Id) -> Option<Box<[Self::Value]>> {
-        (**self).to_boxed_slice(id)
+    unsafe fn sq_distance_unchecked<'bitem, P>(&self, id: Self::Id, point: P) -> Self::Value
+    where
+        P: IntoIterator<Item = &'bitem Self::Value>,
+        Self: 'bitem,
+    {
+        // SAFETY:
+        // See Safety-section on `PointSet`
+        unsafe { (**self).sq_distance_unchecked(id, point) }
     }
 }

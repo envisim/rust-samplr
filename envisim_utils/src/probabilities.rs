@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Probability abstractions and container
+
 use std::cmp::Ordering;
 use std::fmt::{
     Display,
@@ -36,9 +38,12 @@ use crate::utils::{
     NumberInt,
 };
 
+/// A trait for types that can be represented as a probability value
 pub trait ProbabilityValue {
+    /// The value type
     type N: Number;
 }
+/// A trait for probabilities that can be represented by a real (float) in [0.0, 1.0].
 pub trait RealProbabilityValue: ProbabilityValue
 where
     Self::N: NumberFloat,
@@ -59,6 +64,8 @@ where
     Probability<N>: ProbabilityValue<N = N>,
 {
 }
+/// A trait for probability types that can be represented by an integer in [0, MAX], where a proper
+/// probability is retrieved by `Self / MAX`.
 pub trait IntProbabilityValue: ProbabilityValue
 where
     Self::N: NumberInt,
@@ -85,8 +92,11 @@ where
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 pub enum Probability<N> {
+    /// The probability is zero.
     Zero(N),
+    /// The probability is not guaranteed zero or one.
     Partial(N),
+    /// The probability is one.
     Full(N),
 }
 impl<N> Probability<N> {
@@ -278,6 +288,7 @@ where
     }
 }
 
+/// Contains a set of probabilities for some linear population.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct ProbabilitySet<N> {
@@ -440,14 +451,8 @@ impl<N> WeightCollection<usize> for ProbabilitySet<N>
 where
     N: Number,
 {
-    /// Returns the weight of unit `id`
-    #[must_use]
     #[inline]
-    fn get_weight(&self, id: usize) -> f64 { self[id].get().to_f64().expect("convert to f64") }
-    /// Returns the weight of unit `id`, or `None` i the unit does not exist.
-    #[must_use]
-    #[inline]
-    fn try_get_weight(&self, id: usize) -> Option<f64> {
+    fn get_weight(&self, id: usize) -> Option<f64> {
         self.get(id)
             .map(|v| v.get().to_f64().expect("convert to f64"))
     }
