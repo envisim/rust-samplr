@@ -20,6 +20,7 @@ use super::error::{
 };
 use crate::utils::SliceView;
 
+/// Coordination options
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct CoordinationRandomValues<CD> {

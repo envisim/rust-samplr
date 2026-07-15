@@ -12,6 +12,7 @@
 
 //! Balancing options container
 
+/// Balancing options
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct BalancingOptions<P> {
@@ -25,8 +26,10 @@ impl<P> From<P> for BalancingOptions<P> {
 }
 
 impl<P> BalancingOptions<P> {
+    /// Returns a reference to the stored data
     #[inline]
     pub fn data(&self) -> &P { &self.data }
+    /// Constructs a new options container for some data
     #[inline]
     pub fn new(data: P) -> Self { Self { data } }
 }

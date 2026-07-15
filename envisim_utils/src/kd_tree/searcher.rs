@@ -721,12 +721,12 @@ pub trait WeightCollection<Id> {
     #[must_use]
     fn get_weight(&self, id: Id) -> Option<f64>;
 }
-impl<T> WeightCollection<usize> for T
+impl<Id, T> WeightCollection<Id> for &T
 where
-    T: SliceView<Elem = f64>,
+    T: WeightCollection<Id>,
 {
     #[inline]
-    fn get_weight(&self, id: usize) -> Option<f64> { self.data().get(id).copied() }
+    fn get_weight(&self, id: Id) -> Option<f64> { (**self).get_weight(id) }
 }
 
 /// Wrapper for the [`WeightedSearcher`]

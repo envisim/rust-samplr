@@ -61,6 +61,7 @@ where
     population_size - 1
 }
 
+/// Provides simple unequal probability sampling methods
 pub trait UnequalProbabilitySampling<R>
 where
     R: Rng,

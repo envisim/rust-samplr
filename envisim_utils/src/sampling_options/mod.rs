@@ -10,6 +10,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Methods for configuring sampling algorithms
+
 mod balancing_opts;
 mod coordination_opts;
 mod error;
@@ -50,6 +52,7 @@ use crate::utils::{
     SliceView,
 };
 
+/// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`]
 pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>
 where
     PO: ProbabilitiesSpec,
@@ -110,6 +113,7 @@ impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
 where
     PO: ProbabilitiesSpec,
 {
+    /// Returns a reference to the spreading options
     #[inline]
     pub fn spreading(&self) -> &SpreadingOptions<AUXP> { &self.spreading }
 }
@@ -117,6 +121,7 @@ impl<PO, AUX, BALP> SamplingOptions<PO, AUX, BalancingOptions<BALP>>
 where
     PO: ProbabilitiesSpec,
 {
+    /// Returns a reference to the balancing options
     #[inline]
     pub fn balancing(&self) -> &BalancingOptions<BALP> { &self.balancing }
 }

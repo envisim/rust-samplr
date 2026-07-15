@@ -36,6 +36,7 @@ use crate::utils::{
     Number,
     NumberFloat,
     NumberInt,
+    SliceView,
 };
 
 /// A trait for types that can be represented as a probability value
@@ -300,9 +301,6 @@ pub struct ProbabilitySet<N> {
     eps: Epsilon<N>,
 }
 impl<N> ProbabilitySet<N> {
-    /// Returns the slice of the probabilties contained in the set
-    #[inline]
-    pub fn data(&self) -> &[Probability<N>] { &self.data }
     /// Returns a vector of the probabilties contained in the set, as their raw representations
     #[must_use]
     #[inline]
@@ -445,6 +443,17 @@ impl<N> ProbabilitySet<N> {
             Probability::Full(_) => max - p1,
         }
     }
+}
+
+impl<N> SliceView for ProbabilitySet<N> {
+    type Elem = Probability<N>;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { &self.data }
+}
+impl<N> SliceView for &ProbabilitySet<N> {
+    type Elem = Probability<N>;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { &self.data }
 }
 
 impl<N> WeightCollection<usize> for ProbabilitySet<N>

@@ -55,6 +55,7 @@ use crate::error::{
     SamplingResult,
 };
 
+/// Runs a stratified CUBE strategy
 #[must_use]
 pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
     /// The main cube runner

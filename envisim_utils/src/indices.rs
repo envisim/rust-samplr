@@ -281,6 +281,7 @@ impl Index<usize> for Indices {
     fn index(&self, index: usize) -> &Self::Output { &self.list[index] }
 }
 
+/// A pair of indices, with the enum indicating the number of indices remaining
 #[expect(
     clippy::exhaustive_enums,
     reason = "additional pair variants is a breaking change"
@@ -288,27 +289,37 @@ impl Index<usize> for Indices {
 #[must_use]
 #[derive(Clone, Debug, Default)]
 pub enum Pair {
+    /// Zero indices remaining
     #[default]
     Zero,
+    /// Exactly one index remaining
     One(usize),
+    /// Exactly two indices remaining
     Two(usize, usize),
+    /// More than two indicies remaining
     More(usize, usize),
 }
 impl Pair {
+    /// Constructs a new `More` variant
     #[inline]
     pub fn new((id1, id2): (usize, usize)) -> Self { Self::More(id1, id2) }
+    /// Returns `true` if the `Pair` is `Zero`
     #[must_use]
     #[inline]
     pub fn is_zero(&self) -> bool { matches!(*self, Self::Zero) }
+    /// Returns `true` if the `Pair` is `One`
     #[must_use]
     #[inline]
     pub fn is_one(&self) -> bool { matches!(*self, Self::One(..)) }
+    /// Returns `true` if the `Pair` is `Two`
     #[must_use]
     #[inline]
     pub fn is_two(&self) -> bool { matches!(*self, Self::Two(..)) }
+    /// Returns `true` if the `Pair` is `More`
     #[must_use]
     #[inline]
     pub fn is_more(&self) -> bool { matches!(*self, Self::More(..)) }
+    /// Returns `true` if the `Pair` is `Two` or `More`.
     #[must_use]
     #[inline]
     pub fn is_full(&self) -> bool { matches!(*self, Self::Two(..) | Self::More(..)) }

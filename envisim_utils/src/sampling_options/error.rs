@@ -14,32 +14,47 @@
 
 use thiserror::Error;
 
+/// Errors relating to the configuration of sampling algorithms
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SamplingOptionsError {
+    /// Epsilon must be in [0.0, 1.0)
     #[error("eps must be in [0.0, 1.0)")]
     InvalidEpsilon,
+    /// Population size must be positive
     #[error("population size must be positive")]
     InvalidPopulationSize,
+    /// Sample contains invalid units
     #[error("sample contains invalid units")]
     InvalidSample,
+    /// Sample size must not be larger than the population size
     #[error("sample size must not be larger than the population size")]
     InvalidSampleSize,
+    /// Probabilities must be valid
     #[error("probabilities must be valid (nominally in [0.0, 1.0])")]
     InvalidProbability,
+    /// The number of random values must not be smaller than the population size
     #[error("the number of random values must not be smaller than the population size")]
     InvalidRandomValues,
+    /// The maximum number of iterations must be a positive value
     #[error("iterations must be positive")]
     InvalidIterations,
+    /// The number of units in the spreading data must match the population size
     #[error("the number of units in the spreading data must match the population size")]
     InvalidSpreading,
-    #[error("bucket size must be at least 1")]
+    /// The bucket size must be positive
+    #[error("bucket size must be positive")]
     InvalidBucketSize,
+    /// The number of units in the balancing data must match the population size
     #[error("the number of units the balancing data must match the population size")]
     InvalidBalancing,
+    /// Spreading data must be provided
     #[error("spreading data must be provided")]
     MissingSpreading,
+    /// Balancing data must be provided
     #[error("balancing data must be provided")]
     MissingBalancing,
 }
+
+/// An alias for an `Result` returning a [`SamplingOptionsError`].
 pub type SamplingOptionsResult<T> = Result<T, SamplingOptionsError>;
