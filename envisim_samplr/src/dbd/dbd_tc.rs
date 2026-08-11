@@ -55,6 +55,7 @@ mod config {
     /// Storage for the buckets used in a Tactical Configuration
     pub type TcBuckets = MatrixBase<Box<[usize]>>;
 
+    /// Defines a tactical configuration for DBD
     #[must_use]
     #[derive(Clone, Debug)]
     pub struct TacticalConfiguration {

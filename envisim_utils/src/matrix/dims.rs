@@ -33,7 +33,7 @@ impl MatrixDims {
     pub fn try_new(rows: usize, cols: usize) -> Option<Self> {
         let rows = NonZeroUsize::new(rows)?;
         let cols = NonZeroUsize::new(cols)?;
-        Self::new(rows, cols).into()
+        Some(Self::new(rows, cols))
     }
     /// Infer dimensions from some data length and row count.
     /// Returns `None` if rows doesn't divide `len` evenly.
@@ -74,7 +74,11 @@ impl MatrixDims {
     /// Returns `true` if `coord` would be contained within the dimensions.
     #[must_use]
     #[inline]
-    pub fn contains(&self, coord: MatrixCoord) -> bool {
+    pub fn contains<C>(&self, coord: C) -> bool
+    where
+        C: Into<MatrixCoord>,
+    {
+        let coord = coord.into();
         self.contains_row(coord.row) && self.contains_col(coord.col)
     }
 }
@@ -94,6 +98,7 @@ impl From<MatrixDims> for (usize, usize) {
     fn from(value: MatrixDims) -> Self { (value.rows.get(), value.cols.get()) }
 }
 
+/// A trait for objects that have two dimensions
 pub trait Dimensions {
     /// Returns the dimensions of the object
     fn dims(&self) -> MatrixDims;
@@ -135,7 +140,11 @@ impl MatrixCoord {
     /// Returns `None` if the coordinate is out of bounds with respect to the shape.
     #[must_use]
     #[inline]
-    pub fn to_linear(&self, shape: MatrixDims) -> Option<usize> {
+    pub fn to_linear<D>(&self, shape: D) -> Option<usize>
+    where
+        D: Into<MatrixDims>,
+    {
+        let shape = shape.into();
         shape
             .contains(*self)
             .then(|| self.to_linear_unchecked(shape))
@@ -149,14 +158,22 @@ impl MatrixCoord {
     )]
     #[must_use]
     #[inline]
-    pub(super) fn to_linear_unchecked(&self, shape: MatrixDims) -> usize {
+    pub(super) fn to_linear_unchecked<D>(&self, shape: D) -> usize
+    where
+        D: Into<MatrixDims>,
+    {
+        let shape = shape.into();
         self.row + self.col * shape.rows.get()
     }
     /// Convert from a linear index in column-major order.
     /// Returns `None` if `index` cannot be contained in `shape`.
     #[must_use]
     #[inline]
-    pub fn from_linear(index: usize, shape: MatrixDims) -> Option<Self> {
+    pub fn from_linear<D>(index: usize, shape: D) -> Option<Self>
+    where
+        D: Into<MatrixDims>,
+    {
+        let shape = shape.into();
         // Rem<NonZeroUsize> is in rust since 1.51
         (index < shape.len().get()).then(|| Self::new(index % shape.rows, index / shape.rows))
     }

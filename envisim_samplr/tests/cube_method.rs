@@ -1,3 +1,5 @@
+//! Test cube sampling
+
 mod test_utils;
 use envisim_samplr::cube_method::*;
 use test_utils::*;

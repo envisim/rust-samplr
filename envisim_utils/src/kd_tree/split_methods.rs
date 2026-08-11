@@ -130,8 +130,10 @@ mod split {
             let mut left: usize = 0;
             let mut right: usize = units.len();
             while left < right {
-                let v = data.coord(units[left], self.split.dimension);
-                if self.split.is_left(v) {
+                // SAFETY:
+                // units have been checked on construction of tree
+                let v = unsafe { data.coord_unchecked(units[left], self.split.dimension) };
+                if self.split.is_left(*v) {
                     left += 1;
                 } else {
                     right -= 1;
@@ -268,7 +270,7 @@ impl<N> Border<N> {
         N: Number,
     {
         let range = self.range();
-        if range <= N::epsilonish() || !range.is_finite() {
+        if range <= N::machine_epsilon() || !range.is_finite() {
             return None;
         }
         let centre = self.centre();
@@ -282,7 +284,7 @@ impl<N> Border<N> {
             self.min.abs()
         };
         // Consider larger epsilon?
-        (scale * N::epsilonish() < range).then_some(centre)
+        (scale * N::machine_epsilon() < range).then_some(centre)
     }
     /// Constructs a new border from the `units` according to `data` in a certain dimension `dim`.
     #[inline]
@@ -295,13 +297,18 @@ impl<N> Border<N> {
             return Self::default();
         }
         let val0 = units[0];
-        let mut b = Self {
-            min: data.coord(val0, dim),
-            max: data.coord(val0, dim),
+        let mut b = {
+            // SAFETY:
+            // existance of units have been checked on construction of tree
+            let c = unsafe { *data.coord_unchecked(val0, dim) };
+            Self { min: c, max: c }
         };
         for &id in units.iter().skip(1) {
-            b.set_min(data.coord(id, dim));
-            b.set_max(data.coord(id, dim));
+            // SAFETY:
+            // existance of units have been checked on construction of tree
+            let c = unsafe { *data.coord_unchecked(id, dim) };
+            b.set_min(c);
+            b.set_max(c);
         }
         b
     }
@@ -326,8 +333,10 @@ where
     P: PointSet,
 {
     /// Returns the split as:
-    /// `SplitUnit`, the split and index of first right-unit.
-    /// The left and right splits.
+    /// - `SplitUnit`, the split and index of first right-unit.
+    /// - The left and right splits.
+    /// # Panics
+    /// Panics if any unit does not exist in the data. The units must be checked beforehand.
     fn split(self, data: &P, units: &mut [P::Id]) -> Option<(SplitUnit<P::Value>, Self, Self)>;
 }
 

@@ -54,6 +54,7 @@ where
     sample
 }
 
+/// Provides systematic sampling methods
 pub trait SystematicSampling<R>
 where
     R: Rng,

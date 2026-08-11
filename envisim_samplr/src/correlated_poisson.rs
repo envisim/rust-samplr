@@ -32,8 +32,11 @@
 //! <https://doi.org/10.1002/env.2832>
 
 use envisim_utils::kd_tree::Tree;
-use envisim_utils::kd_tree::searcher::WeightedSearcher;
-use envisim_utils::kd_tree::searcher::neighbour::WeightedNeighbour;
+use envisim_utils::kd_tree::searcher::{
+    NeighbourView,
+    WeightedNeighbour,
+    WeightedSearcher,
+};
 use envisim_utils::probabilities::Probability;
 use envisim_utils::random::{
     FloatRng,
@@ -62,10 +65,14 @@ use num_traits::ToPrimitive;
 pub use crate::error::SamplingError;
 use crate::error::SamplingResult;
 
+/// A strategy for CPS controls the updating and selection mechanism of units
 pub trait CorrelatedPoissonStrategy<TREE> {
+    /// Returns a random value for an `id`. Coordinated stategies will provide a permanent random
+    /// value for this `id`.
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
     where
         R: Rand<f64>;
+    /// Selects a unit to decide the outcome for.
     fn select_unit<R>(
         &mut self,
         controller: &mut SampleController<f64, TREE>,
@@ -73,6 +80,9 @@ pub trait CorrelatedPoissonStrategy<TREE> {
     ) -> Option<usize>
     where
         R: Rand<usize>;
+    /// Update the probabilities of affected units by the outcome of the selected unit `id`.
+    /// `probability` refers to the probability of the selected unit, and `quota` of the
+    /// probabilites to move (dependent on the outcome).
     fn update_probabilities(
         &mut self,
         controller: &mut SampleController<f64, TREE>,
@@ -82,6 +92,7 @@ pub trait CorrelatedPoissonStrategy<TREE> {
     );
 }
 
+/// Runs a CPS strategy
 #[must_use]
 pub struct CorrelatedPoissonRunner<S, TREE>
 where
@@ -141,6 +152,7 @@ where
     }
 }
 
+/// Sequential correlated Poisson sampling (or CPS)
 #[must_use]
 pub struct SequentialStrategy<CD> {
     /// Random values to be used
@@ -258,6 +270,7 @@ where
     }
 }
 
+/// Spatially correlated Poisson sampling strategy
 pub struct SpatialStrategy<CD, P>
 where
     P: PointSet,
@@ -359,7 +372,7 @@ fn spatial_update_probabilities<P>(
 
     for n in &searcher.neighbours()[0..guaranteed_units] {
         let delta = n.weight() * quota;
-        let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
+        let _prest = controller.unit_add_delta_and_decide(*n.id(), delta);
         remaining_weight -= n.weight();
     }
 
@@ -373,7 +386,7 @@ fn spatial_update_probabilities<P>(
         // Add everything left, if it's exactly solved (unlikely)
         for n in &searcher.neighbours()[guaranteed_units..] {
             let delta = n.weight() * quota;
-            let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
+            let _prest = controller.unit_add_delta_and_decide(*n.id(), delta);
             // remaining_weight -= n.weight();
         }
         return;
@@ -392,7 +405,7 @@ fn spatial_update_probabilities<P>(
     for n in &searcher.neighbours()[guaranteed_units..] {
         let removable_weight = n.weight().min(remaining_weight / number_of_shares);
         let delta = remaining_weight * quota;
-        let _prest = controller.unit_add_delta_and_decide(n.id(), delta);
+        let _prest = controller.unit_add_delta_and_decide(*n.id(), delta);
         remaining_weight -= removable_weight;
         number_of_shares -= 1.0;
     }
@@ -453,6 +466,7 @@ where
     }
 }
 
+/// Locally correlated Poisson sampling
 #[must_use]
 pub struct LocalStrategy<P>
 where
@@ -531,7 +545,7 @@ where
                 .search(controller.tree(), controller.probabilities())
                 .expect("nn to be found");
             // We are guaranteed to have at least one neighbour by the if's in the beginning
-            let distance = self
+            let distance = *self
                 .searcher
                 .max_distance()
                 .expect("searcher to have found a neighbour");
@@ -561,6 +575,7 @@ where
     }
 }
 
+/// Provides correlated Poisson sampling variants
 pub trait CorrelatedPoissonSampling<R>
 where
     R: Rng,
@@ -606,6 +621,8 @@ where
         C: Into<CoordinationRandomValues<CD>>,
         CD: SliceView<Elem = f64>;
 }
+
+/// Provides spatially correlated Poisson sampling variants
 pub trait SpatiallyCorrelatedPoissonSampling<R>
 where
     R: Rng,

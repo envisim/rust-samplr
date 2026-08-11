@@ -102,6 +102,7 @@ impl TacticalConfigurationParameters {
     }
 }
 
+/// DBD methods
 pub trait DbdConfiguration {
     /// Returns a reference to the tactical configuration parameters
     fn tcp(&self) -> &TacticalConfigurationParameters;

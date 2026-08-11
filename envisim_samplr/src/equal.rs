@@ -24,6 +24,7 @@ pub use envisim_utils::sampling_options::SamplingOptions;
 
 pub use crate::error::SamplingError;
 
+/// Provides equal probability sampling methods
 pub trait EqualProbabilitySampling<R>
 where
     R: Rng,

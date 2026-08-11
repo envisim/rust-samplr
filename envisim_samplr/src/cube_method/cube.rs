@@ -17,7 +17,8 @@ use std::num::NonZeroUsize;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     KNearestNeighbourSearcher,
-    NeighbourSlice,
+    Neighbour,
+    NeighbourView,
 };
 use envisim_utils::matrix::{
     Dimensions,
@@ -54,7 +55,9 @@ use super::utils::{
 };
 use crate::EqualProbabilitySampling;
 
+/// A strategy for CUBE controls the selection of the units.
 pub trait CubeStrategy<TREE> {
+    /// Selects a subset of units to be used for a step of the algorithm
     fn select_units<R>(
         &mut self,
         candidates: &mut Vec<usize>,
@@ -63,7 +66,7 @@ pub trait CubeStrategy<TREE> {
         n_units: NonZeroUsize,
     ) where
         R: Rand<usize>;
-    // Used for stratified
+    /// Resets the ids of the index controller. Used for stratified CUBE.
     fn reset_to_ids(
         &mut self,
         controller: &mut SampleController<f64, TREE>,
@@ -72,6 +75,7 @@ pub trait CubeStrategy<TREE> {
     );
 }
 
+/// Runs a CUBE strategy
 #[expect(
     clippy::field_scoped_visibility_modifiers,
     reason = "super is ok, needed for stratified cube"
@@ -368,6 +372,7 @@ impl CubeStrategy<()> for RandomCubeStrategy {
     }
 }
 
+/// Local CUBE strategy (doubly balanced CUBE)
 #[expect(
     clippy::field_scoped_visibility_modifiers,
     reason = "super is ok, needed for stratified cube"
@@ -458,7 +463,7 @@ where
 
         // Add all neighbours, if no equals
         if self.searcher.neighbours().len() == n_units.get() - 1 {
-            candidates.extend(self.searcher.neighbours().to_neighbour_id_iter());
+            candidates.extend(self.searcher.neighbours().iter().map(Neighbour::id));
             return;
         }
 
@@ -473,7 +478,11 @@ where
             .searcher
             .neighbours()
             .partition_point(|n| n.distance() < max_distance);
-        candidates.extend(self.searcher.neighbours()[0..guaranteed_units].to_neighbour_id_iter());
+        candidates.extend(
+            self.searcher.neighbours()[0..guaranteed_units]
+                .iter()
+                .map(Neighbour::id),
+        );
 
         // Randomly add neighbours on the maximum distance
         // We need to draw from the
@@ -487,7 +496,7 @@ where
 
         let s = opts.srs(rng);
         for k in s {
-            candidates.push(self.searcher.neighbours()[guaranteed_units + k].id());
+            candidates.push(*self.searcher.neighbours()[guaranteed_units + k].id());
         }
     }
     /// # Panics
@@ -505,7 +514,8 @@ where
         );
 
         controller.indices_mut().clear();
-        controller.reset_tree(self.spreading_options, ids);
+        *controller.tree_mut() =
+            Tree::new(self.spreading_options, ids).expect("ids to exist in data");
 
         for id in ids.iter() {
             controller.indices_mut().insert(*id);
@@ -513,13 +523,14 @@ where
     }
 }
 
+/// Provides CUBE sampling methods
 pub trait CubeSampling<R>
 where
     R: Rng,
 {
     /// Draw a sample using the cube method.
-    /// The sample is balanced on the provided auxilliary variables in `balancing`.
-    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
+    /// The sample is balanced on the provided auxiliary variables in `balancing`.
+    /// For fixed sized samples, the first auxiliary variable should be the probability vector.
     ///
     /// Units are selected randomly to the flight phase.
     ///
@@ -543,8 +554,8 @@ where
     #[must_use]
     fn cube(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using the cube method.
-    /// The sample is balanced on the provided auxilliary variables in `balancing`.
-    /// For fixed sized samples, the first auxilliary variable should be the probability vector.
+    /// The sample is balanced on the provided auxiliary variables in `balancing`.
+    /// For fixed sized samples, the first auxiliary variable should be the probability vector.
     ///
     /// Units are selected in sequence to the flight phase.
     ///
@@ -568,10 +579,37 @@ where
     #[must_use]
     fn sequential_cube(&self, rng: &mut R) -> Vec<usize>;
 }
+
+/// Provides spatially balanced CUBE sampling methods
 pub trait LocalCubeSampling<R>
 where
     R: Rng,
 {
+    /// Draw a sample using the local cube method.
+    /// The sample is balanced on the provided auxiliary variables in `balancing`, and spread in the
+    /// space of the `spreading` auxiliaries.
+    ///
+    /// For fixed sized samples, the first auxiliary variable should be the probability vector.
+    ///
+    /// # Examples
+    /// ```
+    /// # use envisim_samplr::*;
+    /// # use envisim_utils::random::*;
+    /// # use envisim_utils::matrix::Matrix;
+    /// let mut rng = try_sys_rng().unwrap();
+    /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
+    /// let bal = Matrix::new(vec![
+    ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
+    ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+    /// ], 10).unwrap();
+    /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
+    /// let s = SamplingOptions::new(p)?
+    ///     .set_balancing(bal)?
+    ///     .set_spreading(spr)?
+    ///     .local_cube(&mut rng);
+    /// assert_eq!(s.len(), 5);
+    /// # Ok::<(), SamplingError>(())
+    /// ```
     #[must_use]
     fn local_cube(&self, rng: &mut R) -> Vec<usize>;
 }

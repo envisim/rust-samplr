@@ -15,7 +15,10 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::kd_tree::PointSet;
-use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
+use envisim_utils::kd_tree::searcher::{
+    KNearestNeighbourSearcher,
+    NeighbourView,
+};
 use envisim_utils::matrix::{
     Dimensions,
     MatrixBase,
@@ -243,7 +246,7 @@ where
         }
 
         searcher
-            .reset_from_point(tree.data().get_coords(i).expect("i to exist in aux data"))
+            .reset_from_point(tree.data().coords(i).expect("i to exist in aux data"))
             .expect("tree data to be searchable")
             .search(&tree)
             .expect("search to be possible");
@@ -255,7 +258,7 @@ where
         let local_mean: f64 = searcher
             .neighbours()
             .iter()
-            .map(|n| yp[n.id()])
+            .map(|n| yp[*n.id()])
             .sum::<f64>()
             / number_of_neighbours;
         variance +=

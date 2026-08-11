@@ -29,6 +29,7 @@ use super::runner::{
     PivotalStrategy,
 };
 
+/// Sequential local pivotal method
 #[must_use]
 pub struct SequentialStrategy();
 impl SequentialStrategy {
@@ -59,6 +60,7 @@ impl<PROB> PivotalStrategy<PROB, ()> for SequentialStrategy {
     }
 }
 
+/// Random order local pivotal method
 pub struct RandomStrategy();
 impl RandomStrategy {
     /// Constructs a new [`PivotalRunner`] using the random strategy
@@ -106,6 +108,7 @@ impl<PROB> PivotalStrategy<PROB, ()> for RandomStrategy {
     }
 }
 
+/// Provides pivotal sampling methods
 pub trait PivotalSampling<R>
 where
     R: Rng,

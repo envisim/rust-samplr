@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 /// Data container trait
 pub trait SliceView {
+    /// The type of the elements in the slice
     type Elem;
     /// Returns a reference (view) to the internal data.
     #[must_use]

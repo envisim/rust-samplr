@@ -17,6 +17,7 @@
 
 mod dims;
 
+use std::iter::FusedIterator;
 use std::num::NonZeroUsize;
 use std::ops::{
     Index,
@@ -211,7 +212,7 @@ impl<T> MatrixBase<T> {
     pub fn col_iter(
         &self,
         col: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + Clone>
+    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + FusedIterator + Clone>
     where
         T: SliceView,
     {
@@ -228,7 +229,7 @@ impl<T> MatrixBase<T> {
     pub fn col_iter_mut(
         &mut self,
         col: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator>
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator + FusedIterator>
     where
         T: SliceViewMut,
     {
@@ -628,9 +629,7 @@ where
     fn len(&self) -> NonZeroUsize { self.dims.rows }
     /// Returns an iterator of the rows in the matrix.
     #[inline]
-    fn ids(&self) -> impl ExactSizeIterator<Item = usize> + DoubleEndedIterator {
-        0..self.dims.rows.get()
-    }
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone { 0..self.dims.rows.get() }
     /// Returns the number of columns in the matrix
     #[inline]
     fn dimensions(&self) -> NonZeroUsize { self.dims.cols }
@@ -639,52 +638,63 @@ where
     #[inline]
     fn contains(&self, row: usize) -> bool { row < self.dims.rows.get() }
     /// Returns the element at coordinates `(row, col)`.
-    /// Panics on oob.
-    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[inline]
-    fn coord(&self, row: usize, col: usize) -> Self::Value {
-        let idx = row + col * self.dims.rows.get();
-        self.data.data()[idx]
-    }
-    /// Returns the element at coordinates `(row, col)`.
     /// Returns `None` if the coordinates are oob.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[inline]
-    fn get_coord(&self, row: usize, col: usize) -> Option<Self::Value> {
-        self.get((row, col)).copied()
+    fn coord(&self, row: usize, col: usize) -> Option<&Self::Value> { self.get((row, col)) }
+    /// Returns the element at coordinates `(row, col)`.
+    /// Panics on oob.
+    #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
+    #[inline]
+    unsafe fn coord_unchecked(&self, row: usize, col: usize) -> &Self::Value {
+        let idx = row + col * self.dims.rows.get();
+        &self.data.data()[idx]
     }
     /// Returns an iterator over the coords of `row`, or `None` if `row` does not exist.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
     #[must_use]
     #[inline]
-    fn get_coords(
+    fn coords(
         &self,
         row: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator> {
+    ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone> {
         self.row_iter(row)
     }
-    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
-    /// Panics on oob.
+    #[must_use]
     #[inline]
-    fn sq_distance_between(&self, id_a: usize, id_b: usize) -> Self::Value {
-        if id_a == id_b {
-            return <Self::Value as ConstZero>::ZERO;
-        }
-        let mut idx = id_a.min(id_b);
-        let idx_diff = id_a.abs_diff(id_b);
-        let mut sum = <Self::Value as ConstZero>::ZERO;
-        for _ in 0..self.ncol().get() {
-            let diff = self.data.data()[idx] - self.data.data()[idx + idx_diff];
-            sum += diff * diff;
-            idx += self.nrow().get();
-        }
-        sum
+    fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = impl ExactSizeIterator<Item = (Self::Id, usize, &Self::Value)>
+               + DoubleEndedIterator
+               + Clone,
+    > + Clone {
+        self.ids().map(move |id| {
+            self.data.data()[id..]
+                .iter()
+                .step_by(self.dims.rows.get())
+                .enumerate()
+                .map(move |(c, v)| (id, c, v))
+        })
     }
-    /// Returns the squared euclidean distance between rows `id_a` and `id_b`.
-    /// Returns `None` if any row is oob.
+    #[must_use]
     #[inline]
-    fn get_sq_distance_between(&self, id_a: usize, id_b: usize) -> Option<Self::Value> {
-        (self.contains(id_a) && self.contains(id_b)).then(|| self.sq_distance_between(id_a, id_b))
+    fn columns(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = impl ExactSizeIterator<Item = (Self::Id, usize, &Self::Value)> + Clone,
+    > + DoubleEndedIterator
+    + Clone {
+        let mut start = 0;
+        (0..self.dimensions().get()).map(move |c| {
+            let end = start + self.dims.rows.get();
+            let range = start..end;
+            start = end;
+            self.data.data()[range]
+                .iter()
+                .enumerate()
+                .map(move |(id, v)| (id, c, v))
+        })
     }
 }
 
@@ -790,9 +800,9 @@ mod tests {
         assert!(!m.contains(3));
 
         // Coordinate access
-        assert_eq!(m.coord(1, 1), 5.0);
-        assert_eq!(m.get_coord(2, 0), Some(3.0));
-        assert_eq!(m.get_coord(3, 0), None);
+        assert_eq!(unsafe { m.coord_unchecked(1, 1) }, &5.0);
+        assert_eq!(m.coord(2, 0), Some(&3.0));
+        assert_eq!(m.coord(3, 0), None);
     }
 
     #[test]
@@ -804,12 +814,12 @@ mod tests {
         let m = setup_matrix();
 
         let dist_sq = m.sq_distance_between(0, 1);
-        assert_eq!(dist_sq, 2.0);
+        assert_eq!(dist_sq, Some(2.0));
 
         let same_dist = m.sq_distance_between(2, 2);
-        assert_eq!(same_dist, 0.0);
+        assert_eq!(same_dist, Some(0.0));
 
-        assert!(m.get_sq_distance_between(0, 3).is_none());
+        assert!(m.sq_distance_between(0, 3).is_none());
     }
 
     #[test]

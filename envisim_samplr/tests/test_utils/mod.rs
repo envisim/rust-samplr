@@ -1,3 +1,5 @@
+//! Test utilities
+
 use envisim_samplr::{
     ProbabilitiesSpec,
     SamplingOptions,

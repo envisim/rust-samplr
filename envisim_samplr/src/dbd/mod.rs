@@ -77,6 +77,7 @@ mod dbd_trait {
         SamplingResult,
     };
 
+    /// Provides distributionally balanced sampling designs
     pub trait DistributionalDesigns<R>
     where
         R: Rng,
@@ -183,6 +184,7 @@ mod dbd_trait {
         }
     }
 
+    /// Provides evalutors for distributionally balanced sampling designs
     pub trait DistributionalDesignEvaluators<R>: DistributionalDesigns<R>
     where
         R: Rng,

@@ -1,3 +1,5 @@
+//! Test equal prob sampling
+
 use envisim_samplr::*;
 
 mod test_utils;

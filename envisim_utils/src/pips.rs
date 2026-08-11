@@ -119,11 +119,14 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     Ok(pips)
 }
 
+/// Pips related errors
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum PipsError {
+    /// Auxiliaries must be positive valued
     #[error("auxiliaries must be positive")]
     InvalidAuxiliary,
+    /// Auxiliaries must be provided
     #[error("slice contains no auxiliaries")]
     NoAuxiliaries,
 }

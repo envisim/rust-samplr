@@ -16,7 +16,8 @@ use envisim_utils::indices::Pair;
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     NearestNeighbourSearcher,
-    NeighbourSlice,
+    Neighbour,
+    NeighbourView,
 };
 use envisim_utils::probabilities::{
     Probability,
@@ -64,9 +65,14 @@ where
         .expect("id_n to exist")
         .search(tree)
         .expect("nn to be found");
-    searcher.neighbours().contains_id(id_org)
+    searcher
+        .neighbours()
+        .iter()
+        .map(Neighbour::id)
+        .any(|id| *id == id_org)
 }
 
+/// The local pivotal method variant 1
 #[must_use]
 pub struct LocalStrategy1<P>
 where
@@ -133,7 +139,7 @@ where
 
             // Store potential matches in candidates ... needs to check if any is a match
             self.candidates
-                .extend(self.searcher.neighbours().to_neighbour_id_iter());
+                .extend(self.searcher.neighbours().iter().map(Neighbour::id));
 
             {
                 let mut i = 0_usize;
@@ -160,6 +166,7 @@ where
     }
 }
 
+/// The local pivotal method variant 1S
 #[must_use]
 pub struct LocalStrategy1S<P>
 where
@@ -246,7 +253,7 @@ where
             // Store potential matches in candidates ... needs to check if any of the potential
             // equals is a match
             self.candidates
-                .extend(self.searcher.neighbours().to_neighbour_id_iter());
+                .extend(self.searcher.neighbours().iter().map(Neighbour::id));
 
             // Partition candidates into compatible and non-compatible matches
             let mut left = 0;
@@ -284,6 +291,7 @@ where
     }
 }
 
+/// The local pivotal method variant 2
 #[must_use]
 pub struct LocalStrategy2<P>
 where
@@ -344,10 +352,11 @@ where
             .expect("neighbours to have positive length")
             .id();
 
-        Pair::More(id1, id2)
+        Pair::More(id1, *id2)
     }
 }
 
+/// Provides local pivotal sampling methods
 pub trait LocalPivotalSampling<R>
 where
     R: Rng,

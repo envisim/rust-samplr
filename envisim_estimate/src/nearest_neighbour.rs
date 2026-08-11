@@ -12,7 +12,10 @@
 
 //! Nearest neighbour estimator
 
-use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
+use envisim_utils::kd_tree::searcher::{
+    NearestNeighbourSearcher,
+    NeighbourView,
+};
 use envisim_utils::kd_tree::{
     PointSet,
     Tree,
@@ -55,7 +58,7 @@ where
     }
 
     let spr_opts = SpreadingOptions::new(auxiliaries);
-    let tree = Tree::new(&spr_opts, &mut sample.to_vec());
+    let tree = Tree::new(&spr_opts, &mut sample.to_vec())?;
     let mut searcher = NearestNeighbourSearcher::new(tree.data());
 
     let mut number_of_neighbours =
@@ -66,7 +69,7 @@ where
     }
 
     for i in 0..population_size {
-        searcher.reset_from_point(tree.data().get_coords(i).expect("i to exist in aux data"));
+        searcher.reset_from_point(tree.data().coords(i).expect("i to exist in aux data"));
         searcher.search(&tree).expect("search to be possible");
         let partial_prob = 1.0
             / searcher
@@ -77,7 +80,7 @@ where
 
         for n in searcher.neighbours() {
             *number_of_neighbours
-                .get_mut(&n.id())
+                .get_mut(n.id())
                 .expect("neighbour to exsist in hashmap") += partial_prob;
         }
     }
