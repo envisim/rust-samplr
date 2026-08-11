@@ -15,72 +15,28 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::sampling_options::SamplingOptionsError;
+use thiserror::Error;
 
 /// Sampling related error types
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum SamplingError {
-    Options(SamplingOptionsError),
+    #[error("SamplingOptionsError: {0}")]
+    Options(#[from] SamplingOptionsError),
     // max iterations reached
+    #[error("max iterations ({0}) reached")]
     MaxIterations(NonZeroUsize),
+    #[error("invalid stratification")]
     IncorrectStratification,
+    #[error("draw probabilities must sum nominally to 1.0")]
     IncorrectDrawProbabilities,
+    #[error("probabilities must sum to a nominal integer value")]
     IncorrectProbabilitiesIntegerSum,
+    #[error("annealing temperature must be positive")]
     IncorrectAnnealingTemperature,
+    #[error("annealing temperature cooling rate must be in (0.0, 1.0)")]
     IncorrectAnnealingRate,
+    #[error("sample size must be positive")]
     ZeroSampleSize,
 }
 pub type SamplingResult<T> = Result<T, SamplingError>;
-
-#[expect(clippy::absolute_paths, reason = "possible override")]
-impl std::error::Error for SamplingError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        #[expect(clippy::wildcard_enum_match_arm, reason = "Options is a special case")]
-        match self {
-            SamplingError::Options(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-#[expect(clippy::absolute_paths, reason = "possible override")]
-impl std::fmt::Display for SamplingError {
-    #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use SamplingError::*;
-        match self {
-            Options(err) => err.fmt(f),
-            MaxIterations(max_iter) => {
-                write!(f, "max iterations ({max_iter}) reached")
-            }
-            IncorrectStratification => {
-                write!(f, "incorrect stratification")
-            }
-            IncorrectDrawProbabilities => {
-                write!(f, "draw probabilities must sum to 1.0")
-            }
-            IncorrectProbabilitiesIntegerSum => {
-                write!(f, "probabilities should sum to integer value")
-            }
-            IncorrectAnnealingTemperature => {
-                write!(f, "annealing temperature must be positive")
-            }
-            IncorrectAnnealingRate => {
-                write!(
-                    f,
-                    "annealing temperature cooling rate must be in (0.0, 1.0)"
-                )
-            }
-            ZeroSampleSize => {
-                write!(f, "sample size must be positive")
-            }
-        }
-    }
-}
-
-impl From<SamplingOptionsError> for SamplingError {
-    #[inline]
-    fn from(err: SamplingOptionsError) -> Self { SamplingError::Options(err) }
-}
