@@ -28,6 +28,7 @@ pub use crate::utils::{
 /// Helper for NonZeroUsize
 pub fn nz(n: usize) -> std::num::NonZeroUsize { std::num::NonZeroUsize::new(n).unwrap() }
 
+/// Macro for asserting float-like-equalities
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_delta {
@@ -42,6 +43,7 @@ macro_rules! assert_delta {
 }
 pub use assert_delta;
 
+/// Macro for asserting float-like-equalities for array-likes
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_vec {
@@ -63,6 +65,7 @@ macro_rules! assert_vec {
 }
 pub use assert_vec;
 
+/// Macro for asserting float-like-equalities for matrices
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_mat {

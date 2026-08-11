@@ -1,3 +1,5 @@
+//! Test pivotal sampling
+
 use envisim_samplr::pivotal_method::*;
 mod test_utils;
 use test_utils::*;

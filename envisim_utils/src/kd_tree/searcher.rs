@@ -31,7 +31,6 @@ use super::{
 use crate::utils::{
     Number,
     PointSet,
-    SliceView,
 };
 
 mod neighbour {
@@ -673,7 +672,7 @@ where
     #[inline]
     pub fn search<W>(&mut self, tree: &Tree<P>, weights: W) -> TreeResult<()>
     where
-        W: WeightCollection<P::Id> + SliceView,
+        W: WeightCollection<P::Id>,
     {
         if !(0.0 < self.point_weight && self.point_weight < 1.0) {
             return Err(PointWeightError);
@@ -728,6 +727,10 @@ where
     #[inline]
     fn get_weight(&self, id: Id) -> Option<f64> { (**self).get_weight(id) }
 }
+impl WeightCollection<usize> for &[f64] {
+    #[inline]
+    fn get_weight(&self, id: usize) -> Option<f64> { self.get(id).copied() }
+}
 
 /// Wrapper for the [`WeightedSearcher`]
 /// Needed as weights cannot be borrowed in [`WeightedSearcher`], as they will be mutated in between
@@ -755,7 +758,7 @@ where
 impl<P, W> TreeSearcher<P> for WeightedSearcherWrapper<'_, P, W>
 where
     P: PointSet,
-    W: WeightCollection<P::Id> + SliceView,
+    W: WeightCollection<P::Id>,
 {
     #[must_use]
     #[inline]
@@ -868,7 +871,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::matrix::Matrix;
     use crate::test_utils::*;
@@ -953,7 +955,7 @@ mod tests {
         // Search point weight = 0.5
         // calculate_weight for 0.2: 0.2 / (1.0 - 0.5) = 0.4
         let mut searcher = WeightedSearcher::from_point([0.0, 0.0].iter(), 0.5).unwrap();
-        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
+        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, weights.as_slice());
 
         wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
 
@@ -970,7 +972,7 @@ mod tests {
 
         // Search from (0.5, 0.5) where all points tie for distance
         let mut searcher = WeightedSearcher::from_point([0.5, 0.5].iter(), 0.8).unwrap();
-        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, &weights);
+        let mut wrapper = WeightedSearcherWrapper::new(&mut searcher, weights.as_slice());
 
         wrapper.visit_leaf(&mat, &[0, 1, 2, 3]);
 

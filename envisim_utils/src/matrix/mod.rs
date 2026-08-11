@@ -800,8 +800,8 @@ mod tests {
         assert!(!m.contains(3));
 
         // Coordinate access
-        assert_eq!(m.coord_unchecked(1, 1), 5.0);
-        assert_eq!(m.coord(2, 0), Some(3.0));
+        assert_eq!(unsafe { m.coord_unchecked(1, 1) }, &5.0);
+        assert_eq!(m.coord(2, 0), Some(&3.0));
         assert_eq!(m.coord(3, 0), None);
     }
 
@@ -813,11 +813,11 @@ mod tests {
         // Distance R0 to R1: (1-2)^2 + (4-5)^2 = 1 + 1 = 2
         let m = setup_matrix();
 
-        let dist_sq = m.sq_distance_between_unchecked(0, 1);
-        assert_eq!(dist_sq, 2.0);
+        let dist_sq = m.sq_distance_between(0, 1);
+        assert_eq!(dist_sq, Some(2.0));
 
-        let same_dist = m.sq_distance_between_unchecked(2, 2);
-        assert_eq!(same_dist, 0.0);
+        let same_dist = m.sq_distance_between(2, 2);
+        assert_eq!(same_dist, Some(0.0));
 
         assert!(m.sq_distance_between(0, 3).is_none());
     }
