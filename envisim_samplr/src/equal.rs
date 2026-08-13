@@ -19,11 +19,12 @@ use envisim_utils::random::{
     RandSlice,
     Rng,
 };
-use envisim_utils::sampling_options::EqualProbabilityOptions;
+use envisim_utils::sampling_options::EqualProbabilities;
 pub use envisim_utils::sampling_options::SamplingOptions;
 
 pub use crate::error::SamplingError;
 
+/// Provides equal probability sampling methods
 pub trait EqualProbabilitySampling<R>
 where
     R: Rng,
@@ -64,7 +65,7 @@ where
     /// ```
     fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilityOptions, AUX, BAL>
+impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilities, AUX, BAL>
 where
     R: Rand<usize>,
 {

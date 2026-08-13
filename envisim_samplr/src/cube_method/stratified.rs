@@ -12,7 +12,6 @@
 
 //! Cube stratified methods
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -23,7 +22,6 @@ use envisim_utils::matrix::{
     MatrixBase,
     MatrixDims,
     MatrixRef,
-    RawData,
 };
 use envisim_utils::random::{
     FloatRng,
@@ -35,12 +33,15 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    PointSet,
+    SliceView,
+};
 use rustc_hash::FxSeededState;
 
 use super::cube::{
@@ -54,6 +55,7 @@ use crate::error::{
     SamplingResult,
 };
 
+/// Runs a stratified CUBE strategy
 #[must_use]
 pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
     /// The main cube runner
@@ -63,7 +65,7 @@ pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
     /// The original vector of strata
     strata_vec: &'bopts [STRATA],
     /// The original inclusion probabilities
-    org_probabilities: Cow<'bopts, [f64]>,
+    org_probabilities: Box<[f64]>,
     /// The original balancing data
     balancing_data: MatrixRef<'bopts, f64>,
 }
@@ -83,11 +85,11 @@ where
         strata_vec: &'bopts [STRATA],
     ) -> SamplingResult<Self>
     where
-        PO: ProbabilityOptions<Real = f64>,
+        PO: ProbabilitiesSpec<Real = f64>,
         R: Rand<usize>,
-        T: RawData<Elem = f64>,
+        T: SliceView<Elem = f64>,
     {
-        let org_probabilities = options.probabilities().to_slice_real();
+        let org_probabilities: Box<[f64]> = options.probabilities().iter_real().collect();
         let balancing_data = options.balancing().data().to_matrixref();
 
         let a_dims = MatrixDims::new(
@@ -349,8 +351,8 @@ pub fn cube_stratified<R, PO, AUX, T, STRATA>(
 ) -> SamplingResult<Vec<usize>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
-    T: RawData<Elem = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
+    T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_controller_real();
@@ -398,9 +400,9 @@ pub fn local_cube_stratified<R, PO, P, T, STRATA>(
 ) -> SamplingResult<Vec<usize>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_spreading_controller_real();

@@ -15,10 +15,10 @@
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SpreadingOptions,
 };
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::PointSet;
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
@@ -29,29 +29,31 @@ use crate::utils::ypi_quotient;
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
 #[inline]
-fn balance_deviation<P>(
+fn balance_deviation<PROB, DATA>(
     sample: &[usize],
-    probabilities: &[f64],
-    data: &P,
+    probabilities: &PROB,
+    data: &DATA,
 ) -> EstimationResult<Vec<f64>>
 where
-    P: PointSet<Id = usize, Value = f64>,
+    PROB: ProbabilitiesSpec<Real = f64>,
+    DATA: PointSet<Id = usize, Value = f64>,
 {
-    let population_size = probabilities.len();
+    let population_size = probabilities.population_size().get();
 
-    (0..data.dim().get())
+    (0..data.dimensions().get())
         .map(|j| {
             // Calculate the dimension total for the population
             let pop_sum: f64 = (0..population_size)
-                .map(|i| data.try_coord(i, j))
+                .map(|i| data.coord(i, j))
                 .sum::<Option<f64>>()
                 .ok_or(EstimationError::InvalidSample)?;
             // Calculate the dimension HT-estimator
             let sample_sum: f64 = sample
                 .iter()
                 .map(|&i| {
-                    data.try_coord(i, j)
-                        .zip(probabilities.get(i))
+                    let p = probabilities.nth_real(i);
+                    data.coord(i, j)
+                        .zip(p)
                         .ok_or(EstimationError::InvalidSample)
                         .and_then(ypi_quotient)
                 })
@@ -69,7 +71,7 @@ where
 /// # use envisim_utils::matrix::Matrix;
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
 /// let sb = balance_deviation_spreading(&s, &options)?;
 /// # Ok::<(), EstimationError>(())
@@ -83,11 +85,10 @@ pub fn balance_deviation_spreading<PO, P, BAL>(
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    let p = options.probabilities().to_slice_real();
-    balance_deviation(sample, &p, options.spreading().data())
+    balance_deviation(sample, options.probabilities(), options.spreading().data())
 }
 
 /// Calculates the deviation from the balancing matrix.
@@ -98,7 +99,7 @@ where
 /// # use envisim_utils::matrix::Matrix;
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_balancing(m)?;
+/// let options = SamplingOptions::new(p)?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
 /// let sb = balance_deviation_balancing(&s, &options)?;
 /// # Ok::<(), EstimationError>(())
@@ -112,11 +113,10 @@ pub fn balance_deviation_balancing<PO, AUX, P>(
     options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
-    let p = options.probabilities().to_slice_real();
-    balance_deviation(sample, &p, options.balancing().data())
+    balance_deviation(sample, options.probabilities(), options.balancing().data())
 }
 
 #[cfg(test)]

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.7.0] - 2026-08-13
+- Added dependency [`thiserror`](https://crates.io/crates/thiserror).
+
+### Added
+- Methods `SamplingOptions::with_spreading` and `with_balancing` for equal probability sampling, setting the population size from the provided data.
+- Added `Matrix::swap`, for swapping two elements in a `Matrix`.
+- Added `TreeError`, and `TreeResult` as an alias for `Result<T, TreeError>`.
+
+### Changed
+- Searchers in `kd_tree::searcher`, renamed `from_slice`, `set_from_slice`, `reset_from_slice` to `_point`. These methods now accepts iterators instead of slices.
+- Matrix storage: Removed `OwnedMatrixData` and `BorrowedMatrixData`. Implemented `SliceView` and `SliceViewMut` for array-like types in `std`.
+- Moved utility exports to `utils`.
+- `Matrix` and `PointSet` iterators satisfy `ExactSizeIterator + DoubleEndedIterator + Clone`.
+- Renamed `CoordinationOptions` as `CoordinationRandomValues`, and made it generic over `SliceView` containers.
+- Renamed `ProbabilityOptions` as `ProbabilitiesSpec`, and refactored the trait. Renamed `EqualProbabilityOptions` as `EqualProbabilities`. Renamed `UnequalProbabilityOptions` as `UnequalProbabilities`, and refactored it, using two different representations for real-valued and integer-valued probabilityspecifications.
+- Added `std::iter::Sum` as a supertrait of `Number`.
+- Individual implementations of `ProbabilitySet` replaced in favor of generic `try_new`.
+- `Tree::new` now fails if any unit does not exist in collection. `Tree` methods now fail through `TreeError` rather than through `Option::None`. `Node::iterate_leafs_by` is now infallible.
+- `Neighbour`'s `id` and `distance` properties now accessed through trait `NeighbourView`.
+- Renamed `Number::epsilonish` to `machine_epsilon`.
+- Renamed `PointSet` methods, using the suffix `_unchecked` for unsafe direct access.
+
+### Removed
+- Removed second (ergonomic) generic for data type in `Matrix`. Defaulted to `SliceView::Elem`, now derived from the same.
+- Removed trait `NeighbourSlice`.
+
+
 ## [0.6.0] - 2026-06-02
 ### Changed
 - Added `fmt::Debug` as a supertrait of `Number`.
@@ -18,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2026-05-25
 - MSRV: 1.85.1
-- Added dependency [`num-traits`](https://crates.io/crates/num-integer).
+- Added dependency [`num-integer`](https://crates.io/crates/num-integer).
 - Added dependency [`num-traits`](https://crates.io/crates/num-traits).
 - Added dependency [`rand_core`](https://crates.io/crates/rand_core).
 - Bumped optional dependency [`rand`](https://crates.io/crates/rand) to 0.10.1.

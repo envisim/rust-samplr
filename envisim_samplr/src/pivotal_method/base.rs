@@ -19,7 +19,7 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
 };
@@ -29,6 +29,7 @@ use super::runner::{
     PivotalStrategy,
 };
 
+/// Sequential local pivotal method
 #[must_use]
 pub struct SequentialStrategy();
 impl SequentialStrategy {
@@ -38,7 +39,7 @@ impl SequentialStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -59,6 +60,7 @@ impl<PROB> PivotalStrategy<PROB, ()> for SequentialStrategy {
     }
 }
 
+/// Random order local pivotal method
 pub struct RandomStrategy();
 impl RandomStrategy {
     /// Constructs a new [`PivotalRunner`] using the random strategy
@@ -67,7 +69,7 @@ impl RandomStrategy {
         options: &SamplingOptions<PO, AUX, BAL>,
     ) -> PivotalRunner<Self, PO::Native, ()>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_controller();
         PivotalRunner {
@@ -106,6 +108,7 @@ impl<PROB> PivotalStrategy<PROB, ()> for RandomStrategy {
     }
 }
 
+/// Provides pivotal sampling methods
 pub trait PivotalSampling<R>
 where
     R: Rng,
@@ -119,7 +122,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p.into())?;
+    /// let opts = SamplingOptions::new(p)?;
     /// let s = opts.spm(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -134,7 +137,7 @@ where
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p.into())?;
+    /// let opts = SamplingOptions::new(p)?;
     /// let s = opts.rpm(&mut rng);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
@@ -145,7 +148,7 @@ where
 impl<R, PO, AUX, BAL> PivotalSampling<R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     fn spm(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }

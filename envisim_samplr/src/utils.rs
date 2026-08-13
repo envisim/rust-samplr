@@ -36,14 +36,14 @@ where
 
 /// The basic poisson sampling algorithm
 #[inline]
-pub fn poisson_internal<R>(rng: &mut R, probabilities: &[f64]) -> Vec<usize>
+pub fn poisson_internal<R, I>(rng: &mut R, probabilities: I) -> Vec<usize>
 where
     R: Rand<f64>,
+    I: Iterator<Item = f64>,
 {
     probabilities
-        .iter()
         .enumerate()
-        .filter_map(|(i, &p)| (rng.rand() < p).then_some(i))
+        .filter_map(|(i, p)| (rng.rand() < p).then_some(i))
         .collect()
 }
 

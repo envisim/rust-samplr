@@ -16,8 +16,10 @@ use std::num::NonZeroUsize;
 
 pub use config::*;
 use envisim_utils::random::Rand;
-use envisim_utils::sampling_options::Epsilon;
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::{
+    Epsilon,
+    PointSet,
+};
 use num_traits::ToPrimitive;
 
 use super::DistributionalDesignOptions;
@@ -32,7 +34,7 @@ mod config {
 
     use std::num::NonZeroUsize;
 
-    use envisim_utils::spatial::PointSet;
+    use envisim_utils::utils::PointSet;
 
     use crate::dbd::energy_distance::EnergyDistance;
     pub use crate::dbd::tc_parameters::{
@@ -45,7 +47,7 @@ mod config {
     #[derive(Clone, Debug)]
     pub struct CircularConfiguration {
         /// Internal storage of sequence
-        sequence: Vec<usize>,
+        sequence: Box<[usize]>,
         /// Total energy multiplied by sample size
         total_nenergy: f64,
         /// Tactical configuration parameters
@@ -58,7 +60,7 @@ mod config {
         /// Panics if the sequence is empty.
         #[inline]
         pub fn new<P>(
-            sequence: Vec<usize>,
+            sequence: Box<[usize]>,
             sample_size: NonZeroUsize,
             ed: &EnergyDistance<P>,
         ) -> Self
@@ -90,7 +92,7 @@ mod config {
         /// Consumes `self` and returns the internal storage
         #[must_use]
         #[inline]
-        pub fn into_sequence(self) -> Vec<usize> { self.sequence }
+        pub fn into_sequence(self) -> Box<[usize]> { self.sequence }
         /// Returns a mutable reference to the sequence store
         #[must_use]
         #[inline]
@@ -180,6 +182,10 @@ impl<P> DbdCircular<P> {
     ///
     /// # Errors
     /// Returns the full configuration in case of `sample_size` equaling the population size.
+    #[expect(
+        clippy::unreachable,
+        reason = "matrix has rows > 0, one unit must exist in sequence"
+    )]
     #[inline]
     pub fn new(
         dbs_options: &DistributionalDesignOptions,
@@ -190,11 +196,15 @@ impl<P> DbdCircular<P> {
     where
         P: PointSet<Id = usize, Value = f64>,
     {
-        let sequence: Vec<usize> = matrix.id_iter().collect();
+        let sequence: Box<[usize]> = matrix.ids().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
         let ed = EnergyDistance::new(matrix, sample_size);
 
-        let pair = (sequence[0], sequence[1]);
+        let pair = match sequence.as_ref() {
+            [a, b, ..] => (*a, *b),
+            [a] => (*a, *a),
+            _ => unreachable!("empty sequence"),
+        };
         let configuration = CircularConfiguration::new(sequence, sample_size, &ed);
 
         if configuration.tcp().n_samples().get() <= 1 {

@@ -1,3 +1,5 @@
+//! Test cp-sampling
+
 mod test_utils;
 use envisim_samplr::*;
 use test_utils::*;

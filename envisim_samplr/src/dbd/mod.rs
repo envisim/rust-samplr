@@ -53,12 +53,12 @@ mod dbd_trait {
 
     use envisim_utils::random::Rng;
     use envisim_utils::sampling_options::{
-        EqualProbabilityOptions,
+        EqualProbabilities,
         SamplingOptions,
         SamplingOptionsRng,
         SpreadingOptions,
     };
-    use envisim_utils::spatial::PointSet;
+    use envisim_utils::utils::PointSet;
     use num_traits::ToPrimitive;
 
     use super::annealing::AnnealingDistributionalDesign;
@@ -77,6 +77,7 @@ mod dbd_trait {
         SamplingResult,
     };
 
+    /// Provides distributionally balanced sampling designs
     pub trait DistributionalDesigns<R>
     where
         R: Rng,
@@ -130,9 +131,9 @@ mod dbd_trait {
     }
 
     impl<R, P, BAL> DistributionalDesigns<R>
-        for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
+        for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
     where
-        R: SamplingOptionsRng<EqualProbabilityOptions>,
+        R: SamplingOptionsRng<EqualProbabilities>,
         P: PointSet<Id = usize, Value = f64>,
     {
         #[inline]
@@ -183,6 +184,7 @@ mod dbd_trait {
         }
     }
 
+    /// Provides evalutors for distributionally balanced sampling designs
     pub trait DistributionalDesignEvaluators<R>: DistributionalDesigns<R>
     where
         R: Rng,
@@ -211,9 +213,9 @@ mod dbd_trait {
         ) -> SamplingResult<Vec<f64>>;
     }
     impl<R, P, BAL> DistributionalDesignEvaluators<R>
-        for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
+        for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
     where
-        R: SamplingOptionsRng<EqualProbabilityOptions>,
+        R: SamplingOptionsRng<EqualProbabilities>,
         P: PointSet<Id = usize, Value = f64>,
     {
         #[inline]

@@ -13,13 +13,11 @@
 //! Spatial pivotal methods
 
 use envisim_utils::indices::Pair;
+use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     NearestNeighbourSearcher,
-    NeighbourSlice,
-};
-use envisim_utils::kd_tree::{
-    PointSet,
-    Tree,
+    Neighbour,
+    NeighbourView,
 };
 use envisim_utils::probabilities::{
     Probability,
@@ -32,11 +30,12 @@ use envisim_utils::random::{
 };
 use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
 };
+use envisim_utils::utils::PointSet;
 use num_traits::ToPrimitive;
 use rustc_hash::FxHashSet;
 
@@ -66,9 +65,14 @@ where
         .expect("id_n to exist")
         .search(tree)
         .expect("nn to be found");
-    searcher.neighbours().contains_id(id_org)
+    searcher
+        .neighbours()
+        .iter()
+        .map(Neighbour::id)
+        .any(|id| *id == id_org)
 }
 
+/// The local pivotal method variant 1
 #[must_use]
 pub struct LocalStrategy1<P>
 where
@@ -89,7 +93,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -135,7 +139,7 @@ where
 
             // Store potential matches in candidates ... needs to check if any is a match
             self.candidates
-                .extend(self.searcher.neighbours().to_neighbour_id_iter());
+                .extend(self.searcher.neighbours().iter().map(Neighbour::id));
 
             {
                 let mut i = 0_usize;
@@ -162,6 +166,7 @@ where
     }
 }
 
+/// The local pivotal method variant 1S
 #[must_use]
 pub struct LocalStrategy1S<P>
 where
@@ -184,7 +189,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
     {
         let controller = options.to_spreading_controller();
         let searcher = NearestNeighbourSearcher::new(controller.tree().data());
@@ -248,7 +253,7 @@ where
             // Store potential matches in candidates ... needs to check if any of the potential
             // equals is a match
             self.candidates
-                .extend(self.searcher.neighbours().to_neighbour_id_iter());
+                .extend(self.searcher.neighbours().iter().map(Neighbour::id));
 
             // Partition candidates into compatible and non-compatible matches
             let mut left = 0;
@@ -286,6 +291,7 @@ where
     }
 }
 
+/// The local pivotal method variant 2
 #[must_use]
 pub struct LocalStrategy2<P>
 where
@@ -304,7 +310,7 @@ where
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
     where
-        PO: ProbabilityOptions,
+        PO: ProbabilitiesSpec,
         P: PointSet,
     {
         let controller = options.to_spreading_controller();
@@ -346,10 +352,11 @@ where
             .expect("neighbours to have positive length")
             .id();
 
-        Pair::More(id1, id2)
+        Pair::More(id1, *id2)
     }
 }
 
+/// Provides local pivotal sampling methods
 pub trait LocalPivotalSampling<R>
 where
     R: Rng,
@@ -365,7 +372,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -383,7 +390,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_1s(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -401,7 +408,7 @@ where
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p.into())?
+    /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(m)?
     ///     .lpm_2(&mut rng);
     /// assert_eq!(s.len(), 5);
@@ -412,7 +419,7 @@ where
 impl<R, PO, P, BAL> LocalPivotalSampling<R> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions,
+    PO: ProbabilitiesSpec,
     P: PointSet<Id = usize>,
 {
     #[inline]
@@ -438,7 +445,7 @@ where
 /// let mut rng = try_sys_rng().unwrap();
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 /// assert_eq!(s.len(), 2);
@@ -469,7 +476,7 @@ pub fn hierarchical_lpm_2<R, PO, P, BAL>(
 ) -> SamplingResult<Vec<Vec<usize>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
 {
     // Check validity of probabilities and sizes

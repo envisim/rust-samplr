@@ -12,64 +12,122 @@
 
 //! Probability specifications and containers
 
-use std::borrow::Cow;
 use std::iter::repeat_n;
 use std::num::{
-    NonZero,
     NonZeroU128,
     NonZeroUsize,
 };
 
 use num_integer::Integer;
-use num_traits::ToPrimitive;
+use num_traits::{
+    ConstOne,
+    ConstZero,
+    Float,
+    NumCast,
+    ToPrimitive,
+};
 
 use super::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::Epsilon;
-use crate::number_traits::{
+use crate::probabilities::ProbabilitySet;
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
+    NumberInt,
+    SliceView,
 };
-use crate::probabilities::ProbabilitySet;
 
 /// Interface for constructing probability sets from probability options
-pub trait ProbabilityOptions {
+pub trait ProbabilitiesSpec {
     /// The native representation of the probabilities
     type Native: Number;
     /// The real-valued representation of the probabilities
     type Real: NumberFloat;
-    /// Returns the native probability set
-    fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native>;
-    /// Returns a probability set with the real-valued representation.
-    fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real>;
-    /// Returns the probabilities as a slice in its native representation, and the maximum values
-    #[must_use]
-    fn to_slice(&self) -> (Cow<'_, [Self::Native]>, Self::Native);
-    /// Returns the probabilities as a slice in its real-valued representation
-    #[must_use]
-    fn to_slice_real(&self) -> Cow<'_, [Self::Real]>;
     /// Returns the population size
     #[must_use]
     fn population_size(&self) -> NonZeroUsize;
-    /// Returns the rounded sample size
+    /// Returns the rounded sample size.
     #[must_use]
     fn sample_size(&self) -> usize;
-    /// Returns the sample size in the real-valued representation
+    /// Returns the maximum value of the probability representation.
     #[must_use]
-    fn sample_size_real(&self) -> Self::Real;
+    fn max(&self) -> Self::Native;
+    // /// Returns the epsilon value of the native-valued representation.
+    // fn eps(&self) -> Epsilon<Self::Native> { Epsilon::default() }
+    /// Returns an iterator to the probabilities in its native representation.
+    #[must_use]
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone;
+    /// Returns the probability at `idx`.
+    #[must_use]
+    fn nth(&self, idx: usize) -> Option<Self::Native>;
+    /// Returns the probability set
+    #[inline]
+    fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
+        let eps_v = <Self::Native as NumCast>::from(eps.get()).expect("eps real -> native");
+        let eps_c = Epsilon::new(eps_v).expect("constructable eps");
+        ProbabilitySet::try_new(self.iter(), self.max(), eps_c)
+            .expect("ProbabilitySet to be constructable")
+    }
+    /// Returns the population size in the real-valued representation.
+    #[must_use]
+    #[inline]
+    fn population_size_real(&self) -> Self::Real {
+        <Self::Real as NumCast>::from(self.population_size().get())
+            .expect("population size -> real")
+    }
+    /// Returns the sample size in the real-valued representation.
+    #[must_use]
+    #[inline]
+    fn sample_size_real(&self) -> Self::Real {
+        <Self::Real as NumCast>::from(self.sample_size()).expect("sample size -> real")
+    }
+    /// Returns the maximum value in the real-valued representation.
+    #[must_use]
+    #[inline]
+    fn max_real(&self) -> Self::Real {
+        <Self::Real as NumCast>::from(self.max()).expect("max -> real")
+    }
+    /// Returns an iterator to the probabilities in its real-valued representation.
+    #[must_use]
+    #[inline]
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        self.iter()
+            .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
+    }
+    /// Returns the probability at `idx`.
+    #[must_use]
+    #[inline]
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> {
+        self.nth(idx)
+            .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
+    }
+    /// Returns a probability set with the real-valued representation.
+    #[inline]
+    fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
+        ProbabilitySet::try_new(self.iter_real(), Self::Real::ONE, eps)
+            .expect("ProbabilitySet to be constructable")
+    }
+}
+
+/// Access the internal data of a probabilities specification
+pub trait ProbabilitiesView: ProbabilitiesSpec {
+    /// Returns a slice of the internal data
+    #[must_use]
+    fn data(&self) -> &[<Self as ProbabilitiesSpec>::Native];
 }
 
 /// Probability options for an equal probability design
 #[must_use]
-pub struct EqualProbabilityOptions {
+pub struct EqualProbabilities {
     /// Population size
     population_size: NonZeroUsize,
     /// Sample size
     sample_size: usize,
 }
-impl EqualProbabilityOptions {
+impl EqualProbabilities {
     /// Constructs a new equal probability specification
     ///
     /// # Errors
@@ -96,235 +154,274 @@ impl EqualProbabilityOptions {
     /// Panics if either `sample_size` or `population_size` cannot be converted to `f64`.
     #[must_use]
     #[inline]
-    pub fn as_real(&self) -> f64 {
-        self.sample_size
-            .to_f64()
-            .expect("sample size convert to f64")
-            / self
-                .population_size
-                .get()
-                .to_f64()
-                .expect("population size convert to f64")
-    }
+    pub fn as_real(&self) -> f64 { self.sample_size_real() / self.population_size_real() }
 }
-impl ProbabilityOptions for EqualProbabilityOptions {
+impl ProbabilitiesSpec for EqualProbabilities {
     type Native = usize;
     type Real = f64;
-    #[inline]
-    fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
-        ProbabilitySet::<Self::Native>::new(
-            repeat_n(self.sample_size, self.population_size.get()),
-            self.population_size,
-        )
-    }
-    #[inline]
-    fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
-        ProbabilitySet::<Self::Real>::new(repeat_n(self.as_real(), self.population_size.get()), eps)
-    }
-    #[inline]
-    fn to_slice(&self) -> (Cow<'_, [Self::Native]>, Self::Native) {
-        let p = vec![self.sample_size; self.population_size.get()];
-        (Cow::Owned(p), self.population_size.get())
-    }
-    #[inline]
-    fn to_slice_real(&self) -> Cow<'_, [Self::Real]> {
-        let p = vec![self.as_real(); self.population_size.get()];
-        Cow::Owned(p)
-    }
     #[inline]
     fn population_size(&self) -> NonZeroUsize { self.population_size }
     #[inline]
     fn sample_size(&self) -> usize { self.sample_size }
     #[inline]
-    fn sample_size_real(&self) -> Self::Real {
-        self.sample_size
-            .to_f64()
-            .expect("sample size to convert to f64")
+    fn max(&self) -> Self::Native { self.population_size.get() }
+    #[inline]
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
+        repeat_n(self.sample_size, self.population_size.get())
+    }
+    #[inline]
+    fn nth(&self, idx: usize) -> Option<Self::Native> {
+        (idx < self.population_size.get()).then_some(self.sample_size)
+    }
+    #[inline]
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        repeat_n(self.as_real(), self.population_size.get())
     }
 }
 
-/// Probability options for an unequal probability design
-#[must_use]
-pub struct UnequalProbabilityOptions<'bprob, N>
+/// Stores real-valued probabilities in some slice format
+pub struct UnequalProbabilitiesReal<PD>
 where
-    N: Number,
+    PD: SliceView,
+    PD::Elem: NumberFloat,
 {
-    /// Probability data
-    data: Cow<'bprob, [N]>,
-    /// The maximum value of the probability representation
-    max: N,
+    /// Slicy data
+    data: PD,
+}
+/// Stores integer-valued probabilities in some slice format
+pub struct UnequalProbabilitiesInt<PD>
+where
+    PD: SliceView,
+    PD::Elem: NumberInt,
+{
+    /// Slicy data
+    data: PD,
+    /// Maximum value of the integer-valued probabilities
+    max: PD::Elem,
 }
 
-/// Implements the probability options for float types
-macro_rules! prob_opts_impl_float {
-    ($t:ty) => {
-        impl<'bprob> UnequalProbabilityOptions<'bprob, $t> {
-            /// Constructs a new unequal probability specification
-            ///
-            /// # Errors
-            /// Returns an error if the `probabilities` container was empty, or if any provided probability
-            /// was not a proper probaility (i.e. within [0.0, 1.0]).
-            #[inline]
-            pub fn new(probabilities: Cow<'bprob, [$t]>) -> SamplingOptionsResult<Self> {
-                let data = probabilities;
-                if data.is_empty() {
-                    return Err(SamplingOptionsError::InvalidPopulationSize);
-                }
-                if !data.iter().all(|&p| (0.0..=1.0).contains(&p)) {
-                    return Err(SamplingOptionsError::InvalidProbability);
-                }
-                Ok(Self { data, max: 1.0 })
-            }
-        }
-        impl<'bprob> ProbabilityOptions for UnequalProbabilityOptions<'bprob, $t> {
-            type Native = $t;
-            type Real = $t;
-            #[inline]
-            fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
-                ProbabilitySet::<Self::Native>::new(self.data.iter().copied(), eps)
-            }
-            #[inline]
-            fn to_probabilityset_real(
-                &self,
-                eps: Epsilon<Self::Real>,
-            ) -> ProbabilitySet<Self::Real> {
-                self.to_probabilityset(eps)
-            }
-            #[inline]
-            fn to_slice(&self) -> (Cow<'_, [Self::Native]>, Self::Native) {
-                (self.to_slice_real(), 1.0)
-            }
-            #[inline]
-            fn to_slice_real(&self) -> Cow<'_, [Self::Real]> { Cow::Borrowed(self.data.as_ref()) }
-            #[inline]
-            fn population_size(&self) -> NonZeroUsize {
-                NonZeroUsize::new(self.data.len()).expect("data to be non-empty")
-            }
-            #[inline]
-            fn sample_size(&self) -> usize {
-                self.sample_size_real()
-                    .round()
-                    .to_usize()
-                    .expect("sample size to convert to usize")
-            }
-            #[inline]
-            fn sample_size_real(&self) -> Self::Real { self.data.iter().sum() }
-        }
-    };
+/// Stores unequal probability options data
+pub struct UnequalProbabilities<PO> {
+    /// Store
+    store: PO,
 }
-/// Implements the probability options for unsigned integer types
-macro_rules! prob_opts_impl_int {
-    ($t:ty) => {
-        impl<'bprob> UnequalProbabilityOptions<'bprob, $t> {
-            /// Constructs a new unequal probability specification
-            ///
-            /// # Errors
-            /// Returns an error if the `probabilities` container was empty, or if any provided probability
-            /// was not a proper probaility (i.e. within [0.0, 1.0]).
-            #[inline]
-            pub fn new_int(
-                probabilities: Cow<'bprob, [$t]>,
-                max: NonZero<$t>,
-            ) -> SamplingOptionsResult<Self> {
-                let max = max.get();
-                let data = probabilities;
-                if data.is_empty() {
-                    return Err(SamplingOptionsError::InvalidPopulationSize);
-                }
-                if !data.iter().all(|&p| (0..=max).contains(&p)) {
-                    return Err(SamplingOptionsError::InvalidProbability);
-                }
-                Ok(Self { data, max })
-            }
+impl<PD> UnequalProbabilities<UnequalProbabilitiesReal<PD>>
+where
+    PD: SliceView,
+    PD::Elem: NumberFloat,
+{
+    /// Constructs a new unequal probability specification
+    ///
+    /// # Errors
+    /// Returns an error if the `probabilities` container was empty, or if any provided probability
+    /// was not a proper probaility (i.e. within [0.0, 1.0]).
+    #[inline]
+    pub fn new(probabilities: PD) -> SamplingOptionsResult<Self> {
+        let data = probabilities.data();
+        if data.is_empty() {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        } else if !data
+            .iter()
+            .all(|&p| (PD::Elem::ZERO..=PD::Elem::ONE).contains(&p))
+        {
+            return Err(SamplingOptionsError::InvalidProbability);
         }
-        impl<'bprob> ProbabilityOptions for UnequalProbabilityOptions<'bprob, $t> {
-            type Native = $t;
-            type Real = f64;
-            #[inline]
-            fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
-                ProbabilitySet::<Self::Native>::new(
-                    self.data.iter().copied(),
-                    NonZero::new(self.max).expect("max > 0"),
-                )
-            }
-            #[inline]
-            fn to_probabilityset_real(
-                &self,
-                eps: Epsilon<Self::Real>,
-            ) -> ProbabilitySet<Self::Real> {
-                let pop_size = self
-                    .population_size()
-                    .get()
-                    .to_f64()
-                    .expect("population size to convert to f64");
-                ProbabilitySet::<Self::Real>::new(
-                    self.data
-                        .iter()
-                        .map(|v| v.to_f64().expect("bounded by population size") / pop_size),
-                    eps,
-                )
-            }
-            #[inline]
-            fn to_slice(&self) -> (Cow<'_, [Self::Native]>, Self::Native) {
-                (Cow::Borrowed(self.data.as_ref()), self.max)
-            }
-            /// # Panics
-            /// Panics if max or any internal value does not convert to f64
-            #[inline]
-            fn to_slice_real(&self) -> Cow<'_, [Self::Real]> {
-                let max = self.max.to_f64().expect("max to convert to f64");
-                let p = self
-                    .data
-                    .iter()
-                    .map(|v| v.to_f64().expect("v to convert to f64") / max)
-                    .collect();
-                Cow::Owned(p)
-            }
-            #[inline]
-            fn population_size(&self) -> NonZeroUsize {
-                NonZeroUsize::new(self.data.len()).expect("data to be non-empty")
-            }
-            #[inline]
-            fn sample_size(&self) -> usize {
-                let s_sum: u128 = self
-                    .data
-                    .iter()
-                    .map(|v| v.to_u128().expect("t to convert to u128"))
-                    .sum();
-                let u_sum = NonZeroU128::try_from(self.population_size())
-                    .expect("population size to convert to U128");
-                let (ss, mm) = s_sum.div_mod_floor(&u_sum.get());
-
-                let res = ss.to_usize().expect("s_sum / u_sum to convert to usize");
-
-                if (mm << 1) < u_sum.get() {
-                    res
-                } else {
-                    res + 1
-                }
-            }
-            #[inline]
-            fn sample_size_real(&self) -> Self::Real {
-                let s_sum: u128 = self
-                    .data
-                    .iter()
-                    .map(|v| v.to_u128().expect("t to convert to u128"))
-                    .sum();
-                s_sum.to_f64().expect("u128 to convert to f64")
-                    / self
-                        .population_size()
-                        .get()
-                        .to_f64()
-                        .expect("population size to convert to f64")
-            }
+        Ok(Self {
+            store: UnequalProbabilitiesReal {
+                data: probabilities,
+            },
+        })
+    }
+}
+impl<PD> UnequalProbabilities<UnequalProbabilitiesInt<PD>>
+where
+    PD: SliceView,
+    PD::Elem: NumberInt,
+{
+    /// Constructs a new unequal probability specification
+    ///
+    /// # Errors
+    /// Returns an error if
+    /// - the `probabilities` container was empty,
+    /// - any provided probability was not a proper probaility (i.e. within [0.0, 1.0]), or
+    /// - `max` is zero.
+    #[inline]
+    pub fn new_int(probabilities: PD, max: PD::Elem) -> SamplingOptionsResult<Self> {
+        let data = probabilities.data();
+        if !max.is_pos_finite() {
+            return Err(SamplingOptionsError::InvalidProbability);
+        } else if data.is_empty() {
+            return Err(SamplingOptionsError::InvalidPopulationSize);
+        } else if !data.iter().all(|&p| (PD::Elem::ZERO..=max).contains(&p)) {
+            return Err(SamplingOptionsError::InvalidProbability);
         }
-    };
+        Ok(Self {
+            store: UnequalProbabilitiesInt {
+                data: probabilities,
+                max,
+            },
+        })
+    }
 }
 
-prob_opts_impl_int!(usize);
-prob_opts_impl_int!(u8);
-prob_opts_impl_int!(u16);
-prob_opts_impl_int!(u32);
-prob_opts_impl_int!(u64);
+impl<PD> ProbabilitiesView for UnequalProbabilitiesReal<PD>
+where
+    PD: SliceView,
+    PD::Elem: NumberFloat,
+{
+    #[inline]
+    fn data(&self) -> &[PD::Elem] { self.data.data() }
+}
+impl<PD> ProbabilitiesView for UnequalProbabilitiesInt<PD>
+where
+    PD: SliceView,
+    PD::Elem: NumberInt,
+{
+    #[inline]
+    fn data(&self) -> &[PD::Elem] { self.data.data() }
+}
+impl<PO> ProbabilitiesView for UnequalProbabilities<PO>
+where
+    PO: ProbabilitiesView,
+{
+    #[inline]
+    fn data(&self) -> &[<Self as ProbabilitiesSpec>::Native] { self.store.data() }
+}
 
-prob_opts_impl_float!(f64);
+impl<PO> ProbabilitiesSpec for UnequalProbabilities<PO>
+where
+    PO: ProbabilitiesSpec,
+{
+    type Native = PO::Native;
+    type Real = PO::Real;
+    #[inline]
+    fn population_size(&self) -> NonZeroUsize { self.store.population_size() }
+    #[inline]
+    fn sample_size(&self) -> usize { self.store.sample_size() }
+    #[inline]
+    fn max(&self) -> Self::Native { self.store.max() }
+    #[inline]
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
+        self.store.iter()
+    }
+    #[inline]
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.store.nth(idx) }
+    #[inline]
+    fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
+        self.store.to_probabilityset(eps)
+    }
+    #[inline]
+    fn population_size_real(&self) -> Self::Real { self.store.population_size_real() }
+    #[inline]
+    fn sample_size_real(&self) -> Self::Real { self.store.sample_size_real() }
+    #[inline]
+    fn max_real(&self) -> Self::Real { self.store.max_real() }
+    #[inline]
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        self.store.iter_real()
+    }
+    #[inline]
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> { self.store.nth_real(idx) }
+    #[inline]
+    fn to_probabilityset_real(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Real> {
+        self.store.to_probabilityset_real(eps)
+    }
+}
+impl<PD> ProbabilitiesSpec for UnequalProbabilitiesReal<PD>
+where
+    PD: SliceView,
+    PD::Elem: NumberFloat,
+{
+    type Native = PD::Elem;
+    type Real = PD::Elem;
+    #[inline]
+    fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.data.data().len()).expect("data to be non-empty")
+    }
+    #[inline]
+    fn sample_size(&self) -> usize {
+        self.sample_size_real()
+            .round()
+            .to_usize()
+            .expect("sample size to convert to usize")
+    }
+    #[inline]
+    fn max(&self) -> Self::Native { <Self::Native>::ONE }
+    #[inline]
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
+        self.data.data().iter().copied()
+    }
+    #[inline]
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.data.data().get(idx).copied() }
+    #[inline]
+    fn to_probabilityset(&self, eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
+        ProbabilitySet::try_new(self.iter(), self.max(), eps)
+            .expect("ProbabilitySet to be constructable")
+    }
+    #[inline]
+    fn sample_size_real(&self) -> Self::Real { self.iter_real().sum() }
+    #[inline]
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        self.iter()
+    }
+    #[inline]
+    fn nth_real(&self, idx: usize) -> Option<Self::Real> { self.nth(idx) }
+}
+
+impl<PD> ProbabilitiesSpec for UnequalProbabilitiesInt<PD>
+where
+    PD: SliceView,
+    PD::Elem: NumberInt,
+{
+    type Native = PD::Elem;
+    type Real = f64;
+    #[inline]
+    fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.data.data().len()).expect("data to be non-empty")
+    }
+    #[inline]
+    fn sample_size(&self) -> usize {
+        let s_sum: u128 = self
+            .iter()
+            .map(|v| v.to_u128().expect("t to convert to u128"))
+            .sum();
+        let u_sum = NonZeroU128::try_from(self.population_size())
+            .expect("population size to convert to U128");
+        let (ss, mm) = s_sum.div_mod_floor(&u_sum.get());
+
+        let res = ss.to_usize().expect("s_sum / u_sum to convert to usize");
+
+        if (mm << 1) < u_sum.get() {
+            res
+        } else {
+            res + 1
+        }
+    }
+    #[inline]
+    fn max(&self) -> Self::Native { self.max }
+    #[inline]
+    fn iter(&self) -> impl ExactSizeIterator<Item = Self::Native> + DoubleEndedIterator + Clone {
+        self.data.data().iter().copied()
+    }
+    #[inline]
+    fn nth(&self, idx: usize) -> Option<Self::Native> { self.data.data().get(idx).copied() }
+    #[inline]
+    fn to_probabilityset(&self, _eps: Epsilon<Self::Real>) -> ProbabilitySet<Self::Native> {
+        ProbabilitySet::try_new(self.iter(), self.max(), Epsilon::default())
+            .expect("ProbabilitySet to be constructable")
+    }
+    #[inline]
+    fn sample_size_real(&self) -> Self::Real {
+        let s_sum: u128 = self
+            .iter()
+            .map(|v| v.to_u128().expect("t to convert to u128"))
+            .sum();
+        <Self::Real as NumCast>::from(s_sum).expect("u128 to convert to real")
+            / self.population_size_real()
+    }
+    #[inline]
+    fn iter_real(&self) -> impl ExactSizeIterator<Item = Self::Real> + DoubleEndedIterator + Clone {
+        self.iter()
+            .map(|v| <Self::Real as NumCast>::from(v).expect("native -> real") / self.max_real())
+    }
+}

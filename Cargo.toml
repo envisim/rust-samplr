@@ -4,8 +4,16 @@ members = [
   "envisim_utils",
   "envisim_estimate",
   "envisim_samplr",
-  "rsamplr_pkg/src/rust",
 ]
+exclude = [
+  "rsamplr_pkg/src/rust", # cannot be part of workspace, as it needs own lockfile
+]
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.rustdoc]
+missing_crate_level_docs = "warn"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

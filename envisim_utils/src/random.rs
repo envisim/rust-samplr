@@ -28,14 +28,16 @@ pub use rand_core::{
     TryRng,
 };
 
-use crate::number_traits::Number;
+use crate::utils::Number;
 
+/// Trait for RNGs that can produce an `f64`.
 pub trait FloatRng: Rng {
     /// Generates the next uniform number in $[0.0, 1.0)$
     #[must_use]
     fn next_f64(&mut self) -> f64;
 }
 
+/// Trait for RNGs to produce numbers within an range or by itself
 pub trait Rand<N>: Rng
 where
     N: Number,
@@ -57,6 +59,8 @@ where
     #[inline]
     fn rand_to(&mut self, max: N) -> N { self.rand_in(N::ZERO..max) }
 }
+
+/// Trait for RNGs to produce random numbers in a vector
 pub trait RandSlice<N>: Rand<N>
 where
     N: Number,
@@ -121,6 +125,7 @@ macro_rules! rand_impl_uint {
         }
     };
 }
+
 /// Macro for implementing `RandomNumber` for signed integers
 macro_rules! rand_impl_sint {
     ($ts:ty, $tu:ty) => {

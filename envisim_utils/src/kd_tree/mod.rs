@@ -29,33 +29,41 @@ use split_methods::{
     FindSplit,
     Split,
 };
+use thiserror::Error;
 
-pub use crate::spatial::PointSet;
+pub use crate::utils::PointSet;
 
 /// Tree construction trait
 ///
 /// Provides methods necessary for the construction of a [`Tree`]
 pub trait TreeConfig {
+    /// The type of the data structure
     type Data: PointSet;
+    /// The split method
     type Split: FindSplit<Self::Data>;
+    /// Returns a reference to the data structure
     #[must_use]
     fn data(&self) -> &Self::Data;
+    /// Returns the bucket size, i.e. the max number of nodes to use in a tree.
     #[must_use]
     fn bucket_size(&self) -> NonZeroUsize;
+    /// Returns a valid split, using `Split` of the `units`.
+    /// # Panics
+    /// May panic if `units` does not exist in data.
     #[must_use]
     fn split_method(&self, units: &[<Self::Data as PointSet>::Id]) -> Self::Split;
 }
 
-/// A kd-tree
+/// A kd-tree structure
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct Tree<'bdata, P>
 where
     P: PointSet,
 {
-    /// The first node
+    /// The first (top) node
     node: Node<P>,
-    /// A reference to the data
+    /// A reference to the data used in the tree
     data: &'bdata P,
 }
 
@@ -70,7 +78,9 @@ pub enum Node<P>
 where
     P: PointSet,
 {
+    /// See [`Branch`]
     Branch(Branch<P>),
+    /// See [`Leaf`]
     Leaf(Leaf<P>),
 }
 
@@ -105,83 +115,117 @@ where
     P: PointSet,
 {
     /// Constructs a new tree containing `units`, according to some `config`.
+    /// # Errors
+    /// Returns an error if the any of the `units` does not exist in the data.
     #[inline]
-    pub fn new<C, S>(config: &'bdata C, units: &mut [P::Id]) -> Self
+    pub fn new<C, S>(config: &'bdata C, units: &mut [P::Id]) -> TreeResult<Self>
     where
         C: TreeConfig<Data = P, Split = S>,
         S: FindSplit<P>,
     {
         let data = config.data();
+
+        if units.iter().any(|unit| !data.contains(*unit)) {
+            return Err(TreeError::InvalidUnit);
+        }
+
         let borders = config.split_method(units);
         let node = Node::new(config, borders, units);
 
-        Self { node, data }
+        Ok(Self { node, data })
     }
     /// Returns a reference to the data.
     #[must_use]
     #[inline]
     pub fn data(&self) -> &P { self.data }
     /// Returns a reference to the leaf that would contain `unit`.
-    /// Returns `None` if `unit` does not exists in the tree data.
-    #[must_use]
+    /// # Errors
+    /// Returns an error if the `unit` does not exist in the data.
+    #[expect(clippy::missing_panics_doc, reason = "panic unreachable")]
     #[inline]
-    pub fn find_leaf_of_unit(&self, unit: P::Id) -> Option<&Leaf<P>> {
-        let v: Box<[P::Value]> = self.data.to_boxed_slice(unit)?;
-        // Since data constructs the slice, find_leaf should always be Some as there can't be
-        // dimension mismatch
-        self.find_leaf(&v)
+    pub fn find_leaf_of_unit(&self, unit: P::Id) -> TreeResult<&Leaf<P>> {
+        let v: Box<[P::Value]> = self
+            .data
+            .coords(unit)
+            .ok_or(TreeError::InvalidUnit)?
+            .copied()
+            .collect();
+        // Since data constructs the slice, it should always be Some
+        Ok(self.find_leaf(&v).expect("dimensions to match"))
     }
     /// Returns a reference to the leaf that would contain `unit`.
-    /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
-    #[must_use]
+    /// # Errors
+    /// Returns an error if the dimensions of the search `unit` and data does not match.
     #[inline]
-    pub fn find_leaf(&self, unit: &[P::Value]) -> Option<&Leaf<P>> {
-        (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf(unit))
+    pub fn find_leaf(&self, unit: &[P::Value]) -> TreeResult<&Leaf<P>> {
+        if self.data.dimensions().get() != unit.len() {
+            return Err(TreeError::PointDimensionError);
+        }
+        Ok(self.node.find_leaf(unit))
     }
     /// Iterates the leaf by a [`TreeSearcher`].
-    #[must_use]
+    /// # Errors
+    /// Returns an error if the dimensions of the search unit and data does not match.
     #[inline]
-    pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> Option<()>
+    pub fn iterate_leafs_by<S>(&self, searcher: &mut S) -> TreeResult<()>
     where
         S: TreeSearcher<P>,
     {
-        if self.data.dim().get() == searcher.point().len() {
-            self.node.iterate_leafs_by(self.data, searcher)
-        } else {
-            None
+        if self.data.dimensions().get() != searcher.point().len() {
+            return Err(TreeError::PointDimensionError);
         }
+
+        self.node.iterate_leafs_by(self.data, searcher);
+        Ok(())
     }
     /// Returns a mutable reference to the leaf that would contain `unit`.
-    /// Returns `None` if `unit` does not exists in the tree data.
-    #[must_use]
+    /// # Errors
+    /// Returns an error if the `unit` does not exist in the data.
+    #[expect(clippy::missing_panics_doc, reason = "panic unreachable")]
     #[inline]
-    pub fn find_leaf_of_unit_mut(&mut self, unit: P::Id) -> Option<&mut Leaf<P>> {
-        let v: Box<[P::Value]> = self.data.to_boxed_slice(unit)?;
+    pub fn find_leaf_of_unit_mut(&mut self, unit: P::Id) -> TreeResult<&mut Leaf<P>> {
+        let v: Box<[P::Value]> = self
+            .data
+            .coords(unit)
+            .ok_or(TreeError::InvalidUnit)?
+            .copied()
+            .collect();
         // Since data constructs the slice, it should always be Some
-        self.find_leaf_mut(&v)
+        Ok(self.find_leaf_mut(&v).expect("dimensions to match"))
     }
     /// Returns a mutable reference to the leaf that would contain `unit`.
-    /// Returns `None` if the dimension of `unit` does not match the dimension of the tree data.
-    #[must_use]
+    /// # Errors
+    /// Returns an error if the dimensions of the search `unit` and data does not match.
     #[inline]
-    pub fn find_leaf_mut(&mut self, unit: &[P::Value]) -> Option<&mut Leaf<P>> {
-        (unit.len() == self.data.dim().get()).then(|| self.node.find_leaf_mut(unit))
+    pub fn find_leaf_mut(&mut self, unit: &[P::Value]) -> TreeResult<&mut Leaf<P>> {
+        if self.data.dimensions().get() != unit.len() {
+            return Err(TreeError::PointDimensionError);
+        }
+        Ok(self.node.find_leaf_mut(unit))
     }
     /// Inserts a unit into the tree.
-    /// Returns `None` if `unit` does not exists in the tree data.
     /// Returns `true` if the unit did not already exist.
+    ///
     /// Does not rebalance the tree.
+    ///
+    /// # Errors
+    /// Returns an error if the `unit` does not exist in the data.
     #[inline]
-    pub fn insert_unit(&mut self, unit: P::Id) -> Option<bool> {
-        self.find_leaf_of_unit_mut(unit)?.insert_unit(unit).into()
+    pub fn insert_unit(&mut self, unit: P::Id) -> TreeResult<bool> {
+        self.find_leaf_of_unit_mut(unit)
+            .map(|leaf| leaf.insert_unit(unit))
     }
     /// Removes a unit from the tree.
-    /// Returns `None` if `unit` does not exists in the tree data.
     /// Returns `false` if the unit did not already exist.
+    ///
     /// Does not rebalance the tree.
+    ///
+    /// # Errors
+    /// Returns an error if the `unit` does not exist in the data.
     #[inline]
-    pub fn remove_unit(&mut self, unit: P::Id) -> Option<bool> {
-        self.find_leaf_of_unit_mut(unit)?.remove_unit(unit).into()
+    pub fn remove_unit(&mut self, unit: P::Id) -> TreeResult<bool> {
+        self.find_leaf_of_unit_mut(unit)
+            .map(|leaf| leaf.remove_unit(unit))
     }
 }
 
@@ -191,6 +235,7 @@ where
 {
     /// Constructs a new node, by trying to find a possible split, otherwise creating a leaf.
     /// A leaf is also created if the bucket size has been fulfilled.
+    #[inline]
     fn new<B, S>(config: &B, borders: S, units: &mut [P::Id]) -> Self
     where
         B: TreeConfig<Data = P, Split = S>,
@@ -216,6 +261,7 @@ where
         .into()
     }
     /// Returns a reference to the leaf that would contain `unit`.
+    #[inline]
     fn find_leaf(&self, unit: &[P::Value]) -> &Leaf<P> {
         match self {
             Self::Branch(branch) => {
@@ -229,6 +275,7 @@ where
         }
     }
     /// Returns a mutable reference to the leaf that would contain `unit`.
+    #[inline]
     fn find_leaf_mut(&mut self, unit: &[P::Value]) -> &mut Leaf<P> {
         match self {
             Self::Branch(branch) => {
@@ -242,9 +289,8 @@ where
         }
     }
     /// Iterates the leaf by a [`TreeSearcher`].
-    #[must_use]
     #[inline]
-    fn iterate_leafs_by<S>(&self, data: &P, searcher: &mut S) -> Option<()>
+    fn iterate_leafs_by<S>(&self, data: &P, searcher: &mut S)
     where
         S: TreeSearcher<P>,
     {
@@ -252,15 +298,15 @@ where
             Self::Branch(branch) => {
                 let (is_left, abs_distance) = branch.split.unit_abs_distance(searcher.point());
                 let other = if is_left {
-                    branch.left.iterate_leafs_by(data, searcher)?;
+                    branch.left.iterate_leafs_by(data, searcher);
                     &branch.right
                 } else {
-                    branch.right.iterate_leafs_by(data, searcher)?;
+                    branch.right.iterate_leafs_by(data, searcher);
                     &branch.left
                 };
 
                 if !searcher.is_satisfied(abs_distance) {
-                    other.iterate_leafs_by(data, searcher)?;
+                    other.iterate_leafs_by(data, searcher);
                 }
             }
             Self::Leaf(leaf) => {
@@ -269,7 +315,6 @@ where
                 }
             }
         }
-        Some(())
     }
 }
 impl<P> Branch<P>
@@ -344,9 +389,29 @@ where
     fn from(leaf: Leaf<P>) -> Self { Node::Leaf(leaf) }
 }
 
+/// KD-Tree related errors
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum TreeError {
+    /// Point has incorrect dimensions
+    #[error("Point has incorrect dimension")]
+    PointDimensionError,
+    /// Point weight must be in (0.0, 1.0)
+    #[error("Point weight must be in (0.0, 1.0)")]
+    PointWeightError,
+    /// Unit does not exist in data
+    #[error("Unit does not exist in data")]
+    InvalidUnit,
+}
+/// An alias for an `Result` returning a [`TreeError`].
+pub type TreeResult<T> = Result<T, TreeError>;
+
 #[cfg(test)]
 mod tests {
-    use searcher::NearestNeighbourSearcher;
+    use searcher::{
+        NearestNeighbourSearcher,
+        NeighbourView,
+    };
 
     use super::*;
     use crate::matrix::Matrix;
@@ -366,30 +431,31 @@ mod tests {
     }
 
     #[test]
-    fn test_tree_find_leaf_logic() {
+    fn test_tree_find_leaf_logic() -> TreeResult<()> {
         let options = setup();
         let mut units = vec![0, 1, 2, 3];
 
         // Construct tree with small bucket size to force branching
-        let tree = Tree::new(&options, &mut units);
+        let tree = Tree::new(&options, &mut units)?;
 
         // Find leaf by specific coordinate (0.1, 0.1)
-        let leaf = tree.find_leaf(&[0.1, 0.1]).expect("Leaf should exist");
+        let leaf = tree.find_leaf(&[0.1, 0.1])?;
 
         // Given (0,0) is unit 0, and midpoint of (0,1) is 0.5,
         // unit 0 should be in this leaf.
         assert!(leaf.contains_unit(0));
 
         // Find leaf of a specific unit ID
-        let leaf_of_unit = tree.find_leaf_of_unit(3).expect("Unit 3 exists");
+        let leaf_of_unit = tree.find_leaf_of_unit(3)?;
         assert!(leaf_of_unit.contains_unit(3));
+        Ok(())
     }
 
     #[test]
-    fn test_tree_dynamic_modification() {
+    fn test_tree_dynamic_modification() -> TreeResult<()> {
         let options = setup();
         let mut units = vec![0, 1]; // Start with only 2 units
-        let mut tree = Tree::new(&options, &mut units);
+        let mut tree = Tree::new(&options, &mut units)?;
 
         // Insert unit 2 (0, 1)
         let inserted = tree.insert_unit(2).expect("Unit 2 is in Matrix bounds");
@@ -403,16 +469,17 @@ mod tests {
         let removed = tree.remove_unit(0).expect("Unit 0 is in Matrix bounds");
         assert!(removed);
         assert!(!tree.find_leaf_of_unit(0).unwrap().contains_unit(0));
+        Ok(())
     }
 
     #[test]
-    fn test_tree_iteration_with_real_searcher() {
+    fn test_tree_iteration_with_real_searcher() -> TreeResult<()> {
         let options = setup();
         let mut units = vec![0, 1, 2, 3];
-        let tree = Tree::new(&options, &mut units);
+        let tree = Tree::new(&options, &mut units)?;
 
         // Use the real NearestNeighbourSearcher
-        let mut searcher = NearestNeighbourSearcher::from_slice(&[0.1, 0.1]).unwrap();
+        let mut searcher = NearestNeighbourSearcher::from_point([0.1, 0.1].iter()).unwrap();
 
         // Traverse the tree
         tree.iterate_leafs_by(&mut searcher)
@@ -421,17 +488,19 @@ mod tests {
         let neighbours = searcher.neighbours();
         assert!(!neighbours.is_empty());
         // Closest to (0.1, 0.1) should be unit 0 (0,0)
-        assert_eq!(neighbours[0].id(), 0);
+        assert_eq!(neighbours[0].id(), &0);
+        Ok(())
     }
 
     #[test]
-    fn test_tree_dimension_mismatch_safety() {
+    fn test_tree_dimension_mismatch_safety() -> TreeResult<()> {
         let options = setup();
         let mut units = vec![0, 1];
-        let tree = Tree::new(&options, &mut units);
+        let tree = Tree::new(&options, &mut units)?;
 
         // Try to find leaf using a 3D point on a 2D tree
         let result = tree.find_leaf(&[0.0, 0.0, 0.0]);
-        assert!(result.is_none()); // Should safely return None
+        assert!(result.is_err()); // Should return Err
+        Ok(())
     }
 }

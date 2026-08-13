@@ -15,15 +15,18 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::kd_tree::PointSet;
-use envisim_utils::kd_tree::searcher::KNearestNeighbourSearcher;
+use envisim_utils::kd_tree::searcher::{
+    KNearestNeighbourSearcher,
+    NeighbourView,
+};
 use envisim_utils::matrix::{
     Dimensions,
     MatrixBase,
-    RawData,
+    SliceView,
 };
 use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
-    ProbabilityOptions,
+    ProbabilitiesSpec,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -86,7 +89,7 @@ pub fn variance<T>(
     probabilities_second_order: &MatrixBase<T>,
 ) -> EstimationResult<f64>
 where
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     let sample_size = y_values.len();
 
@@ -135,7 +138,7 @@ pub fn syg_variance<T>(
     probabilities_second_order: &MatrixBase<T>,
 ) -> EstimationResult<f64>
 where
-    T: RawData<Elem = f64>,
+    T: SliceView<Elem = f64>,
 {
     let sample_size = y_values.len();
 
@@ -216,7 +219,7 @@ pub fn local_mean_variance<PO, P, BAL>(
     n_neighbours: NonZeroUsize,
 ) -> EstimationResult<f64>
 where
-    PO: ProbabilityOptions<Real = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
 {
     let sample_size = y_values.len();
@@ -225,7 +228,6 @@ where
         return Ok(0.0);
     }
 
-    let probabilities = options.probabilities().to_slice_real();
     let tree = options.spreading().to_tree();
     // +1 since we search for self also
     let mut searcher = KNearestNeighbourSearcher::new(
@@ -235,7 +237,7 @@ where
         tree.data(),
     );
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities.iter()))?;
+    let yp = ypi_iter_to_vec(y_values.iter().zip(options.probabilities().iter_real()))?;
     let mut variance: f64 = 0.0;
 
     for i in 0..sample_size {
@@ -244,12 +246,7 @@ where
         }
 
         searcher
-            .reset_from_slice(
-                &tree
-                    .data()
-                    .to_boxed_slice(i)
-                    .expect("i to exist in aux data"),
-            )
+            .reset_from_point(tree.data().coords(i).expect("i to exist in aux data"))
             .expect("tree data to be searchable")
             .search(&tree)
             .expect("search to be possible");
@@ -261,7 +258,7 @@ where
         let local_mean: f64 = searcher
             .neighbours()
             .iter()
-            .map(|n| yp[n.id()])
+            .map(|n| yp[*n.id()])
             .sum::<f64>()
             / number_of_neighbours;
         variance +=

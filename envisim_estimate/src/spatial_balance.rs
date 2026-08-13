@@ -14,23 +14,25 @@
 
 use std::iter::once;
 
-use envisim_utils::Number;
 use envisim_utils::kd_tree::Tree;
-use envisim_utils::kd_tree::searcher::NearestNeighbourSearcher;
+use envisim_utils::kd_tree::searcher::{
+    NearestNeighbourSearcher,
+    NeighbourView,
+};
 use envisim_utils::matrix::{
     Matrix,
     MatrixDims,
     MatrixRef,
-    PointSet,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    EqualProbabilityOptions,
-    ProbabilityOptions,
+    EqualProbabilities,
+    ProbabilitiesSpec,
     SamplingOptionsError,
     SpreadingOptions,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
 };
+use envisim_utils::utils::PointSet;
 use num_traits::{
     ConstZero,
     ToPrimitive,
@@ -65,20 +67,16 @@ where
             .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec());
+    let tree = Tree::new(opts, &mut sample.to_vec())?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Units in voronoi means have already been handled
         if pi_sums.contains_key(&id) {
             continue;
         }
 
-        searcher.reset_from_slice(
-            &data
-                .to_boxed_slice(id)
-                .expect("id to exist in data by iter"),
-        );
+        searcher.reset_from_point(data.coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = prob(id)
@@ -90,7 +88,7 @@ where
 
         for n in searcher.neighbours() {
             *pi_sums
-                .get_mut(&n.id())
+                .get_mut(n.id())
                 .expect("neighbours to exist amongst means") += share;
         }
     }
@@ -113,20 +111,31 @@ where
 {
     let data = opts.data();
     let sample_size = sample.len();
-    let data_cols = data.dim().get();
+    let data_cols = data.dimensions().get();
     let mut means =
         FxHashMap::<P::Id, Box<[P::Value]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
     for &id in sample {
+        if !data.contains(id) {
+            return Err(EstimationError::InvalidSample);
+        }
         let p_factor = prob(id);
         let id_mean: Box<[f64]> = if balance_probabilities {
             (0..data_cols)
-                .map(|k| p_factor * data.coord(id, k))
+                .map(|k| {
+                    p_factor *
+                     // SAFETY: id an k guaranteed to be in set
+                     unsafe {data.coord_unchecked(id, k)}
+                })
                 .chain(once(p_factor))
                 .collect()
         } else {
             (0..data_cols)
-                .map(|k| p_factor * data.coord(id, k))
+                .map(|k| {
+                    p_factor *
+                     // SAFETY: id an k guaranteed to be in set
+                     unsafe {data.coord_unchecked(id, k)}
+                })
                 .collect()
         };
         means
@@ -134,20 +143,16 @@ where
             .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec());
+    let tree = Tree::new(opts, &mut sample.to_vec())?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Units in voronoi means have already been handled
         if means.contains_key(&id) {
             continue;
         }
 
-        searcher.reset_from_slice(
-            &data
-                .to_boxed_slice(id)
-                .expect("id to exist in data by iter"),
-        );
+        searcher.reset_from_point(data.coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
         let share = searcher
@@ -158,11 +163,12 @@ where
 
         for &n in searcher.neighbours() {
             let mean = means
-                .get_mut(&n.id())
+                .get_mut(n.id())
                 .expect("neighbours to exist amongst means");
 
             for (j, m) in mean.iter_mut().enumerate().take(data_cols) {
-                *m -= data.coord(id, j) / share;
+                // SAFETY: id and j guaranteed to be in set
+                *m -= unsafe { data.coord_unchecked(id, j) } / share;
             }
 
             if balance_probabilities {
@@ -179,20 +185,21 @@ fn norm_matrix<P>(data: P, balance_probabilities: bool) -> Matrix<P::Value>
 where
     P: PointSet<Value = f64>,
 {
-    let data_cols = data.dim().get();
+    let data_cols = data.dimensions().get();
     let cols = data
-        .dim()
+        .dimensions()
         .saturating_add(usize::from(balance_probabilities));
     let mut norm_matrix = Matrix::from_value(0.0, MatrixDims::new(cols, cols));
 
-    for id in data.id_iter() {
+    for id in data.ids() {
         // Last column as probs column
         if balance_probabilities {
-            norm_matrix[(data.dim().get(), data.dim().get())] += 1.0;
+            norm_matrix[(data.dimensions().get(), data.dimensions().get())] += 1.0;
         }
 
         for i in 0..data_cols {
-            let vi = data.coord(id, i);
+            // SAFETY: id and i guaranteed to be in set
+            let vi = unsafe { *data.coord_unchecked(id, i) };
             norm_matrix[(i, i)] += vi.powi(2);
 
             if balance_probabilities {
@@ -201,7 +208,8 @@ where
             }
 
             for j in 0..i {
-                let v = vi * data.coord(id, j);
+                // SAFETY: id and i guaranteed to be in set
+                let v = vi * unsafe { *data.coord_unchecked(id, j) };
                 norm_matrix[(i, j)] += v;
                 norm_matrix[(j, i)] += v;
             }
@@ -218,13 +226,16 @@ fn energy_distance_phi_equal<P>(matrix: &P) -> (FxHashMap<P::Id, P::Value>, P::V
 where
     P: PointSet<Value = f64>,
 {
-    let size = matrix.size().get();
+    let size = matrix.len().get();
     let mut phi = FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(size, FxBuildHasher);
 
-    for (i, id1) in matrix.id_iter().enumerate() {
+    for (i, id1) in matrix.ids().enumerate() {
         let mut phi1 = <P::Value as ConstZero>::ZERO;
-        for id2 in matrix.id_iter().take(i) {
-            let dist = matrix.sq_distance_between(id1, id2).sqrt();
+        for id2 in matrix.ids().take(i) {
+            let dist = matrix
+                .sq_distance_between(id1, id2)
+                .expect("id1 and id2 to exist in matrix")
+                .sqrt();
             phi1 += dist;
             *phi.get_mut(&id2).expect("id2 to exist in map") += dist;
         }
@@ -243,29 +254,33 @@ where
 /// Returns (phi-vec, phi-sumish)
 #[must_use]
 #[inline]
-fn energy_distance_phi_unequal<P>(
+fn energy_distance_phi_unequal<P, I>(
     matrix: P,
-    probabilities: &[P::Value],
+    probabilities: I,
     s_size: f64,
 ) -> (FxHashMap<P::Id, P::Value>, P::Value)
 where
     P: PointSet<Id = usize, Value = f64>,
+    I: ExactSizeIterator<Item = f64>,
 {
     let population_size = probabilities.len();
     assert!(
-        population_size <= matrix.size().get(),
+        population_size <= matrix.len().get(),
         "not able to map between prob indices and PointSet"
     );
     let mut phi =
         FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(population_size, FxBuildHasher);
 
-    let probs: Vec<f64> = probabilities.iter().map(|&p| p / s_size).collect();
+    let probs: Vec<f64> = probabilities.map(|p| p / s_size).collect();
 
     for id1 in 0..population_size {
         let mut phi1 = <P::Value as ConstZero>::ZERO;
 
         for id2 in 0..id1 {
-            let dist = matrix.sq_distance_between(id1, id2).sqrt();
+            let dist = matrix
+                .sq_distance_between(id1, id2)
+                .expect("id1 and id2 to exist in data")
+                .sqrt();
             phi1 += dist * probs[id2];
             *phi.get_mut(&id2).expect("id2 to exist in map") += dist * probs[id1];
         }
@@ -305,7 +320,10 @@ where
 
         // Iterate over 0..i
         for id2 in sample.iter().take(i) {
-            let dist = matrix.sq_distance_between(*id1, *id2).sqrt();
+            let dist = matrix
+                .sq_distance_between(*id1, *id2)
+                .expect("id1 and id2 to exist in data")
+                .sqrt();
             s_spread += 2.0 * dist;
         }
     }
@@ -315,6 +333,7 @@ where
     inter_spread * 2.0 - s_spread
 }
 
+/// Provides methods for calculating the spatial balance of a sample
 pub trait SpatialBalance<P>
 where
     P: PointSet,
@@ -327,7 +346,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.voronoi(&s)?;
     /// # Ok::<(), EstimationError>(())
@@ -350,7 +369,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.local(&s, true)?;
     /// # Ok::<(), EstimationError>(())
@@ -373,7 +392,7 @@ where
     /// # use envisim_utils::matrix::Matrix;
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let options = SamplingOptions::new(p.into())?.set_spreading(m)?;
+    /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
     /// let sb = options.energy_distance(&s);
     /// # Ok::<(), EstimationError>(())
@@ -382,8 +401,7 @@ where
     fn energy_distance(&self, sample: &[P::Id]) -> P::Value;
 }
 
-impl<P, BAL> SpatialBalance<P>
-    for SamplingOptions<EqualProbabilityOptions, SpreadingOptions<P>, BAL>
+impl<P, BAL> SpatialBalance<P> for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
 where
     P: PointSet<Value = f64>,
 {
@@ -408,7 +426,7 @@ where
 
         let data = self.spreading().data();
         let cols = data
-            .dim()
+            .dimensions()
             .saturating_add(usize::from(balance_probabilities));
         let p = self.probabilities().as_real();
         let p_factor = (1.0 - p) / p;
@@ -452,12 +470,11 @@ where
     }
 }
 
-impl<'bprob, PROB, P, BAL> SpatialBalance<P>
-    for SamplingOptions<UnequalProbabilityOptions<'bprob, PROB>, SpreadingOptions<P>, BAL>
+impl<UPO, P, BAL> SpatialBalance<P>
+    for SamplingOptions<UnequalProbabilities<UPO>, SpreadingOptions<P>, BAL>
 where
-    PROB: Number,
+    UPO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize, Value = f64>,
-    UnequalProbabilityOptions<'bprob, PROB>: ProbabilityOptions<Native = PROB, Real = P::Value>,
 {
     #[inline]
     fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
@@ -465,8 +482,9 @@ where
             return Ok(f64::NAN);
         }
 
-        let probs = self.probabilities().to_slice_real();
-        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| probs[id])?;
+        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| {
+            self.probabilities().nth_real(id).expect("id to exist")
+        })?;
         let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
             / sample.len().to_f64().expect("sample len to convert to f64");
 
@@ -480,14 +498,13 @@ where
 
         let data = self.spreading().data();
         let cols = data
-            .dim()
+            .dimensions()
             .saturating_add(usize::from(balance_probabilities));
-        let probs = self.probabilities().to_slice_real();
         let voronoi_means = voronoi_means(
             self.spreading(),
             sample,
             |id| {
-                let p = probs[id];
+                let p = self.probabilities().nth_real(id).expect("id to exist");
                 (1.0 - p) / p
             },
             balance_probabilities,
@@ -521,12 +538,12 @@ where
     #[inline]
     fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
         let matrix = self.spreading().data();
-        let probs = self.probabilities().to_slice_real();
         let s_size = sample
             .len()
             .to_f64()
             .expect("sample size to convert to f64");
-        let (phi, u_spread) = energy_distance_phi_unequal(matrix, &probs, s_size);
+        let (phi, u_spread) =
+            energy_distance_phi_unequal(matrix, self.probabilities().iter_real(), s_size);
         let edi = energy_distance_internal(sample, matrix, &phi);
         edi - u_spread
     }

@@ -10,16 +10,15 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Probability abstractions and container
+
 use std::cmp::Ordering;
 use std::fmt::{
     Display,
     Formatter,
     Result as FmtResult,
 };
-use std::num::{
-    NonZero,
-    NonZeroUsize,
-};
+use std::num::NonZeroUsize;
 use std::ops::{
     Index,
     IndexMut,
@@ -31,17 +30,21 @@ use num_traits::{
 };
 
 use crate::kd_tree::searcher::WeightCollection;
-use crate::number_traits::{
+use crate::random::Rand;
+use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
+    SliceView,
 };
-use crate::random::Rand;
-use crate::sampling_options::Epsilon;
 
+/// A trait for types that can be represented as a probability value
 pub trait ProbabilityValue {
+    /// The value type
     type N: Number;
 }
+/// A trait for probabilities that can be represented by a real (float) in [0.0, 1.0].
 pub trait RealProbabilityValue: ProbabilityValue
 where
     Self::N: NumberFloat,
@@ -62,6 +65,8 @@ where
     Probability<N>: ProbabilityValue<N = N>,
 {
 }
+/// A trait for probability types that can be represented by an integer in [0, MAX], where a proper
+/// probability is retrieved by `Self / MAX`.
 pub trait IntProbabilityValue: ProbabilityValue
 where
     Self::N: NumberInt,
@@ -88,8 +93,11 @@ where
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 pub enum Probability<N> {
+    /// The probability is zero.
     Zero(N),
+    /// The probability is not guaranteed zero or one.
     Partial(N),
+    /// The probability is one.
     Full(N),
 }
 impl<N> Probability<N> {
@@ -281,6 +289,7 @@ where
     }
 }
 
+/// Contains a set of probabilities for some linear population.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct ProbabilitySet<N> {
@@ -292,9 +301,6 @@ pub struct ProbabilitySet<N> {
     eps: Epsilon<N>,
 }
 impl<N> ProbabilitySet<N> {
-    /// Returns the slice of the probabilties contained in the set
-    #[inline]
-    pub fn data(&self) -> &[Probability<N>] { &self.data }
     /// Returns a vector of the probabilties contained in the set, as their raw representations
     #[must_use]
     #[inline]
@@ -439,18 +445,23 @@ impl<N> ProbabilitySet<N> {
     }
 }
 
+impl<N> SliceView for ProbabilitySet<N> {
+    type Elem = Probability<N>;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { &self.data }
+}
+impl<N> SliceView for &ProbabilitySet<N> {
+    type Elem = Probability<N>;
+    #[inline]
+    fn data(&self) -> &[Self::Elem] { &self.data }
+}
+
 impl<N> WeightCollection<usize> for ProbabilitySet<N>
 where
     N: Number,
 {
-    /// Returns the weight of unit `id`
-    #[must_use]
     #[inline]
-    fn get_weight(&self, id: usize) -> f64 { self[id].get().to_f64().expect("convert to f64") }
-    /// Returns the weight of unit `id`, or `None` i the unit does not exist.
-    #[must_use]
-    #[inline]
-    fn try_get_weight(&self, id: usize) -> Option<f64> {
+    fn get_weight(&self, id: usize) -> Option<f64> {
         self.get(id)
             .map(|v| v.get().to_f64().expect("convert to f64"))
     }
@@ -467,53 +478,24 @@ impl<N> IndexMut<usize> for ProbabilitySet<N> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut self.data[index] }
 }
 
-/// Implements probability representations and sets for floats
-macro_rules! prob_repr_impl_float {
-    ($t:ty) => {
-        impl ProbabilitySet<$t> {
-            /// Constructs a new probability set
-            #[inline]
-            pub fn new<I>(probs: I, eps: Epsilon<$t>) -> Self
-            where
-                I: IntoIterator<Item = $t>,
-            {
-                let max = 1.0;
-                let data: Box<[Probability<$t>]> = probs
-                    .into_iter()
-                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
-                    .collect();
-                Self { data, max, eps }
-            }
+impl<N> ProbabilitySet<N> {
+    /// Constructs a new probability set.
+    ///
+    /// If `max` is not positive, or if any probability cannot be contained in `[0..max]`, the
+    /// function returns `None`.
+    #[inline]
+    pub fn try_new<I>(probs: I, max: N, eps: Epsilon<N>) -> Option<Self>
+    where
+        I: IntoIterator<Item = N>,
+        N: Number,
+    {
+        if !max.is_pos_finite() {
+            return None;
         }
-    };
+        let data: Box<[Probability<N>]> = probs
+            .into_iter()
+            .map(|p| Probability::new(p, max, eps))
+            .collect::<Option<Box<[Probability<N>]>>>()?;
+        Some(Self { data, max, eps })
+    }
 }
-/// Implements probability representations and sets for ints
-macro_rules! prob_repr_impl_int {
-    ($t:ty) => {
-        impl ProbabilitySet<$t> {
-            /// Constructs a new probability set
-            #[inline]
-            pub fn new<I>(probs: I, max: NonZero<$t>) -> Self
-            where
-                I: IntoIterator<Item = $t>,
-            {
-                let max = max.get();
-                let eps = Epsilon::<$t>::default();
-                let data: Box<[Probability<$t>]> = probs
-                    .into_iter()
-                    .map(|p| Probability::new(p, max, eps).expect("p to be contained in 0..=max"))
-                    .collect();
-                Self { data, max, eps }
-            }
-        }
-    };
-}
-
-prob_repr_impl_int!(usize);
-prob_repr_impl_int!(u8);
-prob_repr_impl_int!(u16);
-prob_repr_impl_int!(u32);
-prob_repr_impl_int!(u64);
-prob_repr_impl_int!(u128);
-
-prob_repr_impl_float!(f64);

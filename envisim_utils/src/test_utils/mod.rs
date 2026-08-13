@@ -1,21 +1,34 @@
+// Copyright (C) 2025 Wilmer Prentius.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this
+// program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Test utility functions, enabled by feature `test-utils`.
+
 mod data;
 
 pub use data::*;
 
-pub use crate::epsilon::Epsilon;
-pub use crate::matrix::{
-    MatrixBase,
-    RawData,
-};
-pub use crate::number_traits::{
+pub use crate::matrix::MatrixBase;
+pub use crate::utils::{
+    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
+    SliceView,
 };
 
 /// Helper for NonZeroUsize
 pub fn nz(n: usize) -> std::num::NonZeroUsize { std::num::NonZeroUsize::new(n).unwrap() }
 
+/// Macro for asserting float-like-equalities
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_delta {
@@ -30,6 +43,7 @@ macro_rules! assert_delta {
 }
 pub use assert_delta;
 
+/// Macro for asserting float-like-equalities for array-likes
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_vec {
@@ -51,6 +65,7 @@ macro_rules! assert_vec {
 }
 pub use assert_vec;
 
+/// Macro for asserting float-like-equalities for matrices
 #[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! assert_mat {

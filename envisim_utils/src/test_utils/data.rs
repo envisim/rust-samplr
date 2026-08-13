@@ -2,10 +2,11 @@ pub use crate::matrix::Dimensions;
 use crate::matrix::MatrixRef;
 use crate::sampling_options::{
     BalancingOptions,
-    EqualProbabilityOptions,
+    EqualProbabilities,
     SamplingOptions,
     SpreadingOptions,
-    UnequalProbabilityOptions,
+    UnequalProbabilities,
+    UnequalProbabilitiesReal,
 };
 
 // DISTS:
@@ -33,43 +34,57 @@ use crate::sampling_options::{
 // 8:  8 3 5 2 1 0 6 4 7 9
 // 9:  9 4 2 0 7 1 8 5 6 3
 
+/// Provides testing data for a population of size 10
 pub struct Data10();
 impl Data10 {
+    /// Unequal inclusion probabilities (summing to 5.0)
     pub const PROB_U: [f64; 10] = [0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90];
+    /// Equal inclusion probabilities (summing to 2.0)
     pub const PROB_E: [f64; 10] = [0.2f64; 10];
+    /// Some random 2d data
     pub const DATA_2: [f64; 20] = [
         0.266, 0.372, 0.573, 0.908, 0.202, 0.898, 0.945, 0.661, 0.629, 0.062, //
         0.206, 0.177, 0.687, 0.384, 0.770, 0.498, 0.718, 0.992, 0.380, 0.777, //
     ];
+    /// Linear 1d data
     pub const BDATA_1: [f64; 10] = [
         0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, //
     ];
+    /// Linear 1d data and unequal inclusion probabilities
     pub const BDATA_UP1: [f64; 20] = [
         0.20, 0.25, 0.35, 0.40, 0.50, 0.50, 0.55, 0.65, 0.70, 0.90, //
         0.00, 1.00, 2.00, 3.00, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00, //
     ];
+    /// Linear 1d data and equal inclusion probabilities
     pub const BDATA_EP1: [f64; 20] = [
         0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, //
         0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, //
     ];
 
+    /// Returns an unequal probability spec
     #[inline]
-    pub fn prob_u() -> UnequalProbabilityOptions<'static, f64> {
-        UnequalProbabilityOptions::new((&Self::PROB_U).into()).unwrap()
+    pub fn prob_u() -> UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>> {
+        UnequalProbabilities::new(Self::PROB_U.as_slice()).unwrap()
     }
+    /// Returns an equal probability spec
     #[inline]
-    pub fn prob_e() -> EqualProbabilityOptions { EqualProbabilityOptions::new(10, 2).unwrap() }
+    pub fn prob_e() -> EqualProbabilities { EqualProbabilities::new(10, 2).unwrap() }
+    /// Returns a matrix of some 2d data
     #[inline]
     pub fn matrix() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::DATA_2, 10).unwrap() }
+    /// Returns a matrix of linear 1d data
     #[inline]
     pub fn bmatrix_no_p() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_1, 10).unwrap() }
+    /// Returns a matrix of linear 1d data and unequal inclusion probabilities
     #[inline]
     pub fn bmatrix_up() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_UP1, 10).unwrap() }
+    /// Returns a matrix of linear 1d data and equal inclusion probabilities
     #[inline]
     pub fn bmatrix_ep() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::BDATA_EP1, 10).unwrap() }
+    /// Returns unequal sampling options with spreading and balancing
     #[inline]
     pub fn options_u() -> SamplingOptions<
-        UnequalProbabilityOptions<'static, f64>,
+        UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>>,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {
@@ -79,9 +94,10 @@ impl Data10 {
             .set_balancing(Self::bmatrix_up())
             .unwrap()
     }
+    /// Returns equal sampling options with spreading and balancing
     #[inline]
     pub fn options_e() -> SamplingOptions<
-        EqualProbabilityOptions,
+        EqualProbabilities,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {

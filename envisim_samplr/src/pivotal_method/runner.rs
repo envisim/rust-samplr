@@ -12,15 +12,17 @@
 
 //! Runners and base traits for pivotal methods
 
-use envisim_utils::Number;
 use envisim_utils::indices::Pair;
 use envisim_utils::random::Rand;
 use envisim_utils::sample_controller::{
     SampleController,
     UnitRemoving,
 };
+use envisim_utils::utils::Number;
 
+/// A strategy for a pivotal method controls the selection of competing pairs
 pub trait PivotalStrategy<PROB, TREE> {
+    /// Selects a pair of units
     fn select_pair<R>(
         &mut self,
         controller: &mut SampleController<PROB, TREE>,
@@ -30,6 +32,7 @@ pub trait PivotalStrategy<PROB, TREE> {
         R: Rand<usize>;
 }
 
+/// Runs a pivotal strategy
 #[expect(
     clippy::field_scoped_visibility_modifiers,
     reason = "super is ok, needed for impl"

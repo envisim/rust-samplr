@@ -16,6 +16,7 @@ use std::num::NonZeroUsize;
 
 use num_traits::ToPrimitive;
 use savvy::{
+    IntegerSexp,
     OwnedIntegerSexp,
     Sexp,
     savvy_err,
@@ -64,14 +65,22 @@ where
 /// Converts sample to [`Sexp`]
 /// # Errors
 /// If not possible to convert a sample index to i32
-#[expect(clippy::needless_pass_by_value, reason = "no use for sample after")]
 #[inline]
-pub fn return_sample(sample: Vec<usize>) -> savvy::Result<Sexp> {
-    let mut out = OwnedIntegerSexp::new(sample.len())?;
-
-    for (i, &v) in sample.iter().enumerate() {
-        out[i] = to_i32(v)? + 1;
+pub fn return_sample<T>(sample: T) -> savvy::Result<Sexp>
+where
+    T: AsRef<[usize]>,
+{
+    let slice = sample.as_ref();
+    let mut out = OwnedIntegerSexp::new(slice.len())?;
+    for (o, s) in out.iter_mut().zip(slice.iter()) {
+        *o = to_i32(*s)? + 1;
     }
-
     Ok(Sexp::from(out))
+}
+
+/// Converts an 1-indexed sample from R (`IntegerSexp`) to a 0-indexed `Vec`.
+/// # Errors
+/// If any element cannot be converted to `usize`.
+pub fn to_sample(rsample: &IntegerSexp) -> savvy::Result<Vec<usize>> {
+    rsample.iter().map(|&x| to_usize(x - 1)).collect()
 }

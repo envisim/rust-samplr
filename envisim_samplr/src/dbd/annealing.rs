@@ -14,12 +14,12 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::Epsilon;
 use envisim_utils::random::{
     FloatRng,
     Rand,
     Rng,
 };
+use envisim_utils::utils::Epsilon;
 
 /// Contains the annealing temperature tracker
 #[must_use]

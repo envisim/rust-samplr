@@ -15,20 +15,21 @@
 use std::iter::repeat_n;
 
 use num_traits::ToPrimitive;
+use thiserror::Error;
 
-pub use self::error::PipsError;
 use crate::probabilities::{
     Probability,
     ProbabilitySet,
     RealProbabilityValue,
 };
-use crate::sampling_options::Epsilon;
+use crate::utils::Epsilon;
 
 /// Draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
 ///
 /// # Errors
 /// Returns an error if any value is non-positive.
+#[expect(clippy::missing_panics_doc, reason = "impossible")]
 #[inline]
 pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
     if arr.is_empty() {
@@ -45,10 +46,10 @@ pub fn pps_from_slice(arr: &[f64]) -> Result<ProbabilitySet<f64>, PipsError> {
         sum += *x;
     }
 
-    Ok(ProbabilitySet::<f64>::new(
-        arr.iter().map(|&x| x / sum),
-        Epsilon::default(),
-    ))
+    Ok(
+        ProbabilitySet::<f64>::try_new(arr.iter().map(|&x| x / sum), 1.0, Epsilon::default())
+            .expect("1.0 > 0"),
+    )
 }
 
 /// Inclusion probabilities proportional to size (approximate).
@@ -66,10 +67,12 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     }
 
     if arr.len() < sample_size {
-        return Ok(ProbabilitySet::<f64>::new(
+        return Ok(ProbabilitySet::<f64>::try_new(
             repeat_n(1.0, arr.len()),
+            1.0,
             Epsilon::default(),
-        ));
+        )
+        .expect("1.0 > 0"));
     }
 
     if arr.iter().any(|x| !x.is_normal() || (..0.0).contains(x)) {
@@ -78,7 +81,9 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
 
     let mut n = sample_size.to_f64().expect("usize to f64 conversion");
 
-    let mut pips = ProbabilitySet::<f64>::new(repeat_n(0.0, arr.len()), Epsilon::default());
+    let mut pips =
+        ProbabilitySet::<f64>::try_new(repeat_n(0.0, arr.len()), 1.0, Epsilon::default())
+            .expect("1.0 > 0");
     let mut failed = true;
 
     while failed && n > 0.0 {
@@ -114,29 +119,16 @@ pub fn pips_from_slice(arr: &[f64], sample_size: usize) -> Result<ProbabilitySet
     Ok(pips)
 }
 
-mod error {
-    //! Pips errors
-
-    #[non_exhaustive]
-    #[derive(Debug)]
-    pub enum PipsError {
-        InvalidAuxiliary,
-        NoAuxiliaries,
-    }
-    #[expect(clippy::absolute_paths, reason = "possible override")]
-    impl std::error::Error for PipsError {}
-    #[expect(clippy::absolute_paths, reason = "possible override")]
-    impl std::fmt::Display for PipsError {
-        #[expect(clippy::enum_glob_use, reason = "handy to use in a match")]
-        #[inline]
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            use PipsError::*;
-            match *self {
-                InvalidAuxiliary => write!(f, "auxiliaries must be positive"),
-                NoAuxiliaries => write!(f, "slice contains no auxiliaries"),
-            }
-        }
-    }
+/// Pips related errors
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum PipsError {
+    /// Auxiliaries must be positive valued
+    #[error("auxiliaries must be positive")]
+    InvalidAuxiliary,
+    /// Auxiliaries must be provided
+    #[error("slice contains no auxiliaries")]
+    NoAuxiliaries,
 }
 
 #[cfg(test)]

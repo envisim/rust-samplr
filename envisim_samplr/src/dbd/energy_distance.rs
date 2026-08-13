@@ -14,7 +14,7 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::PointSet;
 use num_traits::ToPrimitive;
 
 /// Energy distance engine (or n-energy distance)
@@ -38,14 +38,17 @@ impl<P> EnergyDistance<P> {
     where
         P: PointSet<Id = usize, Value = f64>,
     {
-        let size = matrix.size().get();
+        let size = matrix.len().get();
         let u_size = size.to_f64().expect("matrix size to convert to f64");
         let mut phi = vec![0.0; size];
         let mut u_spread = 0.0;
 
-        for id1 in matrix.id_iter() {
-            for id2 in matrix.id_iter().skip(id1 + 1) {
-                let dist = matrix.sq_distance_between(id1, id2).sqrt();
+        for id1 in matrix.ids() {
+            for id2 in matrix.ids().skip(id1 + 1) {
+                let dist = matrix
+                    .sq_distance_between(id1, id2)
+                    .expect("id1 and id2 to exist in data")
+                    .sqrt();
                 phi[id1] += dist;
                 phi[id2] += dist;
             }
@@ -77,7 +80,10 @@ impl<P> EnergyDistance<P> {
     where
         P: PointSet<Id = usize, Value = f64>,
     {
-        self.matrix.sq_distance_between(id1, id2).sqrt()
+        self.matrix
+            .sq_distance_between(id1, id2)
+            .expect("id1 and id2 to exist in data")
+            .sqrt()
     }
     /// Returns the relative distance between `unit` -- `a` and `unit` -- `b`
     #[must_use]
@@ -86,8 +92,15 @@ impl<P> EnergyDistance<P> {
     where
         P: PointSet<Id = usize, Value = f64>,
     {
-        self.matrix.sq_distance_between(unit, a).sqrt()
-            - self.matrix.sq_distance_between(unit, b).sqrt()
+        self.matrix
+            .sq_distance_between(unit, a)
+            .expect("unit and a to exist in data")
+            .sqrt()
+            - self
+                .matrix
+                .sq_distance_between(unit, b)
+                .expect("unit and b to exist in data")
+                .sqrt()
     }
     /// The total energy of all samples
     #[must_use]

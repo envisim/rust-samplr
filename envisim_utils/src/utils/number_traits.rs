@@ -17,6 +17,7 @@ use std::fmt::{
     Debug,
     Display,
 };
+use std::iter::Sum;
 
 use num_integer::Integer;
 use num_traits::{
@@ -27,38 +28,53 @@ use num_traits::{
     NumCast,
 };
 
-use crate::Epsilon;
+use super::Epsilon;
 
 /// An extension of [`num_traits::NumAssign`]
 pub trait Number:
-    Sized + Copy + PartialOrd + PartialEq + NumAssign + NumCast + ConstZero + ConstOne + Debug + Display
+    Sized
+    + Copy
+    + PartialOrd
+    + PartialEq
+    + NumAssign
+    + NumCast
+    + ConstZero
+    + ConstOne
+    + Debug
+    + Display
+    + Sum
 {
+    /// The default epsilon value for the type, i.e. a small value to use in comparisons
     const DEFAULT_EPSILON_VALUE: Self;
-
+    /// Returns the machine epsilon value, if possible for the type, otherwise zero.
     #[must_use]
     #[inline]
-    fn epsilonish() -> Self { Self::ZERO }
+    fn machine_epsilon() -> Self { Self::ZERO }
+    /// Returns the maximum value of the type
     #[must_use]
     fn max_value() -> Self;
-
+    /// Returns true if `self` is finite
     #[must_use]
     #[inline]
     fn is_finite(self) -> bool { true }
+    /// Returns true if `self` is positive and finite
     #[must_use]
     #[inline]
     fn is_pos_finite(self) -> bool { Self::ZERO < self }
-
+    /// Returns the absolute value of `self`
     #[must_use]
     #[inline]
     fn abs(self) -> Self { self }
+    ///Returns the absolute differencet between `self` and `other`.
     #[must_use]
     fn abs_difference(self, other: Self) -> Self;
+    /// Returns the midpoint between `self` and `other`
     #[must_use]
     fn mid(self, other: Self) -> Self;
-
+    /// Returns the ordering between `self` and `other`
     #[must_use]
     fn compare(&self, other: &Self) -> Ordering;
-
+    /// Returns the [`DEFAULT_EPSILON_VALUE`] from the type of `self`
     #[inline]
     fn default_epsilon(&self) -> Epsilon<Self> { Epsilon::default() }
 }
@@ -76,7 +92,7 @@ macro_rules! number_impl_float {
             const DEFAULT_EPSILON_VALUE: Self = 1e-12;
 
             #[inline]
-            fn epsilonish() -> Self { <$t>::EPSILON }
+            fn machine_epsilon() -> Self { <$t>::EPSILON }
             #[inline]
             fn max_value() -> Self { <$t>::MAX }
             #[inline]

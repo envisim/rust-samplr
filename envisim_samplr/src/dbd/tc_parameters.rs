@@ -15,7 +15,7 @@
 use std::num::NonZeroUsize;
 
 use envisim_utils::random::Rand;
-use envisim_utils::spatial::PointSet;
+use envisim_utils::utils::PointSet;
 use num_integer::Integer;
 use num_traits::ToPrimitive;
 
@@ -102,6 +102,7 @@ impl TacticalConfigurationParameters {
     }
 }
 
+/// DBD methods
 pub trait DbdConfiguration {
     /// Returns a reference to the tactical configuration parameters
     fn tcp(&self) -> &TacticalConfigurationParameters;
