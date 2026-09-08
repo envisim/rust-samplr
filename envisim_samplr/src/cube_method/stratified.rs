@@ -27,10 +27,7 @@ use envisim_utils::random::{
     FloatRng,
     Rand,
 };
-use envisim_utils::sample_controller::{
-    SampleController,
-    UnitRemoving,
-};
+use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
     BalancingOptions,
     ProbabilitiesSpec,
@@ -72,7 +69,6 @@ pub struct CubeStratifiedRunner<'bopts, S, TREE, STRATA> {
 impl<'bopts, S, TREE, STRATA> CubeStratifiedRunner<'bopts, S, TREE, STRATA>
 where
     S: CubeStrategy<TREE>,
-    SampleController<f64, TREE>: UnitRemoving,
     STRATA: Copy + Eq + Hash,
 {
     /// Constructs a new stratifed runner using the selected strategy
@@ -87,9 +83,9 @@ where
     where
         PO: ProbabilitiesSpec<Real = f64>,
         R: Rand<usize>,
-        T: SliceView<Elem = f64>,
+        T: SliceView<Value = f64>,
     {
-        let org_probabilities: Box<[f64]> = options.probabilities().iter_real().collect();
+        let org_probabilities: Box<[f64]> = options.probabilities().entries_real().collect();
         let balancing_data = options.balancing().data().to_matrixref();
 
         let a_dims = MatrixDims::new(
@@ -352,7 +348,7 @@ pub fn cube_stratified<R, PO, AUX, T, STRATA>(
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
-    T: SliceView<Elem = f64>,
+    T: SliceView<Value = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_controller_real();
@@ -402,7 +398,7 @@ where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
-    T: SliceView<Elem = f64>,
+    T: SliceView<Value = f64>,
     STRATA: Copy + Eq + Hash,
 {
     let controller = options.to_spreading_controller_real();

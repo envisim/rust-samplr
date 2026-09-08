@@ -92,7 +92,7 @@ pub fn test_wor<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .iter_real()
+        .entries_real()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();
@@ -131,7 +131,7 @@ pub fn test_wor_random_n<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .iter_real()
+        .entries_real()
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();

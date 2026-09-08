@@ -14,27 +14,57 @@
 
 use std::num::NonZeroUsize;
 
-use num_traits::Signed;
+use num_traits::{
+    ConstZero,
+    Signed,
+};
 
 use crate::indices::Indices;
-use crate::kd_tree::Tree;
+use crate::kd_tree::{
+    Tree,
+    TreeResult,
+};
 use crate::probabilities::{
-    Probability,
     ProbabilitySet,
+    ProbabilityValue,
 };
 use crate::random::Rand;
 use crate::sample::Sample;
 use crate::sampling_options::SpreadingOptions;
 use crate::utils::{
-    Number,
+    ContiguousDataView,
+    ContiguousPointSet,
+    DataView,
+    DataViewMut,
     PointSet,
+    SliceView,
 };
+
+/// Provides method for removing unit(s) in `SampleController`.
+pub trait TreeStorage<ID> {
+    /// Removes unit `idx` from the storage
+    #[inline]
+    fn remove_unit(&mut self, _idx: ID) {}
+}
+impl<ID> TreeStorage<ID> for () {}
+impl<P> TreeStorage<P::Id> for Tree<'_, P>
+where
+    P: PointSet,
+{
+    #[inline]
+    fn remove_unit(&mut self, idx: P::Id) {
+        let _exist: TreeResult<bool> = Tree::remove_unit(self, idx);
+    }
+}
 
 /// A controller enabing algorithms to keep track of conditional probabilities, units, the sample
 /// and some auxiliary information.
 #[must_use]
 #[derive(Debug, Clone)]
-pub struct SampleController<PROB, TREE = ()> {
+pub struct SampleController<PROB, TREE = ()>
+where
+    PROB: DataView<Value: ProbabilityValue>,
+{
     /// The probability store
     probabilities: ProbabilitySet<PROB>,
     /// The (remaining) sample indices
@@ -45,7 +75,11 @@ pub struct SampleController<PROB, TREE = ()> {
     tree: TREE,
 }
 
-impl<PROB, TREE> SampleController<PROB, TREE> {
+impl<PROB, TREE> SampleController<PROB, TREE>
+where
+    PROB: ContiguousDataView<Value: ProbabilityValue> + DataViewMut,
+    TREE: TreeStorage<usize>,
+{
     /// Returns a reference to the probability set
     #[inline]
     pub fn probabilities(&self) -> &ProbabilitySet<PROB> { &self.probabilities }
@@ -69,150 +103,140 @@ impl<PROB, TREE> SampleController<PROB, TREE> {
     #[inline]
     pub fn to_sorted_sample_vec(self) -> Vec<usize> { self.sample.to_sorted_vec() }
     /// Returns the populations size
+    #[expect(clippy::missing_panics_doc, reason = "probs must not be empty")]
     #[must_use]
     #[inline]
-    pub fn population_size(&self) -> NonZeroUsize { self.probabilities.len() }
+    pub fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.probabilities.len()).expect("probabilities to be non-empty")
+    }
     /// Removes a unit if its probability is not partial.
+    /// # Panics
+    /// Panics if `idx` does not exist in `probabilities`.
     #[inline]
-    pub fn unit_decide(&mut self, idx: usize) -> Probability<PROB>
-    where
-        Self: UnitRemoving,
-        PROB: Copy,
-    {
-        let p = self.probabilities[idx];
-        match p {
-            Probability::Partial(_) => {}
-            Probability::Zero(_) => {
-                self.unit_remove(idx);
-            }
-            Probability::Full(_) => {
-                self.sample.add(idx);
-                self.unit_remove(idx);
-            }
+    pub fn unit_decide(&mut self, idx: PROB::Id) -> PROB::Value {
+        let p = *self.probabilities.get(idx).expect("idx exist");
+        if p.is_full(self.probabilities.ctx()) {
+            self.sample.add(idx);
+            self.unit_remove(idx);
+        } else if p.is_zero(self.probabilities.ctx()) {
+            self.unit_remove(idx);
         }
         p
     }
     /// Sets a unit to a new probability `prob` and removes it if `prob` is not partial.
     #[inline]
-    pub fn unit_set_and_decide(&mut self, idx: usize, prob: Probability<PROB>)
-    where
-        Self: UnitRemoving,
-        PROB: Number,
-    {
+    pub fn unit_set_and_decide(&mut self, idx: PROB::Id, prob: PROB::Value) {
         self.probabilities.set(idx, prob);
         let _p = self.unit_decide(idx);
     }
     /// Sets a unit to a full probability representation and removes it
     #[inline]
-    pub fn unit_set_full(&mut self, idx: usize)
-    where
-        Self: UnitRemoving,
-        PROB: Copy,
-    {
+    pub fn unit_set_full(&mut self, idx: PROB::Id) {
         self.probabilities.set_full(idx);
         self.sample.add(idx);
         self.unit_remove(idx);
     }
     /// Sets a unit to a zero probability representation and removes it
     #[inline]
-    pub fn unit_set_zero(&mut self, idx: usize)
-    where
-        Self: UnitRemoving,
-        PROB: Number,
-    {
+    pub fn unit_set_zero(&mut self, idx: PROB::Id) {
         self.probabilities.set_zero(idx);
         self.unit_remove(idx);
     }
     /// Adds `prob` to the probability of a unit and removes it if the new sum is not partial.
     /// Returns the amount of `prob` that could not be added
+    /// # Panics
+    /// Panics if `idx` does not exist in `probabilities`.
     #[inline]
-    pub fn unit_add_and_decide(&mut self, idx: usize, prob: Probability<PROB>) -> Probability<PROB>
-    where
-        Self: UnitRemoving,
-        PROB: Number,
-    {
-        let p = self.probabilities.add(idx, prob);
+    pub fn unit_add_and_decide(&mut self, idx: PROB::Id, prob: PROB::Value) -> PROB::Value {
+        let p = self.probabilities.add(idx, prob).expect("idx exist");
         let _decision_outcome = self.unit_decide(idx);
         p
     }
     /// Subtracts `prob` from the probability of a unit and removes it if the new sum is not partial.
     /// Returns the amount of `prob` that could not be subtracted
+    /// # Panics
+    /// Panics if `idx` does not exist in `probabilities`.
     #[inline]
-    pub fn unit_subtract_and_decide(
-        &mut self,
-        idx: usize,
-        prob: Probability<PROB>,
-    ) -> Probability<PROB>
-    where
-        Self: UnitRemoving,
-        PROB: Number,
-    {
-        let p = self.probabilities.subtract(idx, prob);
+    pub fn unit_subtract_and_decide(&mut self, idx: PROB::Id, prob: PROB::Value) -> PROB::Value {
+        let p = self.probabilities.subtract(idx, prob).expect("idx exist");
         let _decision_outcome = self.unit_decide(idx);
         p
     }
     /// Adds a delta to the probability of a unit and removes it if the new sum is not partial.
     /// Returns the amount that could not be added
+    /// # Panics
+    /// Panics if delta (or -delta) cannot be constructed as a probability representation.
     #[inline]
-    pub fn unit_add_delta_and_decide(&mut self, idx: usize, delta: PROB) -> Probability<PROB>
+    pub fn unit_add_delta_and_decide(
+        &mut self,
+        idx: PROB::Id,
+        delta: <PROB::Value as ProbabilityValue>::N,
+    ) -> PROB::Value
     where
-        Self: UnitRemoving,
-        PROB: Number + Signed,
+        <PROB::Value as ProbabilityValue>::N: Signed,
     {
-        if delta < PROB::ZERO {
-            let p = Probability::Partial(-delta);
+        if delta < <PROB::Value as ProbabilityValue>::N::ZERO {
+            let p = ProbabilityValue::new(-delta, self.probabilities.ctx()).expect("delta is prob");
             self.unit_subtract_and_decide(idx, p)
         } else {
-            let p = Probability::Partial(delta);
+            let p = ProbabilityValue::new(delta, self.probabilities.ctx()).expect("delta is prob");
             self.unit_add_and_decide(idx, p)
         }
     }
     /// Decides the outcome of the last unit, or returns `None` if no last unit exists.
+    #[expect(clippy::missing_panics_doc, reason = "panic is bug")]
     #[inline]
-    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<Probability<PROB>>
+    pub fn unit_decide_last<R>(&mut self, rng: &mut R) -> Option<PROB::Value>
     where
-        Self: UnitRemoving,
-        R: Rand<PROB>,
-        PROB: Number,
+        R: Rand<<PROB::Value as ProbabilityValue>::N>,
     {
         if self.indices.len() != 1 {
             return None;
         }
         let id = self.indices.last()?;
-        let prob = self.probabilities[id];
+        let prob = *self.probabilities.get(id).expect("id exist");
         if self.probabilities.draw(rng) < prob {
             self.unit_set_full(id);
         } else {
             self.unit_set_zero(id);
         }
-        Some(self.probabilities[id])
+        Some(*self.probabilities.get(id).expect("id exist"))
+    }
+    /// Removes a unit from the controller
+    #[inline]
+    pub fn unit_remove(&mut self, idx: usize) -> bool {
+        // Removing a non-existing unit seems like a bug, but should be caught by indices remove
+        self.tree.remove_unit(idx);
+        self.indices.remove(idx)
     }
 }
 
-impl<PROB> SampleController<PROB, ()> {
+impl<PROB> SampleController<PROB, ()>
+where
+    PROB: SliceView<Value: ProbabilityValue>,
+{
     /// Constructs a new `SampleController` without a tree.
-    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
+    /// # Panics
+    /// Panics if probabilities is empty.
     #[inline]
     pub fn new(probabilities: ProbabilitySet<PROB>) -> Self {
-        let population_size = probabilities.len().get();
+        let population_size = probabilities.len();
+        assert!(population_size > 0, "probabilities cannot be empty");
         let mut indices = Indices::new(population_size);
         let mut sample = Sample::new(population_size);
 
         // Reverse order guarantees units can be drawn from the back in order, see comment in
         // Indices::with_fill.
-        for i in (0..population_size).rev() {
-            match probabilities[i] {
-                Probability::Partial(_) => {
-                    assert!(
-                        indices.insert(i),
-                        "unit {i} should not already be in indices {indices:?}"
-                    );
-                }
-                Probability::Zero(_) => {}
-                Probability::Full(_) => {
-                    sample.add(i);
-                }
-            };
+        let ctx = probabilities.ctx();
+        for (i, p) in probabilities.slice().iter().enumerate().rev() {
+            if p.is_full(ctx) {
+                sample.add(i);
+            } else if !p.is_zero(ctx) {
+                assert!(
+                    indices.insert(i),
+                    "unit {i} should not already be in indices {indices:?}"
+                );
+            }
         }
 
         Self {
@@ -222,14 +246,12 @@ impl<PROB> SampleController<PROB, ()> {
             tree: (),
         }
     }
-    /// Removes a unit from the controller
-    #[inline]
-    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
 }
 
 impl<'bspread, PROB, P> SampleController<PROB, Tree<'bspread, P>>
 where
-    P: PointSet<Id = usize>,
+    PROB: SliceView<Value: ProbabilityValue>,
+    P: ContiguousPointSet,
 {
     /// Constructs a new `SampleController` with a tree.
     #[expect(clippy::missing_panics_doc, reason = "units are based on self indices")]
@@ -254,30 +276,6 @@ where
     /// Returns a mutable reference to the tree
     #[inline]
     pub fn tree_mut(&mut self) -> &mut Tree<'bspread, P> { &mut self.tree }
-    /// Removes a unit from the controller
-    #[inline]
-    pub fn unit_remove(&mut self, idx: usize) -> bool { UnitRemoving::unit_remove(self, idx) }
-}
-
-/// Trait for sample controllers that can remove a unit
-pub trait UnitRemoving {
-    /// Returns `true` if `idx` was present and removed, `false` if `idx` wasn't found.
-    fn unit_remove(&mut self, idx: usize) -> bool;
-}
-impl<PROB> UnitRemoving for SampleController<PROB, ()> {
-    #[inline]
-    fn unit_remove(&mut self, idx: usize) -> bool { self.indices.remove(idx) }
-}
-impl<PROB, P> UnitRemoving for SampleController<PROB, Tree<'_, P>>
-where
-    P: PointSet<Id = usize>,
-{
-    #[inline]
-    fn unit_remove(&mut self, idx: usize) -> bool {
-        // Removing a non-existing unit seems like a bug, but should be caught by indices remove
-        let _res = self.tree.remove_unit(idx);
-        self.indices.remove(idx)
-    }
 }
 
 #[cfg(test)]

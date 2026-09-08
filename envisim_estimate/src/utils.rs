@@ -12,9 +12,11 @@
 
 //! Estimation utility functions
 
-use std::borrow::Borrow;
-
-use envisim_utils::probabilities::Probability;
+use envisim_utils::probabilities::{
+    Probability,
+    ProbabilityValue,
+};
+use envisim_utils::utils::Number;
 
 use crate::error::{
     EstimationError,
@@ -26,30 +28,16 @@ use crate::error::{
 /// # Errors
 /// Returns an error if the `pi` is invalid
 #[inline]
-pub fn ypi_quotient<Y, PI>((y, pi): (Y, PI)) -> EstimationResult<f64>
+pub fn ypi_quotient<Y>((y, pi): (Y, f64)) -> EstimationResult<f64>
 where
-    Y: Borrow<f64>,
-    PI: Borrow<f64>,
+    Y: Number,
 {
-    let y = *y.borrow();
-    let p = *pi.borrow();
-    Probability::is_probability(p, 1.0)
-        .then(|| y / p)
-        .ok_or(EstimationError::InvalidProbability)
-}
-
-/// Calculates the `y / pi` quotient
-///
-/// # Errors
-/// Returns an error if any `pi` is invalid
-#[inline]
-pub fn ypi_iter_to_vec<I, Y, PI>(yp_iter: I) -> EstimationResult<Vec<f64>>
-where
-    I: Iterator<Item = (Y, PI)>,
-    Y: Borrow<f64>,
-    PI: Borrow<f64>,
-{
-    yp_iter.map(ypi_quotient).collect()
+    if !Probability::is_probability(pi, 1.0) {
+        return Err(EstimationError::InvalidProbability);
+    }
+    y.to_f64()
+        .map(|y| y / pi)
+        .ok_or(EstimationError::InvalidAuxiliaries)
 }
 
 /// Calculates the `y / mu` quotient
@@ -57,50 +45,20 @@ where
 /// # Errors
 /// Returns an error if the `mu` is invalid
 #[inline]
-pub fn ymui_quotient<Y, MU, INC>((y, mu, inc): (Y, MU, INC)) -> EstimationResult<f64>
+pub fn ymui_quotient<Y, INC>((y, mu, inc): (Y, f64, INC)) -> EstimationResult<f64>
 where
-    Y: Borrow<f64>,
-    MU: Borrow<f64>,
-    INC: Borrow<f64>,
+    Y: Number,
+    INC: Number,
 {
-    let y = *y.borrow();
-    let mu = *mu.borrow();
-    let inc = *inc.borrow();
-
-    if mu < 0.0 {
+    if mu < 0.0 || !mu.is_finite() {
         Err(EstimationError::InvalidExpectedNumberOfInclusions)
-    } else if inc < 0.0 {
+    } else if inc < INC::ZERO || !inc.is_finite() {
         Err(EstimationError::InvalidNumberOfInclusions)
     } else {
+        let y = y.to_f64().ok_or(EstimationError::InvalidAuxiliaries)?;
+        let inc = inc
+            .to_f64()
+            .ok_or(EstimationError::InvalidExpectedNumberOfInclusions)?;
         Ok(y / mu * inc)
     }
-}
-
-/// Calculates the `y / mu * inc` quotient
-///
-/// # Errors
-/// Returns an error if any `mu` or `inc` is invalid
-#[inline]
-pub fn ymui_iter_to_vec<I, Y, MU, INC>(ymui_iter: I) -> EstimationResult<Vec<f64>>
-where
-    I: Iterator<Item = (Y, MU, INC)>,
-    Y: Borrow<f64>,
-    MU: Borrow<f64>,
-    INC: Borrow<f64>,
-{
-    ymui_iter.map(ymui_quotient).collect()
-}
-
-/// Zips three iterables
-#[inline]
-pub fn zip3<AI, A, BI, B, CI, C>(a: AI, b: BI, c: CI) -> impl Iterator<Item = (A, B, C)>
-where
-    AI: IntoIterator<Item = A>,
-    BI: IntoIterator<Item = B>,
-    CI: IntoIterator<Item = C>,
-{
-    let a = a.into_iter();
-    let b = b.into_iter();
-    let c = c.into_iter();
-    a.zip(b).zip(c).map(|((x, y), z)| (x, y, z))
 }

@@ -199,7 +199,7 @@ where
         // Add units for which rv is in [psum, psum+p)
         // Go up one p when psum+p < rv
         // Go up one rv when sample has been pushed
-        'outer: for (id, p) in self.probabilities().iter_real().enumerate() {
+        'outer: for (id, p) in self.probabilities().entries_real().enumerate() {
             loop {
                 if psum + p <= rv {
                     psum += p;
@@ -238,10 +238,14 @@ where
             return Ok(vec![draw(rng, self.probabilities().iter_real())]);
         }
 
-        let norm_probs: Vec<f64> = self.probabilities().iter_real().map(|p| p / psum).collect();
+        let norm_probs: Vec<f64> = self
+            .probabilities()
+            .entries_real()
+            .map(|p| p / psum)
+            .collect();
 
         for _ in 0..self.max_iterations().get() {
-            let mut sample = poisson_internal(rng, self.probabilities().iter_real());
+            let mut sample = poisson_internal(rng, self.probabilities().entries_real());
 
             if sample.len() != sample_size - 1 {
                 continue;
@@ -272,7 +276,7 @@ where
 
         let q_values: Vec<f64> = self
             .probabilities()
-            .iter_real()
+            .entries_real()
             .map(|p| {
                 let u: f64 = rng.rand();
 
@@ -308,7 +312,7 @@ where
         let mut sample = Sample::new(population_size);
 
         let mut psum: f64 = 0.0;
-        for (i, p) in self.probabilities().iter_real().enumerate().rev() {
+        for (i, p) in self.probabilities().entries_real().enumerate().rev() {
             if eps.is_zero(p) {
             } else if eps.is_zero(1.0 - p) {
                 sample.add(i);
@@ -373,7 +377,7 @@ where
     }
     #[inline]
     fn poisson(&self, rng: &mut R) -> Vec<usize> {
-        poisson_internal(rng, self.probabilities().iter_real())
+        poisson_internal(rng, self.probabilities().entries_real())
     }
     #[inline]
     fn conditional_poisson(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<usize>> {
@@ -387,7 +391,7 @@ where
         }
 
         for _ in 0..self.max_iterations().get() {
-            let s = poisson_internal(rng, self.probabilities().iter_real());
+            let s = poisson_internal(rng, self.probabilities().entries_real());
 
             if s.len() == sample_size {
                 return Ok(s);

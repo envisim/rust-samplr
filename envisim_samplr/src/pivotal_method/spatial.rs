@@ -91,7 +91,7 @@ where
     #[inline]
     pub fn new<PO, BAL>(
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
+    ) -> PivotalRunner<Self, PO::Value, Tree<'_, P>>
     where
         PO: ProbabilitiesSpec,
     {
@@ -187,7 +187,7 @@ where
     #[inline]
     pub fn new<PO, BAL>(
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
+    ) -> PivotalRunner<Self, PO::Value, Tree<'_, P>>
     where
         PO: ProbabilitiesSpec,
     {
@@ -308,7 +308,7 @@ where
     #[inline]
     pub fn new<PO, BAL>(
         options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, Tree<'_, P>>
+    ) -> PivotalRunner<Self, PO::Value, Tree<'_, P>>
     where
         PO: ProbabilitiesSpec,
         P: PointSet,

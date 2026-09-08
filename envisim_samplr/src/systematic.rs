@@ -33,13 +33,13 @@ use crate::utils::shuffled_indices;
 #[inline]
 fn from_order<R, PS>(rng: &mut R, options: &PS, order: &[usize]) -> Vec<usize>
 where
-    R: Rand<PS::Native>,
+    R: Rand<PS::Value>,
     PS: ProbabilitiesSpec,
 {
     let pmax = options.max();
     let mut sample = Vec::<usize>::with_capacity(options.sample_size());
     let mut r = rng.rand_to(pmax);
-    let mut psum = PS::Native::ZERO;
+    let mut psum = PS::Value::ZERO;
 
     for &id in order {
         let pnext = psum + options.nth(id).expect("id to exist");

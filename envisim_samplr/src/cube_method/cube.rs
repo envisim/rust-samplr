@@ -32,10 +32,7 @@ use envisim_utils::random::{
     Rng,
     random_weighted,
 };
-use envisim_utils::sample_controller::{
-    SampleController,
-    UnitRemoving,
-};
+use envisim_utils::sample_controller::SampleController;
 use envisim_utils::sampling_options::{
     BalancingOptions,
     ProbabilitiesSpec,
@@ -96,7 +93,6 @@ pub struct CubeRunner<S, TREE> {
 impl<S, TREE> CubeRunner<S, TREE>
 where
     S: CubeStrategy<TREE>,
-    SampleController<f64, TREE>: UnitRemoving,
 {
     /// Runs the simulation and returns a sorted sample
     #[must_use]
@@ -187,7 +183,7 @@ where
     ) -> Self
     where
         PO: ProbabilitiesSpec<Real = f64>,
-        T: SliceView<Elem = f64>,
+        T: SliceView<Value = f64>,
     {
         let balancing_data = options.balancing().data();
         let b_dims = balancing_data.dims();
@@ -289,7 +285,7 @@ impl SequentialCubeStrategy {
     ) -> CubeRunner<Self, ()>
     where
         PO: ProbabilitiesSpec<Real = f64>,
-        T: SliceView<Elem = f64>,
+        T: SliceView<Value = f64>,
     {
         let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
@@ -336,7 +332,7 @@ impl RandomCubeStrategy {
     ) -> CubeRunner<Self, ()>
     where
         PO: ProbabilitiesSpec<Real = f64>,
-        T: SliceView<Elem = f64>,
+        T: SliceView<Value = f64>,
     {
         let controller = options.to_controller_real();
         CubeRunner::new(options, controller, Self())
@@ -398,7 +394,7 @@ where
     ) -> CubeRunner<Self, Tree<'btree, P>>
     where
         PO: ProbabilitiesSpec<Real = f64>,
-        T: SliceView<Elem = f64>,
+        T: SliceView<Value = f64>,
     {
         let controller = options.to_spreading_controller_real();
         let searcher = KNearestNeighbourSearcher::new(
@@ -617,7 +613,7 @@ impl<R, PO, AUX, T> CubeSampling<R> for SamplingOptions<PO, AUX, BalancingOption
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
-    T: SliceView<Elem = f64>,
+    T: SliceView<Value = f64>,
 {
     #[inline]
     fn cube(&self, rng: &mut R) -> Vec<usize> { RandomCubeStrategy::new(self).sample(rng) }
@@ -632,7 +628,7 @@ where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = usize>,
-    T: SliceView<Elem = f64>,
+    T: SliceView<Value = f64>,
 {
     #[inline]
     fn local_cube(&self, rng: &mut R) -> Vec<usize> { LocalCubeStrategy::new(self).sample(rng) }

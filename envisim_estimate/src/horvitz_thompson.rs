@@ -24,17 +24,26 @@ use envisim_utils::matrix::{
     MatrixBase,
     SliceView,
 };
-use envisim_utils::probabilities::Probability;
+use envisim_utils::probabilities::{
+    Probability,
+    ProbabilityValue,
+};
 use envisim_utils::sampling_options::{
     ProbabilitiesSpec,
     SamplingOptions,
     SpreadingOptions,
 };
+use envisim_utils::utils::{
+    ConstructableDataView,
+    ContiguousDataView,
+    DataView,
+    Number,
+};
 use num_traits::ToPrimitive;
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
-use crate::utils::ypi_iter_to_vec;
+use crate::utils::ypi_quotient;
 
 /// Horvitz-Thompson estimator of a total
 ///
@@ -50,11 +59,24 @@ use crate::utils::ypi_iter_to_vec;
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid
 #[inline]
-pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> EstimationResult<f64> {
+pub fn estimate<Y, P>(y_values: Y, probabilities: P) -> EstimationResult<f64>
+where
+    Y: DataView<Value: Number>,
+    P: DataView<Id = Y::Id, Value = f64>,
+{
     if y_values.len() != probabilities.len() {
         return Err(EstimationError::InvalidSample);
     }
-    ypi_iter_to_vec(y_values.iter().zip(probabilities)).map(|q_vec| q_vec.iter().sum())
+
+    probabilities
+        .entries()
+        .map(|(id, p)| {
+            let y = y_values
+                .get(id)
+                .ok_or(EstimationError::InvalidAuxiliaries)?;
+            ypi_quotient((*y, *p))
+        })
+        .sum()
 }
 
 /// Ratio estimator of total, using auxilliary variable `x_values`.
@@ -63,37 +85,62 @@ pub fn estimate(y_values: &[f64], probabilities: &[f64]) -> EstimationResult<f64
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
 /// Also returns an error if the xes are not positive.
 #[inline]
-pub fn ratio(
-    y_values: &[f64],
-    x_values: &[f64],
-    probabilities: &[f64],
-    x_total: f64,
-) -> EstimationResult<f64> {
-    if !x_values.iter().all(|x| (0.0..).contains(x)) {
-        return Err(EstimationError::InvalidAuxiliaries);
+pub fn ratio<Y, X, P>(
+    y_values: Y,
+    x_values: X,
+    probabilities: P,
+    x_total: X::Value,
+) -> EstimationResult<f64>
+where
+    Y: DataView<Value: Number>,
+    X: DataView<Id = Y::Id, Value: Number>,
+    P: DataView<Id = Y::Id, Value = f64>,
+{
+    if y_values.len() != probabilities.len() || y_values.len() != x_values.len() {
+        return Err(EstimationError::InvalidSample);
     }
-    let y_hat = estimate(y_values, probabilities)?;
-    let x_hat = estimate(x_values, probabilities)?;
 
-    Ok(y_hat / x_hat * x_total)
+    let mut y_hat = 0.0;
+    let mut x_hat = 0.0;
+
+    for (id, p) in probabilities.entries() {
+        let y = y_values
+            .get(id)
+            .ok_or(EstimationError::InvalidAuxiliaries)?;
+        let x = x_values
+            .get(id)
+            .ok_or(EstimationError::InvalidAuxiliaries)?;
+
+        y_hat += ypi_quotient((*y, *p))?;
+        x_hat += ypi_quotient((*x, *p))?;
+    }
+
+    x_total
+        .to_f64()
+        .map(|x| y_hat / x_hat * x)
+        .ok_or(EstimationError::InvalidAuxiliaries)
 }
 
 /// Horvitz-Thompson estimator of variance of total estimate
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+#[expect(clippy::missing_panics_doc, reason = "panic should be impossible")]
 #[inline]
-pub fn variance<T>(
-    y_values: &[f64],
-    probabilities: &[f64],
-    probabilities_second_order: &MatrixBase<T>,
+pub fn variance<Y, P1, P2>(
+    y_values: Y,
+    probabilities: P1,
+    probabilities_second_order: &MatrixBase<P2>,
 ) -> EstimationResult<f64>
 where
-    T: SliceView<Elem = f64>,
+    Y: ContiguousDataView<Value: Number>,
+    P1: ContiguousDataView<Id = Y::Id, Value = f64>,
+    P2: SliceView<Id = Y::Id, Value = f64>,
 {
     let sample_size = y_values.len();
 
-    if sample_size != probabilities_second_order.nrow().get()
+    if sample_size != probabilities.len()
+        || sample_size != probabilities_second_order.nrow().get()
         || sample_size != probabilities_second_order.ncol().get()
     {
         return Err(EstimationError::InvalidSample);
@@ -101,26 +148,33 @@ where
         return Ok(0.0);
     }
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
+    let yp_box: Box<[f64]> = y_values
+        .values()
+        .copied()
+        .zip(probabilities.values().copied())
+        .map(ypi_quotient)
+        .collect::<EstimationResult<Box<[f64]>>>()?;
 
     // Do first unit first
     let mut variance: f64 = 0.0;
 
-    for i in 0..sample_size {
-        let p_i = probabilities[i];
-        if yp[i].is_nan() {
+    for (i, &yp_i) in yp_box.iter().enumerate() {
+        if yp_i.is_nan() {
             return Ok(f64::NAN);
         }
-        variance += yp[i].powi(2) * (1.0 - p_i);
+        let p_i = probabilities.get(i).expect("i to exist");
+        variance += yp_box[i].powi(2) * (1.0 - p_i);
 
         for j in 0..i {
-            let p_ij = probabilities_second_order[(i, j)];
-            if !Probability::is_probability(p_ij, 1.0) {
+            let yp_j = yp_box.get(j).expect("j to exist");
+            let p_j = probabilities.get(j).expect("j to exist");
+            let p_second_ord = probabilities_second_order[(i, j)];
+            if !Probability::<f64>::is_probability(p_second_ord, 1.0) {
                 return Err(EstimationError::InvalidProbability);
-            } else if p_ij == 0.0 {
+            } else if p_second_ord == 0.0 {
                 return Ok(f64::NAN);
             }
-            variance += 2.0 * yp[i] * yp[j] * (1.0 - p_i * probabilities[j] / p_ij);
+            variance += 2.0 * yp_i * yp_j * (1.0 - p_i * p_j / p_second_ord);
         }
     }
 
@@ -131,14 +185,17 @@ where
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
+#[expect(clippy::missing_panics_doc, reason = "panic should be impossible")]
 #[inline]
-pub fn syg_variance<T>(
-    y_values: &[f64],
-    probabilities: &[f64],
-    probabilities_second_order: &MatrixBase<T>,
+pub fn syg_variance<Y, P1, P2>(
+    y_values: Y,
+    probabilities: P1,
+    probabilities_second_order: &MatrixBase<P2>,
 ) -> EstimationResult<f64>
 where
-    T: SliceView<Elem = f64>,
+    Y: ContiguousDataView<Value: Number>,
+    P1: ContiguousDataView<Value = f64>,
+    P2: SliceView<Value = f64>,
 {
     let sample_size = y_values.len();
 
@@ -150,23 +207,29 @@ where
         return Ok(0.0);
     }
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
+    let yp: Box<[f64]> = y_values
+        .values()
+        .copied()
+        .zip(probabilities.values().copied())
+        .map(ypi_quotient)
+        .collect::<EstimationResult<Box<[f64]>>>()?;
     let mut variance: f64 = 0.0;
 
     for i in 1..sample_size {
-        let p_i = probabilities[i];
+        let p_i = probabilities.get(i).expect("i to exist");
         if yp[i].is_nan() {
             return Ok(f64::NAN);
         }
 
         for j in 0..i {
-            let p_ij = probabilities_second_order[(i, j)];
-            if !Probability::is_probability(p_ij, 1.0) {
+            let p_j = probabilities.get(j).expect("j to exist");
+            let p_second_ord = probabilities_second_order[(i, j)];
+            if !Probability::is_probability(p_second_ord, 1.0) {
                 return Err(EstimationError::InvalidProbability);
-            } else if p_ij == 0.0 {
+            } else if p_second_ord == 0.0 {
                 return Ok(f64::NAN);
             }
-            variance -= (yp[i] - yp[j]).powi(2) * (1.0 - p_i * probabilities[j] / p_ij);
+            variance -= (yp[i] - yp[j]).powi(2) * (1.0 - p_i * p_j / p_second_ord);
         }
     }
 
@@ -178,23 +241,30 @@ where
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
 #[inline]
-pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> EstimationResult<f64> {
-    let yp = ypi_iter_to_vec(y_values.iter().zip(probabilities))?;
+pub fn deville_variance<Y, P>(y_values: Y, probabilities: P) -> EstimationResult<f64>
+where
+    Y: ContiguousDataView<Value: Number>,
+    P: ContiguousDataView<Id = Y::Id, Value = f64>,
+{
+    let yp: Box<[f64]> = y_values
+        .values()
+        .copied()
+        .zip(probabilities.values().copied())
+        .map(ypi_quotient)
+        .collect::<EstimationResult<Box<[f64]>>>()?;
 
-    let q: Vec<f64> = probabilities.iter().map(|&p| 1.0 - p).collect();
+    let q: Box<[f64]> = probabilities.values().map(|&p| 1.0 - p).collect();
 
-    let s1mp = q.iter().sum::<f64>();
-    let del = yp
-        .iter()
-        .zip(q.iter())
-        .fold(0.0, |acc, (&a, &b)| acc + a * b);
+    let s1mp: f64 = q.values().sum();
+    let del: f64 = yp.values().zip(q.values()).map(|(&a, &b)| a * b).sum();
     let s1mp_del = s1mp / del;
-    let sak2 = q.iter().fold(0.0, |acc, &a| acc + a.powi(2)) / s1mp.powi(2);
+    let sak2 = q.values().map(|&a| a.powi(2)).sum::<f64>() / s1mp.powi(2);
 
-    let dsum = yp
-        .iter()
-        .zip(q.iter())
-        .fold(0.0, |acc, (&a, &b)| acc + (a - s1mp_del).powi(2) * b);
+    let dsum: f64 = yp
+        .values()
+        .zip(q.values())
+        .map(|(&a, &b)| (a - s1mp_del).powi(2) * b)
+        .sum();
 
     Ok(1.0 / (1.0 - sak2) * dsum)
 }
@@ -213,17 +283,17 @@ pub fn deville_variance(y_values: &[f64], probabilities: &[f64]) -> EstimationRe
 /// # Panics
 /// Panics if `P` does not contains units `0..sample_size`.
 #[inline]
-pub fn local_mean_variance<PO, P, BAL>(
-    y_values: &[f64],
+pub fn local_mean_variance<Y, PO, P, BAL>(
+    y_values: Y,
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
     n_neighbours: NonZeroUsize,
 ) -> EstimationResult<f64>
 where
-    PO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
+    Y: ConstructableDataView<Value: Number>,
+    PO: ProbabilitiesSpec<Id = Y::Id, Real = f64>,
+    P: PointSet<Id = Y::Id, Value = f64>,
 {
     let sample_size = y_values.len();
-
     if sample_size == 0 {
         return Ok(0.0);
     }
@@ -237,16 +307,24 @@ where
         tree.data(),
     );
 
-    let yp = ypi_iter_to_vec(y_values.iter().zip(options.probabilities().iter_real()))?;
+    let yp_box = Y::try_from_iter(y_values.entries().map(|(id, y)| {
+        let y = y.to_f64().ok_or(EstimationError::InvalidAuxiliaries)?;
+        let p = options
+            .probabilities()
+            .get_real(id)
+            .ok_or(EstimationError::InvalidProbability)?;
+        Result::<(Y::Id, f64), EstimationError>::Ok((id, y / p))
+    }))?;
+
     let mut variance: f64 = 0.0;
 
-    for i in 0..sample_size {
-        if yp[i].is_nan() {
+    for (id, yp) in yp_box.entries() {
+        if yp.is_nan() {
             return Ok(f64::NAN);
         }
 
         searcher
-            .reset_from_point(tree.data().coords(i).expect("i to exist in aux data"))
+            .reset_from_point(tree.data().coords(id).expect("i to exist in aux data"))
             .expect("tree data to be searchable")
             .search(&tree)
             .expect("search to be possible");
@@ -258,11 +336,12 @@ where
         let local_mean: f64 = searcher
             .neighbours()
             .iter()
-            .map(|n| yp[*n.id()])
+            .map(|n| *yp_box.get(*n.id()).expect("neighbour to exist"))
             .sum::<f64>()
             / number_of_neighbours;
+
         variance +=
-            number_of_neighbours / (number_of_neighbours - 1.0) * (yp[i] - local_mean).powi(2);
+            number_of_neighbours / (number_of_neighbours - 1.0) * (*yp - local_mean).powi(2);
     }
 
     Ok(variance)

@@ -14,10 +14,7 @@
 
 use envisim_utils::indices::Pair;
 use envisim_utils::random::Rand;
-use envisim_utils::sample_controller::{
-    SampleController,
-    UnitRemoving,
-};
+use envisim_utils::sample_controller::SampleController;
 use envisim_utils::utils::Number;
 
 /// A strategy for a pivotal method controls the selection of competing pairs
@@ -47,7 +44,6 @@ pub struct PivotalRunner<S, PROB, TREE> {
 impl<S, PROB, TREE> PivotalRunner<S, PROB, TREE>
 where
     S: PivotalStrategy<PROB, TREE>,
-    SampleController<PROB, TREE>: UnitRemoving,
     PROB: Number,
 {
     /// Runs the simulation and returns a sorted sample

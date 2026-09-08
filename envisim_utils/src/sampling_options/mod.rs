@@ -29,6 +29,7 @@ pub use error::{
 pub use probability_opts::{
     EqualProbabilities,
     ProbabilitiesSpec,
+    ProbabilitiesSpecToSet,
     UnequalProbabilities,
     UnequalProbabilitiesInt,
     UnequalProbabilitiesReal,
@@ -37,13 +38,17 @@ pub use spreading_opts::SpreadingOptions;
 
 use crate::kd_tree::Tree;
 use crate::matrix::Dimensions;
-use crate::probabilities::ProbabilitySet;
+use crate::probabilities::{
+    Probability,
+    ProbabilitySet,
+};
 use crate::random::{
     FloatRng,
     Rand,
 };
 use crate::sample_controller::SampleController;
 use crate::utils::{
+    ContiguousPointSet,
     Epsilon,
     Number,
     NumberFloat,
@@ -53,7 +58,7 @@ use crate::utils::{
 };
 
 /// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`]
-pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>
+pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Value> + Rand<PO::Real>
 where
     PO: ProbabilitiesSpec,
 {
@@ -61,7 +66,7 @@ where
 impl<PO, R> SamplingOptionsRng<PO> for R
 where
     PO: ProbabilitiesSpec,
-    R: FloatRng + Rand<PO::Native> + Rand<PO::Real>,
+    R: FloatRng + Rand<PO::Value> + Rand<PO::Real>,
 {
 }
 
@@ -167,7 +172,7 @@ where
         data: I,
     ) -> SamplingOptionsResult<SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>>
     where
-        AUXP: PointSet,
+        AUXP: PointSet<Id = PO::Id>,
         I: Into<SpreadingOptions<AUXP>>,
     {
         let data = data.into();
@@ -212,39 +217,58 @@ where
 // BUILDERS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilitiesSpec,
+    PO: ProbabilitiesSpecToSet,
 {
     /// Constructs a [`ProbabilitySet`] from the probability specification
     #[inline]
-    pub fn to_probabilityset(&self) -> ProbabilitySet<PO::Native> {
+    pub fn to_probabilityset(
+        &self,
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Value>>> {
         self.probabilities.to_probabilityset(self.eps)
     }
     /// Constructs a real-valued [`ProbabilitySet`] from the probability specification
     #[inline]
-    pub fn to_probabilityset_real(&self) -> ProbabilitySet<PO::Real> {
+    pub fn to_probabilityset_real(
+        &self,
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Real>>> {
         self.probabilities.to_probabilityset_real(self.eps)
     }
     /// Constructs a [`SampleController`] from the probability specification
     #[inline]
-    pub fn to_controller(&self) -> SampleController<PO::Native, ()> {
+    pub fn to_controller(
+        &self,
+    ) -> SampleController<PO::ConstructableContainer<Probability<PO::Value>>, ()>
+    where
+        PO::ConstructableContainer<Probability<PO::Value>>: SliceView,
+    {
         let probs = self.to_probabilityset();
         SampleController::new(probs)
     }
     /// Constructs a real-valued [`SampleController`] from the probability specification
     #[inline]
-    pub fn to_controller_real(&self) -> SampleController<PO::Real, ()> {
+    pub fn to_controller_real(
+        &self,
+    ) -> SampleController<PO::ConstructableContainer<Probability<PO::Real>>, ()>
+    where
+        PO::ConstructableContainer<Probability<PO::Real>>: SliceView,
+    {
         let probs = self.to_probabilityset_real();
         SampleController::new(probs)
     }
 }
 impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
 where
-    PO: ProbabilitiesSpec,
-    AUXP: PointSet<Id = usize>,
+    PO: ProbabilitiesSpecToSet,
+    AUXP: ContiguousPointSet,
 {
     /// Constructs a [`SampleController`] containing a KD-tree from the probability specification.
     #[inline]
-    pub fn to_spreading_controller(&self) -> SampleController<PO::Native, Tree<'_, AUXP>> {
+    pub fn to_spreading_controller(
+        &self,
+    ) -> SampleController<PO::ConstructableContainer<Probability<PO::Value>>, Tree<'_, AUXP>>
+    where
+        PO::ConstructableContainer<Probability<PO::Value>>: SliceView,
+    {
         let probs = self.to_probabilityset();
         let spreading = self.spreading();
         SampleController::new_spreading(probs, spreading)
@@ -252,7 +276,12 @@ where
     /// Constructs a real-valued [`SampleController`] containing a KD-tree from the probability
     /// specification.
     #[inline]
-    pub fn to_spreading_controller_real(&self) -> SampleController<PO::Real, Tree<'_, AUXP>> {
+    pub fn to_spreading_controller_real(
+        &self,
+    ) -> SampleController<PO::ConstructableContainer<Probability<PO::Real>>, Tree<'_, AUXP>>
+    where
+        PO::ConstructableContainer<Probability<PO::Real>>: SliceView,
+    {
         let probs = self.to_probabilityset_real();
         let spreading = self.spreading();
         SampleController::new_spreading(probs, spreading)
@@ -283,7 +312,7 @@ where
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesReal<PD>>>
 where
     PD: SliceView,
-    PD::Elem: NumberFloat,
+    PD::Value: NumberFloat,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///
@@ -298,14 +327,14 @@ where
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesInt<PD>>>
 where
     PD: SliceView,
-    PD::Elem: NumberInt,
+    PD::Value: NumberInt,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///
     /// # Errors
     /// If `probabilities` cannot be turned into [`ProbabilitySpecUnequal`].
     #[inline]
-    pub fn new_int(probabilities: PD, max: PD::Elem) -> SamplingOptionsResult<Self> {
+    pub fn new_int(probabilities: PD, max: PD::Value) -> SamplingOptionsResult<Self> {
         if !max.is_pos_finite() {
             return Err(SamplingOptionsError::InvalidProbability);
         }
@@ -324,6 +353,9 @@ impl SamplingOptions<EqualProbabilities> {
     where
         NZ: TryInto<NonZeroUsize>,
     {
+        let population_size = population_size
+            .try_into()
+            .map_err(|_| SamplingOptionsError::InvalidPopulationSize)?;
         let spec = EqualProbabilities::new(population_size, sample_size)?;
         Ok(Self::with_spec_equal(spec))
     }

@@ -22,40 +22,43 @@ use envisim_utils::utils::PointSet;
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
-use crate::utils::ypi_quotient;
 
 /// Returns the balance deviations per dimension
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "iterator must be clone anyway"
+)]
 #[inline]
-fn balance_deviation<PROB, DATA>(
-    sample: &[usize],
+fn balance_deviation<I, PROB, DATA>(
+    sample: I,
     probabilities: &PROB,
     data: &DATA,
 ) -> EstimationResult<Vec<f64>>
 where
+    I: Iterator<Item = PROB::Id> + Clone,
     PROB: ProbabilitiesSpec<Real = f64>,
-    DATA: PointSet<Id = usize, Value = f64>,
+    DATA: PointSet<Id = PROB::Id, Value = f64>,
 {
-    let population_size = probabilities.population_size().get();
-
     (0..data.dimensions().get())
         .map(|j| {
             // Calculate the dimension total for the population
-            let pop_sum: f64 = (0..population_size)
-                .map(|i| data.coord(i, j))
+            let pop_sum = data
+                .ids()
+                .map(|id| data.coord(id, j))
                 .sum::<Option<f64>>()
                 .ok_or(EstimationError::InvalidSample)?;
             // Calculate the dimension HT-estimator
             let sample_sum: f64 = sample
-                .iter()
-                .map(|&i| {
-                    let p = probabilities.nth_real(i);
-                    data.coord(i, j)
-                        .zip(p)
-                        .ok_or(EstimationError::InvalidSample)
-                        .and_then(ypi_quotient)
+                .clone()
+                .map(|id| {
+                    let p = probabilities
+                        .get_real(id)
+                        .ok_or(EstimationError::InvalidProbability)?;
+                    let x = data.coord(id, j).ok_or(EstimationError::InvalidSample)?;
+                    Ok(x / p)
                 })
                 .sum::<EstimationResult<f64>>()?;
             Ok(pop_sum - sample_sum)
@@ -80,13 +83,14 @@ where
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_spreading<PO, P, BAL>(
-    sample: &[usize],
+pub fn balance_deviation_spreading<I, PO, P, BAL>(
+    sample: I,
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
+    I: Iterator<Item = PO::Id> + Clone,
     PO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.spreading().data())
 }
@@ -108,13 +112,14 @@ where
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_balancing<PO, AUX, P>(
-    sample: &[usize],
+pub fn balance_deviation_balancing<I, PO, AUX, P>(
+    sample: I,
     options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
+    I: Iterator<Item = PO::Id> + Clone,
     PO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.balancing().data())
 }

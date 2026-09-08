@@ -160,7 +160,7 @@ mod tests {
         .unwrap();
         mat1.reduced_row_echelon_form();
         assert_vec!(
-            mat1.data().data(),
+            mat1.data().slice(),
             [
                 1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0
             ]

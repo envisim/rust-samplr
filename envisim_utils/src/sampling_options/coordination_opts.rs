@@ -18,7 +18,10 @@ use super::error::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::utils::SliceView;
+use crate::utils::{
+    DataView,
+    SliceView,
+};
 
 /// Coordination options
 #[must_use]
@@ -35,21 +38,20 @@ impl<CD> CoordinationRandomValues<CD> {
     /// Returns a reference to the internal data
     #[must_use]
     #[inline]
-    pub fn data(&self) -> &[CD::Elem]
+    pub fn data(&self) -> &[CD::Value]
     where
         CD: SliceView,
     {
-        self.data.data()
+        self.data.slice()
     }
     /// Returns the value at `id`, or `None` if no values exist, or the `id` does not exist.
     #[must_use]
     #[inline]
-    pub fn get(&self, id: usize) -> Option<CD::Elem>
+    pub fn get(&self, id: CD::Id) -> Option<&CD::Value>
     where
-        CD: SliceView,
-        CD::Elem: Copy,
+        CD: DataView,
     {
-        self.data.data().get(id).copied()
+        self.data.get(id)
     }
     /// Checks if a `CoordinationOptions` is valid
     /// # Errors
@@ -58,9 +60,9 @@ impl<CD> CoordinationRandomValues<CD> {
     #[inline]
     pub fn check(&self, len: NonZeroUsize) -> SamplingOptionsResult<()>
     where
-        CD: SliceView,
+        CD: DataView,
     {
-        if self.data.data().len() < len.get() {
+        if self.data.len() < len.get() {
             Err(SamplingOptionsError::InvalidRandomValues)
         } else {
             Ok(())
@@ -70,7 +72,7 @@ impl<CD> CoordinationRandomValues<CD> {
 
 impl<CD> From<CD> for CoordinationRandomValues<CD>
 where
-    CD: SliceView,
+    CD: DataView,
 {
     #[inline]
     fn from(data: CD) -> Self { Self::new(data) }

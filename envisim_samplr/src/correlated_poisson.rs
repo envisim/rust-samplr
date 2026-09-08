@@ -37,17 +37,17 @@ use envisim_utils::kd_tree::searcher::{
     WeightedNeighbour,
     WeightedSearcher,
 };
-use envisim_utils::probabilities::Probability;
+use envisim_utils::probabilities::{
+    Probability,
+    ProbabilityValue,
+};
 use envisim_utils::random::{
     FloatRng,
     Rand,
     Rng,
     random_element,
 };
-use envisim_utils::sample_controller::{
-    SampleController,
-    UnitRemoving,
-};
+use envisim_utils::sample_controller::SampleController;
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     CoordinationRandomValues,
@@ -56,6 +56,7 @@ use envisim_utils::sampling_options::{
     SpreadingOptions,
 };
 use envisim_utils::utils::{
+    DataView,
     Number,
     PointSet,
     SliceView,
@@ -94,10 +95,7 @@ pub trait CorrelatedPoissonStrategy<TREE> {
 
 /// Runs a CPS strategy
 #[must_use]
-pub struct CorrelatedPoissonRunner<S, TREE>
-where
-    SampleController<f64, TREE>: UnitRemoving,
-{
+pub struct CorrelatedPoissonRunner<S, TREE> {
     /// Sample controller
     controller: SampleController<f64, TREE>,
     /// Sample strategy
@@ -107,7 +105,6 @@ where
 impl<S, TREE> CorrelatedPoissonRunner<S, TREE>
 where
     S: CorrelatedPoissonStrategy<TREE>,
-    SampleController<f64, TREE>: UnitRemoving,
 {
     /// Runs the simulation and returns a sorted sample
     #[must_use]
@@ -190,7 +187,7 @@ impl<CD> SequentialStrategy<CD> {
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, ()>>
     where
-        CD: SliceView<Elem = f64>,
+        CD: SliceView<Value = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
         C: Into<CoordinationRandomValues<CD>>,
     {
@@ -208,7 +205,7 @@ impl<CD> SequentialStrategy<CD> {
 }
 impl<CD> CorrelatedPoissonStrategy<()> for SequentialStrategy<CD>
 where
-    CD: SliceView<Elem = f64>,
+    CD: SliceView<Value = f64>,
 {
     #[inline]
     fn random_value<R>(&mut self, rng: &mut R, id: usize) -> f64
@@ -321,7 +318,7 @@ where
         random_values: C,
     ) -> SamplingResult<CorrelatedPoissonRunner<Self, Tree<'_, P>>>
     where
-        CD: SliceView<Elem = f64>,
+        CD: SliceView<Value = f64>,
         PO: ProbabilitiesSpec<Real = f64>,
         C: Into<CoordinationRandomValues<CD>>,
     {
@@ -341,14 +338,15 @@ where
 }
 /// Fins the neighbours of the selected unit, and updates their probabilities and selection status
 #[inline]
-fn spatial_update_probabilities<P>(
-    searcher: &mut WeightedSearcher<P>,
-    controller: &mut SampleController<f64, Tree<'_, P>>,
-    id: usize,
+fn spatial_update_probabilities<PR, DT>(
+    controller: &mut SampleController<PR::Value, Tree<'_, DT>>,
+    searcher: &mut WeightedSearcher<DT>,
+    id: PR::Id,
     probability: Probability<f64>,
     quota: f64,
 ) where
-    P: PointSet<Id = usize>,
+    PR: DataView<Value: ProbabilityValue<N = f64>>,
+    DT: PointSet<Id = PR::Id>,
 {
     if controller.indices().is_empty() {
         return;
@@ -413,7 +411,7 @@ fn spatial_update_probabilities<P>(
 
 impl<CD, P> CorrelatedPoissonStrategy<Tree<'_, P>> for SpatialStrategy<CD, P>
 where
-    CD: SliceView<Elem = f64>,
+    CD: SliceView<Value = f64>,
     P: PointSet<Id = usize>,
 {
     #[must_use]
@@ -619,7 +617,7 @@ where
     fn cps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         C: Into<CoordinationRandomValues<CD>>,
-        CD: SliceView<Elem = f64>;
+        CD: SliceView<Value = f64>;
 }
 
 /// Provides spatially correlated Poisson sampling variants
@@ -670,7 +668,7 @@ where
     fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         C: Into<CoordinationRandomValues<CD>>,
-        CD: SliceView<Elem = f64>;
+        CD: SliceView<Value = f64>;
     /// Draw a sample using the locally correlated poisson sampling method.
     /// The sample is spatially balanced on the provided auxilliary variables in `data`.
     ///
@@ -701,7 +699,7 @@ where
     where
         R: FloatRng,
         C: Into<CoordinationRandomValues<CD>>,
-        CD: SliceView<Elem = f64>,
+        CD: SliceView<Value = f64>,
     {
         Ok(SequentialStrategy::new_coord(self, random_values)?.sample(rng))
     }
@@ -719,7 +717,7 @@ where
     fn scps_coord<C, CD>(&self, rng: &mut R, random_values: C) -> SamplingResult<Vec<usize>>
     where
         C: Into<CoordinationRandomValues<CD>>,
-        CD: SliceView<Elem = f64>,
+        CD: SliceView<Value = f64>,
     {
         Ok(SpatialStrategy::new_coord(self, random_values)?.sample(rng))
     }

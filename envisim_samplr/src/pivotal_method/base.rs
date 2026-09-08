@@ -37,7 +37,7 @@ impl SequentialStrategy {
     #[inline]
     pub fn new<PO, AUX, BAL>(
         options: &SamplingOptions<PO, AUX, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, ()>
+    ) -> PivotalRunner<Self, PO::Value, ()>
     where
         PO: ProbabilitiesSpec,
     {
@@ -67,7 +67,7 @@ impl RandomStrategy {
     #[inline]
     pub fn new<PO, AUX, BAL>(
         options: &SamplingOptions<PO, AUX, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, ()>
+    ) -> PivotalRunner<Self, PO::Value, ()>
     where
         PO: ProbabilitiesSpec,
     {
