@@ -61,7 +61,8 @@ where
             let inc = inclusions
                 .get(id)
                 .ok_or(EstimationError::InvalidNumberOfInclusions)?;
-            ymui_quotient((*y, *mu, *inc))
+            let v = ymui_quotient((*y, *mu, *inc))?;
+            Ok(v)
         })
         .sum()
 }
@@ -142,18 +143,19 @@ mod test {
     #[test]
     fn test_hh() -> EstimationResult<()> {
         let indices: Vec<usize> = vec![1, 3, 5];
-        let y: Vec<f64> = indices.entries().map(|&id| Y_VALS[id]).collect();
-        let mu: Vec<f64> = indices.entries().map(|&id| MU_VALS[id]).collect();
+        let y: Vec<f64> = indices.values().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices.values().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![1.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions)?, 205.0);
+
+        assert_eq!(estimate(y, mu, inclusions)?, 205.0);
 
         let indices: Vec<usize> = vec![0, 0, 2, 5];
         let mut indices_unique = indices.clone();
         indices_unique.dedup();
-        let y: Vec<f64> = indices_unique.entries().map(|&id| Y_VALS[id]).collect();
-        let mu: Vec<f64> = indices_unique.entries().map(|&id| MU_VALS[id]).collect();
+        let y: Vec<f64> = indices_unique.values().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices_unique.values().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![2.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions)?, 78.0);
+        assert_eq!(estimate(y, mu, inclusions)?, 78.0);
         Ok(())
     }
 }

@@ -31,6 +31,7 @@ use envisim_utils::matrix::{
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     ProbabilitiesSpec,
+    SamplingOptionsError,
     SpreadingOptions,
 };
 use envisim_utils::utils::{
@@ -420,6 +421,9 @@ where
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SpatialBalanceError {
+    /// Error derived from [`SamplingOptions`]
+    #[error("SamplingOptionsError: {0}")]
+    Options(#[from] SamplingOptionsError),
     /// Error derived from [`Tree`]
     #[error("TreeError: {0}")]
     Tree(#[from] TreeError),
@@ -455,8 +459,8 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.voronoi(&s)?;
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.voronoi(s)?;
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
     ///
     /// # References
@@ -469,7 +473,7 @@ where
     /// If `sample` contains duplicate ids
     fn voronoi<I>(&self, sample: I) -> Result<P::Value, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone;
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
     /// Local measure of spatial balance.
     ///
     /// # Examples
@@ -480,8 +484,8 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.local(&s, true)?;
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.local(s, true)?;
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
     ///
     /// # References
@@ -498,7 +502,7 @@ where
         balance_probabilities: bool,
     ) -> Result<P::Value, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone;
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
     /// Energy distance between sample distribution and population.
     ///
     /// # Examples
@@ -509,8 +513,8 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.energy_distance(&s);
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.energy_distance(s);
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
     ///
     /// # References
@@ -523,7 +527,7 @@ where
     /// Returns an error if any sample id does not exist in the population.
     fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone;
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
 }
 
 impl<PO, P, BAL> SpatialBalance<P> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
@@ -536,13 +540,14 @@ where
     #[inline]
     fn voronoi<I>(&self, sample: I) -> Result<P::Value, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone,
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
     {
-        if sample.len() == 0 {
+        let sample = sample.into_iter();
+        let sample_size = sample.len();
+        if sample_size == 0 {
             return Ok(f64::NAN);
         }
 
-        let sample_size = sample.len();
         let voronoi_pi = voronoi_pi_sum(self, sample)?;
         let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
             / sample_size.to_f64().expect("sample len to convert to f64");
@@ -558,8 +563,9 @@ where
         balance_probabilities: bool,
     ) -> Result<P::Value, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone,
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
     {
+        let sample = sample.into_iter();
         if sample.len() == 0 {
             return Ok(f64::NAN);
         }
@@ -597,8 +603,9 @@ where
     #[inline]
     fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
     where
-        I: ExactSizeIterator<Item = P::Id> + Clone,
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
     {
+        let sample = sample.into_iter();
         let sample_size =
             NonZeroUsize::new(sample.len()).ok_or(SpatialBalanceError::InvalidSampleSize)?;
         let matrix = self.spreading().data();
@@ -609,6 +616,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use envisim_utils::sampling_options::EqualProbabilities;
     use envisim_utils::test_utils::*;
 
     use super::*;
@@ -617,41 +625,47 @@ mod test {
     fn ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let (phi, _) = energy_distance_phi_equal(&data);
-        let phi_res = vec![phi[&0], phi[&1], phi[&2]];
+        let ss = NonZeroUsize::new(2).unwrap();
+        let probs = EqualProbabilities::new(data.nrow(), ss.get()).unwrap();
+        let ed = EnergyDistance::new(probs, data, ss).unwrap();
+
         let facit: Vec<f64> = vec![
             (2.0f64.sqrt() + 8.0f64.sqrt()) / 3.0f64,
             (2.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
             (8.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
         ];
-
-        assert_vec!(phi_res, facit);
+        assert_vec!(ed.phis, facit);
     }
     #[test]
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let (phi, _) = energy_distance_phi_equal(&data);
-        let dist = energy_distance_internal(&[1, 2], &data, &phi);
-        let res: f64 = 2.0 * (phi[&1] + phi[&2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
+        let ss = NonZeroUsize::new(2).unwrap();
+        let probs = EqualProbabilities::new(data.nrow(), ss.get()).unwrap();
+        let ed = EnergyDistance::new(probs, data, ss).unwrap();
 
-        assert_delta!(dist, res);
+        let res: f64 =
+            2.0 * (ed.phis[1] + ed.phis[2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
+        assert_delta!(
+            ed.energy_distance([1, 2].into_iter()).unwrap() + ed.u_spread(),
+            res
+        );
     }
 
     #[test]
     fn test_voronoi() {
         let options = Data10::options_e();
-        let sb = options.voronoi(&[0]).unwrap();
+        let sb = options.voronoi([0]).unwrap();
         assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2));
     }
 
     #[test]
     fn test_local() {
         let options = Data10::options_e();
-        let sb = options.local(&[0], false).unwrap();
+        let sb = options.local([0], false).unwrap();
         assert_delta!(sb, 0.7515302, Epsilon::new(1e-7).unwrap());
 
-        let sb = options.local(&[0, 1], false).unwrap();
+        let sb = options.local([0, 1], false).unwrap();
         assert_delta!(sb, 0.6454327, Epsilon::new(1e-7).unwrap());
     }
 }

@@ -24,10 +24,7 @@ use envisim_utils::matrix::{
     MatrixBase,
     SliceView,
 };
-use envisim_utils::probabilities::{
-    Probability,
-    ProbabilityValue,
-};
+use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
     ProbabilitiesSpec,
     SamplingOptions,
@@ -169,7 +166,7 @@ where
             let yp_j = yp_box.get(j).expect("j to exist");
             let p_j = probabilities.get(j).expect("j to exist");
             let p_second_ord = probabilities_second_order[(i, j)];
-            if !Probability::<f64>::is_probability(p_second_ord, 1.0) {
+            if !Probability::is_real_probability(p_second_ord) {
                 return Err(EstimationError::InvalidProbability);
             } else if p_second_ord == 0.0 {
                 return Ok(f64::NAN);
@@ -224,7 +221,7 @@ where
         for j in 0..i {
             let p_j = probabilities.get(j).expect("j to exist");
             let p_second_ord = probabilities_second_order[(i, j)];
-            if !Probability::is_probability(p_second_ord, 1.0) {
+            if !Probability::is_real_probability(p_second_ord) {
                 return Err(EstimationError::InvalidProbability);
             } else if p_second_ord == 0.0 {
                 return Ok(f64::NAN);

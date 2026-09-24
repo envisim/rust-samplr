@@ -12,10 +12,7 @@
 
 //! Estimation utility functions
 
-use envisim_utils::probabilities::{
-    Probability,
-    ProbabilityValue,
-};
+use envisim_utils::probabilities::Probability;
 use envisim_utils::utils::Number;
 
 use crate::error::{
@@ -32,7 +29,7 @@ pub fn ypi_quotient<Y>((y, pi): (Y, f64)) -> EstimationResult<f64>
 where
     Y: Number,
 {
-    if !Probability::is_probability(pi, 1.0) {
+    if !Probability::is_real_probability(pi) {
         return Err(EstimationError::InvalidProbability);
     }
     y.to_f64()

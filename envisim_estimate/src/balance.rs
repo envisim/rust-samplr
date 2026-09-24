@@ -27,10 +27,6 @@ use crate::error::EstimationResult;
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "iterator must be clone anyway"
-)]
 #[inline]
 fn balance_deviation<I, PROB, DATA>(
     sample: I,
@@ -38,10 +34,11 @@ fn balance_deviation<I, PROB, DATA>(
     data: &DATA,
 ) -> EstimationResult<Vec<f64>>
 where
-    I: Iterator<Item = PROB::Id> + Clone,
+    I: IntoIterator<Item = PROB::Id, IntoIter: Clone>,
     PROB: ProbabilitiesSpec<Real = f64>,
     DATA: PointSet<Id = PROB::Id, Value = f64>,
 {
+    let sample = sample.into_iter();
     (0..data.dimensions().get())
         .map(|j| {
             // Calculate the dimension total for the population
@@ -76,7 +73,7 @@ where
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_spreading(&s, &options)?;
+/// let sb = balance_deviation_spreading(s, &options)?;
 /// # Ok::<(), EstimationError>(())
 /// ```
 ///
@@ -88,7 +85,7 @@ pub fn balance_deviation_spreading<I, PO, P, BAL>(
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
-    I: Iterator<Item = PO::Id> + Clone,
+    I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
 {
@@ -105,7 +102,7 @@ where
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p)?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_balancing(&s, &options)?;
+/// let sb = balance_deviation_balancing(s, &options)?;
 /// # Ok::<(), EstimationError>(())
 /// ```
 ///
@@ -117,7 +114,7 @@ pub fn balance_deviation_balancing<I, PO, AUX, P>(
     options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
-    I: Iterator<Item = PO::Id> + Clone,
+    I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
 {
@@ -136,11 +133,11 @@ mod tests {
         let data = Data10::matrix();
         let spec = Data10::prob_e();
         let p = spec.as_real();
-        let options = SamplingOptions::with_spec_equal(spec)
+        let options = SamplingOptions::with_spec(spec)
             .set_spreading(&data)
             .unwrap();
 
-        let sb = balance_deviation_spreading(&[0], &options).unwrap();
+        let sb = balance_deviation_spreading([0], &options).unwrap();
         let dev = vec![
             data.col_iter(0).unwrap().sum::<f64>() - data[(0, 0)] / p,
             data.col_iter(1).unwrap().sum::<f64>() - data[(0, 1)] / p,
@@ -149,7 +146,7 @@ mod tests {
         assert_vec!(sb, dev);
 
         let options = options.set_balancing(&data).unwrap();
-        let sb = balance_deviation_balancing(&[0], &options).unwrap();
+        let sb = balance_deviation_balancing([0], &options).unwrap();
 
         assert_vec!(sb, dev);
     }
