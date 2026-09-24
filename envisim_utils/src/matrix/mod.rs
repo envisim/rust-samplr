@@ -322,7 +322,7 @@ impl<T> MatrixBase<T> {
             let det = a * d - b * c;
             if eps.is_zero(det) {
                 return None;
-            };
+            }
             // d -c -b a
             let inv = vec![d / det, -c / det, -b / det, a / det];
             return MatrixBase::new(inv, NZ2);
@@ -347,7 +347,7 @@ impl<T> MatrixBase<T> {
             let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
             if eps.is_zero(det) {
                 return None;
-            };
+            }
             for v in &mut inv {
                 *v /= det;
             }
@@ -585,7 +585,6 @@ where
     type Output = T::Value;
     /// # Panics
     /// If index is out of bounds.
-    #[must_use]
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         let index = index.into().to_linear_unchecked(self.dims);
@@ -655,7 +654,6 @@ where
     }
     /// Returns an iterator over the coords of `row`, or `None` if `row` does not exist.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[must_use]
     #[inline]
     fn coords(
         &self,
@@ -663,7 +661,6 @@ where
     ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone> {
         self.row_iter(row)
     }
-    #[must_use]
     #[inline]
     fn iter(
         &self,
@@ -680,7 +677,6 @@ where
                 .map(move |(c, v)| (id, c, v))
         })
     }
-    #[must_use]
     #[inline]
     fn columns(
         &self,
@@ -732,7 +728,7 @@ mod tests {
 
         // From value
         let m_val = Matrix::from_value(10, MatrixDims::new(nz(2), nz(2)));
-        assert_eq!(m_val.data.data(), &[10, 10, 10, 10]);
+        assert_eq!(m_val.data.slice(), &[10, 10, 10, 10]);
     }
 
     #[test]
@@ -840,7 +836,7 @@ mod tests {
         assert_eq!(m.nrow(), nz(2));
         assert_eq!(m.ncol(), nz(2));
         // Verify data was truncated/kept according to layout
-        assert_eq!(m.data.data().len(), 4);
+        assert_eq!(m.data.slice().len(), 4);
     }
 
     #[test]

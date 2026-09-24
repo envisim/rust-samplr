@@ -336,6 +336,7 @@ where
     Some(rng.rand_in(range) < b)
 }
 
+#[expect(clippy::inline_modules, reason = "feature")]
 #[cfg(feature = "rand")]
 mod small_rng {
     //! Implements [`RngFloat`] for [`rand::rngs::SmallRng`] if the feature `"rand"` is activated.
@@ -351,7 +352,6 @@ mod small_rng {
     use super::FloatRng;
 
     impl FloatRng for SmallRng {
-        #[must_use]
         #[inline]
         fn next_f64(&mut self) -> f64 { self.random::<f64>() }
     }

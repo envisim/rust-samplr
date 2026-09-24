@@ -19,7 +19,9 @@
 //! In proceedings, ICES V, Geneva Switzerland 2016.
 //! In Proceedings of the Fifth International Conference on Establishment Surveys.
 
+mod neighbour;
 pub mod searcher;
+mod split;
 pub mod split_methods;
 
 use std::num::NonZeroUsize;

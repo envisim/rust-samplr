@@ -102,6 +102,13 @@ where
     #[inline]
     fn from(value: P) -> Self { Self::new(value) }
 }
+impl<'bspr, P> From<&'bspr SpreadingOptions<P>> for SpreadingOptions<&'bspr P>
+where
+    P: PointSet,
+{
+    #[inline]
+    fn from(value: &'bspr SpreadingOptions<P>) -> Self { Self::new(value.data()) }
+}
 
 impl<P> TreeConfig for SpreadingOptions<P>
 where

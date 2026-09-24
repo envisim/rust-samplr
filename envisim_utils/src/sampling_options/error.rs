@@ -18,6 +18,9 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SamplingOptionsError {
+    /// Ids must be unique
+    #[error("invalid ids")]
+    InvalidIds,
     /// Epsilon must be in [0.0, 1.0)
     #[error("eps must be in [0.0, 1.0)")]
     InvalidEpsilon,
@@ -33,9 +36,6 @@ pub enum SamplingOptionsError {
     /// Probabilities must be valid
     #[error("probabilities must be valid (nominally in [0.0, 1.0])")]
     InvalidProbability,
-    /// The number of random values must not be smaller than the population size
-    #[error("the number of random values must not be smaller than the population size")]
-    InvalidRandomValues,
     /// The maximum number of iterations must be a positive value
     #[error("iterations must be positive")]
     InvalidIterations,

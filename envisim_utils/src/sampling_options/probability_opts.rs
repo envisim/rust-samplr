@@ -33,17 +33,10 @@ use super::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
-use crate::probabilities::{
-    Probability,
-    ProbabilityContext,
-    ProbabilitySet,
-    ProbabilityValue,
-};
 use crate::utils::{
     ConstructableDataView,
     ContiguousDataView,
     DataView,
-    Epsilon,
     Number,
     NumberFloat,
     NumberInt,
@@ -154,84 +147,6 @@ where
     fn get_real(&self, id: Self::Id) -> Option<Self::Real> { (**self).get_real(id) }
 }
 
-/// Interface for `ProbabilitySpecs` that can be constructed into `ProbabilitySet`s
-pub trait ProbabilitiesSpecToSet: ProbabilitiesSpec + ConstructableDataView {
-    /// Returns the probability set
-    #[inline]
-    fn to_probabilityset(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Value>>> {
-        let eps_inner =
-            <Self::Value as NumCast>::from(eps.get()).expect("eps real convert to native");
-        let ctx = ProbabilityContext::new(
-            self.max(),
-            Epsilon::new(eps_inner).expect("eps can be constructed"),
-        )
-        .expect("ctx can be constructed");
-        let data = self.iter_map(|(i, v)| {
-            (
-                i,
-                Probability::new(*v, &ctx).expect("probability can be constructed"),
-            )
-        });
-        ProbabilitySet::new(data, ctx)
-    }
-    /// Returns a probability set with the real-valued representation.
-    #[inline]
-    fn to_probabilityset_real(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Real>>> {
-        let ctx = ProbabilityContext::new_real(eps);
-        let data = Self::from_iter(self.entries_real().map(|(i, v)| {
-            (
-                i,
-                Probability::new(v, &ctx).expect("probability can be constructed"),
-            )
-        }));
-        ProbabilitySet::new(data, ctx)
-    }
-}
-impl<T> ProbabilitiesSpecToSet for &T
-where
-    T: ProbabilitiesSpecToSet,
-{
-    #[inline]
-    fn to_probabilityset(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Value>>> {
-        (**self).to_probabilityset(eps)
-    }
-    #[inline]
-    fn to_probabilityset_real(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Real>>> {
-        (**self).to_probabilityset_real(eps)
-    }
-}
-impl<T> ProbabilitiesSpecToSet for &mut T
-where
-    T: ProbabilitiesSpecToSet,
-{
-    #[inline]
-    fn to_probabilityset(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Value>>> {
-        (**self).to_probabilityset(eps)
-    }
-    #[inline]
-    fn to_probabilityset_real(
-        &self,
-        eps: Epsilon<Self::Real>,
-    ) -> ProbabilitySet<Self::ConstructableContainer<Probability<Self::Real>>> {
-        (**self).to_probabilityset_real(eps)
-    }
-}
-
 /// Probability options for an equal probability design
 #[must_use]
 pub struct EqualProbabilities<IDS = Range<usize>> {
@@ -284,21 +199,22 @@ impl EqualProbabilities<Range<usize>> {
         })
     }
 }
-impl<IDS> EqualProbabilities<IDS> {
+impl<ID> EqualProbabilities<ID> {
     /// Constructs a new equal probability specification with some `ids`.
     /// # Errors
     /// Returns an error if `sample_size` is not smaller than the `population_size`, or if
     /// `ids` is empty.
     #[inline]
-    pub fn with_ids(ids: IDS, sample_size: usize) -> SamplingOptionsResult<EqualProbabilities<IDS>>
+    pub fn with_ids(ids: ID, sample_size: usize) -> SamplingOptionsResult<EqualProbabilities<ID>>
     where
-        IDS: DataView,
+        ID: DataView,
     {
         let population_size =
             NonZeroUsize::new(ids.len()).ok_or(SamplingOptionsError::InvalidPopulationSize)?;
         if population_size.get() < sample_size {
             return Err(SamplingOptionsError::InvalidSampleSize);
         }
+
         Ok(Self {
             population_size,
             sample_size,

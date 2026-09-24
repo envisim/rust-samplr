@@ -24,6 +24,7 @@ use num_traits::{
     ConstOne,
     ConstZero,
     Float,
+    FromPrimitive,
     NumAssign,
     NumCast,
 };
@@ -38,6 +39,7 @@ pub trait Number:
     + PartialEq
     + NumAssign
     + NumCast
+    + FromPrimitive
     + ConstZero
     + ConstOne
     + Debug

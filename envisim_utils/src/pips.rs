@@ -21,8 +21,7 @@ use crate::probabilities::{
     Probability,
     ProbabilityContext,
     ProbabilitySet,
-    ProbabilityValue,
-    RealProbabilityValue,
+    ProbabilityStore,
 };
 use crate::utils::{
     ConstructableDataView,
@@ -40,7 +39,7 @@ use crate::utils::{
 #[inline]
 pub fn pps<D>(
     auxiliaries: D,
-) -> Result<ProbabilitySet<D::ConstructableContainer<Probability<f64>>>, PipsError>
+) -> Result<ProbabilitySet<D::ConstructableContainer<Probability<f64>>, f64>, PipsError>
 where
     D: ConstructableDataView<Value: Number>,
 {
@@ -83,7 +82,7 @@ where
 pub fn pips<D>(
     auxiliaries: D,
     sample_size: NonZeroUsize,
-) -> Result<ProbabilitySet<D::ConstructableContainer<Probability<f64>>>, PipsError>
+) -> Result<ProbabilitySet<D::ConstructableContainer<Probability<f64>>, f64>, PipsError>
 where
     D: ConstructableDataView<Value: Number>,
 {
@@ -117,26 +116,27 @@ where
         failed = false;
         let sum = auxiliaries
             .entries()
-            .filter(|(i, _)| !pips.is_full(*i).expect("i to exist"))
-            .map(|(_, v)| *v)
+            .filter_map(|(id, v)| (!pips.is_full(id).expect("id to exist")).then_some(*v))
             .sum::<D::Value>()
             .to_f64()
             .expect("aux converts to f64");
         let curr_n = n;
 
-        for (i, x) in auxiliaries.entries() {
-            if pips.is_full(i).expect("i to exist") {
+        for (id, x) in auxiliaries.entries() {
+            if pips.is_full(id).expect("i to exist") {
+                // cannot filter b/c immutable borrow
                 continue;
             }
             let p0 = x.to_f64().expect("aux converts to f64") * curr_n / sum;
             let p = Probability::new_real(p0.min(1.0)).expect("p in [0,1]");
+
+            pips.set(id, p).expect("i to exist");
             if p.is_full(pips.ctx()) {
                 n -= 1.0;
                 if p0 > 1.0 {
                     failed = true;
                 }
             }
-            pips.set(i, p).expect("i to exist");
         }
     }
 
@@ -161,6 +161,7 @@ pub enum PipsError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::probabilities::ProbabilityStoreToRaw;
     use crate::test_utils::*;
 
     #[test]

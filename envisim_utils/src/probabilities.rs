@@ -13,13 +13,14 @@
 //! Probability abstractions and container
 
 use num_traits::{
-    ConstOne,
     ConstZero,
+    NumCast,
     ToPrimitive,
 };
 
 use crate::kd_tree::searcher::WeightCollection;
 use crate::random::Rand;
+use crate::sampling_options::ProbabilitiesSpec;
 use crate::utils::{
     ConstructableDataView,
     ContiguousDataView,
@@ -77,88 +78,79 @@ impl<N> ProbabilityContext<N> {
 
 /// A probability representation
 #[repr(transparent)]
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub struct Probability<N = f64>(N);
-impl<N> Probability<N> where N: Number {}
-
-/// A trait for types that can be represented as a probability value
-pub trait ProbabilityValue: Copy + PartialOrd + PartialEq {
-    /// The inner representation type of the probability
-    type N: Number;
+impl<N> Probability<N>
+where
+    N: Number,
+{
     /// Constructs a probability from `prob` if it can be contained `0..=max`.
     #[must_use]
-    fn new(prob: Self::N, ctx: &ProbabilityContext<Self::N>) -> Option<Self>
+    #[inline]
+    pub fn new(prob: N, ctx: &ProbabilityContext<N>) -> Option<Self> {
+        Self::is_probability(prob, ctx).then_some(Probability(prob))
+    }
+    /// Constructs a probability from `prob` if it can be contained `0..=max`.
+    #[must_use]
+    #[inline]
+    pub fn new_real(prob: N) -> Option<Self>
     where
-        Self: Sized;
+        N: NumberFloat,
+    {
+        Self::is_real_probability(prob).then_some(Probability(prob))
+    }
     /// Returns a zero-valued probability.
-    #[must_use]
-    fn zero() -> Self
-    where
-        Self: Sized;
+    #[inline]
+    pub fn zero() -> Self { Probability(N::ZERO) }
     /// Returns a full-valued probability.
-    #[must_use]
-    fn full(ctx: &ProbabilityContext<Self::N>) -> Self
-    where
-        Self: Sized;
+    #[inline]
+    pub fn full(ctx: &ProbabilityContext<N>) -> Self { Probability(ctx.max) }
     /// Returns `true` if `value` is a probability.
     #[must_use]
     #[inline]
-    fn is_probability(value: Self::N, max: Self::N) -> bool {
-        (Self::N::ZERO..=max).contains(&value)
+    pub fn is_probability(value: N, ctx: &ProbabilityContext<N>) -> bool {
+        (N::ZERO..=ctx.max).contains(&value)
+    }
+    /// Returns `true` if `self` is a probability.
+    #[must_use]
+    #[inline]
+    pub fn is_real_probability(value: N) -> bool
+    where
+        N: NumberFloat,
+    {
+        (N::ZERO..=N::ONE).contains(&value)
     }
     /// Returns the inner value
     #[must_use]
-    fn get(&self) -> Self::N;
+    #[inline]
+    pub fn get(&self) -> N { self.0 }
     /// Returns the probability as f64
     #[must_use]
     #[inline]
-    fn get_f64(&self) -> Option<f64> { self.get().to_f64() }
+    pub fn get_f64(&self) -> Option<f64> { self.get().to_f64() }
     /// Returns `true` if the probability has a zero-value
     #[must_use]
     #[inline]
-    fn is_zero(&self, ctx: &ProbabilityContext<Self::N>) -> bool { ctx.eps.is_zero(self.get()) }
+    pub fn is_zero(&self, ctx: &ProbabilityContext<N>) -> bool { ctx.eps.is_zero(self.get()) }
     /// Returns `true` if the probability has neither a zero nor a full value
     #[must_use]
     #[inline]
-    fn is_partial(&self, ctx: &ProbabilityContext<Self::N>) -> bool {
+    pub fn is_partial(&self, ctx: &ProbabilityContext<N>) -> bool {
         !self.is_zero(ctx) && !self.is_full(ctx)
     }
     /// Returns `true` if the probability has a full-value (one)
     #[must_use]
     #[inline]
-    fn is_full(&self, ctx: &ProbabilityContext<Self::N>) -> bool {
-        self.get() <= ctx.max - ctx.eps.get()
+    pub fn is_full(&self, ctx: &ProbabilityContext<N>) -> bool {
+        ctx.max - ctx.eps.get() <= self.get()
     }
     /// Returns the complement of `self`
-    #[must_use]
-    fn complement(&self, max: Self::N) -> Self;
+    #[inline]
+    pub fn complement(&self, ctx: &ProbabilityContext<N>) -> Self { Probability(ctx.max - self.0) }
     /// Adds `other` to `self`, returning whatever could not be added
-    #[must_use]
-    fn add(&mut self, other: Self, ctx: &ProbabilityContext<Self::N>) -> Self;
-    /// Subtracts `other` from `self`, returning whatever could not be subtracted
-    #[must_use]
-    fn subtract(&mut self, other: Self) -> Self;
-}
-impl<N> ProbabilityValue for Probability<N>
-where
-    N: Number,
-{
-    type N = N;
     #[inline]
-    fn new(prob: Self::N, ctx: &ProbabilityContext<Self::N>) -> Option<Self> {
-        Self::is_probability(prob, ctx.max).then_some(Probability(prob))
-    }
-    #[inline]
-    fn zero() -> Self { Probability(N::ZERO) }
-    #[inline]
-    fn full(ctx: &ProbabilityContext<Self::N>) -> Self { Probability(ctx.max) }
-    #[inline]
-    fn get(&self) -> Self::N { self.0 }
-    /// Returns the complement of `self`
-    #[inline]
-    fn complement(&self, max: Self::N) -> Self { Probability(max - self.0) }
-    #[inline]
-    fn add(&mut self, other: Self, ctx: &ProbabilityContext<Self::N>) -> Self {
+    pub fn add(&mut self, other: Self, ctx: &ProbabilityContext<N>) -> Self {
         let sum = self.0 + other.0;
         if sum <= ctx.max {
             self.0 = sum;
@@ -168,8 +160,9 @@ where
             Probability(sum - ctx.max)
         }
     }
+    /// Subtracts `other` from `self`, returning whatever could not be subtracted
     #[inline]
-    fn subtract(&mut self, other: Self) -> Self {
+    pub fn subtract(&mut self, other: Self) -> Self {
         if self.0 <= other.0 {
             self.0 = N::ZERO;
             Probability(other.0 - self.0)
@@ -186,49 +179,19 @@ where
     #[inline]
     fn default() -> Self { Probability(N::default()) }
 }
-/// A trait for probabilities that can be represented by a real (float) in [0.0, 1.0].
-pub trait RealProbabilityValue: ProbabilityValue<N: NumberFloat> {
-    /// Constructs a probability from `prob` if it can be contained `0..=max`.
-    #[must_use]
-    fn new_real(prob: Self::N) -> Option<Self>
-    where
-        Self: Sized;
-    /// Returns `true` if `self` is a probability.
-    #[must_use]
-    #[inline]
-    fn is_real_probability(value: Self::N) -> bool {
-        (Self::N::ZERO..=Self::N::ONE).contains(&value)
-    }
-}
-impl<N> RealProbabilityValue for Probability<N>
-where
-    N: NumberFloat,
-{
-    #[inline]
-    fn new_real(prob: Self::N) -> Option<Self> {
-        Self::is_real_probability(prob).then_some(Probability(prob))
-    }
-}
-/// A trait for probability types that can be represented by an integer in [0, MAX], where a proper
-/// probability is retrieved by `Self / MAX`.
-pub trait IntProbabilityValue: ProbabilityValue<N: NumberInt> {}
-impl<N> IntProbabilityValue for Probability<N> where N: NumberInt {}
 
 /// Contains a set of probabilities for some linear population.
 #[must_use]
 #[derive(Debug, Clone)]
-pub struct ProbabilitySet<T, N = <<T as DataView>::Value as ProbabilityValue>::N>
-where
-    T: DataView<Value: ProbabilityValue<N = N>>,
-{
+pub struct ProbabilitySet<T, N> {
     /// The internal storage for the probability representations
     data: T,
     /// Probability context for the representation
     ctx: ProbabilityContext<N>,
 }
-impl<T> DataView for ProbabilitySet<T>
+impl<T, N> DataView for ProbabilitySet<T, N>
 where
-    T: DataView<Value: ProbabilityValue>,
+    T: DataView,
 {
     type Id = T::Id;
     type Value = T::Value;
@@ -250,9 +213,9 @@ where
     #[inline]
     fn is_empty(&self) -> bool { self.data.is_empty() }
 }
-impl<T> DataViewMut for ProbabilitySet<T>
+impl<T, N> DataViewMut for ProbabilitySet<T, N>
 where
-    T: DataViewMut<Value: ProbabilityValue>,
+    T: DataViewMut,
 {
     #[inline]
     fn values_mut(&mut self) -> impl ExactSizeIterator<Item = &mut Self::Value> {
@@ -265,21 +228,40 @@ where
     #[inline]
     fn get_mut(&mut self, id: Self::Id) -> Option<&mut Self::Value> { self.data.get_mut(id) }
 }
-impl<T> ContiguousDataView for ProbabilitySet<T> where T: ContiguousDataView<Value: ProbabilityValue>
-{}
-impl<T> SliceView for ProbabilitySet<T>
+impl<T, N> ContiguousDataView for ProbabilitySet<T, N> where T: ContiguousDataView {}
+impl<T, N> SliceView for ProbabilitySet<T, N>
 where
-    T: SliceView<Value: ProbabilityValue>,
+    T: SliceView,
 {
     #[inline]
     fn slice(&self) -> &[Self::Value] { self.data.slice() }
 }
-impl<T> SliceViewMut for ProbabilitySet<T>
+impl<T, N> SliceViewMut for ProbabilitySet<T, N>
 where
-    T: SliceViewMut<Value: ProbabilityValue>,
+    T: SliceViewMut,
 {
     #[inline]
     fn slice_mut(&mut self) -> &mut [Self::Value] { self.data.slice_mut() }
+}
+impl<T, N> ConstructableDataView for ProbabilitySet<T, N>
+where
+    T: ConstructableDataView,
+{
+    type ConstructableContainer<V> = T::ConstructableContainer<V>;
+    #[inline]
+    fn from_iter<I, V>(iter: I) -> Self::ConstructableContainer<V>
+    where
+        I: Iterator<Item = (Self::Id, V)>,
+    {
+        T::from_iter(iter)
+    }
+    #[inline]
+    fn try_from_iter<I, V, E>(iter: I) -> Result<Self::ConstructableContainer<V>, E>
+    where
+        I: Iterator<Item = Result<(Self::Id, V), E>>,
+    {
+        T::try_from_iter(iter)
+    }
 }
 
 impl<T, N> ProbabilitySet<T, N>
@@ -287,6 +269,9 @@ where
     T: DataView<Value = Probability<N>>,
     N: Number,
 {
+    /// Constructs a new set
+    #[inline]
+    pub fn new(data: T, ctx: ProbabilityContext<N>) -> Self { Self { data, ctx } }
     /// Constructs a new set from some data. Fails if data cannot be converted to [`Probability`].
     #[inline]
     #[must_use]
@@ -308,134 +293,153 @@ where
             ctx,
         })
     }
+    /// Constructs a new set from [`ProbabilitiesSpec`]
+    /// # Panics
+    /// Panics if `PO::Real` cannot be cast to `PO::Value`, or if any probability is incorrectly
+    /// specified.
+    #[inline]
+    pub fn from_opts<PO>(opts: &PO, eps: Epsilon<PO::Real>) -> Self
+    where
+        PO: ProbabilitiesSpec<Value = N>
+            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+    {
+        let eps_inner = <PO::Value as NumCast>::from(eps.get()).expect("eps converts to native");
+        let ctx =
+            ProbabilityContext::new(opts.max(), Epsilon::new(eps_inner).expect("eps in [0,1)"))
+                .expect("max is finite");
+        let data =
+            opts.iter_map(|(i, v)| (i, Probability::new(*v, &ctx).expect("probability in [0,1]")));
+        Self::new(data, ctx)
+    }
+    /// Constructs a new real-valued set from [`ProbabilitiesSpec`]
+    /// # Panics
+    /// Panics if any probability is incorrectly specified.
+    #[inline]
+    pub fn from_opts_real<PO>(opts: &PO, eps: Epsilon<PO::Real>) -> Self
+    where
+        N: NumberFloat,
+        PO: ProbabilitiesSpec<Real = N>
+            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+    {
+        let ctx = ProbabilityContext::new_real(eps);
+        let data = PO::from_iter(opts.entries_real().map(|(i, v)| {
+            (
+                i,
+                Probability::new(v, &ctx).expect("probability can be constructed"),
+            )
+        }));
+        Self::new(data, ctx)
+    }
 }
 
-impl<T, N> ProbabilitySet<T, N>
+impl<T, N> WeightCollection<T::Id> for ProbabilitySet<T, N>
 where
-    T: DataView<Value: ProbabilityValue<N = N>>,
+    T: DataView<Value = Probability<N>>,
     N: Number,
 {
-    /// Constructs a new set
     #[inline]
-    pub fn new(data: T, ctx: ProbabilityContext<<T::Value as ProbabilityValue>::N>) -> Self {
-        Self { data, ctx }
+    fn get_weight(&self, id: T::Id) -> Option<f64> {
+        self.get(id)
+            .map(|v| v.get().to_f64().expect("convert to f64"))
     }
-    /// Returns a vector of the probabilties contained in the set, as their raw representations
-    #[must_use]
-    #[inline]
-    pub fn to_raw(&self) -> T::ConstructableContainer<N>
-    where
-        T: ConstructableDataView,
-    {
-        self.data.iter_map(|(i, v)| (i, v.get()))
-    }
+}
+
+/// Probability store
+pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
+    /// The base probability type
+    type N: Number;
     /// Returns a reference to the probability context
-    #[inline]
-    pub fn ctx(&self) -> &ProbabilityContext<N> { &self.ctx }
+    fn ctx(&self) -> &ProbabilityContext<Self::N>;
     /// Returns `true` if the probability has a zero-value
     #[must_use]
     #[inline]
-    pub fn is_zero(&self, id: T::Id) -> Option<bool> { self.get(id).map(|v| v.is_zero(&self.ctx)) }
+    fn is_zero(&self, id: Self::Id) -> Option<bool> { self.get(id).map(|v| v.is_zero(self.ctx())) }
     /// Returns `true` if the probability has neither a zero nor a full value
     #[must_use]
     #[inline]
-    pub fn is_partial(&self, id: T::Id) -> Option<bool> {
-        self.get(id).map(|v| v.is_partial(&self.ctx))
+    fn is_partial(&self, id: Self::Id) -> Option<bool> {
+        self.get(id).map(|v| v.is_partial(self.ctx()))
     }
     /// Returns `true` if the probability has a full-value (one)
     #[must_use]
     #[inline]
-    pub fn is_full(&self, id: T::Id) -> Option<bool> { self.get(id).map(|v| v.is_full(&self.ctx)) }
+    fn is_full(&self, id: Self::Id) -> Option<bool> { self.get(id).map(|v| v.is_full(self.ctx())) }
     /// Adds `value` to the probability of `unit`.
     /// Returns whatever could not be added to `value`.
     #[inline]
-    pub fn add(&mut self, id: T::Id, value: T::Value) -> Option<T::Value>
-    where
-        T: DataViewMut,
-    {
-        self.data.get_mut(id).map(|v| v.add(value, &self.ctx))
+    fn add(&mut self, id: Self::Id, value: Self::Value) -> Option<Self::Value> {
+        let ctx = *self.ctx();
+        self.get_mut(id).map(|v| v.add(value, &ctx))
     }
     /// Subtracts `value` from the probability of `unit`.
     /// Returns whatever could not be subtracted from `value`.
     #[inline]
-    pub fn subtract(&mut self, id: T::Id, value: T::Value) -> Option<T::Value>
-    where
-        T: DataViewMut,
-    {
-        self.data.get_mut(id).map(|v| v.subtract(value))
+    fn subtract(&mut self, id: Self::Id, value: Self::Value) -> Option<Self::Value> {
+        self.get_mut(id).map(|v| v.subtract(value))
     }
     /// Sets the probability of unit `id` to `value`.
     /// # Panics
     /// Panics if `value` is not a valid probability representation.
     #[inline]
-    pub fn set(&mut self, id: T::Id, value: T::Value) -> Option<()>
-    where
-        T: DataViewMut,
-    {
-        self.data.get_mut(id).map(|v| *v = value)
+    fn set(&mut self, id: Self::Id, value: Self::Value) -> Option<()> {
+        self.get_mut(id).map(|v| *v = value)
     }
     /// Sets the probability of unit `idx` to the zero representation.
     #[inline]
-    pub fn set_zero(&mut self, id: T::Id) -> Option<()>
-    where
-        T: DataViewMut,
-    {
-        self.data.get_mut(id).map(|v| *v = T::Value::zero())
+    fn set_zero(&mut self, id: Self::Id) -> Option<()> {
+        self.get_mut(id).map(|v| *v = Self::Value::zero())
     }
     /// Sets the probability of unit `idx` to the full representation.
     #[inline]
-    pub fn set_full(&mut self, id: T::Id) -> Option<()>
-    where
-        T: DataViewMut,
-    {
-        self.data
-            .get_mut(id)
-            .map(|v| *v = T::Value::full(&self.ctx))
+    fn set_full(&mut self, id: Self::Id) -> Option<()> {
+        let ctx = *self.ctx();
+        self.get_mut(id).map(|v| *v = Self::Value::full(&ctx))
     }
     /// Draws a random value from the probability representation
-    #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
     #[inline]
-    pub fn draw<R>(&self, rng: &mut R) -> T::Value
+    fn draw<R>(&self, rng: &mut R) -> Self::Value
     where
-        R: Rand<N>,
+        R: Rand<Self::N>,
     {
-        let r = rng.rand_to(self.ctx.max);
-        T::Value::new(r, &self.ctx).expect("r < max")
+        let r = rng.rand_to(self.ctx().max);
+        Self::Value::new(r, self.ctx()).expect("r < max")
     }
     /// Draws a random value from the probability representation up to `max`.
     /// # Panics
     /// Panics if not `0 < max <= self.max`
     #[inline]
-    pub fn draw_partial<R>(&self, rng: &mut R, max: N) -> T::Value
+    fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::Value
     where
-        R: Rand<N>,
+        R: Rand<Self::N>,
     {
-        assert!(N::ZERO < max && max <= self.ctx.max, "0 < max <= repr max");
+        assert!(
+            Self::N::ZERO < max && max <= self.ctx().max,
+            "0 < max <= repr max"
+        );
         let r = rng.rand_to(max);
-        T::Value::new(r, &self.ctx).expect("r < max")
+        Self::Value::new(r, self.ctx()).expect("r < max")
     }
     /// Returns the weight of `other` on `main`.
     #[inline]
     #[must_use]
-    pub fn weight(&self, main: T::Id, other: T::Id) -> Option<f64> {
-        self.weight_to(*self.data.get(main)?, other)
+    fn weight(&self, main: Self::Id, other: Self::Id) -> Option<f64> {
+        self.weight_to(*self.get(main)?, other)
     }
     /// Returns the weight of `other` on a probability `prob`.
     /// # Panics
     /// If the probability representations is not convertible to [`f64`]
     #[inline]
     #[must_use]
-    pub fn weight_to(&self, prob: T::Value, other: T::Id) -> Option<f64> {
-        let max = self.ctx.max.to_f64().expect("max converts to f64");
+    fn weight_to(&self, prob: Self::Value, other: Self::Id) -> Option<f64> {
+        let max = self.ctx().max.to_f64().expect("max converts to f64");
         let p1 = self
-            .data
             .get(other)?
             .get()
             .to_f64()
             .expect("prob converts to f64");
-        let w = if prob.is_full(&self.ctx) {
+        let w = if prob.is_full(self.ctx()) {
             max - p1
-        } else if prob.is_zero(&self.ctx) {
+        } else if prob.is_zero(self.ctx()) {
             p1
         } else {
             let p0 = prob.get().to_f64().expect("prob converts to f64");
@@ -448,14 +452,29 @@ where
         Some(w)
     }
 }
+/// Probability stores that can convert the probabilities to `Self::N`.
+pub trait ProbabilityStoreToRaw: ProbabilityStore + ConstructableDataView {
+    /// Returns the probabilties contained in the set, as their raw representations, in some store
+    #[must_use]
+    fn to_raw(&self) -> <Self as ConstructableDataView>::ConstructableContainer<Self::N>;
+}
 
-impl<T> WeightCollection<T::Id> for ProbabilitySet<T>
+impl<T, N> ProbabilityStore for ProbabilitySet<T, N>
 where
-    T: DataView<Value: ProbabilityValue>,
+    T: DataViewMut<Value = Probability<N>>,
+    N: Number,
+{
+    type N = N;
+    #[inline]
+    fn ctx(&self) -> &ProbabilityContext<N> { &self.ctx }
+}
+impl<T, N> ProbabilityStoreToRaw for ProbabilitySet<T, N>
+where
+    T: DataViewMut<Value = Probability<N>> + ConstructableDataView,
+    N: Number,
 {
     #[inline]
-    fn get_weight(&self, id: T::Id) -> Option<f64> {
-        self.get(id)
-            .map(|v| v.get().to_f64().expect("convert to f64"))
+    fn to_raw(&self) -> <Self as ConstructableDataView>::ConstructableContainer<Self::N> {
+        self.iter_map(|(i, v)| (i, v.get()))
     }
 }

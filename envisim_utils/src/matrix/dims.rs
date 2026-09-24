@@ -44,6 +44,7 @@ impl MatrixDims {
             return None;
         }
         let len = NonZeroUsize::new(len)?;
+        #[expect(clippy::integer_division, reason = "remainder == 0")]
         let cols = NonZeroUsize::new(len.get() / rows)?;
         Self::new(rows, cols).into()
     }
@@ -174,8 +175,10 @@ impl MatrixCoord {
         D: Into<MatrixDims>,
     {
         let shape = shape.into();
-        // Rem<NonZeroUsize> is in rust since 1.51
-        (index < shape.len().get()).then(|| Self::new(index % shape.rows, index / shape.rows))
+        #[expect(clippy::integer_division, reason = "no precision loss")]
+        let q = index / shape.rows;
+        let r = index % shape.rows;
+        (index < shape.len().get()).then(|| Self::new(r, q))
     }
 }
 impl From<(usize, usize)> for MatrixCoord {
