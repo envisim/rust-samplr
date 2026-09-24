@@ -83,6 +83,7 @@ impl TacticalConfigurationParameters {
     }
     /// Constructs a new minimum tactical configuration
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug in gcd")]
+    #[expect(clippy::integer_division, reason = "gcd, no loss of precision")]
     #[inline]
     pub fn new_minimal(population_size: NonZeroUsize, sample_size: NonZeroUsize) -> Self {
         let common_divisor = NonZeroUsize::new(population_size.get().gcd(&sample_size.get()))

@@ -41,6 +41,7 @@ fn test_cube_stratified() {
         |rng| {
             let grps: [i64; 10] = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2];
             let s = cube_stratified(rng, &options, &grps).unwrap();
+            println!("{s:?}");
             assert_eq!(s.len(), 2);
             assert!((0..5).contains(&s[0])); // first unit from first grp
             assert!((5..10).contains(&s[1])); // second unit from second grp

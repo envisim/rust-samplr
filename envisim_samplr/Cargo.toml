@@ -2,6 +2,7 @@
 name = "envisim_samplr"
 version = "0.8.0"
 edition = "2024"
+rust-version = "1.85.1"
 authors = ["Wilmer Prentius <wilmer.prentius@slu.se>"]
 homepage = "https://envisim.se"
 repository = "https://github.com/envisim/rust-samplr"

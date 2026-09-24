@@ -69,7 +69,6 @@ impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabili
 where
     R: Rand<usize>,
 {
-    #[must_use]
     #[inline]
     fn srs(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
@@ -91,7 +90,6 @@ where
 
         sample
     }
-    #[must_use]
     #[inline]
     fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
@@ -108,7 +106,6 @@ where
         sample.sort_unstable();
         sample
     }
-    #[must_use]
     #[inline]
     fn bernoulli(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size().get();

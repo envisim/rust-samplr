@@ -40,6 +40,9 @@ pub enum SamplingError {
     /// Probabilities must sum to a nominal integer value
     #[error("probabilities must sum to a nominal integer value")]
     IncorrectProbabilitiesIntegerSum,
+    /// The number of random values must not be smaller than the population size
+    #[error("the number of random values must not be smaller than the population size")]
+    InvalidRandomValues,
     /// Annealing temperatures must be positive
     #[error("annealing temperature must be positive")]
     IncorrectAnnealingTemperature,

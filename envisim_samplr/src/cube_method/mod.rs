@@ -34,22 +34,16 @@
 //! Statistics & Probability Letters, 180, 109229.
 //! <https://doi.org/10.1016/j.spl.2021.109229>
 
-mod cube;
+pub(crate) mod cube;
 mod stratified;
 mod utils;
 
 pub use cube::{
-    CubeRunner,
     CubeSampling,
-    CubeStrategy,
     LocalCubeSampling,
-    LocalCubeStrategy,
-    RandomCubeStrategy,
-    SequentialCubeStrategy,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 pub use stratified::{
-    CubeStratifiedRunner,
     cube_stratified,
     local_cube_stratified,
 };

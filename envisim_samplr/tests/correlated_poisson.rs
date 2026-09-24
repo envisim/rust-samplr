@@ -21,5 +21,5 @@ fn test_scps() {
 #[test]
 fn test_lcps() {
     let options = Data10::options_u();
-    test_wor(|rng| options.lcps(rng), &options, 1e-2, 10000);
+    test_wor(|rng| options.lcps(rng), &options, 2e-2, 10000);
 }

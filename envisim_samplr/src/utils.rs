@@ -10,13 +10,14 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions for sampling algorithms
+//! Utility functions for sampling algorithms.
 
 use std::num::NonZeroUsize;
 
 use envisim_utils::random::Rand;
+use envisim_utils::sampling_options::ProbabilitiesSpec;
 
-/// Random permutation of usize [0,...,len] vector
+/// Random permutation of usize [0,...,len] vector.
 #[inline]
 pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
 where
@@ -34,16 +35,30 @@ where
     order
 }
 
-/// The basic poisson sampling algorithm
+/// Random permutation of vector.
 #[inline]
-pub fn poisson_internal<R, I>(rng: &mut R, probabilities: I) -> Vec<usize>
+pub fn shuffle<R, ID>(rng: &mut R, mut vec: Vec<ID>) -> Vec<ID>
 where
-    R: Rand<f64>,
-    I: Iterator<Item = f64>,
+    R: Rand<usize>,
 {
-    probabilities
-        .enumerate()
-        .filter_map(|(i, p)| (rng.rand() < p).then_some(i))
+    for i in 1..vec.len() {
+        let j = rng.rand_to(i + 1);
+        vec.swap(i, j);
+    }
+    vec
+}
+
+/// The basic poisson sampling algorithm.
+#[inline]
+pub fn poisson_internal<R, PS>(rng: &mut R, probs: PS) -> Vec<PS::Id>
+where
+    R: Rand<PS::Value>,
+    PS: ProbabilitiesSpec,
+{
+    let max = probs.max();
+    probs
+        .entries()
+        .filter_map(|(id, p)| (rng.rand_to(max) < *p).then_some(id))
         .collect()
 }
 
