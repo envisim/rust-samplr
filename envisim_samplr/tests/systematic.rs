@@ -1,7 +1,7 @@
 //! Test systematic sampling
 
 mod test_utils;
-use envisim_samplr::*;
+use envisim_samplr::systematic::*;
 use test_utils::*;
 
 #[test]

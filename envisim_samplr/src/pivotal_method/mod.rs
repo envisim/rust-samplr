@@ -31,9 +31,8 @@ mod spatial;
 
 pub use base::PivotalSampling;
 pub use envisim_utils::sampling_options::SamplingOptions;
+pub use runner::PivotalMethodError;
 pub use spatial::{
     LocalPivotalSampling,
     hierarchical_lpm_2,
 };
-
-pub use crate::error::SamplingError;

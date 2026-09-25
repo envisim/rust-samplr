@@ -33,6 +33,7 @@ mod dbd_tc;
 mod dbd_tc_config;
 mod options_impl;
 mod tc_parameters;
+mod utils;
 
 pub use dbd_circular::CircularConfiguration;
 pub use dbd_options::DistributionalDesignOptions;
@@ -46,5 +47,4 @@ pub use tc_parameters::{
     DbdConfiguration,
     TacticalConfigurationParameters,
 };
-
-pub use crate::SamplingError;
+pub use utils::DbdError;

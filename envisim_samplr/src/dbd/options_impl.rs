@@ -28,6 +28,7 @@ use envisim_utils::utils::{
 };
 use num_traits::ToPrimitive;
 
+use super::DbdError;
 use super::annealing::AnnealingDistributionalDesign;
 use super::dbd_circular::{
     CircularConfiguration,
@@ -39,10 +40,6 @@ use super::dbd_tc::{
     TacticalConfiguration,
 };
 use super::tc_parameters::DbdConfiguration;
-use crate::{
-    SamplingError,
-    SamplingResult,
-};
 
 /// Provides distributionally balanced sampling designs.
 pub trait DistributionalDesigns<ID, R>
@@ -53,17 +50,17 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::dbd::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
+    /// let opts = SamplingOptions::new_equal(10, 2).unwrap().set_spreading(m).unwrap();
     /// let dbd_opts = DistributionalDesignOptions::default();
     /// let dbd = opts.dbd_circular(&mut rng, dbd_opts)?;
     /// let s: Vec<usize> = dbd.draw(&mut rng).collect();
     /// assert_eq!(s.len(), 2);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), DbdError>(())
     /// ```
     ///
     /// # Errors
@@ -72,20 +69,20 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<CircularConfiguration<ID>>;
+    ) -> Result<CircularConfiguration<ID>, DbdError>;
     /// Construct a distributionally balanced design using a tactical configuration.
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::dbd::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let opts = SamplingOptions::new_equal(10, 2)?.set_spreading(m)?;
+    /// let opts = SamplingOptions::new_equal(10, 2).unwrap().set_spreading(m).unwrap();
     /// let dbd_opts = DistributionalDesignOptions::default();
     /// let dbd = opts.dbd_tc(&mut rng, dbd_opts)?;
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), DbdError>(())
     /// ```
     ///
     /// # Errors
@@ -94,7 +91,7 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<TacticalConfiguration<ID>>;
+    ) -> Result<TacticalConfiguration<ID>, DbdError>;
 }
 
 impl<R, IDS, P> DistributionalDesigns<<EqualProbabilities<IDS> as DataView>::Id, R>
@@ -109,10 +106,9 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<CircularConfiguration<P::Id>> {
+    ) -> Result<CircularConfiguration<P::Id>, DbdError> {
         let spreading_data = self.spreading().data();
-        let sample_size =
-            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let sample_size = DbdError::check_sample_size(self.sample_size())?;
         let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
 
         let max_iter = self.max_iterations();
@@ -131,10 +127,9 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<TacticalConfiguration<P::Id>> {
+    ) -> Result<TacticalConfiguration<P::Id>, DbdError> {
         let spreading_data = self.spreading().data();
-        let sample_size =
-            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let sample_size = DbdError::check_sample_size(self.sample_size())?;
         let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
         let max_iter = self.max_iterations();
         let eps = self.eps();
@@ -164,7 +159,7 @@ where
         dbs_options: DistributionalDesignOptions,
         to: NonZeroUsize,
         by: NonZeroUsize,
-    ) -> SamplingResult<Vec<f64>>;
+    ) -> Result<Vec<f64>, DbdError>;
     /// Runs the tactical configuration dbd until `to`, reporting the energy in `by` intervals.
     ///
     /// # Errors
@@ -175,7 +170,7 @@ where
         dbs_options: DistributionalDesignOptions,
         to: NonZeroUsize,
         by: NonZeroUsize,
-    ) -> SamplingResult<Vec<f64>>;
+    ) -> Result<Vec<f64>, DbdError>;
 }
 impl<R, P> DistributionalDesignEvaluators<R>
     for SamplingOptions<EqualProbabilities, SpreadingOptions<P>>
@@ -190,13 +185,10 @@ where
         dbs_options: DistributionalDesignOptions,
         to: NonZeroUsize,
         by: NonZeroUsize,
-    ) -> SamplingResult<Vec<f64>> {
-        if to < by {
-            return Err(SamplingError::MaxIterations(to));
-        }
+    ) -> Result<Vec<f64>, DbdError> {
+        DbdError::check_eval_interval(to, by)?;
 
-        let sample_size =
-            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let sample_size = DbdError::check_sample_size(self.sample_size())?;
         let spreading_data = self.spreading().data();
         let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
 
@@ -249,13 +241,10 @@ where
         dbs_options: DistributionalDesignOptions,
         to: NonZeroUsize,
         by: NonZeroUsize,
-    ) -> SamplingResult<Vec<f64>> {
-        if to < by {
-            return Err(SamplingError::MaxIterations(to));
-        }
+    ) -> Result<Vec<f64>, DbdError> {
+        DbdError::check_eval_interval(to, by)?;
 
-        let sample_size =
-            NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let sample_size = DbdError::check_sample_size(self.sample_size())?;
         let spreading_data = self.spreading().data();
         let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
 

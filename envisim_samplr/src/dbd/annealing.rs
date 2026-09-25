@@ -21,29 +21,29 @@ use envisim_utils::random::{
 };
 use envisim_utils::utils::Epsilon;
 
-/// Contains the annealing temperature tracker
+use crate::dbd::DbdError;
+
+/// Contains the annealing temperature tracker.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct AnnealingTemperature {
-    /// Annealing temperature
+    /// Annealing temperature.
     temperature: f64,
-    /// Annealing cooling rate
+    /// Annealing cooling rate.
     cooling_rate: f64,
-    /// Epsilon value for float comparisons
+    /// Epsilon value for float comparisons.
     eps: Epsilon<f64>,
-    /// Track number of divergences
+    /// Track number of divergences.
     divergence_count: usize,
 }
 impl AnnealingTemperature {
-    /// Constructor
+    /// Constructor.
+    /// # Panics
+    /// Panics if `temperature` or `cooling_rate` is invalid.
     #[inline]
     pub fn new(temperature: f64, cooling_rate: f64, eps: Epsilon<f64>) -> Self {
-        assert!(temperature > 0.0, "temperature must be positive");
-        assert!(
-            0.0 < cooling_rate && cooling_rate < 1.0,
-            "cooling_rate must be in (0.0, 1.0)"
-        );
-
+        DbdError::check_temp(temperature).expect("invalid temp");
+        DbdError::check_rate(cooling_rate).expect("invalid cooling rate");
         Self {
             temperature,
             cooling_rate,
@@ -52,7 +52,7 @@ impl AnnealingTemperature {
         }
     }
     // fn temperature(&self) -> f64 { self.temperature }
-    /// Cools the temperature according to the cooling rate
+    /// Cools the temperature according to the cooling rate.
     #[inline]
     fn cool(&mut self) { self.temperature *= self.cooling_rate }
     /// Adds to the divergence counter

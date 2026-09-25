@@ -1,8 +1,8 @@
 //! Test dbd.
 
 mod test_utils;
-use envisim_samplr::BaseProbabilitiesSpec;
 use envisim_samplr::dbd::*;
+use envisim_utils::sampling_options::BaseProbabilitiesSpec;
 use test_utils::*;
 
 #[test]

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions for cube
+//! Utility functions for cube.
 
 use envisim_utils::matrix::{
     Dimensions,
@@ -18,20 +18,33 @@ use envisim_utils::matrix::{
 };
 use envisim_utils::sampling_options::ProbabilitiesSpec;
 use envisim_utils::utils::PointSet;
+use thiserror::Error;
 
-use super::SamplingError;
-
-/// Ensures valid balancing data.
-#[inline]
-pub fn check_balancing<PO, BAL>(probs: PO, balancing: BAL) -> Result<(), SamplingError>
-where
-    PO: ProbabilitiesSpec,
-    BAL: PointSet<Id = PO::Id>,
-{
-    if !probs.ids().all(|id| balancing.contains(id)) {
-        return Err(SamplingError::InvalidBalancing);
+/// Cube errors.
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum CubeError {
+    /// Some balancing id missing.
+    #[error("balancing data missing some id")]
+    BalancingIdMissing,
+    /// Some id is missing from strata.
+    #[error("strata missing some id")]
+    StrataIdMissing,
+}
+impl CubeError {
+    /// # Errors
+    /// Errors if balancing data is missing ids.
+    #[inline]
+    pub fn check_balancing<PO, BAL>(probs: PO, balancing: BAL) -> Result<(), Self>
+    where
+        PO: ProbabilitiesSpec,
+        BAL: PointSet<Id = PO::Id>,
+    {
+        if !probs.ids().all(|id| balancing.contains(id)) {
+            return Err(Self::BalancingIdMissing);
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
