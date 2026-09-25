@@ -13,7 +13,6 @@
 //! Methods for configuring sampling algorithms
 
 mod balancing_opts;
-mod coordination_opts;
 mod error;
 mod probability_opts;
 mod spreading_opts;
@@ -21,12 +20,12 @@ mod spreading_opts;
 use std::num::NonZeroUsize;
 
 pub use balancing_opts::BalancingOptions;
-pub use coordination_opts::CoordinationRandomValues;
 pub use error::{
     SamplingOptionsError,
     SamplingOptionsResult,
 };
 pub use probability_opts::{
+    BaseProbabilitiesSpec,
     EqualProbabilities,
     ProbabilitiesSpec,
     UnequalProbabilities,
@@ -35,33 +34,35 @@ pub use probability_opts::{
 };
 pub use spreading_opts::SpreadingOptions;
 
-use crate::kd_tree::Tree;
 use crate::matrix::Dimensions;
-use crate::probabilities::ProbabilitySet;
+use crate::probabilities::{
+    Probability,
+    ProbabilitySet,
+};
 use crate::random::{
     FloatRng,
     Rand,
 };
-use crate::sample_controller::SampleController;
 use crate::utils::{
+    ConstructableDataView,
+    DataView,
     Epsilon,
     Number,
     NumberFloat,
     NumberInt,
     PointSet,
-    SliceView,
 };
 
 /// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`]
-pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Native> + Rand<PO::Real>
+pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Value> + Rand<PO::Real>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
 }
 impl<PO, R> SamplingOptionsRng<PO> for R
 where
-    PO: ProbabilitiesSpec,
-    R: FloatRng + Rand<PO::Native> + Rand<PO::Real>,
+    PO: BaseProbabilitiesSpec,
+    R: FloatRng + Rand<PO::Value> + Rand<PO::Real>,
 {
 }
 
@@ -71,7 +72,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SamplingOptions<PO, AUX = (), BAL = ()>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
     /// Probability specification
     probabilities: PO,
@@ -85,10 +86,9 @@ where
     balancing: BAL,
 }
 
-// ACCESSORS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
     /// Returns a reference to the provided probability specification
     #[inline]
@@ -108,29 +108,12 @@ where
     #[must_use]
     #[inline]
     pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
-}
-impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
-where
-    PO: ProbabilitiesSpec,
-{
     /// Returns a reference to the spreading options
     #[inline]
-    pub fn spreading(&self) -> &SpreadingOptions<AUXP> { &self.spreading }
-}
-impl<PO, AUX, BALP> SamplingOptions<PO, AUX, BalancingOptions<BALP>>
-where
-    PO: ProbabilitiesSpec,
-{
+    pub fn spreading(&self) -> &AUX { &self.spreading }
     /// Returns a reference to the balancing options
     #[inline]
-    pub fn balancing(&self) -> &BalancingOptions<BALP> { &self.balancing }
-}
-
-// SETTERS
-impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
-where
-    PO: ProbabilitiesSpec,
-{
+    pub fn balancing(&self) -> &BAL { &self.balancing }
     /// Sets the epsilon value, a value to be used for float comparisons.
     ///
     /// # Errors
@@ -160,18 +143,22 @@ where
     /// Sets the spreading options
     ///
     /// # Errors
-    /// Returns an error if the size of `data` does not match population size
+    /// Returns an error if ids of probabilities does not exist in spreading.
     #[inline]
     pub fn set_spreading<AUXP, I>(
         self,
         data: I,
     ) -> SamplingOptionsResult<SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>>
     where
-        AUXP: PointSet,
+        AUXP: PointSet<Id = PO::Id>,
         I: Into<SpreadingOptions<AUXP>>,
     {
         let data = data.into();
-        if data.data().len() != self.population_size() {
+        if !self
+            .probabilities()
+            .ids()
+            .all(|id| data.data().contains(id))
+        {
             return Err(SamplingOptionsError::InvalidSpreading);
         }
         Ok(SamplingOptions {
@@ -192,11 +179,15 @@ where
         data: I,
     ) -> SamplingOptionsResult<SamplingOptions<PO, AUX, BalancingOptions<BALP>>>
     where
-        BALP: Dimensions,
+        BALP: PointSet<Id = PO::Id>,
         I: Into<BalancingOptions<BALP>>,
     {
         let data = data.into();
-        if data.data().nrow() != self.population_size() {
+        if !self
+            .probabilities()
+            .ids()
+            .all(|id| data.data().contains(id))
+        {
             return Err(SamplingOptionsError::InvalidBalancing);
         }
         Ok(SamplingOptions {
@@ -208,72 +199,39 @@ where
         })
     }
 }
-
-// BUILDERS
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
     PO: ProbabilitiesSpec,
 {
     /// Constructs a [`ProbabilitySet`] from the probability specification
     #[inline]
-    pub fn to_probabilityset(&self) -> ProbabilitySet<PO::Native> {
-        self.probabilities.to_probabilityset(self.eps)
+    pub fn to_probabilityset(
+        &self,
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Value>>, PO::Value> {
+        ProbabilitySet::from_opts(&self.probabilities, self.eps)
     }
     /// Constructs a real-valued [`ProbabilitySet`] from the probability specification
     #[inline]
-    pub fn to_probabilityset_real(&self) -> ProbabilitySet<PO::Real> {
-        self.probabilities.to_probabilityset_real(self.eps)
-    }
-    /// Constructs a [`SampleController`] from the probability specification
-    #[inline]
-    pub fn to_controller(&self) -> SampleController<PO::Native, ()> {
-        let probs = self.to_probabilityset();
-        SampleController::new(probs)
-    }
-    /// Constructs a real-valued [`SampleController`] from the probability specification
-    #[inline]
-    pub fn to_controller_real(&self) -> SampleController<PO::Real, ()> {
-        let probs = self.to_probabilityset_real();
-        SampleController::new(probs)
-    }
-}
-impl<PO, AUXP, BAL> SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>
-where
-    PO: ProbabilitiesSpec,
-    AUXP: PointSet<Id = usize>,
-{
-    /// Constructs a [`SampleController`] containing a KD-tree from the probability specification.
-    #[inline]
-    pub fn to_spreading_controller(&self) -> SampleController<PO::Native, Tree<'_, AUXP>> {
-        let probs = self.to_probabilityset();
-        let spreading = self.spreading();
-        SampleController::new_spreading(probs, spreading)
-    }
-    /// Constructs a real-valued [`SampleController`] containing a KD-tree from the probability
-    /// specification.
-    #[inline]
-    pub fn to_spreading_controller_real(&self) -> SampleController<PO::Real, Tree<'_, AUXP>> {
-        let probs = self.to_probabilityset_real();
-        let spreading = self.spreading();
-        SampleController::new_spreading(probs, spreading)
+    pub fn to_probabilityset_real(
+        &self,
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Real>>, PO::Real> {
+        ProbabilitySet::from_opts_real(&self.probabilities, self.eps)
     }
 }
 
 /// Default maximum iterations value
 const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible");
 
-impl<UPO> SamplingOptions<UnequalProbabilities<UPO>>
+impl<PS> SamplingOptions<PS>
 where
-    UPO: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
 {
     /// Initializes `SamplingOptions` with unequal probability options
     #[inline]
-    pub fn with_spec(
-        spec: UnequalProbabilities<UPO>,
-    ) -> SamplingOptions<UnequalProbabilities<UPO>, (), ()> {
+    pub fn with_spec(spec: PS) -> SamplingOptions<PS, (), ()> {
         SamplingOptions {
             probabilities: spec,
-            eps: Epsilon::<UPO::Real>::default(),
+            eps: Epsilon::<PS::Real>::default(),
             max_iterations: MAX_ITERATIONS,
             spreading: (),
             balancing: (),
@@ -282,8 +240,7 @@ where
 }
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesReal<PD>>>
 where
-    PD: SliceView,
-    PD::Elem: NumberFloat,
+    PD: DataView<Value: NumberFloat>,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///
@@ -297,15 +254,14 @@ where
 }
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesInt<PD>>>
 where
-    PD: SliceView,
-    PD::Elem: NumberInt,
+    PD: ConstructableDataView<Value: NumberInt>,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///
     /// # Errors
     /// If `probabilities` cannot be turned into [`ProbabilitySpecUnequal`].
     #[inline]
-    pub fn new_int(probabilities: PD, max: PD::Elem) -> SamplingOptionsResult<Self> {
+    pub fn new_int(probabilities: PD, max: PD::Value) -> SamplingOptionsResult<Self> {
         if !max.is_pos_finite() {
             return Err(SamplingOptionsError::InvalidProbability);
         }
@@ -324,8 +280,11 @@ impl SamplingOptions<EqualProbabilities> {
     where
         NZ: TryInto<NonZeroUsize>,
     {
+        let population_size = population_size
+            .try_into()
+            .map_err(|_| SamplingOptionsError::InvalidPopulationSize)?;
         let spec = EqualProbabilities::new(population_size, sample_size)?;
-        Ok(Self::with_spec_equal(spec))
+        Ok(Self::with_spec(spec))
     }
     /// Initializes `SamplingOptions` with spreading `data` and an equal probability specification
     /// determined by the size of the spreading `data` and the `sample_size`.
@@ -378,18 +337,5 @@ impl SamplingOptions<EqualProbabilities> {
             spreading: (),
             balancing: data,
         })
-    }
-    /// Initializes `SamplingOptions` with equal probability options
-    #[inline]
-    pub fn with_spec_equal(
-        spec: EqualProbabilities,
-    ) -> SamplingOptions<EqualProbabilities, (), ()> {
-        SamplingOptions {
-            probabilities: spec,
-            eps: Epsilon::<f64>::default(),
-            max_iterations: MAX_ITERATIONS,
-            spreading: (),
-            balancing: (),
-        }
     }
 }

@@ -11,7 +11,7 @@ use envisim_utils::random::*;
 pub use envisim_utils::test_utils::*;
 use num_traits::ToPrimitive;
 
-fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
+pub fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
 #[allow(dead_code)]
 pub fn matrix_big_balanced() -> (
@@ -92,7 +92,8 @@ pub fn test_wor<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .iter_real()
+        .entries_real()
+        .map(|(_, v)| v)
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();
@@ -131,7 +132,8 @@ pub fn test_wor_random_n<F, PO, SOP, BOP>(
         .collect();
     let diff: Vec<f64> = options
         .probabilities()
-        .iter_real()
+        .entries_real()
+        .map(|(_, v)| v)
         .zip(prob_emp.iter())
         .map(|(p, p_emp)| p - p_emp)
         .collect();

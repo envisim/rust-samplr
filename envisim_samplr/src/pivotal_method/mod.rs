@@ -29,21 +29,10 @@ mod base;
 mod runner;
 mod spatial;
 
-pub use base::{
-    PivotalSampling,
-    RandomStrategy,
-    SequentialStrategy,
-};
+pub use base::PivotalSampling;
 pub use envisim_utils::sampling_options::SamplingOptions;
-pub use runner::{
-    PivotalRunner,
-    PivotalStrategy,
-};
 pub use spatial::{
     LocalPivotalSampling,
-    LocalStrategy1,
-    LocalStrategy1S,
-    LocalStrategy2,
     hierarchical_lpm_2,
 };
 

@@ -201,3 +201,7 @@ where
         unsafe { (**self).sq_distance_unchecked(id, point) }
     }
 }
+
+/// A `PointSet` with contiguous ids `0..len`
+pub trait ContiguousPointSet: PointSet<Id = usize> {}
+impl<CPS> ContiguousPointSet for &CPS where CPS: ContiguousPointSet + ?Sized {}

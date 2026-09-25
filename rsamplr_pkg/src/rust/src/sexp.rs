@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Matrix utils
+//! Matrix utils.
 
 use std::slice::from_raw_parts;
 
@@ -21,7 +21,12 @@ use envisim_utils::sampling_options::{
     UnequalProbabilities,
     UnequalProbabilitiesReal,
 };
-use envisim_utils::utils::SliceView;
+use envisim_utils::utils::{
+    ConstructableDataView,
+    ContiguousDataView,
+    DataView,
+    SliceView,
+};
 use savvy::{
     RealSexp,
     savvy_err,
@@ -127,10 +132,27 @@ impl TryFrom<RealSexp> for RealSexpFatPtr {
     fn try_from(sexp: RealSexp) -> Result<Self, Self::Error> { Self::from_sexp(sexp) }
 }
 
-impl SliceView for RealSexpFatPtr {
-    type Elem = f64;
+impl DataView for RealSexpFatPtr {
+    type Id = usize;
+    type Value = f64;
     #[inline]
-    fn data(&self) -> &[Self::Elem] {
+    fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone { 0..self.len }
+    #[inline]
+    fn values(&self) -> impl ExactSizeIterator<Item = &Self::Value> + Clone { self.slice().iter() }
+    #[inline]
+    fn entries(&self) -> impl ExactSizeIterator<Item = (Self::Id, &Self::Value)> + Clone {
+        self.slice().iter().enumerate()
+    }
+    #[inline]
+    fn contains(&self, id: Self::Id) -> bool { id < self.len }
+    #[inline]
+    fn get(&self, id: Self::Id) -> Option<&Self::Value> { self.slice().get(id) }
+    #[inline]
+    fn len(&self) -> usize { self.len }
+}
+impl SliceView for RealSexpFatPtr {
+    #[inline]
+    fn slice(&self) -> &[Self::Value] {
         if self.len == 0 {
             return &[];
         }
@@ -138,6 +160,24 @@ impl SliceView for RealSexpFatPtr {
         // Reconstructing the slice from the fat pointer is mimicing savvy::RealSexp::as_slice()
         // behaviour.
         unsafe { from_raw_parts(self.ptr, self.len) }
+    }
+}
+impl ContiguousDataView for RealSexpFatPtr {}
+impl ConstructableDataView for RealSexpFatPtr {
+    type ConstructableContainer<V> = Box<[V]>;
+    #[inline]
+    fn from_iter<I, V>(iter: I) -> Self::ConstructableContainer<V>
+    where
+        I: Iterator<Item = (Self::Id, V)>,
+    {
+        iter.map(|(_, v)| v).collect()
+    }
+    #[inline]
+    fn try_from_iter<I, V, E>(iter: I) -> Result<Self::ConstructableContainer<V>, E>
+    where
+        I: Iterator<Item = Result<(Self::Id, V), E>>,
+    {
+        iter.map(|r| r.map(|(_, v)| v)).collect()
     }
 }
 

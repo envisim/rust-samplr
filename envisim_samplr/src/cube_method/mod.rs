@@ -39,17 +39,11 @@ mod stratified;
 mod utils;
 
 pub use cube::{
-    CubeRunner,
     CubeSampling,
-    CubeStrategy,
     LocalCubeSampling,
-    LocalCubeStrategy,
-    RandomCubeStrategy,
-    SequentialCubeStrategy,
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 pub use stratified::{
-    CubeStratifiedRunner,
     cube_stratified,
     local_cube_stratified,
 };

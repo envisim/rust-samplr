@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Added dependency [`envisim_estimate`](https://crates.io/crates/envisim_estimate).
+- Bumped dependency `envisim_utils`.
 
+- Sampling methods can now use the IDs from `envisim_utils`.
+- Removed export of internal objects.
 
 ## [0.8.0] - 2026-08-13
 - Added dependency [`thiserror`](https://crates.io/crates/thiserror).

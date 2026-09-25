@@ -13,11 +13,15 @@
 //! Spatial balance measures
 
 use std::iter::once;
+use std::num::NonZeroUsize;
 
-use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
     NearestNeighbourSearcher,
     NeighbourView,
+};
+use envisim_utils::kd_tree::{
+    Tree,
+    TreeError,
 };
 use envisim_utils::matrix::{
     Matrix,
@@ -26,48 +30,50 @@ use envisim_utils::matrix::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    EqualProbabilities,
+    BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptionsError,
     SpreadingOptions,
-    UnequalProbabilities,
 };
-use envisim_utils::utils::PointSet;
-use num_traits::{
-    ConstZero,
-    ToPrimitive,
+use envisim_utils::utils::{
+    DataView,
+    DataViewMut,
+    Number,
+    PointSet,
 };
+use num_traits::ToPrimitive;
 use rustc_hash::{
     FxBuildHasher,
     FxHashMap,
 };
-
-pub use crate::error::EstimationError;
-use crate::error::EstimationResult;
+use thiserror::Error;
 
 /// Calculates the pi-sums for each voronoi cell
-fn voronoi_pi_sum<P, F>(
-    opts: &SpreadingOptions<P>,
-    sample: &[P::Id],
-    prob: F,
-) -> EstimationResult<FxHashMap<P::Id, P::Value>>
+fn voronoi_pi_sum<PO, P, BAL, I>(
+    opts: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    sample: I,
+) -> Result<FxHashMap<PO::Id, P::Value>, SpatialBalanceError>
 where
-    P: PointSet<Value = f64>,
-    F: Fn(P::Id) -> P::Value,
+    PO: BaseProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
+    I: ExactSizeIterator<Item = PO::Id> + Clone,
 {
-    let data = opts.data();
+    let data = opts.spreading().data();
     let sample_size = sample.len();
     let mut pi_sums =
         FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
-    for &id in sample {
-        let p = prob(id);
+    for id in sample.clone() {
+        let p = opts
+            .probabilities()
+            .get_real(id)
+            .ok_or(SpatialBalanceError::InvalidId)?;
         pi_sums
             .insert(id, p)
-            .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
+            .map_or(Ok(()), |_| Err(SpatialBalanceError::DuplicateId))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec())?;
+    let tree = Tree::from_iter(opts.spreading(), sample)?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
     for id in data.ids() {
@@ -76,15 +82,19 @@ where
             continue;
         }
 
+        let p = opts
+            .probabilities()
+            .get_real(id)
+            .ok_or(SpatialBalanceError::InvalidId)?;
+
         searcher.reset_from_point(data.coords(id).expect("id to exist in data by iter"));
         searcher.search(&tree).expect("search to find a unit");
 
-        let share = prob(id)
-            / searcher
-                .neighbours()
-                .len()
-                .to_f64()
-                .expect("limited by pop size, which is expected to convert to f64");
+        let share = p / searcher
+            .neighbours()
+            .len()
+            .to_f64()
+            .expect("limited by pop size, which is expected to convert to f64");
 
         for n in searcher.neighbours() {
             *pi_sums
@@ -97,29 +107,33 @@ where
 }
 
 /// Calculate the voronoi means of `data`.
-/// `sample` is an iterator over sample indices and their probability factor (1-pi)/pi
+/// `sample` is an iterator over sample indices
 #[expect(clippy::type_complexity, reason = "Ok complexity")]
-fn voronoi_means<P, F>(
-    opts: &SpreadingOptions<P>,
-    sample: &[P::Id],
-    prob: F,
+fn voronoi_means<PO, P, BAL, I>(
+    opts: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    sample: I,
     balance_probabilities: bool,
-) -> EstimationResult<FxHashMap<P::Id, Box<[P::Value]>>>
+) -> Result<FxHashMap<PO::Id, Box<[P::Value]>>, SpatialBalanceError>
 where
-    P: PointSet<Value = f64>,
-    F: Fn(P::Id) -> P::Value,
+    PO: BaseProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
+    I: ExactSizeIterator<Item = PO::Id> + Clone,
 {
-    let data = opts.data();
+    let data = opts.spreading().data();
     let sample_size = sample.len();
     let data_cols = data.dimensions().get();
     let mut means =
         FxHashMap::<P::Id, Box<[P::Value]>>::with_capacity_and_hasher(sample_size, FxBuildHasher);
 
-    for &id in sample {
+    for id in sample.clone() {
         if !data.contains(id) {
-            return Err(EstimationError::InvalidSample);
+            return Err(SpatialBalanceError::InvalidId);
         }
-        let p_factor = prob(id);
+        let p = opts
+            .probabilities()
+            .get_real(id)
+            .ok_or(SpatialBalanceError::InvalidId)?;
+        let p_factor = (1.0 - p) / p;
         let id_mean: Box<[f64]> = if balance_probabilities {
             (0..data_cols)
                 .map(|k| {
@@ -140,10 +154,10 @@ where
         };
         means
             .insert(id, id_mean)
-            .map_or(Ok(()), |_| Err(EstimationError::InvalidSample))?;
+            .map_or(Ok(()), |_| Err(SpatialBalanceError::DuplicateId))?;
     }
 
-    let tree = Tree::new(opts, &mut sample.to_vec())?;
+    let tree = Tree::from_iter(opts.spreading(), sample)?;
     let mut searcher = NearestNeighbourSearcher::new(data);
 
     for id in data.ids() {
@@ -219,118 +233,252 @@ where
     norm_matrix
 }
 
-/// Returns (phi-vec, phi-sumish)
-#[must_use]
-#[inline]
-fn energy_distance_phi_equal<P>(matrix: &P) -> (FxHashMap<P::Id, P::Value>, P::Value)
-where
-    P: PointSet<Value = f64>,
-{
-    let size = matrix.len().get();
-    let mut phi = FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(size, FxBuildHasher);
-
-    for (i, id1) in matrix.ids().enumerate() {
-        let mut phi1 = <P::Value as ConstZero>::ZERO;
-        for id2 in matrix.ids().take(i) {
-            let dist = matrix
-                .sq_distance_between(id1, id2)
-                .expect("id1 and id2 to exist in matrix")
-                .sqrt();
-            phi1 += dist;
-            *phi.get_mut(&id2).expect("id2 to exist in map") += dist;
-        }
-        phi.insert(id1, phi1);
-    }
-
-    let u_size = size.to_f64().expect("pop size to convert to f64");
-    let mut u_spread = <P::Value as ConstZero>::ZERO;
-    for val in phi.values_mut() {
-        *val /= u_size;
-        u_spread += *val;
-    }
-
-    (phi, u_spread / u_size)
-}
-/// Returns (phi-vec, phi-sumish)
-#[must_use]
-#[inline]
-fn energy_distance_phi_unequal<P, I>(
-    matrix: P,
-    probabilities: I,
-    s_size: f64,
-) -> (FxHashMap<P::Id, P::Value>, P::Value)
-where
-    P: PointSet<Id = usize, Value = f64>,
-    I: ExactSizeIterator<Item = f64>,
-{
-    let population_size = probabilities.len();
-    assert!(
-        population_size <= matrix.len().get(),
-        "not able to map between prob indices and PointSet"
-    );
-    let mut phi =
-        FxHashMap::<P::Id, P::Value>::with_capacity_and_hasher(population_size, FxBuildHasher);
-
-    let probs: Vec<f64> = probabilities.map(|p| p / s_size).collect();
-
-    for id1 in 0..population_size {
-        let mut phi1 = <P::Value as ConstZero>::ZERO;
-
-        for id2 in 0..id1 {
-            let dist = matrix
-                .sq_distance_between(id1, id2)
-                .expect("id1 and id2 to exist in data")
-                .sqrt();
-            phi1 += dist * probs[id2];
-            *phi.get_mut(&id2).expect("id2 to exist in map") += dist * probs[id1];
-        }
-
-        phi.insert(id1, phi1);
-    }
-
-    let mut u_spread = <P::Value as ConstZero>::ZERO;
-    for (&id, val) in &mut phi {
-        // Second div. by s_size goes here
-        u_spread += *val * probs[id];
-    }
-
-    (phi, u_spread)
+/// Calulates the energy distance between a population and a sample.
+/// # References
+/// Grafström & Prentius (2026). Distributionally balanced sampling designs. Biometrics, 82(3).
+///
+/// Székely & Rizzo (2013). Energy statistics: A class of statistics based on distances.
+/// Journal of Statistical Planning and Inference, 143, 1249-1272.
+#[derive(Clone, Debug)]
+pub struct EnergyDistance<PH, DT> {
+    /// Mean unit-distances, i.e. the average distance of each unit to the population.
+    phis: PH,
+    /// The population spread, multiplied by `sample_size`.
+    u_spread_n: f64,
+    /// The sample size.
+    sample_size: NonZeroUsize,
+    /// The data
+    data: DT,
 }
 
-/// Returns 2 E||X-Z|| - E||X-X'||
-#[must_use]
-#[inline]
-fn energy_distance_internal<P>(
-    sample: &[P::Id],
-    matrix: P,
-    phi: &FxHashMap<P::Id, P::Value>,
-) -> P::Value
+impl<PH, DT> EnergyDistance<PH, DT>
 where
-    P: PointSet<Value = f64>,
+    PH: DataView<Value = f64>,
+    DT: PointSet<Id = PH::Id, Value = f64>,
 {
-    let s_size = sample
-        .len()
-        .to_f64()
-        .expect("sample size to convert to f64");
-    let mut s_spread = <P::Value as ConstZero>::ZERO;
-    let mut inter_spread = <P::Value as ConstZero>::ZERO;
+    /// Constructs a new Energy distance object
+    /// # Errors
+    /// Returns an error if units in `probabilities` does not exist in `data`.
+    /// # Panics
+    /// Panics if `sample_size` cannot be converted into `f64`.
+    #[inline]
+    pub fn new<PO>(
+        probabilities: PO,
+        data: DT,
+        sample_size: NonZeroUsize,
+    ) -> Result<Self, SpatialBalanceError>
+    where
+        PH: DataViewMut,
+        PO: ProbabilitiesSpec<
+                Id = PH::Id,
+                Value: Number,
+                Real = f64,
+                ConstructableContainer<f64> = PH,
+            >,
+    {
+        let nn = sample_size
+            .get()
+            .to_f64()
+            .expect("sample size converts to f64");
+        let ids: Box<[PH::Id]> = probabilities.ids().collect();
+        let mut phis: PH = probabilities.iter_map(|(id, _)| (id, 0.0));
+        let mut u_spread = 0.0;
 
-    for (i, id1) in sample.iter().enumerate() {
-        inter_spread += phi[id1];
-
-        // Iterate over 0..i
-        for id2 in sample.iter().take(i) {
-            let dist = matrix
-                .sq_distance_between(*id1, *id2)
-                .expect("id1 and id2 to exist in data")
-                .sqrt();
-            s_spread += 2.0 * dist;
+        for (k, &id1) in ids.entries() {
+            // Panic here should be impossible
+            let p_1 = probabilities.get_real(id1).expect("id1 to exist");
+            let mut phi_1 = *phis.get(id1).expect("id1 to exist");
+            for &id2 in ids.iter().skip(k + 1) {
+                let p_2 = probabilities.get_real(id2).expect("id2 to exist");
+                let dist = data
+                    .sq_distance_between(id1, id2)
+                    .ok_or(SpatialBalanceError::InvalidId)?
+                    .sqrt();
+                phi_1 += dist * p_2;
+                *phis.get_mut(id2).expect("id2 to exist") += dist * p_1;
+            }
+            *phis.get_mut(id1).expect("id1 to exist") = phi_1 / nn;
+            u_spread += phi_1 * p_1;
         }
-    }
 
-    inter_spread /= s_size;
-    s_spread /= s_size.powi(2);
-    inter_spread * 2.0 - s_spread
+        Ok(Self {
+            phis,
+            u_spread_n: u_spread,
+            sample_size,
+            data,
+        })
+    }
+    /// Returns a reference to the phis-store
+    #[inline]
+    pub fn phis(&self) -> &PH { &self.phis }
+    /// Returns a reference to the data
+    #[inline]
+    pub fn data(&self) -> &DT { &self.data }
+    /// Returns the sample size
+    #[inline]
+    pub fn sample_size(&self) -> NonZeroUsize { self.sample_size }
+    /// Returns the population size
+    #[expect(clippy::missing_panics_doc, reason = "invalid setup")]
+    #[inline]
+    pub fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.phis.len()).expect("phis non-empty")
+    }
+    /// Returns the sample size as `f64` as a convenience method.
+    /// # Panics
+    /// Panics if `sample_size` cannot be converted into `f64`.
+    #[inline]
+    fn nn(&self) -> f64 {
+        self.sample_size
+            .get()
+            .to_f64()
+            .expect("sample size converts to f64")
+    }
+    /// Returns the average distancee of unit `id` to the rest of the population.
+    #[inline]
+    pub fn phi(&self, id: PH::Id) -> Option<f64> { self.phis.get(id).copied() }
+    /// Returns the population spread.
+    /// See [`EnergyDistance::u_spread_n`].
+    #[inline]
+    pub fn u_spread(&self) -> f64 { self.u_spread_n / self.nn() }
+    /// Returns the population spread, or the average pairwise distances between units in the
+    /// population, multiplied by the sample size.
+    #[inline]
+    pub fn u_spread_n(&self) -> f64 { self.u_spread_n }
+    /// Returns the difference in distance between `a` and `b` and `a` and `c`, i.e.
+    /// `||a-b|| - ||a-c||`.
+    /// # Errors
+    /// Returns an error if any id is not found in the data.
+    #[inline]
+    pub fn distance_difference(
+        &self,
+        a: PH::Id,
+        b: PH::Id,
+        c: PH::Id,
+    ) -> Result<f64, SpatialBalanceError> {
+        let d = self
+            .data
+            .sq_distance_between(a, b)
+            .ok_or(SpatialBalanceError::InvalidId)?
+            .sqrt()
+            - self
+                .data
+                .sq_distance_between(a, c)
+                .ok_or(SpatialBalanceError::InvalidId)?
+                .sqrt();
+        Ok(d)
+    }
+    /// Returns the energy distance between a sample and the population.
+    /// See [`EnergyDistance::energy_distance_n`].
+    #[expect(clippy::missing_errors_doc, reason = "referred to other function")]
+    #[inline]
+    pub fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
+    where
+        I: Iterator<Item = PH::Id> + Clone,
+    {
+        self.energy_distance_n(sample).map(|ed| ed / self.nn())
+    }
+    /// Returns the energy distance between a sample and the population, multiplied by the sample
+    /// size.
+    /// # Errors
+    /// Returns an error if any ID in the sample does not exist in the population.
+    #[inline]
+    pub fn energy_distance_n<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
+    where
+        I: Iterator<Item = PH::Id> + Clone,
+    {
+        let mut s_spread = 0.0;
+        let mut i_spread = 0.0;
+
+        let mut outer = sample;
+
+        while let Some(id1) = outer.next() {
+            let phi1 = self.phi(id1).ok_or(SpatialBalanceError::InvalidId)?;
+            i_spread += phi1;
+
+            let inner = outer.clone();
+            for id2 in inner {
+                s_spread += self
+                    .data
+                    .sq_distance_between(id1, id2)
+                    .ok_or(SpatialBalanceError::InvalidId)?
+                    .sqrt();
+            }
+        }
+
+        s_spread *= 2.0 / self.nn();
+        i_spread *= 2.0;
+        Ok(i_spread - s_spread - self.u_spread_n())
+    }
+    /// Returns the energy difference.
+    /// See [`EnergyDistance::delta_n`].
+    #[expect(clippy::missing_errors_doc, reason = "referred to other function")]
+    #[inline]
+    pub fn delta<I>(&self, sample: I, add: PH::Id, rem: PH::Id) -> Result<f64, SpatialBalanceError>
+    where
+        I: Iterator<Item = PH::Id>,
+    {
+        self.delta_n(sample, add, rem).map(|d| d / self.nn())
+    }
+    /// Returns the energy difference when adding `add` and removing `rem` from a sample.
+    /// # Errors
+    /// Returns an error if any id in the `sample`, `add` or `rem` does not exist in the population.
+    #[inline]
+    pub fn delta_n<I>(
+        &self,
+        sample: I,
+        add: PH::Id,
+        rem: PH::Id,
+    ) -> Result<f64, SpatialBalanceError>
+    where
+        I: Iterator<Item = PH::Id>,
+    {
+        let i_delta = self
+            .phi(add)
+            .zip(self.phi(rem))
+            .map(|(add, rem)| (add - rem) * 2.0)
+            .ok_or(SpatialBalanceError::InvalidId)?;
+
+        let mut s_delta = 0.0;
+        for id in sample {
+            if id == add {
+                // Sample already contains add
+                return Err(SpatialBalanceError::InvalidAddId);
+            } else if id == rem {
+                continue;
+            }
+            s_delta += self.distance_difference(id, rem, add)?;
+        }
+
+        s_delta *= 2.0 / self.nn();
+        Ok(i_delta + s_delta)
+    }
+}
+
+/// Spatial balance error types
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum SpatialBalanceError {
+    /// Error derived from [`SamplingOptions`]
+    #[error("SamplingOptionsError: {0}")]
+    Options(#[from] SamplingOptionsError),
+    /// Error derived from [`Tree`]
+    #[error("TreeError: {0}")]
+    Tree(#[from] TreeError),
+    /// Invalid ID, ID missing from collection
+    #[error("Invalid ID (missing from collection)")]
+    InvalidId,
+    /// Invalid ID, ID is already in sample
+    #[error("Invalid ID (cannot add an ID already in a sample)")]
+    InvalidAddId,
+    /// Invalid ID, duplicate ID
+    #[error("Invalid ID (duplicate ID found)")]
+    DuplicateId,
+    /// Invalid sample size, sample size must be positive
+    #[error("Invalid sample size (must be positive)")]
+    InvalidSampleSize,
+    /// Auxiliaries not invertible
+    #[error("Auxiliaries not invertible")]
+    SingularMatrix,
 }
 
 /// Provides methods for calculating the spatial balance of a sample
@@ -348,8 +496,8 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.voronoi(&s)?;
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.voronoi(s)?;
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
     ///
     /// # References
@@ -360,7 +508,9 @@ where
     ///
     /// # Errors
     /// If `sample` contains duplicate ids
-    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value>;
+    fn voronoi<I>(&self, sample: I) -> Result<P::Value, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
     /// Local measure of spatial balance.
     ///
     /// # Examples
@@ -371,8 +521,8 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.local(&s, true)?;
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.local(s, true)?;
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
     ///
     /// # References
@@ -383,7 +533,13 @@ where
     ///
     /// # Errors
     /// If `sample` contains duplicate ids
-    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value>;
+    fn local<I>(
+        &self,
+        sample: I,
+        balance_probabilities: bool,
+    ) -> Result<P::Value, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
     /// Energy distance between sample distribution and population.
     ///
     /// # Examples
@@ -394,33 +550,60 @@ where
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
     /// let s = [0, 3, 5, 8, 9];
-    /// let sb = options.energy_distance(&s);
-    /// # Ok::<(), EstimationError>(())
+    /// let sb = options.energy_distance(s);
+    /// # Ok::<(), SpatialBalanceError>(())
     /// ```
-    #[must_use]
-    fn energy_distance(&self, sample: &[P::Id]) -> P::Value;
+    ///
+    /// # References
+    /// Grafström, A., &  Prentius, W. (2026).
+    /// Distributionally balanced sampling designs.
+    /// Biometrics, 82(3).
+    /// <https://doi.org/10.1093/biomtc/ujag124>
+    ///
+    /// # Errors
+    /// Returns an error if any sample id does not exist in the population.
+    fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
 }
 
-impl<P, BAL> SpatialBalance<P> for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
+impl<PO, P, BAL> SpatialBalance<P> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
-    P: PointSet<Value = f64>,
+    PO: ProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
 {
+    /// # Panics
+    /// Panics if sample size cannot be converted to `f64`.
     #[inline]
-    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
-        if sample.is_empty() {
+    fn voronoi<I>(&self, sample: I) -> Result<P::Value, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
+    {
+        let sample = sample.into_iter();
+        let sample_size = sample.len();
+        if sample_size == 0 {
             return Ok(f64::NAN);
         }
 
-        let p = self.probabilities().as_real();
-        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |_| p)?;
+        let voronoi_pi = voronoi_pi_sum(self, sample)?;
         let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
-            / sample.len().to_f64().expect("sample len to convert to f64");
+            / sample_size.to_f64().expect("sample len to convert to f64");
 
         Ok(result)
     }
+    /// # Panics
+    /// Panics if sample size cannot be converted to `f64`.
     #[inline]
-    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value> {
-        if sample.is_empty() {
+    fn local<I>(
+        &self,
+        sample: I,
+        balance_probabilities: bool,
+    ) -> Result<P::Value, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
+    {
+        let sample = sample.into_iter();
+        if sample.len() == 0 {
             return Ok(f64::NAN);
         }
 
@@ -428,21 +611,14 @@ where
         let cols = data
             .dimensions()
             .saturating_add(usize::from(balance_probabilities));
-        let p = self.probabilities().as_real();
-        let p_factor = (1.0 - p) / p;
-        let voronoi_means = voronoi_means(
-            self.spreading(),
-            sample,
-            |_| p_factor,
-            balance_probabilities,
-        )?;
+        let vor_means = voronoi_means(self, sample, balance_probabilities)?;
 
         // The gram matrix
         let inv_norm_matrix = norm_matrix(data, balance_probabilities)
             .inverse(self.eps())
-            .ok_or(SamplingOptionsError::InvalidSpreading)?;
+            .ok_or(SpatialBalanceError::SingularMatrix)?;
 
-        let result = voronoi_means
+        let result = vor_means
             .values()
             .map(|mean| {
                 MatrixRef::new(mean, 1)
@@ -462,95 +638,22 @@ where
         Ok(result.sqrt())
     }
     #[inline]
-    fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
+    fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
+    where
+        I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>,
+    {
+        let sample = sample.into_iter();
+        let sample_size =
+            NonZeroUsize::new(sample.len()).ok_or(SpatialBalanceError::InvalidSampleSize)?;
         let matrix = self.spreading().data();
-        let (phi, u_spread) = energy_distance_phi_equal(matrix);
-        let edi = energy_distance_internal(sample, matrix, &phi);
-        edi - u_spread
-    }
-}
-
-impl<UPO, P, BAL> SpatialBalance<P>
-    for SamplingOptions<UnequalProbabilities<UPO>, SpreadingOptions<P>, BAL>
-where
-    UPO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
-{
-    #[inline]
-    fn voronoi(&self, sample: &[P::Id]) -> EstimationResult<P::Value> {
-        if sample.is_empty() {
-            return Ok(f64::NAN);
-        }
-
-        let voronoi_pi = voronoi_pi_sum(self.spreading(), sample, |id| {
-            self.probabilities().nth_real(id).expect("id to exist")
-        })?;
-        let result = voronoi_pi.values().map(|v| (v - 1.0).powi(2)).sum::<f64>()
-            / sample.len().to_f64().expect("sample len to convert to f64");
-
-        Ok(result)
-    }
-    #[inline]
-    fn local(&self, sample: &[P::Id], balance_probabilities: bool) -> EstimationResult<P::Value> {
-        if sample.is_empty() {
-            return Ok(f64::NAN);
-        }
-
-        let data = self.spreading().data();
-        let cols = data
-            .dimensions()
-            .saturating_add(usize::from(balance_probabilities));
-        let voronoi_means = voronoi_means(
-            self.spreading(),
-            sample,
-            |id| {
-                let p = self.probabilities().nth_real(id).expect("id to exist");
-                (1.0 - p) / p
-            },
-            balance_probabilities,
-        )?;
-
-        // The gram matrix
-        let inv_norm_matrix = norm_matrix(data, balance_probabilities)
-            .inverse(self.eps())
-            .ok_or(SamplingOptionsError::InvalidSpreading)?;
-
-        let result = voronoi_means
-            .values()
-            .map(|mean| {
-                MatrixRef::new(mean, 1)
-                    .expect("1 > 0")
-                    .mul_mat(&inv_norm_matrix)
-                    .expect("dimensions to match")
-                    .mul_mat(&MatrixRef::new(mean, cols).expect("cols = vec.len"))
-                    .expect("dimensions to match")[(0, 0)]
-            })
-            .sum::<f64>()
-            / self
-                .population_size()
-                .get()
-                .to_f64()
-                .expect("population size to convert to f64");
-
-        Ok(result.sqrt())
-    }
-    /// Requires that [`PointSet`] is able to map probability indices
-    #[inline]
-    fn energy_distance(&self, sample: &[P::Id]) -> P::Value {
-        let matrix = self.spreading().data();
-        let s_size = sample
-            .len()
-            .to_f64()
-            .expect("sample size to convert to f64");
-        let (phi, u_spread) =
-            energy_distance_phi_unequal(matrix, self.probabilities().iter_real(), s_size);
-        let edi = energy_distance_internal(sample, matrix, &phi);
-        edi - u_spread
+        let ed = EnergyDistance::new(self.probabilities(), matrix, sample_size)?;
+        ed.energy_distance(sample)
     }
 }
 
 #[cfg(test)]
 mod test {
+    use envisim_utils::sampling_options::EqualProbabilities;
     use envisim_utils::test_utils::*;
 
     use super::*;
@@ -559,41 +662,47 @@ mod test {
     fn ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let (phi, _) = energy_distance_phi_equal(&data);
-        let phi_res = vec![phi[&0], phi[&1], phi[&2]];
+        let ss = NonZeroUsize::new(2).unwrap();
+        let probs = EqualProbabilities::new(data.nrow(), ss.get()).unwrap();
+        let ed = EnergyDistance::new(probs, data, ss).unwrap();
+
         let facit: Vec<f64> = vec![
             (2.0f64.sqrt() + 8.0f64.sqrt()) / 3.0f64,
             (2.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
             (8.0f64.sqrt() + 2.0f64.sqrt()) / 3.0f64,
         ];
-
-        assert_vec!(phi_res, facit);
+        assert_vec!(ed.phis, facit);
     }
     #[test]
     fn ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
-        let (phi, _) = energy_distance_phi_equal(&data);
-        let dist = energy_distance_internal(&[1, 2], &data, &phi);
-        let res: f64 = 2.0 * (phi[&1] + phi[&2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
+        let ss = NonZeroUsize::new(2).unwrap();
+        let probs = EqualProbabilities::new(data.nrow(), ss.get()).unwrap();
+        let ed = EnergyDistance::new(probs, data, ss).unwrap();
 
-        assert_delta!(dist, res);
+        let res: f64 =
+            2.0 * (ed.phis[1] + ed.phis[2]) / 2.0 - (2.0f64.sqrt() + 2.0f64.sqrt()) / 4.0;
+        assert_delta!(
+            ed.energy_distance([1, 2].into_iter()).unwrap() + ed.u_spread(),
+            res
+        );
     }
 
     #[test]
     fn test_voronoi() {
         let options = Data10::options_e();
-        let sb = options.voronoi(&[0]).unwrap();
+        let sb = options.voronoi([0]).unwrap();
         assert_delta!(sb, (0.2f64 * 10.0 - 1.0).powi(2));
     }
 
     #[test]
     fn test_local() {
         let options = Data10::options_e();
-        let sb = options.local(&[0], false).unwrap();
+        let sb = options.local([0], false).unwrap();
         assert_delta!(sb, 0.7515302, Epsilon::new(1e-7).unwrap());
 
-        let sb = options.local(&[0, 1], false).unwrap();
+        let sb = options.local([0, 1], false).unwrap();
         assert_delta!(sb, 0.6454327, Epsilon::new(1e-7).unwrap());
     }
 }

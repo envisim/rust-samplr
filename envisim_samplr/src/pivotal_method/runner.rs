@@ -13,118 +13,90 @@
 //! Runners and base traits for pivotal methods
 
 use envisim_utils::indices::Pair;
+use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::random::Rand;
 use envisim_utils::sample_controller::{
     SampleController,
-    UnitRemoving,
+    TreeStorage,
 };
-use envisim_utils::utils::Number;
 
 /// A strategy for a pivotal method controls the selection of competing pairs
-pub trait PivotalStrategy<PROB, TREE> {
+pub trait PivotalStrategy<PR, TR>
+where
+    PR: ProbabilityStore,
+{
     /// Selects a pair of units
+    #[inline]
     fn select_pair<R>(
         &mut self,
-        controller: &mut SampleController<PROB, TREE>,
-        rng: &mut R,
-    ) -> Pair
+        _rng: &mut R,
+        controller: &SampleController<PR, TR>,
+    ) -> Pair<PR::Id>
     where
-        R: Rand<usize>;
+        R: Rand<usize>,
+    {
+        controller.indices().into()
+    }
 }
 
 /// Runs a pivotal strategy
-#[expect(
-    clippy::field_scoped_visibility_modifiers,
-    reason = "super is ok, needed for impl"
-)]
-#[must_use]
-pub struct PivotalRunner<S, PROB, TREE> {
-    /// Sample controller
-    pub(super) controller: SampleController<PROB, TREE>,
-    /// Sample strategy
-    pub(super) strategy: S,
-}
-impl<S, PROB, TREE> PivotalRunner<S, PROB, TREE>
+/// # Panics
+/// Panics if options is incorrectly set up
+#[inline]
+pub fn pivotal_runner<R, PR, TR, S>(
+    rng: &mut R,
+    mut controller: SampleController<PR, TR>,
+    mut strategy: S,
+) -> SampleController<PR, TR>
 where
-    S: PivotalStrategy<PROB, TREE>,
-    SampleController<PROB, TREE>: UnitRemoving,
-    PROB: Number,
+    R: Rand<PR::N> + Rand<usize>,
+    PR: ProbabilityStore,
+    S: PivotalStrategy<PR, TR>,
+    TR: TreeStorage<PR::Id>,
 {
-    /// Runs the simulation and returns a sorted sample
-    #[must_use]
-    #[inline]
-    pub fn sample<R>(mut self, rng: &mut R) -> Vec<usize>
-    where
-        R: Rand<PROB>,
-    {
-        self.run(rng);
-        self.controller.to_sorted_sample_vec()
-    }
-    /// Runs the sampling algorithm
-    #[inline]
-    pub fn run<R>(&mut self, rng: &mut R)
-    where
-        R: Rand<PROB>,
-    {
-        while self.update_probabilities(rng) {}
-        let _last = self.controller.unit_decide_last(rng);
-    }
-    /// Updates the probabilities according to the pivotal mehtod
-    #[must_use]
-    #[inline]
-    fn update_probabilities<R>(&mut self, rng: &mut R) -> bool
-    where
-        R: Rand<PROB>,
-    {
-        let (id1, id2, cont) = match self.strategy.select_pair(&mut self.controller, rng) {
-            Pair::More(id1, id2) => (id1, id2, true),
-            Pair::Two(id1, id2) => (id1, id2, false),
-            Pair::Zero | Pair::One(_) => {
-                return false;
+    loop {
+        let (id1, id2) = match strategy.select_pair(rng, &controller) {
+            Pair::More(id1, id2) | Pair::Two(id1, id2) => (id1, id2),
+            Pair::One(_) => {
+                let _last = controller.unit_decide_last(rng);
+                return controller;
+            }
+            Pair::Zero => {
+                return controller;
             }
         };
 
-        let max = self.controller.probabilities().max();
-        let eps = self.controller.probabilities().eps();
-
-        let p1 = self.controller.probabilities()[id1];
-        let p2 = self.controller.probabilities()[id2];
+        let p1 = *controller.probabilities().get(id1).expect("id1 to exist");
+        let p2 = *controller.probabilities().get(id2).expect("id2 to exist");
+        let ctx = controller.probabilities().ctx();
 
         let (psum, prest) = {
             let mut ps = p1;
-            let pr = ps.add(p2, max, eps);
+            let pr = ps.add(p2, ctx);
             (ps, pr)
         };
 
-        if prest.is_zero() {
+        if prest.is_zero(ctx) {
             // psum <= 1.0
-            if self
-                .controller
-                .probabilities()
-                .draw_partial(rng, psum.get())
-                < p1
-            {
-                self.controller.unit_set_and_decide(id1, psum);
-                self.controller.unit_set_zero(id2);
+            if controller.probabilities().draw_partial(rng, psum.get()) < p1 {
+                controller.unit_set_and_decide(id1, psum);
+                controller.unit_set_zero(id2);
             } else {
-                self.controller.unit_set_zero(id1);
-                self.controller.unit_set_and_decide(id2, psum);
+                controller.unit_set_zero(id1);
+                controller.unit_set_and_decide(id2, psum);
             }
             // 1.0 < psum
-        } else if self
-            .controller
+        } else if controller
             .probabilities()
-            .draw_partial(rng, max - prest.get())
+            .draw_partial(rng, *ctx.max() - prest.get())
             .get()
-            < max - p2.get()
+            < *ctx.max() - p2.get()
         {
-            self.controller.unit_set_full(id1);
-            self.controller.unit_set_and_decide(id2, prest);
+            controller.unit_set_full(id1);
+            controller.unit_set_and_decide(id2, prest);
         } else {
-            self.controller.unit_set_and_decide(id1, prest);
-            self.controller.unit_set_full(id2);
+            controller.unit_set_and_decide(id1, prest);
+            controller.unit_set_full(id2);
         }
-
-        cont
     }
 }

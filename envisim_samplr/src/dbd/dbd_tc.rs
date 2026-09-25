@@ -13,9 +13,8 @@
 //! Distributionally balanced designs using tactical configurations
 
 use std::iter::repeat_n;
-use std::num::NonZeroUsize;
 
-pub use config::*;
+use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::random::Rand;
 use envisim_utils::sampling_options::{
     EqualProbabilities,
@@ -24,6 +23,9 @@ use envisim_utils::sampling_options::{
     UnequalProbabilities,
 };
 use envisim_utils::utils::{
+    ConstructableDataView,
+    DataView,
+    DataViewMut,
     Epsilon,
     PointSet,
 };
@@ -33,157 +35,57 @@ use super::annealing::{
     AnnealingDistributionalDesign,
     AnnealingTemperature,
 };
-use super::energy_distance::EnergyDistance;
+pub use super::dbd_tc_config::*;
 use crate::pivotal_method::LocalPivotalSampling;
-use crate::utils::shuffled_indices;
-
-mod config {
-    //! Tactical configuration DBD config
-
-    use envisim_utils::matrix::{
-        Dimensions,
-        MatrixBase,
-    };
-    use envisim_utils::utils::PointSet;
-
-    use crate::dbd::energy_distance::EnergyDistance;
-    pub use crate::dbd::tc_parameters::{
-        DbdConfiguration,
-        TacticalConfigurationParameters,
-    };
-
-    /// Storage for the buckets used in a Tactical Configuration
-    pub type TcBuckets = MatrixBase<Box<[usize]>>;
-
-    /// Defines a tactical configuration for DBD
-    #[must_use]
-    #[derive(Clone, Debug)]
-    pub struct TacticalConfiguration {
-        /// Internal storage of sequence (`sample_size` * `n_samples` matrix)
-        // An n * M matrix
-        buckets: TcBuckets,
-        /// Total energy multiplied by sample size
-        total_nenergy: f64,
-        /// Tactical configuration parameters
-        tcp: TacticalConfigurationParameters,
-    }
-    impl TacticalConfiguration {
-        /// Construct a new circular configuration from a set of indices and tactical configuration
-        /// parameters
-        ///
-        /// # Panics
-        /// Panics if the sequence is empty or otherwise incorrect in size. Must be
-        /// `n_samples * sample_size`.
-        #[inline]
-        pub fn new<P>(
-            buckets: TcBuckets,
-            tcp: TacticalConfigurationParameters,
-            ed: &EnergyDistance<P>,
-        ) -> Self
-        where
-            P: PointSet<Id = usize, Value = f64>,
-        {
-            assert_eq!(
-                buckets.dims(),
-                (tcp.sample_size(), tcp.n_samples()).into(),
-                "invalid sequence length"
-            );
-
-            let mut cc = Self {
-                buckets,
-                total_nenergy: 0.0,
-                tcp,
-            };
-
-            let _total_energy = cc.reset_total_nenergy(ed);
-            cc
-        }
-        /// Returns a reference to the internal storage
-        #[inline]
-        pub fn buckets(&self) -> &TcBuckets { &self.buckets }
-        /// Consumes `self` and returns the internal storage
-        #[inline]
-        pub fn into_buckets(self) -> TcBuckets { self.buckets }
-        /// Returns a mutable reference to the internal storage
-        #[inline]
-        pub fn buckets_mut(&mut self) -> &mut TcBuckets { &mut self.buckets }
-        /// Add a delta to the nenergy
-        #[must_use]
-        #[inline]
-        pub(crate) fn add_nenergy_delta(&mut self, delta: f64) -> f64 {
-            self.total_nenergy += delta;
-            self.total_nenergy
-        }
-        /// Reset the total nenergy
-        #[must_use]
-        #[inline]
-        fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
-        where
-            P: PointSet<Id = usize, Value = f64>,
-        {
-            self.total_nenergy = 0.0;
-            for i in 0..self.tcp.n_samples().get() {
-                self.total_nenergy += self.nenergy_of_sample(ed, i);
-            }
-            self.total_nenergy
-        }
-    }
-    impl DbdConfiguration for TacticalConfiguration {
-        #[inline]
-        fn tcp(&self) -> &TacticalConfigurationParameters { &self.tcp }
-        #[inline]
-        fn total_nenergy(&self) -> f64 { self.total_nenergy }
-        /// # Panics
-        /// Panics if `sample_id` is oob.
-        #[inline]
-        fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_ {
-            self.buckets
-                .col_iter(sample_id)
-                .expect("valid sample id")
-                .copied()
-        }
-    }
-}
+use crate::utils::shuffle;
 
 /// The tactical configuration DBD container
 #[must_use]
-#[derive(Clone, Debug)]
-pub struct DbdTacticalConfiguration<P> {
+#[derive(Debug)]
+pub struct DbdTacticalConfiguration<PH, P>
+where
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
+{
     /// Annealing temperature tracker
     temperature: AnnealingTemperature,
     /// Energy distance engine
-    ed: EnergyDistance<P>,
+    ed: EnergyDistance<PH, P>,
 
     /// Main circular config
-    configuration: TacticalConfiguration,
+    configuration: TacticalConfiguration<PH::Id>,
     /// Best cicular config, if better than main
-    configuration_best: Option<TacticalConfiguration>,
+    configuration_best: Option<TacticalConfiguration<PH::Id>>,
 
     /// The switch-candidates to evaluate
     pair: ((usize, usize), (usize, usize)), // bucket index, k-index within bucket
     /// The switch-candidates energy-delta
-    total_nenergy_delta: Option<f64>,
+    total_energy_n_delta: Option<f64>,
 }
 
-impl<P> DbdTacticalConfiguration<P> {
+impl<PH, P> DbdTacticalConfiguration<PH, P>
+where
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
+{
     /// Returns the optimal configuration
     #[inline]
-    pub fn optimal_configuration(&self) -> &TacticalConfiguration {
+    pub fn optimal_configuration(&self) -> &TacticalConfiguration<PH::Id> {
         self.configuration_best
             .as_ref()
-            .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
+            .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(&self.configuration)
     }
     /// Converts self into the optimal configuration
     #[inline]
-    pub fn into_optimal_configuration(self) -> TacticalConfiguration {
+    pub fn into_optimal_configuration(self) -> TacticalConfiguration<PH::Id> {
         self.configuration_best
-            .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
+            .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(self.configuration)
     }
     /// Returns a reference to the energy distance engine
     #[inline]
-    pub fn ed(&self) -> &EnergyDistance<P> { &self.ed }
+    pub fn ed(&self) -> &EnergyDistance<PH, P> { &self.ed }
     /// Returns a reference to the tactical configuration parameters
     #[inline]
     pub fn tcp(&self) -> &TacticalConfigurationParameters { self.configuration.tcp() }
@@ -197,33 +99,37 @@ impl<P> DbdTacticalConfiguration<P> {
     #[inline]
     pub fn new<R>(
         rng: &mut R,
+        ed: EnergyDistance<PH, P>,
         dbs_options: &DistributionalDesignOptions,
-        matrix: P,
-        sample_size: NonZeroUsize,
         eps: Epsilon<f64>,
-    ) -> Result<Self, TacticalConfiguration>
+    ) -> Result<Self, TacticalConfiguration<PH::Id>>
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: ConstructableDataView<
+            ConstructableContainer<usize>: DataViewMut + ConstructableDataView,
+        >,
         R: SamplingOptionsRng<EqualProbabilities>,
     {
-        let population_size = matrix.len();
-        let sample_size = sample_size.min(population_size);
+        let population_size = ed.population_size();
+        let sample_size = ed.sample_size().min(population_size);
         let tcp = TacticalConfigurationParameters::new_minimal(population_size, sample_size);
 
-        let mut buckets = TcBuckets::from_value(0, (sample_size, tcp.n_samples()));
+        let mut buckets = TcBuckets::from_value(
+            ed.phis().ids().next().expect("len > 0"),
+            (sample_size, tcp.n_samples()),
+        );
 
         if dbs_options.spatial_initialization() {
             // Initial budget
-            let mut b = vec![tcp.n_repeats().get(); tcp.population_size().get()];
+            let mut b = ed.phis().iter_map(|(id, _)| (id, tcp.n_repeats().get()));
             // Offset to samples
 
             for k in 0..tcp.n_samples().get() {
                 // Construct lpm opts
                 let p_max = tcp.n_samples().get() - k;
-                let p_spec = UnequalProbabilities::new_int(b.as_slice(), p_max)
+                let p_spec = UnequalProbabilities::new_int(&b, p_max)
                     .expect("b to be non-empty and limited by p_max");
                 let lpm_opts = SamplingOptions::with_spec(p_spec)
-                    .set_spreading(&matrix)
+                    .set_spreading(ed.data())
                     .expect("matrix to match population size");
                 let s = lpm_opts.lpm_2(rng);
                 assert_eq!(
@@ -233,18 +139,14 @@ impl<P> DbdTacticalConfiguration<P> {
                 );
 
                 // For each unit in the sample, reduce the budget
-                for (c, id) in buckets
-                    .col_iter_mut(k)
-                    .expect("column to exist")
-                    .zip(s.into_iter())
-                {
+                for (c, id) in buckets.col_iter_mut(k).expect("column to exist").zip(s) {
                     *c = id;
-                    b[id] -= 1;
+                    *b.get_mut(id).expect("id exists") -= 1;
                 }
             }
         } else {
-            // Add random sequence in next version
-            let initial_sequence = shuffled_indices(rng, tcp.population_size());
+            let mut initial_sequence: Vec<_> = ed.phis().ids().collect();
+            initial_sequence = shuffle(rng, initial_sequence);
             // Iterate over ther sequence, repeating each element n_repeats times
             let mut sequence_iter = initial_sequence
                 .into_iter()
@@ -255,10 +157,9 @@ impl<P> DbdTacticalConfiguration<P> {
                     *c = sequence_iter.next().expect("sequence to have a unit");
                 }
             }
-        };
+        }
 
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
-        let ed = EnergyDistance::new(matrix, sample_size);
 
         let pair = ((0, 0), (1, 0));
         let configuration = TacticalConfiguration::new(buckets, tcp, &ed);
@@ -275,14 +176,15 @@ impl<P> DbdTacticalConfiguration<P> {
             configuration_best: None,
 
             pair,
-            total_nenergy_delta: None,
+            total_energy_n_delta: None,
         })
     }
 }
 
-impl<P> AnnealingDistributionalDesign for DbdTacticalConfiguration<P>
+impl<PH, P> AnnealingDistributionalDesign for DbdTacticalConfiguration<PH, P>
 where
-    P: PointSet<Id = usize, Value = f64>,
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
 {
     #[inline]
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }
@@ -317,14 +219,14 @@ where
                 .copied();
             if a_id != b_id {
                 self.pair = (a_unit, b_unit);
-                self.total_nenergy_delta = None;
+                self.total_energy_n_delta = None;
                 return;
             }
         }
     }
     #[inline]
     fn evaluate_switch(&mut self) -> Option<f64> {
-        self.total_nenergy_delta = None;
+        self.total_energy_n_delta = None;
 
         let ((gr1, k1), (gr2, k2)) = self.pair;
         let id1 = *self
@@ -338,15 +240,21 @@ where
             .get((k2, gr2))
             .expect("second unit to be valid");
 
-        let delta = self.ed.delta(self.configuration.sample(gr1), id2, id1)?
-            + self.ed.delta(self.configuration.sample(gr2), id1, id2)?;
+        let delta = self
+            .ed
+            .delta_n(self.configuration.sample(gr1), id2, id1)
+            .expect("ids to exist")
+            + self
+                .ed
+                .delta_n(self.configuration.sample(gr2), id1, id2)
+                .expect("ids to exist");
 
-        self.total_nenergy_delta = Some(delta);
-        self.total_nenergy_delta
+        self.total_energy_n_delta = Some(delta);
+        self.total_energy_n_delta
     }
     #[inline]
     fn switch(&mut self) {
-        let Some(delta) = self.total_nenergy_delta else {
+        let Some(delta) = self.total_energy_n_delta else {
             return;
         };
 
@@ -354,7 +262,7 @@ where
             (self.pair.0.1, self.pair.0.0),
             (self.pair.1.1, self.pair.1.0),
         );
-        let _total_energy = self.configuration.add_nenergy_delta(delta);
+        let _total_energy = self.configuration.add_energy_n_delta(delta);
     }
 
     #[inline]
@@ -362,7 +270,7 @@ where
         // Only replace if conf_best is None, or if we're better than conf_best
         self.configuration_best = match &self.configuration_best {
             // If there is a best, check if the current configuration is better
-            Some(best) if self.configuration.total_nenergy() < best.total_nenergy() => {
+            Some(best) if self.configuration.total_energy_n() < best.total_energy_n() => {
                 Some(self.configuration.clone())
             }
             // If there is no best yet

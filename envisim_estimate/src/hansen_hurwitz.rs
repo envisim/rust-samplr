@@ -17,30 +17,15 @@ use envisim_utils::matrix::{
     MatrixBase,
     SliceView,
 };
+use envisim_utils::utils::{
+    ContiguousDataView,
+    DataView,
+    Number,
+};
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
-use crate::utils::{
-    ymui_iter_to_vec,
-    zip3,
-};
-
-/// Calculates the y / mu * s quotient
-///
-/// # Errors
-/// Returns an error if the slice lengths dont match
-#[inline]
-fn to_ymui_iter<'borrow>(
-    y_values: &'borrow [f64],
-    expected: &'borrow [f64],
-    inclusions: &'borrow [f64],
-) -> EstimationResult<impl Iterator<Item = (&'borrow f64, &'borrow f64, &'borrow f64)>> {
-    let sample_size = y_values.len();
-    if sample_size != expected.len() || sample_size != inclusions.len() {
-        return Err(EstimationError::InvalidSample);
-    }
-    Ok(zip3(y_values, expected, inclusions))
-}
+use crate::utils::ymui_quotient;
 
 /// Hansen-Hurwitz estimator of a total
 ///
@@ -57,29 +42,54 @@ fn to_ymui_iter<'borrow>(
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
 #[inline]
-pub fn estimate(y_values: &[f64], expected: &[f64], inclusions: &[f64]) -> EstimationResult<f64> {
-    to_ymui_iter(y_values, expected, inclusions)
-        .and_then(ymui_iter_to_vec)
-        .map(|q_vec| q_vec.iter().sum())
+pub fn estimate<Y, M, I>(y_values: Y, expected: M, inclusions: I) -> EstimationResult<f64>
+where
+    Y: DataView<Value: Number>,
+    M: DataView<Id = Y::Id, Value = f64>,
+    I: DataView<Id = Y::Id, Value: Number>,
+{
+    if y_values.len() != expected.len() || y_values.len() != inclusions.len() {
+        return Err(EstimationError::InvalidSample);
+    }
+
+    expected
+        .entries()
+        .map(|(id, mu)| {
+            let y = y_values
+                .get(id)
+                .ok_or(EstimationError::InvalidAuxiliaries)?;
+            let inc = inclusions
+                .get(id)
+                .ok_or(EstimationError::InvalidNumberOfInclusions)?;
+            let v = ymui_quotient((*y, *mu, *inc))?;
+            Ok(v)
+        })
+        .sum()
 }
 
 /// Hansen-Hurwitz estimator of variance of total estimate
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
+#[expect(clippy::missing_panics_doc, reason = "panic should be impossible")]
 #[inline]
-pub fn variance<T>(
-    y_values: &[f64],
-    expected: &[f64],
-    inclusions: &[f64],
-    expected_second_order: &MatrixBase<T>,
+pub fn variance<Y, M1, I, M2>(
+    y_values: Y,
+    expected: M1,
+    inclusions: I,
+    expected_second_order: &MatrixBase<M2>,
 ) -> EstimationResult<f64>
 where
-    T: SliceView<Elem = f64>,
+    Y: ContiguousDataView<Value: Number>,
+    M1: ContiguousDataView<Id = Y::Id, Value = f64>,
+    I: ContiguousDataView<Id = Y::Id, Value: Number>,
+    M2: SliceView<Id = Y::Id, Value = f64>,
 {
     let sample_size = y_values.len();
 
-    if sample_size != expected_second_order.nrow().get()
+    if sample_size != expected.len()
+        || sample_size != inclusions.len()
+        || sample_size != expected_second_order.nrow().get()
         || sample_size != expected_second_order.ncol().get()
     {
         return Err(EstimationError::InvalidSample);
@@ -87,20 +97,36 @@ where
         return Ok(0.0);
     }
 
-    let ypi = to_ymui_iter(y_values, expected, inclusions).and_then(ymui_iter_to_vec)?;
+    let ymui_box: Box<[f64]> = y_values
+        .values()
+        .copied()
+        .zip(expected.values().copied())
+        .zip(inclusions.values().copied())
+        .map(|((y, m), i)| ymui_quotient((y, m, i)))
+        .collect::<EstimationResult<Box<[f64]>>>()?;
+
     let mut variance: f64 = 0.0;
 
-    for i in 0..sample_size {
-        if ypi[i].is_nan() {
+    for (i, &ymui_i) in ymui_box.iter().enumerate() {
+        if ymui_i.is_nan() {
             return Ok(f64::NAN);
         }
-        variance += ypi[i].powi(2) * (1.0 - expected[i].powi(2) / expected_second_order[(i, i)]);
+        let mu_i = expected.get(i).expect("i to exist");
+
+        let mu_ii = expected_second_order[(i, i)];
+        if mu_ii < 0.0 || !mu_ii.is_finite() {
+            return Err(EstimationError::InvalidExpectedNumberOfInclusions);
+        }
+        variance += ymui_i.powi(2) * (1.0 - mu_i.powi(2) / mu_ii);
 
         for j in 0..i {
-            variance += 2.0
-                * ypi[i]
-                * ypi[j]
-                * (1.0 - expected[i] * expected[j] / expected_second_order[(i, j)]);
+            let ymui_j = ymui_box.get(j).expect("j to exist");
+            let mu_j = expected.get(j).expect("j to exist");
+            let mu_second_ord = expected_second_order[(i, j)];
+            if mu_second_ord < 0.0 || !mu_second_ord.is_finite() {
+                return Err(EstimationError::InvalidExpectedNumberOfInclusions);
+            }
+            variance += 2.0 * ymui_i * ymui_j * (1.0 - mu_i * mu_j / mu_second_ord);
         }
     }
 
@@ -117,18 +143,19 @@ mod test {
     #[test]
     fn test_hh() -> EstimationResult<()> {
         let indices: Vec<usize> = vec![1, 3, 5];
-        let y: Vec<f64> = indices.iter().map(|&id| Y_VALS[id]).collect();
-        let mu: Vec<f64> = indices.iter().map(|&id| MU_VALS[id]).collect();
+        let y: Vec<f64> = indices.values().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices.values().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![1.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions)?, 205.0);
+
+        assert_eq!(estimate(y, mu, inclusions)?, 205.0);
 
         let indices: Vec<usize> = vec![0, 0, 2, 5];
         let mut indices_unique = indices.clone();
         indices_unique.dedup();
-        let y: Vec<f64> = indices_unique.iter().map(|&id| Y_VALS[id]).collect();
-        let mu: Vec<f64> = indices_unique.iter().map(|&id| MU_VALS[id]).collect();
+        let y: Vec<f64> = indices_unique.values().map(|&id| Y_VALS[id]).collect();
+        let mu: Vec<f64> = indices_unique.values().map(|&id| MU_VALS[id]).collect();
         let inclusions: Vec<f64> = vec![2.0, 1.0, 1.0];
-        assert_eq!(estimate(&y, &mu, &inclusions)?, 78.0);
+        assert_eq!(estimate(y, mu, inclusions)?, 78.0);
         Ok(())
     }
 }

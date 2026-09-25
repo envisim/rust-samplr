@@ -4,6 +4,10 @@ mod rpkg
 _default:
   @just --list --list-submodules
 
+# Run check
+rust-check: && rpkg::rust-check
+  cargo +1.85.1 check
+
 # Run clippy
 clippy: && rpkg::clippy
   cargo clippy

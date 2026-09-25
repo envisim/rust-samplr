@@ -10,6 +10,10 @@ build := 'build'
 _default:
   @just --list rpkg
 
+# Run check
+rust-check:
+  cargo +1.85.1 check
+
 # Run clippy
 clippy:
   cargo clippy --manifest-path {{manifest}}

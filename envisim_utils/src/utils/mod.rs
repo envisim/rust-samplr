@@ -25,7 +25,14 @@ pub use number_traits::{
     NumberInt,
 };
 pub use slice_view::{
+    ConstructableDataView,
+    ContiguousDataView,
+    DataView,
+    DataViewMut,
     SliceView,
     SliceViewMut,
 };
-pub use spatial::PointSet;
+pub use spatial::{
+    ContiguousPointSet,
+    PointSet,
+};

@@ -19,7 +19,9 @@
 //! In proceedings, ICES V, Geneva Switzerland 2016.
 //! In Proceedings of the Fifth International Conference on Establishment Surveys.
 
+mod neighbour;
 pub mod searcher;
+mod split;
 pub mod split_methods;
 
 use std::num::NonZeroUsize;
@@ -133,6 +135,19 @@ where
         let node = Node::new(config, borders, units);
 
         Ok(Self { node, data })
+    }
+    /// Constructs a new tree containing `units`, according to some `config`.
+    /// # Errors
+    /// Returns an error if the any of the `units` does not exist in the data.
+    #[inline]
+    pub fn from_iter<C, I, S>(config: &'bdata C, units: I) -> TreeResult<Self>
+    where
+        C: TreeConfig<Data = P, Split = S>,
+        I: Iterator<Item = P::Id>,
+        S: FindSplit<P>,
+    {
+        let mut units: Vec<P::Id> = units.collect();
+        Self::new(config, &mut units)
     }
     /// Returns a reference to the data.
     #[must_use]

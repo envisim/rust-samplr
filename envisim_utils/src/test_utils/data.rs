@@ -1,3 +1,6 @@
+use std::num::NonZeroUsize;
+use std::ops::Range;
+
 pub use crate::matrix::Dimensions;
 use crate::matrix::MatrixRef;
 use crate::sampling_options::{
@@ -68,7 +71,9 @@ impl Data10 {
     }
     /// Returns an equal probability spec
     #[inline]
-    pub fn prob_e() -> EqualProbabilities { EqualProbabilities::new(10, 2).unwrap() }
+    pub fn prob_e() -> EqualProbabilities<Range<usize>> {
+        EqualProbabilities::new(NonZeroUsize::new(10).unwrap(), 2).unwrap()
+    }
     /// Returns a matrix of some 2d data
     #[inline]
     pub fn matrix() -> MatrixRef<'static, f64> { MatrixRef::new(&Self::DATA_2, 10).unwrap() }
@@ -97,11 +102,11 @@ impl Data10 {
     /// Returns equal sampling options with spreading and balancing
     #[inline]
     pub fn options_e() -> SamplingOptions<
-        EqualProbabilities,
+        EqualProbabilities<Range<usize>>,
         SpreadingOptions<MatrixRef<'static, f64>>,
         BalancingOptions<MatrixRef<'static, f64>>,
     > {
-        SamplingOptions::with_spec_equal(Data10::prob_e())
+        SamplingOptions::with_spec(Data10::prob_e())
             .set_spreading(Data10::matrix())
             .unwrap()
             .set_balancing(Data10::bmatrix_ep())

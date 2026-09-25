@@ -36,6 +36,7 @@ use num_traits::{
 };
 
 use crate::utils::{
+    ContiguousPointSet,
     Epsilon,
     Number,
     NumberFloat,
@@ -71,15 +72,15 @@ impl<T> MatrixBase<T> {
         NZ: TryInto<NonZeroUsize>,
     {
         let rows = rows.try_into().ok()?;
-        let dims = MatrixDims::from_row_count(data.data().len(), rows)?;
+        let dims = MatrixDims::from_row_count(data.slice().len(), rows)?;
         Some(Self { data, dims })
     }
     /// Constructs a new owned matrix representation filled with some value `data`.
     #[inline]
-    pub fn from_value<D>(value: T::Elem, dims: D) -> Self
+    pub fn from_value<D>(value: T::Value, dims: D) -> Self
     where
-        T: SliceView + From<Vec<T::Elem>>,
-        T::Elem: Copy,
+        T: SliceView + From<Vec<T::Value>>,
+        T::Value: Copy,
         D: Into<MatrixDims>,
     {
         let dims: MatrixDims = dims.into();
@@ -93,15 +94,15 @@ impl<T> MatrixBase<T> {
     #[inline]
     pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
     where
-        T: SliceView + From<Vec<T::Elem>>,
-        T::Elem: ConstZero + ConstOne + Copy,
+        T: SliceView + From<Vec<T::Value>>,
+        T::Value: ConstZero + ConstOne + Copy,
         NZ: TryInto<NonZeroUsize>,
     {
         let rows = rows.try_into().ok()?;
         let dims = MatrixDims::new(rows, rows);
-        let mut data = vec![T::Elem::ZERO; dims.len().get()];
+        let mut data = vec![T::Value::ZERO; dims.len().get()];
         for e in data.iter_mut().step_by(rows.get() + 1) {
-            *e = T::Elem::ONE;
+            *e = T::Value::ONE;
         }
         Some(Self {
             data: data.into(),
@@ -110,24 +111,24 @@ impl<T> MatrixBase<T> {
     }
     /// Constructs a borrowed matrix representation from a matrix.
     #[inline]
-    pub fn to_matrixref(&self) -> MatrixRef<'_, T::Elem>
+    pub fn to_matrixref(&self) -> MatrixRef<'_, T::Value>
     where
         T: SliceView,
     {
         MatrixRef {
-            data: self.data.data(),
+            data: self.data.slice(),
             dims: self.dims(),
         }
     }
     /// Constructs an owned matrix representation from a matrix. Copies the data.
     #[inline]
-    pub fn to_matrix(&self) -> Matrix<T::Elem>
+    pub fn to_matrix(&self) -> Matrix<T::Value>
     where
         T: SliceView,
-        T::Elem: Copy,
+        T::Value: Copy,
     {
         Matrix {
-            data: self.data.data().to_vec(),
+            data: self.data.slice().to_vec(),
             dims: self.dims(),
         }
     }
@@ -139,7 +140,7 @@ impl<T> MatrixBase<T> {
     /// Returns `None`  if the coordinates are invalid.
     #[must_use]
     #[inline]
-    pub fn get<C>(&self, coord: C) -> Option<&T::Elem>
+    pub fn get<C>(&self, coord: C) -> Option<&T::Value>
     where
         T: SliceView,
         C: Into<MatrixCoord>,
@@ -151,7 +152,7 @@ impl<T> MatrixBase<T> {
     /// Returns `None`  if the coordinates are invalid.
     #[must_use]
     #[inline]
-    pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut T::Elem>
+    pub fn get_mut<C>(&mut self, coord: C) -> Option<&mut T::Value>
     where
         T: SliceViewMut,
         C: Into<MatrixCoord>,
@@ -164,13 +165,13 @@ impl<T> MatrixBase<T> {
     pub fn swap<CA, CB>(&mut self, coord_a: CA, coord_b: CB) -> Option<()>
     where
         T: SliceViewMut,
-        T::Elem: Copy,
+        T::Value: Copy,
         CA: Into<MatrixCoord>,
         CB: Into<MatrixCoord>,
     {
         let idx_a = coord_a.into().to_linear(self.dims)?;
         let idx_b = coord_b.into().to_linear(self.dims)?;
-        self.data.data_mut().swap(idx_a, idx_b);
+        self.data.slice_mut().swap(idx_a, idx_b);
         Some(())
     }
     /// Returns an iterator of the elements in a row.
@@ -180,14 +181,14 @@ impl<T> MatrixBase<T> {
     pub fn row_iter(
         &self,
         row: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + Clone>
+    ) -> Option<impl ExactSizeIterator<Item = &T::Value> + DoubleEndedIterator + Clone>
     where
         T: SliceView,
     {
         let nrow = self.nrow().get();
         self.dims()
             .contains_row(row)
-            .then(|| self.data.data()[row..].iter().step_by(nrow))
+            .then(|| self.data.slice()[row..].iter().step_by(nrow))
     }
     /// Returns a mutable iterator of the elements in a row.
     /// Returns `None` if the row is invalid.
@@ -196,14 +197,14 @@ impl<T> MatrixBase<T> {
     pub fn row_iter_mut(
         &mut self,
         row: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator>
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Value> + DoubleEndedIterator>
     where
         T: SliceViewMut,
     {
         let nrow = self.nrow().get();
         self.dims()
             .contains_row(row)
-            .then(|| self.data.data_mut()[row..].iter_mut().step_by(nrow))
+            .then(|| self.data.slice_mut()[row..].iter_mut().step_by(nrow))
     }
     /// Returns an iterator of the elements in a column.
     /// Returns `None` if the column is invalid.
@@ -212,7 +213,9 @@ impl<T> MatrixBase<T> {
     pub fn col_iter(
         &self,
         col: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &T::Elem> + DoubleEndedIterator + FusedIterator + Clone>
+    ) -> Option<
+        impl ExactSizeIterator<Item = &T::Value> + DoubleEndedIterator + FusedIterator + Clone,
+    >
     where
         T: SliceView,
     {
@@ -220,7 +223,7 @@ impl<T> MatrixBase<T> {
         let start = nrow * col;
         self.dims()
             .contains_col(col)
-            .then(|| self.data.data()[start..(start + nrow)].iter())
+            .then(|| self.data.slice()[start..(start + nrow)].iter())
     }
     /// Returns a mutable iterator of the elements in a column.
     /// Returns `None` if the column is invalid.
@@ -229,7 +232,7 @@ impl<T> MatrixBase<T> {
     pub fn col_iter_mut(
         &mut self,
         col: usize,
-    ) -> Option<impl ExactSizeIterator<Item = &mut T::Elem> + DoubleEndedIterator + FusedIterator>
+    ) -> Option<impl ExactSizeIterator<Item = &mut T::Value> + DoubleEndedIterator + FusedIterator>
     where
         T: SliceViewMut,
     {
@@ -237,26 +240,26 @@ impl<T> MatrixBase<T> {
         let start = nrow * col;
         self.dims()
             .contains_col(col)
-            .then(|| self.data.data_mut()[start..(start + nrow)].iter_mut())
+            .then(|| self.data.slice_mut()[start..(start + nrow)].iter_mut())
     }
     /// Multiplies the matrix by a column vector.
     /// Returns `None` if the column vector length does not match the number of columns in the
     /// matrix.
     #[must_use]
     #[inline]
-    pub fn mul_vec(&self, rhs: &[T::Elem]) -> Option<Matrix<T::Elem>>
+    pub fn mul_vec(&self, rhs: &[T::Value]) -> Option<Matrix<T::Value>>
     where
         T: SliceView,
-        T::Elem: Number,
+        T::Value: Number,
     {
         if self.ncol().get() != rhs.len() {
             return None;
         }
-        let mut product = vec![T::Elem::ZERO; self.nrow().get()];
+        let mut product = vec![T::Value::ZERO; self.nrow().get()];
         let mut index = 0;
         for mul in rhs {
             for pr in &mut product {
-                *pr += *mul * self.data.data()[index];
+                *pr += *mul * self.data.slice()[index];
                 index += 1;
             }
         }
@@ -267,24 +270,24 @@ impl<T> MatrixBase<T> {
     /// other matrix.
     #[must_use]
     #[inline]
-    pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2>) -> Option<Matrix<T::Elem>>
+    pub fn mul_mat<T2>(&self, rhs: &MatrixBase<T2>) -> Option<Matrix<T::Value>>
     where
         T: SliceView,
-        T::Elem: Number,
-        T2: SliceView<Elem = T::Elem>,
+        T::Value: Number,
+        T2: SliceView<Value = T::Value>,
     {
         if self.ncol() != rhs.nrow() {
             return None;
         }
-        let mut product = Vec::<T::Elem>::with_capacity(self.nrow().get() * rhs.ncol().get());
+        let mut product = Vec::<T::Value>::with_capacity(self.nrow().get() * rhs.ncol().get());
         let mut index = 0;
         // Multiply self by each column in rhs
         for _ in 0..rhs.ncol().get() {
             // Take rhs column
-            let rhs_col = &rhs.data.data()[index..(index + rhs.nrow().get())];
+            let rhs_col = &rhs.data.slice()[index..(index + rhs.nrow().get())];
             // Result
             let temp_column_res = self.mul_vec(rhs_col)?;
-            product.extend_from_slice(temp_column_res.data.data());
+            product.extend_from_slice(temp_column_res.data.slice());
             index += rhs.nrow().get();
         }
         Matrix::new(product, self.nrow())
@@ -295,11 +298,11 @@ impl<T> MatrixBase<T> {
     #[expect(clippy::many_single_char_names, reason = "only within small scope")]
     #[must_use]
     #[inline]
-    pub fn inverse<E>(&self, eps: E) -> Option<Matrix<T::Elem>>
+    pub fn inverse<E>(&self, eps: E) -> Option<Matrix<T::Value>>
     where
         T: SliceView,
-        T::Elem: NumberFloat,
-        E: TryInto<Epsilon<T::Elem>>,
+        T::Value: NumberFloat,
+        E: TryInto<Epsilon<T::Value>>,
     {
         // Non-square
         if !self.dims().is_square() {
@@ -312,14 +315,14 @@ impl<T> MatrixBase<T> {
             const NZ2: NonZeroUsize = NonZeroUsize::new(2).expect("2 > 0");
             // ab cd => 02 13
             #[expect(clippy::unreachable, reason = "panic implies bug")]
-            let &[a, c, b, d] = self.data.data() else {
+            let &[a, c, b, d] = self.data.slice() else {
                 unreachable!("2x2 = 4")
             };
             // ad-bc
             let det = a * d - b * c;
             if eps.is_zero(det) {
                 return None;
-            };
+            }
             // d -c -b a
             let inv = vec![d / det, -c / det, -b / det, a / det];
             return MatrixBase::new(inv, NZ2);
@@ -327,7 +330,7 @@ impl<T> MatrixBase<T> {
             const NZ3: NonZeroUsize = NonZeroUsize::new(3).expect("3 > 0");
             // abc def ghi => 036 147 258
             #[expect(clippy::unreachable, reason = "panic implies bug")]
-            let &[a, d, g, b, e, h, c, f, i] = self.data.data() else {
+            let &[a, d, g, b, e, h, c, f, i] = self.data.slice() else {
                 unreachable!("3x3=9")
             };
             let mut inv = vec![
@@ -344,7 +347,7 @@ impl<T> MatrixBase<T> {
             let det = a * inv[0] + b * inv[1] + c * inv[2]; // aA + bB +cC
             if eps.is_zero(det) {
                 return None;
-            };
+            }
             for v in &mut inv {
                 *v /= det;
             }
@@ -357,16 +360,16 @@ impl<T> MatrixBase<T> {
             (lu, p)
         };
 
-        let mut inv = MatrixBase::from_value(T::Elem::ZERO, self.dims());
+        let mut inv = MatrixBase::from_value(T::Value::ZERO, self.dims());
 
         // Solve for each column of the identity mat
         for col in 0..nrow {
             // Solve LY = P
             for row in 0..nrow {
                 let mut sum = if p[row] == col {
-                    T::Elem::ONE
+                    T::Value::ONE
                 } else {
-                    T::Elem::ZERO
+                    T::Value::ZERO
                 };
                 for k in 0..row {
                     sum -= lu[(row, k)] * inv[(k, col)];
@@ -391,11 +394,11 @@ impl<T> MatrixBase<T> {
     pub fn reduced_row_echelon_form(&mut self)
     where
         T: SliceViewMut,
-        T::Elem: NumberFloat,
+        T::Value: NumberFloat,
     {
         let dims = self.dims();
         let index = |row, col| row + col * dims.rows.get();
-        let data = self.data.data_mut();
+        let data = self.data.slice_mut();
 
         let mut lead: usize = 0;
 
@@ -408,7 +411,7 @@ impl<T> MatrixBase<T> {
 
             let mut i: usize = row;
 
-            while data[index(i, lead)] == T::Elem::ZERO {
+            while data[index(i, lead)] == T::Value::ZERO {
                 i += 1;
 
                 if i == dims.rows.get() {
@@ -436,8 +439,8 @@ impl<T> MatrixBase<T> {
             {
                 let mut index_row = index(row, lead);
                 let lead_value = data[index_row];
-                if lead_value != T::Elem::ONE {
-                    data[index_row] = T::Elem::ONE;
+                if lead_value != T::Value::ONE {
+                    data[index_row] = T::Value::ONE;
                     index_row += dims.rows.get();
 
                     for _ in (lead + 1)..dims.cols.get() {
@@ -456,11 +459,11 @@ impl<T> MatrixBase<T> {
                 let mut index_j = index(j, lead);
 
                 let lead_multiplicator = data[index_j];
-                if lead_multiplicator == T::Elem::ZERO {
+                if lead_multiplicator == T::Value::ZERO {
                     continue;
                 }
 
-                data[index_j] = T::Elem::ZERO;
+                data[index_j] = T::Value::ZERO;
                 index_j += dims.rows.get();
                 let mut index_row = index(row, lead + 1);
 
@@ -488,8 +491,8 @@ impl<T> MatrixBase<T> {
     pub fn lu_decomposition<E>(&mut self, eps: E) -> Option<Box<[usize]>>
     where
         T: SliceViewMut,
-        T::Elem: NumberFloat,
-        E: TryInto<Epsilon<T::Elem>>,
+        T::Value: NumberFloat,
+        E: TryInto<Epsilon<T::Value>>,
     {
         // Non-square
         if !self.dims().is_square() {
@@ -502,7 +505,7 @@ impl<T> MatrixBase<T> {
         for row in 0..nrows {
             // Find pivot_row, the row with the highest value in the row-column
             let mut pivot_row = row;
-            let mut max_val = T::Elem::ZERO;
+            let mut max_val = T::Value::ZERO;
             for row_b in row..nrows {
                 let val = Float::abs(self[(row_b, row)]);
                 if !Float::is_finite(val) {
@@ -527,7 +530,7 @@ impl<T> MatrixBase<T> {
                     // guaranteed: row < pivot_row
                     let index_r = MatrixCoord::new(row, col).to_linear_unchecked(self.dims());
                     let index_p = index_r + (pivot_row - row);
-                    self.data.data_mut().swap(index_r, index_p);
+                    self.data.slice_mut().swap(index_r, index_p);
                 }
             }
 
@@ -579,14 +582,13 @@ where
     T: SliceView,
     I: Into<MatrixCoord>,
 {
-    type Output = T::Elem;
+    type Output = T::Value;
     /// # Panics
     /// If index is out of bounds.
-    #[must_use]
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         let index = index.into().to_linear_unchecked(self.dims);
-        &self.data.data()[index]
+        &self.data.slice()[index]
     }
 }
 impl<T, I> IndexMut<I> for MatrixBase<T>
@@ -597,19 +599,19 @@ where
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         let index = index.into().to_linear_unchecked(self.dims());
-        &mut self.data.data_mut()[index]
+        &mut self.data.slice_mut()[index]
     }
 }
 
-impl<T> From<&MatrixBase<T>> for Matrix<T::Elem>
+impl<T> From<&MatrixBase<T>> for Matrix<T::Value>
 where
     T: SliceView,
-    T::Elem: Copy,
+    T::Value: Copy,
 {
     #[inline]
     fn from(matrix: &MatrixBase<T>) -> Self { matrix.to_matrix() }
 }
-impl<'bdata, T> From<&'bdata MatrixBase<T>> for MatrixRef<'bdata, T::Elem>
+impl<'bdata, T> From<&'bdata MatrixBase<T>> for MatrixRef<'bdata, T::Value>
 where
     T: SliceView,
 {
@@ -620,9 +622,9 @@ where
 impl<T> PointSet for MatrixBase<T>
 where
     T: SliceView,
-    T::Elem: Number,
+    T::Value: Number,
 {
-    type Value = T::Elem;
+    type Value = T::Value;
     type Id = usize;
     /// Returns the number of rows in the matrix
     #[inline]
@@ -648,11 +650,10 @@ where
     #[inline]
     unsafe fn coord_unchecked(&self, row: usize, col: usize) -> &Self::Value {
         let idx = row + col * self.dims.rows.get();
-        &self.data.data()[idx]
+        &self.data.slice()[idx]
     }
     /// Returns an iterator over the coords of `row`, or `None` if `row` does not exist.
     #[expect(clippy::renamed_function_params, reason = "a matrix has rows, not ids")]
-    #[must_use]
     #[inline]
     fn coords(
         &self,
@@ -660,7 +661,6 @@ where
     ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone> {
         self.row_iter(row)
     }
-    #[must_use]
     #[inline]
     fn iter(
         &self,
@@ -670,14 +670,13 @@ where
                + Clone,
     > + Clone {
         self.ids().map(move |id| {
-            self.data.data()[id..]
+            self.data.slice()[id..]
                 .iter()
                 .step_by(self.dims.rows.get())
                 .enumerate()
                 .map(move |(c, v)| (id, c, v))
         })
     }
-    #[must_use]
     #[inline]
     fn columns(
         &self,
@@ -690,12 +689,18 @@ where
             let end = start + self.dims.rows.get();
             let range = start..end;
             start = end;
-            self.data.data()[range]
+            self.data.slice()[range]
                 .iter()
                 .enumerate()
                 .map(move |(id, v)| (id, c, v))
         })
     }
+}
+impl<T> ContiguousPointSet for MatrixBase<T>
+where
+    T: SliceView,
+    T::Value: Number,
+{
 }
 
 #[cfg(test)]
@@ -723,7 +728,7 @@ mod tests {
 
         // From value
         let m_val = Matrix::from_value(10, MatrixDims::new(nz(2), nz(2)));
-        assert_eq!(m_val.data.data(), &[10, 10, 10, 10]);
+        assert_eq!(m_val.data.slice(), &[10, 10, 10, 10]);
     }
 
     #[test]
@@ -831,7 +836,7 @@ mod tests {
         assert_eq!(m.nrow(), nz(2));
         assert_eq!(m.ncol(), nz(2));
         // Verify data was truncated/kept according to layout
-        assert_eq!(m.data.data().len(), 4);
+        assert_eq!(m.data.slice().len(), 4);
     }
 
     #[test]

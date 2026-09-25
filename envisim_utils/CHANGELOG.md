@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Explicitly set MSRV to 1.85.1, separated from development toolchain.
 
+### Added
+- Added traits `DataView`, `DataViewMut`, `ContiguousDataView`, `ConstructableDataView` to represent arbitrary containers of key-value (id-value) pair data. Added `ContiguousPointSet` to represent `PointSet` with contiguous ids.
+- Added trait `ProbabilityStore`, implemented by `ProbabilitySet`.
+
+### Change
+- Changed `SliceView` and `SliceViewMut` to provide `slice` and `slice_mut`.
+- Changed `Indices` and `Pair` to be generic over `ID`. Renamed `with_fill` to `from_len` for usize-ids.
+- Changed `ProbablitiesSpec` to extend `DataView`, in order to support arbitrary ids. Renamed multiple methods on the trait. Associated type `Native` replaced by inherited type `DataView::Value`. `ProbabilitesSpec` now also depends on `ConstructableDataView`.
+- Changed `Sample` to be generic over `ID`.
+- Changed `Probability` to be a new-type, instead of enum, for transparent representation.
+
+### Removed
+- Removed `CoordinationRandomValues`.
+- Removed `SamplingOptions::to_controller`, now constructed by `SampleController::new`.
+- Removed `UnitRemoving` trait from `SampleController`, replaced with `TreeStorage`.
+- Moved `pips` module to `envisim_estimate`.
 
 ## [0.7.0] - 2026-08-13
 - Added dependency [`thiserror`](https://crates.io/crates/thiserror).

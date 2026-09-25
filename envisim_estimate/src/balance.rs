@@ -15,47 +15,47 @@
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilitiesSpec,
+    BaseProbabilitiesSpec,
     SpreadingOptions,
 };
 use envisim_utils::utils::PointSet;
 
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
-use crate::utils::ypi_quotient;
 
 /// Returns the balance deviations per dimension
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.
 #[inline]
-fn balance_deviation<PROB, DATA>(
-    sample: &[usize],
+fn balance_deviation<I, PROB, DATA>(
+    sample: I,
     probabilities: &PROB,
     data: &DATA,
 ) -> EstimationResult<Vec<f64>>
 where
-    PROB: ProbabilitiesSpec<Real = f64>,
-    DATA: PointSet<Id = usize, Value = f64>,
+    I: IntoIterator<Item = PROB::Id, IntoIter: Clone>,
+    PROB: BaseProbabilitiesSpec<Real = f64>,
+    DATA: PointSet<Id = PROB::Id, Value = f64>,
 {
-    let population_size = probabilities.population_size().get();
-
+    let sample = sample.into_iter();
     (0..data.dimensions().get())
         .map(|j| {
             // Calculate the dimension total for the population
-            let pop_sum: f64 = (0..population_size)
-                .map(|i| data.coord(i, j))
+            let pop_sum = data
+                .ids()
+                .map(|id| data.coord(id, j))
                 .sum::<Option<f64>>()
                 .ok_or(EstimationError::InvalidSample)?;
             // Calculate the dimension HT-estimator
             let sample_sum: f64 = sample
-                .iter()
-                .map(|&i| {
-                    let p = probabilities.nth_real(i);
-                    data.coord(i, j)
-                        .zip(p)
-                        .ok_or(EstimationError::InvalidSample)
-                        .and_then(ypi_quotient)
+                .clone()
+                .map(|id| {
+                    let p = probabilities
+                        .get_real(id)
+                        .ok_or(EstimationError::InvalidProbability)?;
+                    let x = data.coord(id, j).ok_or(EstimationError::InvalidSample)?;
+                    Ok(x / p)
                 })
                 .sum::<EstimationResult<f64>>()?;
             Ok(pop_sum - sample_sum)
@@ -73,20 +73,21 @@ where
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p)?.set_spreading(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_spreading(&s, &options)?;
+/// let sb = balance_deviation_spreading(s, &options)?;
 /// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_spreading<PO, P, BAL>(
-    sample: &[usize],
+pub fn balance_deviation_spreading<I, PO, P, BAL>(
+    sample: I,
     options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
+    I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.spreading().data())
 }
@@ -101,20 +102,21 @@ where
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let options = SamplingOptions::new(p)?.set_balancing(m)?;
 /// let s = [0, 3, 5, 8, 9];
-/// let sb = balance_deviation_balancing(&s, &options)?;
+/// let sb = balance_deviation_balancing(s, &options)?;
 /// # Ok::<(), EstimationError>(())
 /// ```
 ///
 /// # Errors
 /// Returns an error if any sample unit is oob, or the sample is empty.
 #[inline]
-pub fn balance_deviation_balancing<PO, AUX, P>(
-    sample: &[usize],
+pub fn balance_deviation_balancing<I, PO, AUX, P>(
+    sample: I,
     options: &SamplingOptions<PO, AUX, BalancingOptions<P>>,
 ) -> EstimationResult<Vec<f64>>
 where
-    PO: ProbabilitiesSpec<Real = f64>,
-    P: PointSet<Id = usize, Value = f64>,
+    I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.balancing().data())
 }
@@ -131,11 +133,11 @@ mod tests {
         let data = Data10::matrix();
         let spec = Data10::prob_e();
         let p = spec.as_real();
-        let options = SamplingOptions::with_spec_equal(spec)
+        let options = SamplingOptions::with_spec(spec)
             .set_spreading(&data)
             .unwrap();
 
-        let sb = balance_deviation_spreading(&[0], &options).unwrap();
+        let sb = balance_deviation_spreading([0], &options).unwrap();
         let dev = vec![
             data.col_iter(0).unwrap().sum::<f64>() - data[(0, 0)] / p,
             data.col_iter(1).unwrap().sum::<f64>() - data[(0, 1)] / p,
@@ -144,7 +146,7 @@ mod tests {
         assert_vec!(sb, dev);
 
         let options = options.set_balancing(&data).unwrap();
-        let sb = balance_deviation_balancing(&[0], &options).unwrap();
+        let sb = balance_deviation_balancing([0], &options).unwrap();
 
         assert_vec!(sb, dev);
     }

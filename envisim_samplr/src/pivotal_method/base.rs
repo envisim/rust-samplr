@@ -10,9 +10,10 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Basic pivotal methods
+//! Basic pivotal methods.
 
 use envisim_utils::indices::Pair;
+use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::random::{
     Rand,
     Rng,
@@ -25,66 +26,51 @@ use envisim_utils::sampling_options::{
 };
 
 use super::runner::{
-    PivotalRunner,
     PivotalStrategy,
+    pivotal_runner,
 };
 
-/// Sequential local pivotal method
-#[must_use]
-pub struct SequentialStrategy();
-impl SequentialStrategy {
-    /// Constructs a new [`PivotalRunner`] using the sequential strategy
+/// Sequential local pivotal method.
+struct SequentialStrategy;
+impl<PR> PivotalStrategy<PR, ()> for SequentialStrategy
+where
+    PR: ProbabilityStore,
+{
     #[inline]
-    pub fn new<PO, AUX, BAL>(
-        options: &SamplingOptions<PO, AUX, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, ()>
-    where
-        PO: ProbabilitiesSpec,
-    {
-        let controller = options.to_controller();
-        PivotalRunner {
-            controller,
-            strategy: Self(),
-        }
-    }
-}
-impl<PROB> PivotalStrategy<PROB, ()> for SequentialStrategy {
-    #[inline]
-    fn select_pair<R>(&mut self, controller: &mut SampleController<PROB, ()>, _rng: &mut R) -> Pair
+    fn select_pair<R>(
+        &mut self,
+        _rng: &mut R,
+        controller: &SampleController<PR, ()>,
+    ) -> Pair<<PR>::Id>
     where
         R: Rand<usize>,
     {
-        // If Indices is initialized in reverse order, last units should be able to swap out safely,
-        // so pairs are always in correct order
-        controller.indices().into()
+        // Empty means empty
+        if controller.indices().is_empty() {
+            return Pair::Zero;
+        }
+
+        let mut iter = controller
+            .probabilities()
+            .ids()
+            .filter(|id| controller.indices().contains(*id));
+        let pair = (iter.next(), iter.next());
+        pair.into()
     }
 }
 
-/// Random order local pivotal method
-pub struct RandomStrategy();
-impl RandomStrategy {
-    /// Constructs a new [`PivotalRunner`] using the random strategy
+/// Random order local pivotal method.
+pub struct RandomStrategy;
+impl<PR> PivotalStrategy<PR, ()> for RandomStrategy
+where
+    PR: ProbabilityStore,
+{
     #[inline]
-    pub fn new<PO, AUX, BAL>(
-        options: &SamplingOptions<PO, AUX, BAL>,
-    ) -> PivotalRunner<Self, PO::Native, ()>
-    where
-        PO: ProbabilitiesSpec,
-    {
-        let controller = options.to_controller();
-        PivotalRunner {
-            controller,
-            strategy: Self(),
-        }
-    }
-}
-impl<PROB> PivotalStrategy<PROB, ()> for RandomStrategy {
-    #[inline]
-    fn select_pair<R>(&mut self, controller: &mut SampleController<PROB, ()>, rng: &mut R) -> Pair
+    fn select_pair<R>(&mut self, rng: &mut R, controller: &SampleController<PR, ()>) -> Pair<PR::Id>
     where
         R: Rand<usize>,
     {
-        let pair: Pair = controller.indices().into();
+        let pair: Pair<PR::Id> = controller.indices().into();
         if !pair.is_more() {
             return pair;
         }
@@ -108,8 +94,8 @@ impl<PROB> PivotalStrategy<PROB, ()> for RandomStrategy {
     }
 }
 
-/// Provides pivotal sampling methods
-pub trait PivotalSampling<R>
+/// Provides pivotal sampling methods.
+pub trait PivotalSampling<ID, R>
 where
     R: Rng,
 {
@@ -127,7 +113,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn spm(&self, rng: &mut R) -> Vec<usize>;
+    fn spm(&self, rng: &mut R) -> Vec<ID>;
     /// Draw a sample using the random pivotal method.
     /// A variant of the pivotal method where unit competes in a random order.
     ///
@@ -142,16 +128,22 @@ where
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingOptionsError>(())
     /// ```
-    fn rpm(&self, rng: &mut R) -> Vec<usize>;
+    fn rpm(&self, rng: &mut R) -> Vec<ID>;
 }
 
-impl<R, PO, AUX, BAL> PivotalSampling<R> for SamplingOptions<PO, AUX, BAL>
+impl<R, PO, AUX, BAL> PivotalSampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec,
 {
     #[inline]
-    fn spm(&self, rng: &mut R) -> Vec<usize> { SequentialStrategy::new(self).sample(rng) }
+    fn spm(&self, rng: &mut R) -> Vec<PO::Id> {
+        let controller = SampleController::new(self);
+        pivotal_runner(rng, controller, SequentialStrategy).to_sorted_sample_vec()
+    }
     #[inline]
-    fn rpm(&self, rng: &mut R) -> Vec<usize> { RandomStrategy::new(self).sample(rng) }
+    fn rpm(&self, rng: &mut R) -> Vec<PO::Id> {
+        let controller = SampleController::new(self);
+        pivotal_runner(rng, controller, RandomStrategy).to_sorted_sample_vec()
+    }
 }
