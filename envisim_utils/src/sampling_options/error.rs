@@ -18,9 +18,6 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SamplingOptionsError {
-    /// Ids must be unique
-    #[error("invalid ids")]
-    InvalidIds,
     /// Epsilon must be in [0.0, 1.0)
     #[error("eps must be in [0.0, 1.0)")]
     InvalidEpsilon,
@@ -45,9 +42,6 @@ pub enum SamplingOptionsError {
     /// The bucket size must be positive
     #[error("bucket size must be positive")]
     InvalidBucketSize,
-    /// Spreading data must be provided
-    #[error("spreading data must be provided")]
-    MissingSpreading,
 }
 
 /// An alias for an `Result` returning a [`SamplingOptionsError`].

@@ -14,11 +14,8 @@
 
 use envisim_utils::utils::Epsilon;
 
+use super::DbdError;
 use super::annealing::AnnealingTemperature;
-use crate::{
-    SamplingError,
-    SamplingResult,
-};
 
 /// Design options for distributionally balanced designs
 #[must_use]
@@ -59,7 +56,7 @@ impl DistributionalDesignOptions {
     /// # Errors
     /// Returns an error if `temp` is not positive.
     #[inline]
-    pub fn new(temp: f64) -> SamplingResult<Self> {
+    pub fn new(temp: f64) -> Result<Self, DbdError> {
         let opts = Self::default();
         opts.set_annealing_temperature(temp)
     }
@@ -68,10 +65,8 @@ impl DistributionalDesignOptions {
     /// # Errors
     /// Returns an error if `temp` is not positive.
     #[inline]
-    pub fn set_annealing_temperature(mut self, temp: f64) -> SamplingResult<Self> {
-        if temp <= 0.0 {
-            return Err(SamplingError::IncorrectAnnealingTemperature);
-        }
+    pub fn set_annealing_temperature(mut self, temp: f64) -> Result<Self, DbdError> {
+        DbdError::check_temp(temp)?;
         self.annealing_temperature = temp;
         Ok(self)
     }
@@ -80,10 +75,8 @@ impl DistributionalDesignOptions {
     /// # Errors
     /// Returns an error if rate is not contained in $[0.0, 1.0)$
     #[inline]
-    pub fn set_annealing_cooling_rate(mut self, rate: f64) -> SamplingResult<Self> {
-        if !(0.0..1.0).contains(&rate) {
-            return Err(SamplingError::IncorrectAnnealingRate);
-        }
+    pub fn set_annealing_cooling_rate(mut self, rate: f64) -> Result<Self, DbdError> {
+        DbdError::check_rate(rate)?;
         self.annealing_cooling_rate = rate;
         Ok(self)
     }

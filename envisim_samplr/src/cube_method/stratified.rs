@@ -40,10 +40,7 @@ use super::cube::{
     RandomStrategy,
     SpatialStrategy,
 };
-use crate::error::{
-    SamplingError,
-    SamplingResult,
-};
+use super::utils::CubeError;
 
 /// Stratified cube method runner
 struct CubeStratifiedMethod<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
@@ -76,7 +73,7 @@ where
     fn new(
         mut cube: CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>,
         strata: STRATA,
-    ) -> Result<Self, SamplingError>
+    ) -> Result<Self, CubeError>
     where
         PS: ConstructableDataView,
     {
@@ -97,7 +94,7 @@ where
                 .controller
                 .probabilities()
                 .is_partial(id)
-                .ok_or(SamplingError::IncorrectStratification)?
+                .ok_or(CubeError::StrataIdMissing)?
             {
                 // Skip any non-partial.
                 continue;
@@ -384,7 +381,7 @@ where
 ///
 /// # Examples
 /// ```
-/// # use envisim_samplr::*;
+/// # use envisim_samplr::cube_method::*;
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::*;
@@ -394,10 +391,10 @@ where
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new_equal(10, 2)?;
+/// let options = SamplingOptions::new_equal(10, 2).unwrap();
 /// let s = cube_stratified(&mut rng, &options, bal_m, &strata)?;
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), CubeError>(())
 /// ```
 ///
 /// # Errors
@@ -408,7 +405,7 @@ pub fn cube_stratified<R, PO, AUX, BL, STRATA>(
     options: &SamplingOptions<PO, AUX>,
     balancing: BL,
     strata: STRATA,
-) -> SamplingResult<Vec<PO::Id>>
+) -> Result<Vec<PO::Id>, CubeError>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
@@ -427,7 +424,6 @@ where
 ///
 /// # Examples
 /// ```
-/// # use envisim_samplr::*;
 /// # use envisim_samplr::cube_method::*;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::*;
@@ -438,10 +434,10 @@ where
 /// ], 10).unwrap();
 /// let spr_m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new_equal(10, 2)?.set_spreading(spr_m)?;
+/// let options = SamplingOptions::new_equal(10, 2).unwrap().set_spreading(spr_m).unwrap();
 /// let s = local_cube_stratified(&mut rng, &options, bal_m, &strata)?;
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), CubeError>(())
 /// ```
 ///
 /// # Errors
@@ -452,7 +448,7 @@ pub fn local_cube_stratified<R, PO, P, BL, STRATA>(
     options: &SamplingOptions<PO, SpreadingOptions<P>>,
     balancing: BL,
     strata: STRATA,
-) -> SamplingResult<Vec<PO::Id>>
+) -> Result<Vec<PO::Id>, CubeError>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,

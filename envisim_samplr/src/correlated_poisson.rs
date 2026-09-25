@@ -65,9 +65,36 @@ use num_traits::{
     ConstOne,
     ToPrimitive,
 };
+use thiserror::Error;
 
-pub use crate::SamplingError;
-use crate::SamplingResult;
+/// Correlated poisson errors.
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum CorrelatedPoissonError {
+    /// There must exist a random value for every unit.
+    #[error("random value missing for some unit")]
+    RandomValueMissing,
+    /// Random values must be probabilities.
+    #[error("some random value is not a probability")]
+    RandomValueNotProbability,
+}
+impl CorrelatedPoissonError {
+    /// Check if random values are correct.
+    #[inline]
+    fn check_random_values<PR, RV>(probs: PR, rvs: RV) -> Result<(), Self>
+    where
+        PR: ProbabilitiesSpec,
+        RV: DataView<Id = PR::Id, Value = f64>,
+    {
+        for id in probs.ids() {
+            let rv = rvs.get(id).copied().ok_or(Self::RandomValueMissing)?;
+            if !Probability::is_real_probability(rv) {
+                return Err(Self::RandomValueNotProbability);
+            }
+        }
+        Ok(())
+    }
+}
 
 /// Finds the first unit after `curr` that can be selected
 fn select_unit_sequential<PR, TR>(
@@ -572,13 +599,12 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p)?.cps(&mut rng);
+    /// let s = SamplingOptions::new(p).unwrap().cps(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
     fn cps(&self, rng: &mut R) -> Vec<ID>;
@@ -589,21 +615,25 @@ where
     /// between multiple sampling efforts.
     ///
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let rv: Vec<f64> = vec![0.2; 10];
-    /// let s = SamplingOptions::new(p)?.cps_coord(&mut rng, rv)?;
+    /// let s = SamplingOptions::new(p).unwrap().cps_coord(&mut rng, rv)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), CorrelatedPoissonError>(())
     /// ```
     ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn cps_coord<CD>(&self, rng: &mut R, random_values: CD) -> SamplingResult<Vec<ID>>
+    fn cps_coord<CD>(
+        &self,
+        rng: &mut R,
+        random_values: CD,
+    ) -> Result<Vec<ID>, CorrelatedPoissonError>
     where
         CD: DataView<Id = ID, Value = f64>;
 }
@@ -618,15 +648,14 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.set_spreading(m)?.scps(&mut rng);
+    /// let s = SamplingOptions::new(p).unwrap().set_spreading(m).unwrap().scps(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
     fn scps(&self, rng: &mut R) -> Vec<ID>;
@@ -644,16 +673,20 @@ where
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let rv: Vec<f64> = vec![0.2; 10];
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_spreading(m)?
+    /// let s = SamplingOptions::new(p).unwrap()
+    ///     .set_spreading(m).unwrap()
     ///     .scps_coord(&mut rng, rv)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), CorrelatedPoissonError>(())
     /// ```
     ///
     /// # Errors
     /// Returns an error if fewer than `population_size` random values is provided.
-    fn scps_coord<CD>(&self, rng: &mut R, random_values: CD) -> SamplingResult<Vec<ID>>
+    fn scps_coord<CD>(
+        &self,
+        rng: &mut R,
+        random_values: CD,
+    ) -> Result<Vec<ID>, CorrelatedPoissonError>
     where
         CD: DataView<Id = ID, Value = f64>;
     /// Draw a sample using the locally correlated poisson sampling method.
@@ -661,15 +694,14 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::correlated_poisson::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.set_spreading(m)?.lcps(&mut rng);
+    /// let s = SamplingOptions::new(p).unwrap().set_spreading(m).unwrap().lcps(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
     fn lcps(&self, rng: &mut R) -> Vec<ID>;
@@ -685,16 +717,15 @@ where
         correlated_poisson_runner(rng, controller, SequentialStrategy).to_sorted_sample_vec()
     }
     #[inline]
-    fn cps_coord<CD>(&self, rng: &mut R, random_values: CD) -> SamplingResult<Vec<PO::Id>>
+    fn cps_coord<CD>(
+        &self,
+        rng: &mut R,
+        random_values: CD,
+    ) -> Result<Vec<PO::Id>, CorrelatedPoissonError>
     where
         CD: DataView<Id = PO::Id, Value = f64>,
     {
-        if !random_values.entries().all(|(id, rv)| {
-            self.probabilities().contains(id) && Probability::is_real_probability(*rv)
-        }) {
-            return Err(SamplingError::InvalidRandomValues);
-        }
-
+        CorrelatedPoissonError::check_random_values(self.probabilities(), &random_values)?;
         let controller = SampleController::new_real(self);
         let strategy = SequentialStrategyCoord(random_values);
         Ok(correlated_poisson_runner(rng, controller, strategy).to_sorted_sample_vec())
@@ -715,10 +746,15 @@ where
         correlated_poisson_runner(rng, controller, strategy).to_sorted_sample_vec()
     }
     #[inline]
-    fn scps_coord<CD>(&self, rng: &mut R, random_values: CD) -> SamplingResult<Vec<PO::Id>>
+    fn scps_coord<CD>(
+        &self,
+        rng: &mut R,
+        random_values: CD,
+    ) -> Result<Vec<PO::Id>, CorrelatedPoissonError>
     where
         CD: DataView<Id = PO::Id, Value = f64>,
     {
+        CorrelatedPoissonError::check_random_values(self.probabilities(), &random_values)?;
         let controller = SampleController::new_real_spreading(self);
         let searcher = WeightedSearcher::new(controller.tree().data());
         let strategy = SpatialStrategyCoord {
@@ -751,7 +787,7 @@ mod tests {
     const RV_1: [f64; 10] = [1.0; 10];
 
     #[test]
-    fn cps_sampler() -> SamplingResult<()> {
+    fn cps_sampler() -> Result<(), CorrelatedPoissonError> {
         let options = Data10::options_e();
         let mut con1 = SampleController::new_real(&options);
         let mut con2 = SampleController::new_real(&options);

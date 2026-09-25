@@ -1,13 +1,13 @@
 //! Test utilities
 
-use envisim_samplr::{
+use envisim_utils::matrix::Matrix;
+use envisim_utils::random::*;
+use envisim_utils::sampling_options::{
     ProbabilitiesSpec,
     SamplingOptions,
     UnequalProbabilities,
     UnequalProbabilitiesReal,
 };
-use envisim_utils::matrix::Matrix;
-use envisim_utils::random::*;
 pub use envisim_utils::test_utils::*;
 use num_traits::ToPrimitive;
 

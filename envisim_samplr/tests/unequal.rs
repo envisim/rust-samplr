@@ -1,7 +1,7 @@
 //! Test unequal prob sampling
 
 mod test_utils;
-use envisim_samplr::*;
+use envisim_samplr::unequal::*;
 use test_utils::*;
 
 #[test]

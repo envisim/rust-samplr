@@ -47,5 +47,4 @@ pub use stratified::{
     cube_stratified,
     local_cube_stratified,
 };
-
-pub use crate::error::SamplingError;
+pub use utils::CubeError;

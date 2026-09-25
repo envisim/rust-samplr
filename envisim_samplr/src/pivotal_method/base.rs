@@ -104,14 +104,13 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::pivotal_method::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p)?;
+    /// let opts = SamplingOptions::new(p).unwrap();
     /// let s = opts.spm(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn spm(&self, rng: &mut R) -> Vec<ID>;
     /// Draw a sample using the random pivotal method.
@@ -119,14 +118,13 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::pivotal_method::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2f64, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let opts = SamplingOptions::new(p)?;
+    /// let opts = SamplingOptions::new(p).unwrap();
     /// let s = opts.rpm(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn rpm(&self, rng: &mut R) -> Vec<ID>;
 }

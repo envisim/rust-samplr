@@ -19,6 +19,16 @@ use envisim_utils::sample_controller::{
     SampleController,
     TreeStorage,
 };
+use thiserror::Error;
+
+/// Pivotal method errors.
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum PivotalMethodError {
+    /// Hierarchical sizes incorrect.
+    #[error("sizes must sum to sample size")]
+    HierarchicalSizesInvalid,
+}
 
 /// A strategy for a pivotal method controls the selection of competing pairs
 pub trait PivotalStrategy<PR, TR>

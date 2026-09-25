@@ -25,7 +25,6 @@ use envisim_utils::sampling_options::{
 };
 use num_traits::ConstZero;
 
-pub use crate::error::SamplingError;
 use crate::utils::shuffle;
 
 /// Draws a systematic sample from the provided order.
@@ -63,26 +62,24 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::systematic::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p)?.systematic(&mut rng);
+    /// let s = SamplingOptions::new(p).unwrap().systematic(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     fn systematic(&self, rng: &mut R) -> Vec<ID>;
     /// Draw a systematic sample, using a random order.
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::systematic::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
-    /// let s = SamplingOptions::new(p)?.systematic_random_order(&mut rng);
+    /// let s = SamplingOptions::new(p).unwrap().systematic_random_order(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     fn systematic_random_order(&self, rng: &mut R) -> Vec<ID>;
 }

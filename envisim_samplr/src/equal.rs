@@ -22,8 +22,6 @@ use envisim_utils::random::{
 use envisim_utils::sampling_options::EqualProbabilities;
 pub use envisim_utils::sampling_options::SamplingOptions;
 
-pub use crate::error::SamplingError;
-
 /// Provides equal probability sampling methods
 pub trait EqualProbabilitySampling<R>
 where
@@ -33,35 +31,32 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.srs(&mut rng);
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().srs(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn srs(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a simple random sample with replacement
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.srs_with_replacement(&mut rng);
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().srs_with_replacement(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize>;
     /// Draw a sample using Bernoulli sampling
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().bernoulli(&mut rng);
     /// ```
     fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
 }

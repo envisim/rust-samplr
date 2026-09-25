@@ -52,15 +52,11 @@ use envisim_utils::utils::{
     PointSet,
 };
 
-use super::SamplingError;
 use super::utils::{
-    check_balancing,
+    CubeError,
     find_vector_in_null_space,
 };
-use crate::{
-    EqualProbabilitySampling,
-    SamplingResult,
-};
+use crate::equal::EqualProbabilitySampling;
 
 /// Cube method runner.
 pub struct CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>
@@ -268,8 +264,8 @@ where
     pub fn new(
         options: &'bopts SamplingOptions<PS, AUX>,
         balancing: BL,
-    ) -> Result<Self, SamplingError> {
-        check_balancing(options.probabilities(), &balancing)?;
+    ) -> Result<Self, CubeError> {
+        CubeError::check_balancing(options.probabilities(), &balancing)?;
         let b_dims = balancing.dimensions();
         let c_dims = MatrixDims::new(
             b_dims,
@@ -310,7 +306,7 @@ where
     pub fn new_spreading(
         options: &'bopts SamplingOptions<PS, SpreadingOptions<P>>,
         balancing: BL,
-    ) -> Result<Self, SamplingError> {
+    ) -> Result<Self, CubeError> {
         let c = CubeMethod::new(options, balancing)?;
         let searcher =
             KNearestNeighbourSearcher::new(c.balancing.dimensions(), options.spreading().data());
@@ -539,7 +535,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::cube_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::*;
     /// let mut rng = try_sys_rng().unwrap();
@@ -548,11 +544,11 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m)?;
+    /// let s = SamplingOptions::new(p).unwrap().cube(&mut rng, m)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), CubeError>(())
     /// ```
-    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<ID>, CubeError>
     where
         BAL: PointSet<Id = ID, Value = f64>;
     /// Draw a sample using the cube method.
@@ -566,7 +562,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::cube_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
@@ -575,11 +571,11 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m)?;
+    /// let s = SamplingOptions::new(p).unwrap().cube(&mut rng, m)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), CubeError>(())
     /// ```
-    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<ID>, CubeError>
     where
         BAL: PointSet<Id = ID, Value = f64>;
 }
@@ -600,7 +596,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::cube_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
@@ -610,13 +606,13 @@ where
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
     /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_spreading(spr)?
+    /// let s = SamplingOptions::new(p).unwrap()
+    ///     .set_spreading(spr).unwrap()
     ///     .local_cube(&mut rng, bal)?;
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
+    /// # Ok::<(), CubeError>(())
     /// ```
-    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<ID>, CubeError>
     where
         BAL: PointSet<Id = ID, Value = f64>;
 }
@@ -626,7 +622,7 @@ where
     PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
-    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<PO::Id>, CubeError>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {
@@ -637,7 +633,7 @@ where
         })
     }
     #[inline]
-    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<PO::Id>, CubeError>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {
@@ -655,7 +651,7 @@ where
     P: PointSet<Id = PO::Id>,
 {
     #[inline]
-    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Result<Vec<PO::Id>, CubeError>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {

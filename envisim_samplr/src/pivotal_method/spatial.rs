@@ -38,12 +38,9 @@ use num_traits::FromPrimitive;
 use rustc_hash::FxHashSet;
 
 use super::runner::{
+    PivotalMethodError,
     PivotalStrategy,
     pivotal_runner,
-};
-use crate::error::{
-    SamplingError,
-    SamplingResult,
 };
 
 /// Returns true if `id_n` has `id_org` as a nearest neighbour. If `id_n` is amongst the nearest
@@ -296,17 +293,16 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::pivotal_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_spreading(m)?
+    /// let s = SamplingOptions::new(p).unwrap()
+    ///     .set_spreading(m).unwrap()
     ///     .lpm_1(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     fn lpm_1(&self, rng: &mut R) -> Vec<ID>;
     /// Draw a sample using the local pivotal method 1.
@@ -314,17 +310,16 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::pivotal_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_spreading(m)?
+    /// let s = SamplingOptions::new(p).unwrap()
+    ///     .set_spreading(m).unwrap()
     ///     .lpm_1s(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     fn lpm_1s(&self, rng: &mut R) -> Vec<ID>;
     /// Draw a sample using the local pivotal method 2.
@@ -332,17 +327,16 @@ where
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::pivotal_method::*;
     /// # use envisim_utils::random::*;
     /// # use envisim_utils::matrix::Matrix;
     /// let mut rng = try_sys_rng().unwrap();
     /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
     /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_spreading(m)?
+    /// let s = SamplingOptions::new(p).unwrap()
+    ///     .set_spreading(m).unwrap()
     ///     .lpm_2(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingError>(())
     /// ```
     fn lpm_2(&self, rng: &mut R) -> Vec<ID>;
 }
@@ -393,18 +387,18 @@ where
 ///
 /// # Examples
 /// ```
-/// # use envisim_samplr::*;
+/// # use envisim_samplr::pivotal_method::*;
 /// # use envisim_samplr::pivotal_method::hierarchical_lpm_2;
 /// # use envisim_utils::random::*;
 /// # use envisim_utils::matrix::Matrix;
 /// let mut rng = try_sys_rng().unwrap();
 /// let p: Vec<f64> = vec![0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9];
 /// let m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
-/// let options = SamplingOptions::new(p)?.set_spreading(m)?;
+/// let options = SamplingOptions::new(p).unwrap().set_spreading(m).unwrap();
 /// let sizes = [3, 2];
 /// let s = hierarchical_lpm_2(&mut rng, &options, &sizes)?;
 /// assert_eq!(s.len(), 2);
-/// # Ok::<(), SamplingError>(())
+/// # Ok::<(), PivotalMethodError>(())
 /// ```
 ///
 /// # References
@@ -424,7 +418,7 @@ pub fn hierarchical_lpm_2<R, PO, P>(
     rng: &mut R,
     options: &SamplingOptions<PO, SpreadingOptions<P>>,
     sizes: &[usize],
-) -> SamplingResult<Vec<Vec<PO::Id>>>
+) -> Result<Vec<Vec<PO::Id>>, PivotalMethodError>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Id: Copy>,
@@ -443,7 +437,7 @@ where
             != <PO::Real as FromPrimitive>::from_usize(sample_size)
                 .expect("sample size conv to PO::Real")
     {
-        return Err(SamplingError::IncorrectStratification);
+        return Err(PivotalMethodError::HierarchicalSizesInvalid);
     }
 
     // Early return for uni case
