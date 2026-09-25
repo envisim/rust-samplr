@@ -282,7 +282,7 @@ where
         reason = "popsize > 0 guaranteed by options"
     )]
     #[inline]
-    pub fn new<PO, AUX, BAL>(opts: &SamplingOptions<PO, AUX, BAL>) -> Self
+    pub fn new<PO, AUX>(opts: &SamplingOptions<PO, AUX>) -> Self
     where
         PO: ProbabilitiesSpec<Id = T::Id, Value = N, ConstructableContainer<Probability<N>> = T>,
     {
@@ -295,7 +295,7 @@ where
         reason = "popsize > 0 guaranteed by options"
     )]
     #[inline]
-    pub fn new_real<PO, AUX, BAL>(opts: &SamplingOptions<PO, AUX, BAL>) -> Self
+    pub fn new_real<PO, AUX>(opts: &SamplingOptions<PO, AUX>) -> Self
     where
         PO: ProbabilitiesSpec<Id = T::Id, Real = N, ConstructableContainer<Probability<N>> = T>,
     {
@@ -314,9 +314,7 @@ where
     /// # Panics
     /// Panics if ids are not unique.
     #[inline]
-    pub fn new_spreading<PO, BAL>(
-        opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>, BAL>,
-    ) -> Self
+    pub fn new_spreading<PO>(opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>>) -> Self
     where
         PO: ProbabilitiesSpec<Id = T::Id, Value = N, ConstructableContainer<Probability<N>> = T>,
     {
@@ -334,9 +332,7 @@ where
     /// # Panics
     /// Panics if ids are not unique.
     #[inline]
-    pub fn new_real_spreading<PO, BAL>(
-        opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>, BAL>,
-    ) -> Self
+    pub fn new_real_spreading<PO>(opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>>) -> Self
     where
         PO: ProbabilitiesSpec<Id = T::Id, Real = N, ConstructableContainer<Probability<N>> = T>,
     {

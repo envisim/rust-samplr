@@ -10,16 +10,14 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Methods for configuring sampling algorithms
+//! Methods for configuring sampling algorithms.
 
-mod balancing_opts;
 mod error;
 mod probability_opts;
 mod spreading_opts;
 
 use std::num::NonZeroUsize;
 
-pub use balancing_opts::BalancingOptions;
 pub use error::{
     SamplingOptionsError,
     SamplingOptionsResult,
@@ -34,7 +32,6 @@ pub use probability_opts::{
 };
 pub use spreading_opts::SpreadingOptions;
 
-use crate::matrix::Dimensions;
 use crate::probabilities::{
     Probability,
     ProbabilitySet,
@@ -53,7 +50,7 @@ use crate::utils::{
     PointSet,
 };
 
-/// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`]
+/// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`].
 pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Value> + Rand<PO::Real>
 where
     PO: BaseProbabilitiesSpec,
@@ -70,50 +67,45 @@ where
 /// classic, spatially balanced and balanced sampling methods.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct SamplingOptions<PO, AUX = (), BAL = ()>
+pub struct SamplingOptions<PO, AUX = ()>
 where
     PO: BaseProbabilitiesSpec,
 {
-    /// Probability specification
+    /// Probability specification.
     probabilities: PO,
-    /// Epsilon to be used in float comparisons
+    /// Epsilon to be used in float comparisons.
     eps: Epsilon<PO::Real>,
-    /// Maximum number of iterations to run for an algorithm
+    /// Maximum number of iterations to run for an algorithm.
     max_iterations: NonZeroUsize,
-    /// Spreading auxiliaries options
+    /// Spreading auxiliaries options.
     spreading: AUX,
-    /// Balancing auxiliaries options
-    balancing: BAL,
 }
 
-impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
+impl<PO, AUX> SamplingOptions<PO, AUX>
 where
     PO: BaseProbabilitiesSpec,
 {
-    /// Returns a reference to the provided probability specification
+    /// Returns a reference to the provided probability specification.
     #[inline]
     pub fn probabilities(&self) -> &PO { &self.probabilities }
-    /// Returns the population size as determined by the probability specification
+    /// Returns the population size as determined by the probability specification.
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize { self.probabilities().population_size() }
-    /// Returns the sample size as determined by the probability specification
+    /// Returns the sample size as determined by the probability specification.
     #[must_use]
     #[inline]
     pub fn sample_size(&self) -> usize { self.probabilities().sample_size() }
-    /// Returns the real-valued epsilon
+    /// Returns the real-valued epsilon.
     #[inline]
     pub fn eps(&self) -> Epsilon<PO::Real> { self.eps }
-    /// Returns the maximum number of iterations
+    /// Returns the maximum number of iterations.
     #[must_use]
     #[inline]
     pub fn max_iterations(&self) -> NonZeroUsize { self.max_iterations }
-    /// Returns a reference to the spreading options
+    /// Returns a reference to the spreading options.
     #[inline]
     pub fn spreading(&self) -> &AUX { &self.spreading }
-    /// Returns a reference to the balancing options
-    #[inline]
-    pub fn balancing(&self) -> &BAL { &self.balancing }
     /// Sets the epsilon value, a value to be used for float comparisons.
     ///
     /// # Errors
@@ -148,7 +140,7 @@ where
     pub fn set_spreading<AUXP, I>(
         self,
         data: I,
-    ) -> SamplingOptionsResult<SamplingOptions<PO, SpreadingOptions<AUXP>, BAL>>
+    ) -> SamplingOptionsResult<SamplingOptions<PO, SpreadingOptions<AUXP>>>
     where
         AUXP: PointSet<Id = PO::Id>,
         I: Into<SpreadingOptions<AUXP>>,
@@ -166,40 +158,10 @@ where
             eps: self.eps,
             max_iterations: self.max_iterations,
             spreading: data,
-            balancing: self.balancing,
-        })
-    }
-    /// Sets the balancing options
-    ///
-    /// # Errors
-    /// Returns an error if `data.size()` does not match population size
-    #[inline]
-    pub fn set_balancing<BALP, I>(
-        self,
-        data: I,
-    ) -> SamplingOptionsResult<SamplingOptions<PO, AUX, BalancingOptions<BALP>>>
-    where
-        BALP: PointSet<Id = PO::Id>,
-        I: Into<BalancingOptions<BALP>>,
-    {
-        let data = data.into();
-        if !self
-            .probabilities()
-            .ids()
-            .all(|id| data.data().contains(id))
-        {
-            return Err(SamplingOptionsError::InvalidBalancing);
-        }
-        Ok(SamplingOptions {
-            probabilities: self.probabilities,
-            eps: self.eps,
-            max_iterations: self.max_iterations,
-            spreading: self.spreading,
-            balancing: data,
         })
     }
 }
-impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
+impl<PO, AUX> SamplingOptions<PO, AUX>
 where
     PO: ProbabilitiesSpec,
 {
@@ -228,13 +190,12 @@ where
 {
     /// Initializes `SamplingOptions` with unequal probability options
     #[inline]
-    pub fn with_spec(spec: PS) -> SamplingOptions<PS, (), ()> {
+    pub fn with_spec(spec: PS) -> SamplingOptions<PS, ()> {
         SamplingOptions {
             probabilities: spec,
             eps: Epsilon::<PS::Real>::default(),
             max_iterations: MAX_ITERATIONS,
             spreading: (),
-            balancing: (),
         }
     }
 }
@@ -296,7 +257,7 @@ impl SamplingOptions<EqualProbabilities> {
     pub fn with_spreading<AUXP, I>(
         data: I,
         sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilities, SpreadingOptions<AUXP>, ()>>
+    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilities, SpreadingOptions<AUXP>>>
     where
         AUXP: PointSet,
         I: Into<SpreadingOptions<AUXP>>,
@@ -309,33 +270,6 @@ impl SamplingOptions<EqualProbabilities> {
             eps: Epsilon::<f64>::default(),
             max_iterations: MAX_ITERATIONS,
             spreading: data,
-            balancing: (),
-        })
-    }
-    /// Initializes `SamplingOptions` with balancing `data` and an equal probability specification
-    /// determined by the size of the balancing `data` and the `sample_size`.
-    ///
-    /// # Errors
-    /// If [`ProbabilitySpecEqual`] cannot be constructed, i.e. if `sample_size` is larger than the
-    /// population size.
-    #[inline]
-    pub fn with_balancing<BALP, I>(
-        data: I,
-        sample_size: usize,
-    ) -> SamplingOptionsResult<SamplingOptions<EqualProbabilities, (), BalancingOptions<BALP>>>
-    where
-        BALP: Dimensions,
-        I: Into<BalancingOptions<BALP>>,
-    {
-        let data = data.into();
-        let population_size = data.data().nrow();
-        let spec = EqualProbabilities::new(population_size, sample_size)?;
-        Ok(SamplingOptions {
-            probabilities: spec,
-            eps: Epsilon::<f64>::default(),
-            max_iterations: MAX_ITERATIONS,
-            spreading: (),
-            balancing: data,
         })
     }
 }

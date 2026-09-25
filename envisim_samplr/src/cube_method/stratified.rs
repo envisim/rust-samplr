@@ -22,7 +22,6 @@ use envisim_utils::probabilities::ProbabilityStore;
 use envisim_utils::random::FloatRng;
 use envisim_utils::sample_controller::TreeStorage;
 use envisim_utils::sampling_options::{
-    BalancingOptions,
     BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptions,
@@ -123,7 +122,7 @@ where
         R: FloatRng,
         S: CubeStrategy<'bopts, PS, AUX, BL, PR, Tree = TR, Searcher = SE>,
     {
-        let b_cols = self.cube.options.balancing().data().dimensions();
+        let b_cols = self.cube.balancing.dimensions();
         let c_cols = b_cols.checked_add(1).expect("no overflow"); // Add one for probs
         let n_candidates = c_cols.checked_add(1).expect("no overflow"); // Select one more than cols
 
@@ -180,9 +179,7 @@ where
                     // Set balancing data
                     for (j, v) in self
                         .cube
-                        .options
-                        .balancing()
-                        .data()
+                        .balancing
                         .coords(id)
                         .expect("id to exist")
                         .enumerate()
@@ -209,7 +206,7 @@ where
         R: FloatRng,
         S: CubeStrategy<'bopts, PS, AUX, BL, PR, Tree = TR, Searcher = SE>,
     {
-        let b_cols = self.cube.options.balancing().data().dimensions();
+        let b_cols = self.cube.balancing.dimensions();
         let c_cols = b_cols
             .checked_add(self.remaining_strata.len()) // Add for each remain. strata
             .expect("no overflow");
@@ -255,9 +252,7 @@ where
                 // Set balancing data
                 for (j, v) in self
                     .cube
-                    .options
-                    .balancing()
-                    .data()
+                    .balancing
                     .coords(id)
                     .expect("id to exist")
                     .enumerate()
@@ -282,7 +277,7 @@ where
         R: FloatRng,
         S: CubeStrategy<'bopts, PS, AUX, BL, PR, Tree = TR, Searcher = SE>,
     {
-        let b_cols = self.cube.options.balancing().data().dimensions();
+        let b_cols = self.cube.balancing.dimensions();
         let c_cols = b_cols.checked_add(1).expect("no overflow"); // Add one for probs
 
         let mut id_vec = Vec::<PS::Id>::with_capacity(self.cube.controller.population_size().get());
@@ -345,9 +340,7 @@ where
                     // Set balancing data
                     for (j, v) in self
                         .cube
-                        .options
-                        .balancing()
-                        .data()
+                        .balancing
                         .coords(id)
                         .expect("id to exist")
                         .enumerate()
@@ -401,8 +394,8 @@ where
 ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
 /// ], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new_equal(10, 2)?.set_balancing(bal_m)?;
-/// let s = cube_stratified(&mut rng, &options, &strata)?;
+/// let options = SamplingOptions::new_equal(10, 2)?;
+/// let s = cube_stratified(&mut rng, &options, bal_m, &strata)?;
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
@@ -412,7 +405,8 @@ where
 #[inline]
 pub fn cube_stratified<R, PO, AUX, BL, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<PO, AUX, BalancingOptions<BL>>,
+    options: &SamplingOptions<PO, AUX>,
+    balancing: BL,
     strata: STRATA,
 ) -> SamplingResult<Vec<PO::Id>>
 where
@@ -421,7 +415,7 @@ where
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,
 {
-    let cube = CubeMethod::new(options);
+    let cube = CubeMethod::new(options, balancing);
     Ok(CubeStratifiedMethod::new(cube, strata)?.sample(rng, RandomStrategy))
 }
 
@@ -444,8 +438,8 @@ where
 /// ], 10).unwrap();
 /// let spr_m = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
 /// let strata = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
-/// let options = SamplingOptions::new_equal(10, 2)?.set_balancing(bal_m)?.set_spreading(spr_m)?;
-/// let s = local_cube_stratified(&mut rng, &options, &strata)?;
+/// let options = SamplingOptions::new_equal(10, 2)?.set_spreading(spr_m)?;
+/// let s = local_cube_stratified(&mut rng, &options, bal_m, &strata)?;
 /// assert_eq!(s.len(), 2);
 /// # Ok::<(), SamplingError>(())
 /// ```
@@ -455,7 +449,8 @@ where
 #[inline]
 pub fn local_cube_stratified<R, PO, P, BL, STRATA>(
     rng: &mut R,
-    options: &SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<BL>>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>>,
+    balancing: BL,
     strata: STRATA,
 ) -> SamplingResult<Vec<PO::Id>>
 where
@@ -465,6 +460,6 @@ where
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,
 {
-    let cube = CubeMethod::new_spreading(options);
+    let cube = CubeMethod::new_spreading(options, balancing);
     Ok(CubeStratifiedMethod::new(cube, strata)?.sample(rng, SpatialStrategy))
 }

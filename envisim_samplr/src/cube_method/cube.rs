@@ -41,7 +41,6 @@ use envisim_utils::sample_controller::{
     TreeStorage,
 };
 use envisim_utils::sampling_options::{
-    BalancingOptions,
     BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptions,
@@ -56,20 +55,22 @@ use envisim_utils::utils::{
 use super::utils::find_vector_in_null_space;
 use crate::EqualProbabilitySampling;
 
-/// Cube method runner
+/// Cube method runner.
 pub struct CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>
 where
     PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
-    /// Original options object
-    pub options: &'bopts SamplingOptions<PS, AUX, BalancingOptions<BL>>,
-    /// Controller
+    /// Original options object.
+    pub options: &'bopts SamplingOptions<PS, AUX>,
+    /// Balancing data.
+    pub balancing: BL,
+    /// Controller.
     pub controller: SampleController<PR, TR>,
-    /// Possible searcher (for spatial cube)
+    /// Possible searcher (for spatial cube).
     pub searcher: SE,
-    /// List of candidates
+    /// List of candidates.
     pub candidates: Vec<PS::Id>,
     /// Probability-adjusted balancing data, transposed. Should have size list.len-1 x list.len,
     /// or rather, the number of candidates should not be larger than one less than the number of
@@ -109,9 +110,7 @@ where
                 .expect("id to exist in probabilities");
             for j in 0..dims.rows.get() {
                 self.cand_data[(j, i)] = self
-                    .options
-                    .balancing()
-                    .data()
+                    .balancing
                     .coord(id, j)
                     .expect("id, j to exist in balancing")
                     / p;
@@ -198,7 +197,7 @@ where
         R: FloatRng,
         S: CubeStrategy<'bopts, PS, AUX, BL, PR, Tree = TR, Searcher = SE>,
     {
-        let b_cols = self.options.balancing().data().dimensions();
+        let b_cols = self.balancing.dimensions();
         let c_cols = b_cols; // Assume no prob column
         let n_candidates = c_cols.checked_add(1).expect("no overflow"); // Select one more than cols
 
@@ -222,7 +221,7 @@ where
     where
         R: FloatRng,
     {
-        let b_cols = self.options.balancing().data().dimensions();
+        let b_cols = self.balancing.dimensions();
         let len = self.controller.indices().len();
         assert!(
             len <= b_cols.get(),
@@ -260,9 +259,9 @@ where
     /// Panics if balancing dims tend to overflow in small additions
     #[inline]
     pub fn new(
-        options: &'bopts SamplingOptions<PS, AUX, BalancingOptions<BL>>,
+        options: &'bopts SamplingOptions<PS, AUX>,
+        balancing: BL,
     ) -> CubeMethod<'bopts, PS, AUX, BL, ProbabilitySet<T, f64>, (), ()> {
-        let balancing = options.balancing().data();
         let b_dims = balancing.dimensions();
         let c_dims = MatrixDims::new(
             b_dims,
@@ -275,6 +274,7 @@ where
         CubeMethod {
             controller: SampleController::new_real(options),
             options,
+            balancing,
             searcher: (),
             candidates: Vec::<PS::Id>::with_capacity(b_dims.get()),
             cand_data,
@@ -300,16 +300,16 @@ where
     /// Constructs a new spatial runner
     #[inline]
     pub fn new_spreading(
-        options: &'bopts SamplingOptions<PS, SpreadingOptions<P>, BalancingOptions<BL>>,
+        options: &'bopts SamplingOptions<PS, SpreadingOptions<P>>,
+        balancing: BL,
     ) -> Self {
-        let c = CubeMethod::new(options);
-        let searcher = KNearestNeighbourSearcher::new(
-            options.balancing().data().dimensions(),
-            options.spreading().data(),
-        );
+        let c = CubeMethod::new(options, balancing);
+        let searcher =
+            KNearestNeighbourSearcher::new(c.balancing.dimensions(), options.spreading().data());
         CubeMethod {
             controller: SampleController::new_real_spreading(options),
             options,
+            balancing: c.balancing,
             searcher,
             candidates: c.candidates,
             cand_data: c.cand_data,
@@ -537,14 +537,14 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_balancing(m)?
-    ///     .cube(&mut rng);
+    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn cube(&self, rng: &mut R) -> Vec<ID>;
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    where
+        BAL: PointSet<Id = ID, Value = f64>;
     /// Draw a sample using the cube method.
     /// The sample is balanced on the provided auxiliary variables in `balancing`.
     /// For fixed sized samples, the first auxiliary variable should be the probability vector.
@@ -562,14 +562,14 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?
-    ///     .set_balancing(m)?
-    ///     .cube(&mut rng);
+    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn sequential_cube(&self, rng: &mut R) -> Vec<ID>;
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    where
+        BAL: PointSet<Id = ID, Value = f64>;
 }
 
 /// Provides spatially balanced CUBE sampling methods
@@ -596,47 +596,54 @@ where
     /// ], 10).unwrap();
     /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p)?
-    ///     .set_balancing(bal)?
     ///     .set_spreading(spr)?
-    ///     .local_cube(&mut rng);
+    ///     .local_cube(&mut rng, bal);
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
     #[must_use]
-    fn local_cube(&self, rng: &mut R) -> Vec<ID>;
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    where
+        BAL: PointSet<Id = ID, Value = f64>;
 }
-impl<R, PO, AUX, BL> CubeSampling<PO::Id, R> for SamplingOptions<PO, AUX, BalancingOptions<BL>>
+impl<R, PO, AUX> CubeSampling<PO::Id, R> for SamplingOptions<PO, AUX>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
-    BL: PointSet<Id = PO::Id, Value = f64>,
 {
     #[inline]
-    fn cube(&self, rng: &mut R) -> Vec<PO::Id> {
-        CubeMethod::new(self)
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    where
+        BAL: PointSet<Id = PO::Id, Value = f64>,
+    {
+        CubeMethod::new(self, balancing)
             .sample(rng, RandomStrategy)
             .controller
             .to_sorted_sample_vec()
     }
     #[inline]
-    fn sequential_cube(&self, rng: &mut R) -> Vec<PO::Id> {
-        CubeMethod::new(self)
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    where
+        BAL: PointSet<Id = PO::Id, Value = f64>,
+    {
+        CubeMethod::new(self, balancing)
             .sample(rng, SequentialStrategy)
             .controller
             .to_sorted_sample_vec()
     }
 }
-impl<R, PO, P, BL> LocalCubeSampling<PO::Id, R>
-    for SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<BL>>
+impl<R, PO, P> LocalCubeSampling<PO::Id, R> for SamplingOptions<PO, SpreadingOptions<P>>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id>,
-    BL: PointSet<Id = PO::Id, Value = f64>,
 {
     #[inline]
-    fn local_cube(&self, rng: &mut R) -> Vec<PO::Id> {
-        CubeMethod::new_spreading(self)
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    where
+        BAL: PointSet<Id = PO::Id, Value = f64>,
+    {
+        CubeMethod::new_spreading(self, balancing)
             .sample(rng, SpatialStrategy)
             .controller
             .to_sorted_sample_vec()
