@@ -8,11 +8,16 @@ use test_utils::*;
 fn test_cube() {
     let (spec, bmat) = matrix_big_balanced();
     let options = SamplingOptions::with_spec(spec);
-    test_wor(|rng| options.cube(rng, &bmat), &options, 1e-0, 100);
+    test_wor(|rng| options.cube(rng, &bmat).unwrap(), &options, 1e-0, 100);
 
     let options = Data10::options_u();
     let bmat = Data10::bmatrix_up();
-    test_wor(|rng| options.cube(rng, &bmat), &options, 1e-2, 100000);
+    test_wor(
+        |rng| options.cube(rng, &bmat).unwrap(),
+        &options,
+        1e-2,
+        100000,
+    );
 }
 
 #[test]
@@ -20,7 +25,7 @@ fn test_sequential_cube() {
     let (spec, bmat) = matrix_big_balanced();
     let options = SamplingOptions::with_spec(spec);
     test_wor(
-        |rng| options.sequential_cube(rng, &bmat),
+        |rng| options.sequential_cube(rng, &bmat).unwrap(),
         &options,
         1e-0,
         100,
@@ -29,7 +34,7 @@ fn test_sequential_cube() {
     let options = Data10::options_u();
     let bmat = Data10::bmatrix_up();
     test_wor(
-        |rng| options.sequential_cube(rng, &bmat),
+        |rng| options.sequential_cube(rng, &bmat).unwrap(),
         &options,
         1e-2,
         100000,
@@ -40,7 +45,12 @@ fn test_sequential_cube() {
 fn test_lcube() {
     let options = Data10::options_u();
     let bal = Data10::bmatrix_up();
-    test_wor(|rng| options.local_cube(rng, &bal), &options, 1e-2, 100000);
+    test_wor(
+        |rng| options.local_cube(rng, &bal).unwrap(),
+        &options,
+        1e-2,
+        100000,
+    );
 }
 
 #[test]

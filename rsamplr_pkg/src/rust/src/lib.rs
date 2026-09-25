@@ -139,12 +139,11 @@ fn rust_balanced(
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options =
-        RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_balancing(bal_data)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?;
 
     let s = match r_method {
-        "sequential_cube" => options.sequential_cube(&mut rng),
-        "cube" | &_ => options.cube(&mut rng),
+        "sequential_cube" => options.sequential_cube(&mut rng, bal_data)?,
+        "cube" | &_ => options.cube(&mut rng, bal_data)?,
     };
 
     return_sample(s)
@@ -162,12 +161,10 @@ fn rust_doubly_balanced(
     let mut rng = RRng::new();
     let aux = RealSexpFatPtr::to_spreading_options(r_data, r_bucket_size)?;
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?
-        .set_balancing(bal_data)?
-        .set_spreading(aux)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_spreading(aux)?;
 
     let s = match r_method {
-        "local_cube" | &_ => options.local_cube(&mut rng),
+        "local_cube" | &_ => options.local_cube(&mut rng, bal_data)?,
     };
 
     return_sample(s)
@@ -223,11 +220,10 @@ fn rust_balanced_stratified(
     let mut rng = RRng::new();
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
-    let options =
-        RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_balancing(bal_data)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?;
 
     let s = match r_method {
-        "cube" | &_ => cube_stratified(&mut rng, &options, &strata)?,
+        "cube" | &_ => cube_stratified(&mut rng, &options, bal_data, &strata)?,
     };
 
     return_sample(s)
@@ -246,14 +242,12 @@ fn rust_doubly_balanced_stratified(
     let mut rng = RRng::new();
     let aux = RealSexpFatPtr::to_spreading_options(r_data, r_bucket_size)?;
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?
-        .set_balancing(bal_data)?
-        .set_spreading(aux)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_spreading(aux)?;
 
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
     let s = match r_method {
-        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata)?,
+        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, bal_data, &strata)?,
     };
 
     return_sample(s)

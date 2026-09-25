@@ -108,7 +108,7 @@ impl RealSexpFatPtr {
         sexp: RealSexp,
         eps: EPS,
         max_iter: MAX,
-    ) -> savvy::Result<SamplingOptions<RUnequalProbabilities, (), ()>>
+    ) -> savvy::Result<SamplingOptions<RUnequalProbabilities, ()>>
     where
         EPS: Into<Option<f64>>,
         MAX: Into<Option<i32>>,

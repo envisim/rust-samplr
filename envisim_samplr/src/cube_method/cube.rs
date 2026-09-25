@@ -52,8 +52,15 @@ use envisim_utils::utils::{
     PointSet,
 };
 
-use super::utils::find_vector_in_null_space;
-use crate::EqualProbabilitySampling;
+use super::SamplingError;
+use super::utils::{
+    check_balancing,
+    find_vector_in_null_space,
+};
+use crate::{
+    EqualProbabilitySampling,
+    SamplingResult,
+};
 
 /// Cube method runner.
 pub struct CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>
@@ -261,7 +268,8 @@ where
     pub fn new(
         options: &'bopts SamplingOptions<PS, AUX>,
         balancing: BL,
-    ) -> CubeMethod<'bopts, PS, AUX, BL, ProbabilitySet<T, f64>, (), ()> {
+    ) -> Result<Self, SamplingError> {
+        check_balancing(options.probabilities(), &balancing)?;
         let b_dims = balancing.dimensions();
         let c_dims = MatrixDims::new(
             b_dims,
@@ -271,14 +279,14 @@ where
         );
 
         let cand_data = Matrix::from_value(0.0, c_dims);
-        CubeMethod {
+        Ok(CubeMethod {
             controller: SampleController::new_real(options),
             options,
             balancing,
             searcher: (),
             candidates: Vec::<PS::Id>::with_capacity(b_dims.get()),
             cand_data,
-        }
+        })
     }
 }
 impl<'bopts, PS, BL, T, P>
@@ -302,18 +310,18 @@ where
     pub fn new_spreading(
         options: &'bopts SamplingOptions<PS, SpreadingOptions<P>>,
         balancing: BL,
-    ) -> Self {
-        let c = CubeMethod::new(options, balancing);
+    ) -> Result<Self, SamplingError> {
+        let c = CubeMethod::new(options, balancing)?;
         let searcher =
             KNearestNeighbourSearcher::new(c.balancing.dimensions(), options.spreading().data());
-        CubeMethod {
+        Ok(CubeMethod {
             controller: SampleController::new_real_spreading(options),
             options,
             balancing: c.balancing,
             searcher,
             candidates: c.candidates,
             cand_data: c.cand_data,
-        }
+        })
     }
 }
 
@@ -526,6 +534,9 @@ where
     ///
     /// Units are selected randomly to the flight phase.
     ///
+    /// # Errors
+    /// Returns an error if not all ids exist in balancing data.
+    ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
@@ -537,12 +548,11 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m);
+    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    #[must_use]
-    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
     where
         BAL: PointSet<Id = ID, Value = f64>;
     /// Draw a sample using the cube method.
@@ -550,6 +560,9 @@ where
     /// For fixed sized samples, the first auxiliary variable should be the probability vector.
     ///
     /// Units are selected in sequence to the flight phase.
+    ///
+    /// # Errors
+    /// Returns an error if not all ids exist in balancing data.
     ///
     /// # Examples
     /// ```
@@ -562,12 +575,11 @@ where
     ///     0.2, 0.25, 0.35, 0.4, 0.5, 0.5, 0.55, 0.65, 0.7, 0.9,
     ///     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     /// ], 10).unwrap();
-    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m);
+    /// let s = SamplingOptions::new(p)?.cube(&mut rng, m)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    #[must_use]
-    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
     where
         BAL: PointSet<Id = ID, Value = f64>;
 }
@@ -583,6 +595,9 @@ where
     ///
     /// For fixed sized samples, the first auxiliary variable should be the probability vector.
     ///
+    /// # Errors
+    /// Returns an error if not all ids exist in balancing data.
+    ///
     /// # Examples
     /// ```
     /// # use envisim_samplr::*;
@@ -597,12 +612,11 @@ where
     /// let spr = Matrix::new(vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 10).unwrap();
     /// let s = SamplingOptions::new(p)?
     ///     .set_spreading(spr)?
-    ///     .local_cube(&mut rng, bal);
+    ///     .local_cube(&mut rng, bal)?;
     /// assert_eq!(s.len(), 5);
     /// # Ok::<(), SamplingError>(())
     /// ```
-    #[must_use]
-    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<ID>
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<ID>>
     where
         BAL: PointSet<Id = ID, Value = f64>;
 }
@@ -612,24 +626,26 @@ where
     PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
-    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    fn cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {
-        CubeMethod::new(self, balancing)
-            .sample(rng, RandomStrategy)
-            .controller
-            .to_sorted_sample_vec()
+        CubeMethod::new(self, balancing).map(|c| {
+            c.sample(rng, RandomStrategy)
+                .controller
+                .to_sorted_sample_vec()
+        })
     }
     #[inline]
-    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    fn sequential_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {
-        CubeMethod::new(self, balancing)
-            .sample(rng, SequentialStrategy)
-            .controller
-            .to_sorted_sample_vec()
+        CubeMethod::new(self, balancing).map(|c| {
+            c.sample(rng, SequentialStrategy)
+                .controller
+                .to_sorted_sample_vec()
+        })
     }
 }
 impl<R, PO, P> LocalCubeSampling<PO::Id, R> for SamplingOptions<PO, SpreadingOptions<P>>
@@ -639,13 +655,14 @@ where
     P: PointSet<Id = PO::Id>,
 {
     #[inline]
-    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> Vec<PO::Id>
+    fn local_cube<BAL>(&self, rng: &mut R, balancing: BAL) -> SamplingResult<Vec<PO::Id>>
     where
         BAL: PointSet<Id = PO::Id, Value = f64>,
     {
-        CubeMethod::new_spreading(self, balancing)
-            .sample(rng, SpatialStrategy)
-            .controller
-            .to_sorted_sample_vec()
+        CubeMethod::new_spreading(self, balancing).map(|c| {
+            c.sample(rng, SpatialStrategy)
+                .controller
+                .to_sorted_sample_vec()
+        })
     }
 }

@@ -76,7 +76,7 @@ where
     fn new(
         mut cube: CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>,
         strata: STRATA,
-    ) -> SamplingResult<CubeStratifiedMethod<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>>
+    ) -> Result<Self, SamplingError>
     where
         PS: ConstructableDataView,
     {
@@ -415,8 +415,8 @@ where
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,
 {
-    let cube = CubeMethod::new(options, balancing);
-    Ok(CubeStratifiedMethod::new(cube, strata)?.sample(rng, RandomStrategy))
+    let cube = CubeMethod::new(options, balancing)?;
+    CubeStratifiedMethod::new(cube, strata).map(|c| c.sample(rng, RandomStrategy))
 }
 
 /// Draw a sample using the stratified local cube method.
@@ -460,6 +460,6 @@ where
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,
 {
-    let cube = CubeMethod::new_spreading(options, balancing);
-    Ok(CubeStratifiedMethod::new(cube, strata)?.sample(rng, SpatialStrategy))
+    let cube = CubeMethod::new_spreading(options, balancing)?;
+    CubeStratifiedMethod::new(cube, strata).map(|c| c.sample(rng, SpatialStrategy))
 }
