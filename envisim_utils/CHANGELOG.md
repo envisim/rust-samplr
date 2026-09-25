@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `UnitRemoving` trait from `SampleController`, replaced with `TreeStorage`.
 - Moved `pips` module to `envisim_estimate`.
 - Removed `BalancingOptions`, and removed ability to set balancing options on `SamplingOptions`.
+- Removed unused `SamplingOptionsError::InvalidIds, MissingSpreading`.
 
 ## [0.7.0] - 2026-08-13
 - Added dependency [`thiserror`](https://crates.io/crates/thiserror).
