@@ -16,6 +16,23 @@ use envisim_utils::matrix::{
     Dimensions,
     Matrix,
 };
+use envisim_utils::sampling_options::ProbabilitiesSpec;
+use envisim_utils::utils::PointSet;
+
+use super::SamplingError;
+
+/// Ensures valid balancing data.
+#[inline]
+pub fn check_balancing<PO, BAL>(probs: PO, balancing: BAL) -> Result<(), SamplingError>
+where
+    PO: ProbabilitiesSpec,
+    BAL: PointSet<Id = PO::Id>,
+{
+    if !probs.ids().all(|id| balancing.contains(id)) {
+        return Err(SamplingError::InvalidBalancing);
+    }
+    Ok(())
+}
 
 /// Finds a vector in null space of a (n-1)*n matrix. The matrix is mutated into rref.
 /// # Panics

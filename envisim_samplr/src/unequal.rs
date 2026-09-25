@@ -202,7 +202,7 @@ where
     /// Returns an error if `sample_size` is larger than the population size.
     fn conditional_poisson(&self, rng: &mut R, sample_size: usize) -> SamplingResult<Vec<ID>>;
 }
-impl<R, PO, AUX, BAL> UnequalProbabilitySampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
+impl<R, PO, AUX> UnequalProbabilitySampling<PO::Id, R> for SamplingOptions<PO, AUX>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,

@@ -86,7 +86,7 @@ where
     /// ```
     fn systematic_random_order(&self, rng: &mut R) -> Vec<ID>;
 }
-impl<R, PS, AUX, BAL> SystematicSampling<PS::Id, R> for SamplingOptions<PS, AUX, BAL>
+impl<R, PS, AUX> SystematicSampling<PS::Id, R> for SamplingOptions<PS, AUX>
 where
     PS: BaseProbabilitiesSpec,
     R: SamplingOptionsRng<PS>,

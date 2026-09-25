@@ -4,7 +4,6 @@ use std::ops::Range;
 pub use crate::matrix::Dimensions;
 use crate::matrix::MatrixRef;
 use crate::sampling_options::{
-    BalancingOptions,
     EqualProbabilities,
     SamplingOptions,
     SpreadingOptions,
@@ -91,25 +90,18 @@ impl Data10 {
     pub fn options_u() -> SamplingOptions<
         UnequalProbabilities<UnequalProbabilitiesReal<&'static [f64]>>,
         SpreadingOptions<MatrixRef<'static, f64>>,
-        BalancingOptions<MatrixRef<'static, f64>>,
     > {
         SamplingOptions::with_spec(Self::prob_u())
             .set_spreading(Self::matrix())
             .unwrap()
-            .set_balancing(Self::bmatrix_up())
-            .unwrap()
     }
     /// Returns equal sampling options with spreading and balancing
     #[inline]
-    pub fn options_e() -> SamplingOptions<
-        EqualProbabilities<Range<usize>>,
-        SpreadingOptions<MatrixRef<'static, f64>>,
-        BalancingOptions<MatrixRef<'static, f64>>,
-    > {
+    pub fn options_e()
+    -> SamplingOptions<EqualProbabilities<Range<usize>>, SpreadingOptions<MatrixRef<'static, f64>>>
+    {
         SamplingOptions::with_spec(Data10::prob_e())
             .set_spreading(Data10::matrix())
-            .unwrap()
-            .set_balancing(Data10::bmatrix_ep())
             .unwrap()
     }
 }

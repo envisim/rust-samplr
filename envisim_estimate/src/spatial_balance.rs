@@ -49,8 +49,8 @@ use rustc_hash::{
 use thiserror::Error;
 
 /// Calculates the pi-sums for each voronoi cell
-fn voronoi_pi_sum<PO, P, BAL, I>(
-    opts: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+fn voronoi_pi_sum<PO, P, I>(
+    opts: &SamplingOptions<PO, SpreadingOptions<P>>,
     sample: I,
 ) -> Result<FxHashMap<PO::Id, P::Value>, SpatialBalanceError>
 where
@@ -109,8 +109,8 @@ where
 /// Calculate the voronoi means of `data`.
 /// `sample` is an iterator over sample indices
 #[expect(clippy::type_complexity, reason = "Ok complexity")]
-fn voronoi_means<PO, P, BAL, I>(
-    opts: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+fn voronoi_means<PO, P, I>(
+    opts: &SamplingOptions<PO, SpreadingOptions<P>>,
     sample: I,
     balance_probabilities: bool,
 ) -> Result<FxHashMap<PO::Id, Box<[P::Value]>>, SpatialBalanceError>
@@ -567,7 +567,7 @@ where
         I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
 }
 
-impl<PO, P, BAL> SpatialBalance<P> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
+impl<PO, P> SpatialBalance<P> for SamplingOptions<PO, SpreadingOptions<P>>
 where
     PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,

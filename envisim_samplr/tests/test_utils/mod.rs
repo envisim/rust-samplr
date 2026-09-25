@@ -61,9 +61,9 @@ pub fn matrix_big_balanced() -> (
 
 #[allow(dead_code)]
 #[inline]
-pub fn test_wor<F, PO, SOP, BOP>(
+pub fn test_wor<F, PO, SOP>(
     mut sampler: F,
-    options: &SamplingOptions<PO, SOP, BOP>,
+    options: &SamplingOptions<PO, SOP>,
     eps: f64,
     runs: usize,
 ) where
@@ -109,9 +109,9 @@ pub fn test_wor<F, PO, SOP, BOP>(
 
 #[allow(dead_code)]
 #[inline]
-pub fn test_wor_random_n<F, PO, SOP, BOP>(
+pub fn test_wor_random_n<F, PO, SOP>(
     mut sampler: F,
-    options: &SamplingOptions<PO, SOP, BOP>,
+    options: &SamplingOptions<PO, SOP>,
     eps: f64,
     runs: usize,
 ) where

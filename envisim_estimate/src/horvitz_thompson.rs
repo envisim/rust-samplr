@@ -280,9 +280,9 @@ where
 /// # Panics
 /// Panics if `P` does not contains units `0..sample_size`.
 #[inline]
-pub fn local_mean_variance<Y, PO, P, BAL>(
+pub fn local_mean_variance<Y, PO, P>(
     y_values: Y,
-    options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>>,
     n_neighbours: NonZeroUsize,
 ) -> EstimationResult<f64>
 where

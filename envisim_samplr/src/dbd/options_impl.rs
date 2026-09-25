@@ -97,8 +97,8 @@ where
     ) -> SamplingResult<TacticalConfiguration<ID>>;
 }
 
-impl<R, IDS, P, BAL> DistributionalDesigns<<EqualProbabilities<IDS> as DataView>::Id, R>
-    for SamplingOptions<EqualProbabilities<IDS>, SpreadingOptions<P>, BAL>
+impl<R, IDS, P> DistributionalDesigns<<EqualProbabilities<IDS> as DataView>::Id, R>
+    for SamplingOptions<EqualProbabilities<IDS>, SpreadingOptions<P>>
 where
     R: SamplingOptionsRng<EqualProbabilities>,
     EqualProbabilities<IDS>: ProbabilitiesSpec<Real = f64>,
@@ -177,8 +177,8 @@ where
         by: NonZeroUsize,
     ) -> SamplingResult<Vec<f64>>;
 }
-impl<R, P, BAL> DistributionalDesignEvaluators<R>
-    for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
+impl<R, P> DistributionalDesignEvaluators<R>
+    for SamplingOptions<EqualProbabilities, SpreadingOptions<P>>
 where
     R: SamplingOptionsRng<EqualProbabilities>,
     P: PointSet<Id = usize, Value = f64>,

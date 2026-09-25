@@ -45,15 +45,9 @@ pub enum SamplingOptionsError {
     /// The bucket size must be positive
     #[error("bucket size must be positive")]
     InvalidBucketSize,
-    /// The number of units in the balancing data must match the population size
-    #[error("the number of units the balancing data must match the population size")]
-    InvalidBalancing,
     /// Spreading data must be provided
     #[error("spreading data must be provided")]
     MissingSpreading,
-    /// Balancing data must be provided
-    #[error("balancing data must be provided")]
-    MissingBalancing,
 }
 
 /// An alias for an `Result` returning a [`SamplingOptionsError`].

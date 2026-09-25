@@ -47,6 +47,9 @@ pub enum SamplingError {
     /// The number of random values must not be smaller than the population size.
     #[error("the number of random values must not be smaller than the population size")]
     InvalidRandomValues,
+    /// The balancing data is invalid
+    #[error("invalid balancing data")]
+    InvalidBalancing,
     /// Annealing temperatures must be positive.
     #[error("annealing temperature must be positive")]
     IncorrectAnnealingTemperature,

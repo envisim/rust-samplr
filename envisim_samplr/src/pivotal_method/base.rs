@@ -131,7 +131,7 @@ where
     fn rpm(&self, rng: &mut R) -> Vec<ID>;
 }
 
-impl<R, PO, AUX, BAL> PivotalSampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
+impl<R, PO, AUX> PivotalSampling<PO::Id, R> for SamplingOptions<PO, AUX>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec,

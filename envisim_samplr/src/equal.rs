@@ -65,7 +65,7 @@ where
     /// ```
     fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilities, AUX, BAL>
+impl<R, AUX> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilities, AUX>
 where
     R: Rand<usize>,
 {

@@ -674,7 +674,7 @@ where
     #[must_use]
     fn lcps(&self, rng: &mut R) -> Vec<ID>;
 }
-impl<R, PO, AUX, BAL> CorrelatedPoissonSampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
+impl<R, PO, AUX> CorrelatedPoissonSampling<PO::Id, R> for SamplingOptions<PO, AUX>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,
@@ -700,8 +700,8 @@ where
         Ok(correlated_poisson_runner(rng, controller, strategy).to_sorted_sample_vec())
     }
 }
-impl<R, PO, P, BAL> SpatiallyCorrelatedPoissonSampling<PO::Id, R>
-    for SamplingOptions<PO, SpreadingOptions<P>, BAL>
+impl<R, PO, P> SpatiallyCorrelatedPoissonSampling<PO::Id, R>
+    for SamplingOptions<PO, SpreadingOptions<P>>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec<Real = f64>,

@@ -346,8 +346,7 @@ where
     /// ```
     fn lpm_2(&self, rng: &mut R) -> Vec<ID>;
 }
-impl<R, PO, P, BAL> LocalPivotalSampling<PO::Id, R>
-    for SamplingOptions<PO, SpreadingOptions<P>, BAL>
+impl<R, PO, P> LocalPivotalSampling<PO::Id, R> for SamplingOptions<PO, SpreadingOptions<P>>
 where
     R: SamplingOptionsRng<PO>,
     PO: ProbabilitiesSpec,
@@ -421,9 +420,9 @@ where
 /// - probabilities does not sum to an integer
 #[expect(clippy::missing_panics_doc, reason = "panic implies bug")]
 #[inline]
-pub fn hierarchical_lpm_2<R, PO, P, BAL>(
+pub fn hierarchical_lpm_2<R, PO, P>(
     rng: &mut R,
-    options: &SamplingOptions<PO, SpreadingOptions<P>, BAL>,
+    options: &SamplingOptions<PO, SpreadingOptions<P>>,
     sizes: &[usize],
 ) -> SamplingResult<Vec<Vec<PO::Id>>>
 where
