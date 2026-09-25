@@ -30,12 +30,12 @@ use envisim_utils::matrix::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
+    BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptionsError,
     SpreadingOptions,
 };
 use envisim_utils::utils::{
-    ConstructableDataView,
     DataView,
     DataViewMut,
     Number,
@@ -54,7 +54,7 @@ fn voronoi_pi_sum<PO, P, BAL, I>(
     sample: I,
 ) -> Result<FxHashMap<PO::Id, P::Value>, SpatialBalanceError>
 where
-    PO: ProbabilitiesSpec<Real = f64>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
     I: ExactSizeIterator<Item = PO::Id> + Clone,
 {
@@ -115,7 +115,7 @@ fn voronoi_means<PO, P, BAL, I>(
     balance_probabilities: bool,
 ) -> Result<FxHashMap<PO::Id, Box<[P::Value]>>, SpatialBalanceError>
 where
-    PO: ProbabilitiesSpec<Real = f64>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
     I: ExactSizeIterator<Item = PO::Id> + Clone,
 {
@@ -236,11 +236,15 @@ where
 /// Calulates the energy distance between a population and a sample.
 /// # References
 /// Grafström & Prentius (2026). Distributionally balanced sampling designs. Biometrics, 82(3).
+///
+/// Székely & Rizzo (2013). Energy statistics: A class of statistics based on distances.
+/// Journal of Statistical Planning and Inference, 143, 1249-1272.
+#[derive(Clone, Debug)]
 pub struct EnergyDistance<PH, DT> {
     /// Mean unit-distances, i.e. the average distance of each unit to the population.
     phis: PH,
     /// The population spread, multiplied by `sample_size`.
-    u_spread: f64,
+    u_spread_n: f64,
     /// The sample size.
     sample_size: NonZeroUsize,
     /// The data
@@ -265,8 +269,12 @@ where
     ) -> Result<Self, SpatialBalanceError>
     where
         PH: DataViewMut,
-        PO: ProbabilitiesSpec<Id = PH::Id, Value: Number, Real = f64>
-            + ConstructableDataView<ConstructableContainer<f64> = PH>,
+        PO: ProbabilitiesSpec<
+                Id = PH::Id,
+                Value: Number,
+                Real = f64,
+                ConstructableContainer<f64> = PH,
+            >,
     {
         let nn = sample_size
             .get()
@@ -295,10 +303,25 @@ where
 
         Ok(Self {
             phis,
-            u_spread,
+            u_spread_n: u_spread,
             sample_size,
             data,
         })
+    }
+    /// Returns a reference to the phis-store
+    #[inline]
+    pub fn phis(&self) -> &PH { &self.phis }
+    /// Returns a reference to the data
+    #[inline]
+    pub fn data(&self) -> &DT { &self.data }
+    /// Returns the sample size
+    #[inline]
+    pub fn sample_size(&self) -> NonZeroUsize { self.sample_size }
+    /// Returns the population size
+    #[expect(clippy::missing_panics_doc, reason = "invalid setup")]
+    #[inline]
+    pub fn population_size(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.phis.len()).expect("phis non-empty")
     }
     /// Returns the sample size as `f64` as a convenience method.
     /// # Panics
@@ -316,11 +339,34 @@ where
     /// Returns the population spread.
     /// See [`EnergyDistance::u_spread_n`].
     #[inline]
-    pub fn u_spread(&self) -> f64 { self.u_spread / self.nn() }
+    pub fn u_spread(&self) -> f64 { self.u_spread_n / self.nn() }
     /// Returns the population spread, or the average pairwise distances between units in the
     /// population, multiplied by the sample size.
     #[inline]
-    pub fn u_spread_n(&self) -> f64 { self.u_spread }
+    pub fn u_spread_n(&self) -> f64 { self.u_spread_n }
+    /// Returns the difference in distance between `a` and `b` and `a` and `c`, i.e.
+    /// `||a-b|| - ||a-c||`.
+    /// # Errors
+    /// Returns an error if any id is not found in the data.
+    #[inline]
+    pub fn distance_difference(
+        &self,
+        a: PH::Id,
+        b: PH::Id,
+        c: PH::Id,
+    ) -> Result<f64, SpatialBalanceError> {
+        let d = self
+            .data
+            .sq_distance_between(a, b)
+            .ok_or(SpatialBalanceError::InvalidId)?
+            .sqrt()
+            - self
+                .data
+                .sq_distance_between(a, c)
+                .ok_or(SpatialBalanceError::InvalidId)?
+                .sqrt();
+        Ok(d)
+    }
     /// Returns the energy distance between a sample and the population.
     /// See [`EnergyDistance::energy_distance_n`].
     #[expect(clippy::missing_errors_doc, reason = "referred to other function")]
@@ -400,16 +446,7 @@ where
             } else if id == rem {
                 continue;
             }
-            s_delta += self
-                .data
-                .sq_distance_between(id, rem)
-                .ok_or(SpatialBalanceError::InvalidId)?
-                .sqrt()
-                - self
-                    .data
-                    .sq_distance_between(id, add)
-                    .ok_or(SpatialBalanceError::InvalidId)?
-                    .sqrt();
+            s_delta += self.distance_difference(id, rem, add)?;
         }
 
         s_delta *= 2.0 / self.nn();
@@ -532,7 +569,7 @@ where
 
 impl<PO, P, BAL> SpatialBalance<P> for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
 {
     /// # Panics

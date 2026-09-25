@@ -23,6 +23,7 @@ use envisim_utils::random::FloatRng;
 use envisim_utils::sample_controller::TreeStorage;
 use envisim_utils::sampling_options::{
     BalancingOptions,
+    BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
@@ -48,7 +49,7 @@ use crate::error::{
 /// Stratified cube method runner
 struct CubeStratifiedMethod<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
     STRATA: DataView<Id = PS::Id>,
@@ -63,7 +64,7 @@ where
 impl<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
     CubeStratifiedMethod<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
     TR: TreeStorage<PS::Id>,
@@ -416,7 +417,7 @@ pub fn cube_stratified<R, PO, AUX, BL, STRATA>(
 ) -> SamplingResult<Vec<PO::Id>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,
 {
@@ -459,7 +460,7 @@ pub fn local_cube_stratified<R, PO, P, BL, STRATA>(
 ) -> SamplingResult<Vec<PO::Id>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id>,
     BL: PointSet<Id = PO::Id, Value = f64>,
     STRATA: DataView<Id = PO::Id, Value: Copy + Ord>,

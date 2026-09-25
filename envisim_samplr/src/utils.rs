@@ -12,28 +12,8 @@
 
 //! Utility functions for sampling algorithms.
 
-use std::num::NonZeroUsize;
-
 use envisim_utils::random::Rand;
-use envisim_utils::sampling_options::ProbabilitiesSpec;
-
-/// Random permutation of usize [0,...,len] vector.
-#[inline]
-pub fn shuffled_indices<R>(rng: &mut R, len: NonZeroUsize) -> Vec<usize>
-where
-    R: Rand<usize>,
-{
-    let mut order: Vec<usize> = Vec::with_capacity(len.get());
-    order.push(0);
-
-    for i in 1..len.get() {
-        let j = rng.rand_to(i + 1);
-        order.push(i);
-        order.swap(i, j);
-    }
-
-    order
-}
+use envisim_utils::sampling_options::BaseProbabilitiesSpec;
 
 /// Random permutation of vector.
 #[inline]
@@ -53,7 +33,7 @@ where
 pub fn poisson_internal<R, PS>(rng: &mut R, probs: PS) -> Vec<PS::Id>
 where
     R: Rand<PS::Value>,
-    PS: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
 {
     let max = probs.max();
     probs

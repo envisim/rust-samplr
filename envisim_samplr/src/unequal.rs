@@ -27,12 +27,12 @@ use envisim_utils::random::{
 use envisim_utils::sample::Sample;
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
+    BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptionsError,
     SamplingOptionsRng,
 };
 use envisim_utils::utils::{
-    ConstructableDataView,
     DataView,
     DataViewMut,
     Epsilon,
@@ -80,7 +80,7 @@ where
 fn draw3<R, PS>(rng: &mut R, probs: PS, psum: PS::Value) -> Option<PS::Id>
 where
     R: Rand<PS::Value>,
-    PS: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
 {
     let rv = rng.rand_to(psum);
     let mut pacc = PS::Value::ZERO;
@@ -205,7 +205,7 @@ where
 impl<R, PO, AUX, BAL> UnequalProbabilitySampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
     fn with_replacement(&self, rng: &mut R, n: usize) -> SamplingResult<Vec<PO::Id>> {

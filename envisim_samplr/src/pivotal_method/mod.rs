@@ -26,7 +26,7 @@
 //! <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
 
 mod base;
-pub(crate) mod runner;
+mod runner;
 mod spatial;
 
 pub use base::PivotalSampling;

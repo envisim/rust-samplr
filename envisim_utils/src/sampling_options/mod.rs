@@ -25,6 +25,7 @@ pub use error::{
     SamplingOptionsResult,
 };
 pub use probability_opts::{
+    BaseProbabilitiesSpec,
     EqualProbabilities,
     ProbabilitiesSpec,
     UnequalProbabilities,
@@ -44,23 +45,23 @@ use crate::random::{
 };
 use crate::utils::{
     ConstructableDataView,
+    DataView,
     Epsilon,
     Number,
     NumberFloat,
     NumberInt,
     PointSet,
-    SliceView,
 };
 
 /// RNG requirements for an RNG to be able to operate on a [`ProbabilitySpec`]
 pub trait SamplingOptionsRng<PO>: FloatRng + Rand<PO::Value> + Rand<PO::Real>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
 }
 impl<PO, R> SamplingOptionsRng<PO> for R
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
     R: FloatRng + Rand<PO::Value> + Rand<PO::Real>,
 {
 }
@@ -71,7 +72,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SamplingOptions<PO, AUX = (), BAL = ()>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
     /// Probability specification
     probabilities: PO,
@@ -87,7 +88,7 @@ where
 
 impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
     /// Returns a reference to the provided probability specification
     #[inline]
@@ -197,24 +198,23 @@ where
             balancing: data,
         })
     }
+}
+impl<PO, AUX, BAL> SamplingOptions<PO, AUX, BAL>
+where
+    PO: ProbabilitiesSpec,
+{
     /// Constructs a [`ProbabilitySet`] from the probability specification
     #[inline]
     pub fn to_probabilityset(
         &self,
-    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Value>>, PO::Value>
-    where
-        PO: ConstructableDataView,
-    {
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Value>>, PO::Value> {
         ProbabilitySet::from_opts(&self.probabilities, self.eps)
     }
     /// Constructs a real-valued [`ProbabilitySet`] from the probability specification
     #[inline]
     pub fn to_probabilityset_real(
         &self,
-    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Real>>, PO::Real>
-    where
-        PO: ConstructableDataView,
-    {
+    ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Real>>, PO::Real> {
         ProbabilitySet::from_opts_real(&self.probabilities, self.eps)
     }
 }
@@ -224,7 +224,7 @@ const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible"
 
 impl<PS> SamplingOptions<PS>
 where
-    PS: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
 {
     /// Initializes `SamplingOptions` with unequal probability options
     #[inline]
@@ -240,8 +240,7 @@ where
 }
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesReal<PD>>>
 where
-    PD: SliceView,
-    PD::Value: NumberFloat,
+    PD: DataView<Value: NumberFloat>,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///
@@ -255,8 +254,7 @@ where
 }
 impl<PD> SamplingOptions<UnequalProbabilities<UnequalProbabilitiesInt<PD>>>
 where
-    PD: SliceView,
-    PD::Value: NumberInt,
+    PD: ConstructableDataView<Value: NumberInt>,
 {
     /// Initializes `SamplingOptions` by some probability container.
     ///

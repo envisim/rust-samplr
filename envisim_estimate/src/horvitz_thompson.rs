@@ -26,7 +26,7 @@ use envisim_utils::matrix::{
 };
 use envisim_utils::probabilities::Probability;
 use envisim_utils::sampling_options::{
-    ProbabilitiesSpec,
+    BaseProbabilitiesSpec,
     SamplingOptions,
     SpreadingOptions,
 };
@@ -287,7 +287,7 @@ pub fn local_mean_variance<Y, PO, P, BAL>(
 ) -> EstimationResult<f64>
 where
     Y: ConstructableDataView<Value: Number>,
-    PO: ProbabilitiesSpec<Id = Y::Id, Real = f64>,
+    PO: BaseProbabilitiesSpec<Id = Y::Id, Real = f64>,
     P: PointSet<Id = Y::Id, Value = f64>,
 {
     let sample_size = y_values.len();

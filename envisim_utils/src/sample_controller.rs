@@ -39,7 +39,6 @@ use crate::sampling_options::{
     SpreadingOptions,
 };
 use crate::utils::{
-    ConstructableDataView,
     DataView,
     DataViewMut,
     Number,
@@ -285,8 +284,7 @@ where
     #[inline]
     pub fn new<PO, AUX, BAL>(opts: &SamplingOptions<PO, AUX, BAL>) -> Self
     where
-        PO: ProbabilitiesSpec<Id = T::Id, Value = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Id = T::Id, Value = N, ConstructableContainer<Probability<N>> = T>,
     {
         let probs = opts.to_probabilityset();
         Self::from_probabilityset(probs).expect("population size > 0")
@@ -299,8 +297,7 @@ where
     #[inline]
     pub fn new_real<PO, AUX, BAL>(opts: &SamplingOptions<PO, AUX, BAL>) -> Self
     where
-        PO: ProbabilitiesSpec<Id = T::Id, Real = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Id = T::Id, Real = N, ConstructableContainer<Probability<N>> = T>,
     {
         let probs = opts.to_probabilityset_real();
         Self::from_probabilityset(probs).expect("population size > 0")
@@ -321,8 +318,7 @@ where
         opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>, BAL>,
     ) -> Self
     where
-        PO: ProbabilitiesSpec<Id = T::Id, Value = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Id = T::Id, Value = N, ConstructableContainer<Probability<N>> = T>,
     {
         let base_controller = SampleController::new(opts);
         let mut units = base_controller.indices.to_vec();
@@ -342,8 +338,7 @@ where
         opts: &'bspread SamplingOptions<PO, SpreadingOptions<DT>, BAL>,
     ) -> Self
     where
-        PO: ProbabilitiesSpec<Id = T::Id, Real = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Id = T::Id, Real = N, ConstructableContainer<Probability<N>> = T>,
     {
         let base_controller = SampleController::new_real(opts);
         let mut units = base_controller.indices.to_vec();

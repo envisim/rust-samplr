@@ -12,34 +12,40 @@
 
 //! Tactical configuration DBD config
 
+use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::matrix::{
     Dimensions,
     MatrixBase,
 };
-use envisim_utils::utils::PointSet;
+use envisim_utils::utils::{
+    DataView,
+    PointSet,
+};
 
-use crate::dbd::energy_distance::EnergyDistance;
 pub use crate::dbd::tc_parameters::{
     DbdConfiguration,
     TacticalConfigurationParameters,
 };
 
 /// Storage for the buckets used in a Tactical Configuration
-pub type TcBuckets = MatrixBase<Box<[usize]>>;
+pub type TcBuckets<ID> = MatrixBase<Box<[ID]>>;
 
 /// Defines a tactical configuration for DBD
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct TacticalConfiguration {
+pub struct TacticalConfiguration<ID> {
     /// Internal storage of sequence (`sample_size` * `n_samples` matrix)
     // An n * M matrix
-    buckets: TcBuckets,
+    buckets: TcBuckets<ID>,
     /// Total energy multiplied by sample size
-    total_nenergy: f64,
+    total_energy_n: f64,
     /// Tactical configuration parameters
     tcp: TacticalConfigurationParameters,
 }
-impl TacticalConfiguration {
+impl<ID> TacticalConfiguration<ID>
+where
+    ID: Copy,
+{
     /// Construct a new circular configuration from a set of indices and tactical configuration
     /// parameters
     ///
@@ -47,13 +53,14 @@ impl TacticalConfiguration {
     /// Panics if the sequence is empty or otherwise incorrect in size. Must be
     /// `n_samples * sample_size`.
     #[inline]
-    pub fn new<P>(
-        buckets: TcBuckets,
+    pub fn new<PH, P>(
+        buckets: TcBuckets<ID>,
         tcp: TacticalConfigurationParameters,
-        ed: &EnergyDistance<P>,
+        ed: &EnergyDistance<PH, P>,
     ) -> Self
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: DataView<Id = ID, Value = f64>,
+        P: PointSet<Id = ID, Value = f64>,
     {
         assert_eq!(
             buckets.dims(),
@@ -63,52 +70,56 @@ impl TacticalConfiguration {
 
         let mut cc = Self {
             buckets,
-            total_nenergy: 0.0,
+            total_energy_n: 0.0,
             tcp,
         };
 
-        let _total_energy = cc.reset_total_nenergy(ed);
+        let _total_energy = cc.reset_total_energy_n(ed);
         cc
     }
     /// Returns a reference to the internal storage
     #[inline]
-    pub fn buckets(&self) -> &TcBuckets { &self.buckets }
+    pub fn buckets(&self) -> &TcBuckets<ID> { &self.buckets }
     /// Consumes `self` and returns the internal storage
     #[inline]
-    pub fn into_buckets(self) -> TcBuckets { self.buckets }
+    pub fn into_buckets(self) -> TcBuckets<ID> { self.buckets }
     /// Returns a mutable reference to the internal storage
     #[inline]
-    pub fn buckets_mut(&mut self) -> &mut TcBuckets { &mut self.buckets }
+    pub fn buckets_mut(&mut self) -> &mut TcBuckets<ID> { &mut self.buckets }
     /// Add a delta to the nenergy
     #[must_use]
     #[inline]
-    pub(crate) fn add_nenergy_delta(&mut self, delta: f64) -> f64 {
-        self.total_nenergy += delta;
-        self.total_nenergy
+    pub(crate) fn add_energy_n_delta(&mut self, delta: f64) -> f64 {
+        self.total_energy_n += delta;
+        self.total_energy_n
     }
     /// Reset the total nenergy
     #[must_use]
     #[inline]
-    fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
+    fn reset_total_energy_n<PH, P>(&mut self, ed: &EnergyDistance<PH, P>) -> f64
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: DataView<Id = ID, Value = f64>,
+        P: PointSet<Id = ID, Value = f64>,
     {
-        self.total_nenergy = 0.0;
+        self.total_energy_n = 0.0;
         for i in 0..self.tcp.n_samples().get() {
-            self.total_nenergy += self.nenergy_of_sample(ed, i);
+            self.total_energy_n += self.energy_of_sample_n(ed, i);
         }
-        self.total_nenergy
+        self.total_energy_n
     }
 }
-impl DbdConfiguration for TacticalConfiguration {
+impl<ID> DbdConfiguration<ID> for TacticalConfiguration<ID>
+where
+    ID: Copy,
+{
     #[inline]
     fn tcp(&self) -> &TacticalConfigurationParameters { &self.tcp }
     #[inline]
-    fn total_nenergy(&self) -> f64 { self.total_nenergy }
+    fn total_energy_n(&self) -> f64 { self.total_energy_n }
     /// # Panics
     /// Panics if `sample_id` is oob.
     #[inline]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_ {
+    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_ {
         self.buckets
             .col_iter(sample_id)
             .expect("valid sample id")

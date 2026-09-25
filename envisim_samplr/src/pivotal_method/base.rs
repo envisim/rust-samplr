@@ -24,7 +24,6 @@ use envisim_utils::sampling_options::{
     SamplingOptions,
     SamplingOptionsRng,
 };
-use envisim_utils::utils::ConstructableDataView;
 
 use super::runner::{
     PivotalStrategy,
@@ -135,7 +134,7 @@ where
 impl<R, PO, AUX, BAL> PivotalSampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec + ConstructableDataView,
+    PO: ProbabilitiesSpec,
 {
     #[inline]
     fn spm(&self, rng: &mut R) -> Vec<PO::Id> {

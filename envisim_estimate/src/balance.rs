@@ -15,7 +15,7 @@
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
     BalancingOptions,
-    ProbabilitiesSpec,
+    BaseProbabilitiesSpec,
     SpreadingOptions,
 };
 use envisim_utils::utils::PointSet;
@@ -35,7 +35,7 @@ fn balance_deviation<I, PROB, DATA>(
 ) -> EstimationResult<Vec<f64>>
 where
     I: IntoIterator<Item = PROB::Id, IntoIter: Clone>,
-    PROB: ProbabilitiesSpec<Real = f64>,
+    PROB: BaseProbabilitiesSpec<Real = f64>,
     DATA: PointSet<Id = PROB::Id, Value = f64>,
 {
     let sample = sample.into_iter();
@@ -86,7 +86,7 @@ pub fn balance_deviation_spreading<I, PO, P, BAL>(
 ) -> EstimationResult<Vec<f64>>
 where
     I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
-    PO: ProbabilitiesSpec<Real = f64>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.spreading().data())
@@ -115,7 +115,7 @@ pub fn balance_deviation_balancing<I, PO, AUX, P>(
 ) -> EstimationResult<Vec<f64>>
 where
     I: IntoIterator<Item = PO::Id, IntoIter: Clone>,
-    PO: ProbabilitiesSpec<Real = f64>,
+    PO: BaseProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id, Value = f64>,
 {
     balance_deviation(sample, options.probabilities(), options.balancing().data())

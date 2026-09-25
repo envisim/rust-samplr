@@ -34,7 +34,7 @@
 //! Statistics & Probability Letters, 180, 109229.
 //! <https://doi.org/10.1016/j.spl.2021.109229>
 
-pub(crate) mod cube;
+mod cube;
 mod stratified;
 mod utils;
 

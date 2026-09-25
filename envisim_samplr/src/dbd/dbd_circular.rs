@@ -12,10 +12,10 @@
 
 //! Circular distributionally balanced designs
 
-use std::num::NonZeroUsize;
-
+use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::random::Rand;
 use envisim_utils::utils::{
+    DataView,
     Epsilon,
     PointSet,
 };
@@ -27,78 +27,73 @@ use super::annealing::{
     AnnealingTemperature,
 };
 pub use super::dbd_circular_config::*;
-use super::energy_distance::EnergyDistance;
 
-/// The circular DBD container
+/// The circular DBD container.
 #[must_use]
-pub struct DbdCircular<P> {
-    /// Annealing temperature tracker
+#[derive(Debug)]
+pub struct DbdCircular<PH, P>
+where
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
+{
+    /// Annealing temperature tracker.
     temperature: AnnealingTemperature,
-    /// Energy distance engine
-    ed: EnergyDistance<P>,
+    /// Energy distance engine.
+    ed: EnergyDistance<PH, P>,
 
-    /// Main circular config
-    configuration: CircularConfiguration,
-    /// Best cicular config, if better than main
-    configuration_best: Option<CircularConfiguration>,
+    /// Main circular config.
+    configuration: CircularConfiguration<PH::Id>,
+    /// Best cicular config, if better than main.
+    configuration_best: Option<CircularConfiguration<PH::Id>>,
 
-    /// The switch-candidates to evaluate
+    /// The switch-candidates to evaluate.
     pair: (usize, usize), // k-index
-    /// The switch-candidates energy-delta
-    total_nenergy_delta: f64,
+    /// The switch-candidates energy-delta.
+    total_energy_n_delta: f64,
 }
-impl<P> DbdCircular<P> {
-    /// Returns the optimal configuration
+impl<PH, P> DbdCircular<PH, P>
+where
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
+{
+    /// Returns the optimal configuration.
     #[inline]
-    pub fn optimal_configuration(&self) -> &CircularConfiguration {
+    pub fn optimal_configuration(&self) -> &CircularConfiguration<PH::Id> {
         self.configuration_best
             .as_ref()
-            .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
+            .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(&self.configuration)
     }
-    /// Converts self into the optimal configuration
+    /// Converts self into the optimal configuration.
     #[inline]
-    pub fn into_optimal_configuration(self) -> CircularConfiguration {
+    pub fn into_optimal_configuration(self) -> CircularConfiguration<PH::Id> {
         self.configuration_best
-            .filter(|best| best.total_nenergy() <= self.configuration.total_nenergy())
+            .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(self.configuration)
     }
-    /// Returns a reference to the energy distance engine
+    /// Returns a reference to the energy distance engine.
     #[inline]
-    pub fn ed(&self) -> &EnergyDistance<P> { &self.ed }
-    /// Returns a reference to the tactical configuration parameters
+    pub fn ed(&self) -> &EnergyDistance<PH, P> { &self.ed }
+    /// Returns a reference to the tactical configuration parameters.
     #[inline]
     pub fn tcp(&self) -> &TacticalConfigurationParameters { self.configuration.tcp() }
 
     // CONSTRUCTORS
-    /// Constructs a new circular DBD
+    /// Constructs a new circular DBD.
     ///
     /// # Errors
     /// Returns the full configuration in case of `sample_size` equaling the population size.
-    #[expect(
-        clippy::unreachable,
-        reason = "matrix has rows > 0, one unit must exist in sequence"
-    )]
     #[inline]
     pub fn new(
+        ed: EnergyDistance<PH, P>,
         dbs_options: &DistributionalDesignOptions,
-        matrix: P,
-        sample_size: NonZeroUsize,
         eps: Epsilon<f64>,
-    ) -> Result<Self, CircularConfiguration>
-    where
-        P: PointSet<Id = usize, Value = f64>,
-    {
-        let sequence: Box<[usize]> = matrix.ids().collect();
+    ) -> Result<Self, CircularConfiguration<PH::Id>> {
+        let sequence: Box<[_]> = ed.phis().ids().collect();
         let annealing_temperature = dbs_options.as_annealing_temperature(eps);
-        let ed = EnergyDistance::new(matrix, sample_size);
 
-        let pair = match sequence.as_ref() {
-            [a, b, ..] => (*a, *b),
-            [a] => (*a, *a),
-            _ => unreachable!("empty sequence"),
-        };
-        let configuration = CircularConfiguration::new(sequence, sample_size, &ed);
+        let pair = if sequence.len() == 1 { (0, 0) } else { (0, 1) };
+        let configuration = CircularConfiguration::new(sequence, &ed);
 
         if configuration.tcp().n_samples().get() <= 1 {
             return Err(configuration);
@@ -112,14 +107,15 @@ impl<P> DbdCircular<P> {
             configuration_best: None,
 
             pair,
-            total_nenergy_delta: 0.0,
+            total_energy_n_delta: 0.0,
         })
     }
 }
 
-impl<P> AnnealingDistributionalDesign for DbdCircular<P>
+impl<PH, P> AnnealingDistributionalDesign for DbdCircular<PH, P>
 where
-    P: PointSet<Id = usize, Value = f64>,
+    PH: DataView<Value = f64>,
+    P: PointSet<Id = PH::Id, Value = f64>,
 {
     #[inline]
     fn temperature(&self) -> &AnnealingTemperature { &self.temperature }
@@ -138,7 +134,7 @@ where
     }
     #[inline]
     fn evaluate_switch(&mut self) -> Option<f64> {
-        self.total_nenergy_delta = 0.0;
+        self.total_energy_n_delta = 0.0;
 
         // Start off by clearing deltas
         let (k1, k2) = self.pair;
@@ -208,8 +204,11 @@ where
                 .configuration
                 .sequence_get(k)
                 .expect("k is guaranteed to exist after k % pop_size in beginning of loop");
-            let delta = self.ed.relative_distance(id, id1, id2);
-            self.total_nenergy_delta += delta * m_f64;
+            let delta = self
+                .ed
+                .distance_difference(id, id1, id2)
+                .expect("ids exist");
+            self.total_energy_n_delta += delta * m_f64;
         }
 
         for k in (k2 + d)..(k2 + d + sample_size * 2 - 1) {
@@ -246,25 +245,28 @@ where
                 .configuration
                 .sequence_get(k)
                 .expect("k is guaranteed to exist after k % pop_size in beginning of loop");
-            let delta = self.ed.relative_distance(id, id2, id1);
-            self.total_nenergy_delta += delta * m_f64;
+            let delta = self
+                .ed
+                .distance_difference(id, id2, id1)
+                .expect("ids exist");
+            self.total_energy_n_delta += delta * m_f64;
         }
 
-        Some(self.total_nenergy_delta)
+        Some(self.total_energy_n_delta)
     }
     #[inline]
     fn switch(&mut self) {
         let (k1, k2) = self.pair;
         self.configuration.sequence_mut().swap(k1, k2);
         self.configuration
-            .add_nenergy_delta(self.total_nenergy_delta);
+            .add_energy_n_delta(self.total_energy_n_delta);
     }
     #[inline]
     fn set_optimal_configuration(&mut self) {
         // Only replace if conf_best is None, or if we're better than conf_best
         self.configuration_best = match &self.configuration_best {
             // If there is a best, check if the current configuration is better
-            Some(best) if self.configuration.total_nenergy() < best.total_nenergy() => {
+            Some(best) if self.configuration.total_energy_n() < best.total_energy_n() => {
                 Some(self.configuration.clone())
             }
             // If there is no best yet

@@ -31,7 +31,6 @@ mod dbd_circular_config;
 mod dbd_options;
 mod dbd_tc;
 mod dbd_tc_config;
-mod energy_distance;
 mod options_impl;
 mod tc_parameters;
 

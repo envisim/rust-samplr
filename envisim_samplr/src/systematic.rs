@@ -20,7 +20,7 @@ use envisim_utils::random::{
 };
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
-    ProbabilitiesSpec,
+    BaseProbabilitiesSpec,
     SamplingOptionsRng,
 };
 use num_traits::ConstZero;
@@ -34,7 +34,7 @@ use crate::utils::shuffle;
 fn from_order<R, PS>(rng: &mut R, options: &PS, order: Vec<PS::Id>) -> Vec<PS::Id>
 where
     R: Rand<PS::Value>,
-    PS: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
 {
     let pmax = options.max();
     let mut sample = Vec::<PS::Id>::with_capacity(options.sample_size());
@@ -88,7 +88,7 @@ where
 }
 impl<R, PS, AUX, BAL> SystematicSampling<PS::Id, R> for SamplingOptions<PS, AUX, BAL>
 where
-    PS: ProbabilitiesSpec,
+    PS: BaseProbabilitiesSpec,
     R: SamplingOptionsRng<PS>,
 {
     #[inline]

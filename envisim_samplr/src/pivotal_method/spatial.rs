@@ -33,10 +33,7 @@ use envisim_utils::sampling_options::{
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::utils::{
-    ConstructableDataView,
-    PointSet,
-};
+use envisim_utils::utils::PointSet;
 use num_traits::FromPrimitive;
 use rustc_hash::FxHashSet;
 
@@ -353,7 +350,7 @@ impl<R, PO, P, BAL> LocalPivotalSampling<PO::Id, R>
     for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec + ConstructableDataView,
+    PO: ProbabilitiesSpec,
     P: PointSet<Id = PO::Id>,
 {
     #[inline]
@@ -431,7 +428,7 @@ pub fn hierarchical_lpm_2<R, PO, P, BAL>(
 ) -> SamplingResult<Vec<Vec<PO::Id>>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Id: Copy> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Id: Copy>,
     P: PointSet<Id = PO::Id>,
 {
     // Early return for degenerate case

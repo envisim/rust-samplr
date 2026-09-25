@@ -18,6 +18,7 @@ include = ["/src", "LICENSE", "README.md", "CHANGELOG.md"]
 workspace = true
 
 [dependencies]
+envisim_estimate = {version="0.7.0", path="../envisim_estimate"}
 envisim_utils = {version="0.7.0", path="../envisim_utils", default-features=false}
 num-integer = "0.1.46"
 num-traits = "0.2.19"

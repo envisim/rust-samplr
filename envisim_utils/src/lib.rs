@@ -15,7 +15,6 @@
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;
-pub mod pips;
 pub mod probabilities;
 pub mod random;
 pub mod sample;

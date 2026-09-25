@@ -42,13 +42,13 @@ use envisim_utils::sample_controller::{
 };
 use envisim_utils::sampling_options::{
     BalancingOptions,
+    BaseProbabilitiesSpec,
     ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
 };
 use envisim_utils::utils::{
-    ConstructableDataView,
     DataViewMut,
     PointSet,
 };
@@ -59,7 +59,7 @@ use crate::EqualProbabilitySampling;
 /// Cube method runner
 pub struct CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
@@ -78,7 +78,7 @@ where
 }
 impl<'bopts, PS, AUX, BL, PR, TR, SE> CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
     TR: TreeStorage<PS::Id>,
@@ -251,8 +251,7 @@ where
 }
 impl<'bopts, PS, AUX, BL, T> CubeMethod<'bopts, PS, AUX, BL, ProbabilitySet<T, f64>, (), ()>
 where
-    PS: ProbabilitiesSpec<Real = f64>
-        + ConstructableDataView<ConstructableContainer<Probability<f64>> = T>,
+    PS: ProbabilitiesSpec<Real = f64, ConstructableContainer<Probability<f64>> = T>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     T: DataViewMut<Id = PS::Id, Value = Probability<f64>>,
 {
@@ -293,8 +292,7 @@ impl<'bopts, PS, BL, T, P>
         KNearestNeighbourSearcher<P>,
     >
 where
-    PS: ProbabilitiesSpec<Real = f64>
-        + ConstructableDataView<ConstructableContainer<Probability<f64>> = T>,
+    PS: ProbabilitiesSpec<Real = f64, ConstructableContainer<Probability<f64>> = T>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     T: DataViewMut<Id = PS::Id, Value = Probability<f64>>,
     P: PointSet<Id = PS::Id>,
@@ -322,7 +320,7 @@ where
 /// A strategy for CUBE controls the selection of the units.
 pub trait CubeStrategy<'bopts, PS, AUX, BL, PR>: Copy
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
@@ -358,7 +356,7 @@ where
 pub struct SequentialStrategy;
 impl<PS, AUX, BL, PR> CubeStrategy<'_, PS, AUX, BL, PR> for SequentialStrategy
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
@@ -382,7 +380,7 @@ where
 pub struct RandomStrategy;
 impl<PS, AUX, BL, PR> CubeStrategy<'_, PS, AUX, BL, PR> for RandomStrategy
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
@@ -421,7 +419,7 @@ pub struct SpatialStrategy;
 impl<'bopts, PS, P, BL, PR> CubeStrategy<'bopts, PS, SpreadingOptions<P>, BL, PR>
     for SpatialStrategy
 where
-    PS: ProbabilitiesSpec<Real = f64>,
+    PS: BaseProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PS::Id> + 'bopts,
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
@@ -610,7 +608,7 @@ where
 impl<R, PO, AUX, BL> CubeSampling<PO::Id, R> for SamplingOptions<PO, AUX, BalancingOptions<BL>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     BL: PointSet<Id = PO::Id, Value = f64>,
 {
     #[inline]
@@ -632,7 +630,7 @@ impl<R, PO, P, BL> LocalCubeSampling<PO::Id, R>
     for SamplingOptions<PO, SpreadingOptions<P>, BalancingOptions<BL>>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id>,
     BL: PointSet<Id = PO::Id, Value = f64>,
 {

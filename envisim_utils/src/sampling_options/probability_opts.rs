@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Probability specifications and containers
+//! Probability specifications and containers.
 
 use std::collections::HashMap;
 use std::iter::repeat_n;
@@ -42,12 +42,13 @@ use crate::utils::{
     NumberInt,
 };
 
-/// Interface for constructing probability sets from probability options.
-/// `DataView::Value` is the native probability representation.
-pub trait ProbabilitiesSpec: DataView<Value: Number> {
-    /// The real-valued representation of the probabilities
+/// Trait for defining probability specifications.
+/// `DataView::Value` is the specs native probability representation.
+/// `DataView::Real` is the specs real-valude probability representations.
+pub trait BaseProbabilitiesSpec: DataView<Value: Number> {
+    /// The real-valued representation of the probabilities.
     type Real: NumberFloat;
-    /// Returns the population size
+    /// Returns the population size.
     #[must_use]
     #[inline]
     fn population_size(&self) -> NonZeroUsize {
@@ -98,9 +99,14 @@ pub trait ProbabilitiesSpec: DataView<Value: Number> {
             .map(|v| <Self::Real as NumCast>::from(*v).expect("native -> real") / self.max_real())
     }
 }
-impl<T> ProbabilitiesSpec for &T
+
+/// Marker trait for probability specifications.
+pub trait ProbabilitiesSpec: BaseProbabilitiesSpec + ConstructableDataView {}
+impl<T> ProbabilitiesSpec for T where T: BaseProbabilitiesSpec + ConstructableDataView {}
+
+impl<T> BaseProbabilitiesSpec for &T
 where
-    T: ProbabilitiesSpec,
+    T: BaseProbabilitiesSpec,
 {
     type Real = T::Real;
     #[inline]
@@ -122,9 +128,9 @@ where
     #[inline]
     fn get_real(&self, id: Self::Id) -> Option<Self::Real> { (**self).get_real(id) }
 }
-impl<T> ProbabilitiesSpec for &mut T
+impl<T> BaseProbabilitiesSpec for &mut T
 where
-    T: ProbabilitiesSpec,
+    T: BaseProbabilitiesSpec,
 {
     type Real = T::Real;
     #[inline]
@@ -147,14 +153,14 @@ where
     fn get_real(&self, id: Self::Id) -> Option<Self::Real> { (**self).get_real(id) }
 }
 
-/// Probability options for an equal probability design
+/// Probability options for an equal probability design.
 #[must_use]
 pub struct EqualProbabilities<IDS = Range<usize>> {
-    /// Population size
+    /// Population size.
     population_size: NonZeroUsize,
-    /// Sample size
+    /// Sample size.
     sample_size: usize,
-    /// Ids
+    /// Ids.
     ids: IDS,
 }
 impl EqualProbabilities<Range<usize>> {
@@ -303,6 +309,7 @@ where
     #[inline]
     fn is_empty(&self) -> bool { false }
 }
+impl ContiguousDataView for EqualProbabilities<Range<usize>> {}
 impl<IDS> ContiguousDataView for EqualProbabilities<IDS> where IDS: ContiguousDataView {}
 impl ConstructableDataView for EqualProbabilities<Range<usize>> {
     type ConstructableContainer<V> = Box<[V]>;
@@ -341,7 +348,7 @@ where
         iter.collect()
     }
 }
-impl<IDS> ProbabilitiesSpec for EqualProbabilities<IDS>
+impl<IDS> BaseProbabilitiesSpec for EqualProbabilities<IDS>
 where
     EqualProbabilities<IDS>: DataView<Value = usize>,
 {
@@ -363,38 +370,35 @@ where
     }
 }
 
-/// Stores real-valued probabilities in some slice format
+/// Real-valued probabilities.
 pub struct UnequalProbabilitiesReal<PD>
 where
     PD: DataView,
-    // PD::Value: NumberFloat,
 {
-    /// Slicy data
+    /// Data.
     data: PD,
 }
-/// Stores integer-valued probabilities in some slice format
+/// Integer-valued probabilities.
 pub struct UnequalProbabilitiesInt<PD>
 where
     PD: DataView,
-    // PD::Value: NumberInt,
 {
-    /// Slicy data
+    /// Data.
     data: PD,
-    /// Maximum value of the integer-valued probabilities
+    /// Maximum value of the integer-valued probabilities, i.e. probability one representation.
     max: PD::Value,
 }
 
-/// Stores unequal probability options data
+/// Stores unequal probability options data.
 pub struct UnequalProbabilities<PO> {
-    /// Store
+    /// Store.
     store: PO,
 }
 impl<PD> UnequalProbabilities<UnequalProbabilitiesReal<PD>>
 where
-    PD: DataView,
-    PD::Value: NumberFloat,
+    PD: DataView<Value: NumberFloat>,
 {
-    /// Constructs a new unequal probability specification
+    /// Constructs a new unequal probability specification.
     ///
     /// # Errors
     /// Returns an error if the `probabilities` container was empty, or if any provided probability
@@ -418,10 +422,9 @@ where
 }
 impl<PD> UnequalProbabilities<UnequalProbabilitiesInt<PD>>
 where
-    PD: DataView,
-    PD::Value: NumberInt,
+    PD: DataView<Value: NumberInt>,
 {
-    /// Constructs a new unequal probability specification
+    /// Constructs a new unequal probability specification.
     ///
     /// # Errors
     /// Returns an error if
@@ -580,7 +583,7 @@ where
     }
 }
 
-impl<PD> ProbabilitiesSpec for UnequalProbabilitiesReal<PD>
+impl<PD> BaseProbabilitiesSpec for UnequalProbabilitiesReal<PD>
 where
     PD: DataView<Value: NumberFloat>,
 {
@@ -605,7 +608,7 @@ where
     #[inline]
     fn get_real(&self, id: Self::Id) -> Option<Self::Real> { self.get(id).copied() }
 }
-impl<PD> ProbabilitiesSpec for UnequalProbabilitiesInt<PD>
+impl<PD> BaseProbabilitiesSpec for UnequalProbabilitiesInt<PD>
 where
     PD: DataView<Value: NumberInt>,
 {
@@ -640,9 +643,9 @@ where
             / self.population_size_real()
     }
 }
-impl<PO> ProbabilitiesSpec for UnequalProbabilities<PO>
+impl<PO> BaseProbabilitiesSpec for UnequalProbabilities<PO>
 where
-    PO: ProbabilitiesSpec,
+    PO: BaseProbabilitiesSpec,
 {
     type Real = PO::Real;
     #[inline]

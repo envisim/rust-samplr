@@ -57,7 +57,6 @@ use envisim_utils::sampling_options::{
     SpreadingOptions,
 };
 use envisim_utils::utils::{
-    ConstructableDataView,
     DataView,
     Number,
     PointSet,
@@ -678,7 +677,7 @@ where
 impl<R, PO, AUX, BAL> CorrelatedPoissonSampling<PO::Id, R> for SamplingOptions<PO, AUX, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
 {
     #[inline]
     fn cps(&self, rng: &mut R) -> Vec<PO::Id> {
@@ -705,7 +704,7 @@ impl<R, PO, P, BAL> SpatiallyCorrelatedPoissonSampling<PO::Id, R>
     for SamplingOptions<PO, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<PO>,
-    PO: ProbabilitiesSpec<Real = f64> + ConstructableDataView,
+    PO: ProbabilitiesSpec<Real = f64>,
     P: PointSet<Id = PO::Id>,
 {
     #[inline]

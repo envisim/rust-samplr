@@ -87,6 +87,7 @@ impl<ID> Sample<ID> {
         self.into()
     }
 }
+
 impl<ID> From<Sample<ID>> for Vec<ID> {
     #[inline]
     fn from(value: Sample<ID>) -> Self { value.data }

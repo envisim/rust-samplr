@@ -11,7 +11,7 @@ use envisim_utils::random::*;
 pub use envisim_utils::test_utils::*;
 use num_traits::ToPrimitive;
 
-fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
+pub fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
 #[allow(dead_code)]
 pub fn matrix_big_balanced() -> (

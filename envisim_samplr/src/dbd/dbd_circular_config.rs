@@ -14,9 +14,12 @@
 
 use std::num::NonZeroUsize;
 
-use envisim_utils::utils::PointSet;
+use envisim_estimate::spatial_balance::EnergyDistance;
+use envisim_utils::utils::{
+    DataView,
+    PointSet,
+};
 
-use crate::dbd::energy_distance::EnergyDistance;
 pub use crate::dbd::tc_parameters::{
     DbdConfiguration,
     TacticalConfigurationParameters,
@@ -25,30 +28,34 @@ pub use crate::dbd::tc_parameters::{
 /// Stores a circular design configuration
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct CircularConfiguration {
+pub struct CircularConfiguration<ID> {
     /// Internal storage of sequence
-    sequence: Box<[usize]>,
+    sequence: Box<[ID]>,
     /// Total energy multiplied by sample size
-    total_nenergy: f64,
+    total_energy_n: f64,
     /// Tactical configuration parameters
     tcp: TacticalConfigurationParameters,
 }
-impl CircularConfiguration {
+impl<ID> CircularConfiguration<ID>
+where
+    ID: Copy,
+{
     /// Construct a new circular configuration from a sequence
     ///
     /// # Panics
     /// Panics if the sequence is empty.
     #[inline]
-    pub fn new<P>(sequence: Box<[usize]>, sample_size: NonZeroUsize, ed: &EnergyDistance<P>) -> Self
+    pub fn new<PH, P>(sequence: Box<[ID]>, ed: &EnergyDistance<PH, P>) -> Self
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: DataView<Id = ID, Value = f64>,
+        P: PointSet<Id = ID, Value = f64>,
     {
         let population_size = NonZeroUsize::new(sequence.len()).expect("sequence to be non-empty");
-        let sample_size = sample_size.min(population_size);
+        let sample_size = ed.sample_size().min(population_size);
 
         let mut cc = Self {
             sequence,
-            total_nenergy: 0.0,
+            total_energy_n: 0.0,
             tcp: TacticalConfigurationParameters::new(
                 population_size,
                 sample_size,
@@ -57,54 +64,64 @@ impl CircularConfiguration {
             ),
         };
 
-        cc.reset_total_nenergy(ed);
+        cc.reset_total_energy_n(ed);
         cc
     }
     /// Returns a reference to the sequence store
     #[must_use]
     #[inline]
-    pub fn sequence(&self) -> &[usize] { &self.sequence }
+    pub fn sequence(&self) -> &[ID] { &self.sequence }
     /// Consumes `self` and returns the internal storage
     #[must_use]
     #[inline]
-    pub fn into_sequence(self) -> Box<[usize]> { self.sequence }
+    pub fn into_sequence(self) -> Box<[ID]> { self.sequence }
     /// Returns a mutable reference to the sequence store
     #[must_use]
     #[inline]
-    pub fn sequence_mut(&mut self) -> &mut [usize] { &mut self.sequence }
+    pub fn sequence_mut(&mut self) -> &mut [ID] { &mut self.sequence }
     /// Returns an element from the sequence store
     #[must_use]
     #[inline]
-    pub fn sequence_get(&self, k: usize) -> Option<usize> { self.sequence.get(k).copied() }
+    pub fn sequence_get(&self, k: usize) -> Option<ID>
+    where
+        ID: Copy,
+    {
+        self.sequence.get(k).copied()
+    }
     /// Add a delta to the nenergy
-    pub(crate) fn add_nenergy_delta(&mut self, delta: f64) -> f64 {
-        self.total_nenergy += delta;
-        self.total_nenergy
+    pub(crate) fn add_energy_n_delta(&mut self, delta: f64) -> f64 {
+        self.total_energy_n += delta;
+        self.total_energy_n
     }
     /// Reset the total nenergy
     #[inline]
-    fn reset_total_nenergy<P>(&mut self, ed: &EnergyDistance<P>) -> f64
+    fn reset_total_energy_n<PH, P>(&mut self, ed: &EnergyDistance<PH, P>) -> f64
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: DataView<Id = ID, Value = f64>,
+        P: PointSet<Id = ID, Value = f64>,
     {
-        self.total_nenergy = 0.0;
+        self.total_energy_n = 0.0;
         for i in 0..self.tcp.n_samples().get() {
-            self.total_nenergy += self.nenergy_of_sample(ed, i);
+            self.total_energy_n += self.energy_of_sample_n(ed, i);
         }
-        self.total_nenergy
+        self.total_energy_n
     }
 }
-impl DbdConfiguration for CircularConfiguration {
+impl<ID> DbdConfiguration<ID> for CircularConfiguration<ID>
+where
+    ID: Copy,
+{
     #[inline]
     fn tcp(&self) -> &TacticalConfigurationParameters { &self.tcp }
     #[inline]
-    fn total_nenergy(&self) -> f64 { self.total_nenergy }
+    fn total_energy_n(&self) -> f64 { self.total_energy_n }
     #[inline]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_ {
+    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_ {
         let sample_id = sample_id % self.tcp.n_samples();
-        self.sequence[sample_id..]
+        self.sequence
             .iter()
-            .chain(self.sequence[..sample_id].iter())
+            .skip(sample_id)
+            .chain(self.sequence.iter().take(sample_id))
             .take(self.tcp.sample_size().get())
             .copied()
     }

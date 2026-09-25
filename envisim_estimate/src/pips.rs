@@ -14,20 +14,19 @@
 
 use std::num::NonZeroUsize;
 
-use num_traits::ToPrimitive;
-use thiserror::Error;
-
-use crate::probabilities::{
+use envisim_utils::probabilities::{
     Probability,
     ProbabilityContext,
     ProbabilitySet,
     ProbabilityStore,
 };
-use crate::utils::{
+use envisim_utils::utils::{
     ConstructableDataView,
     Epsilon,
     Number,
 };
+use num_traits::ToPrimitive;
+use thiserror::Error;
 
 /// Construct draw probabilities proportional to size.
 /// Given an array of positive values, returns draw probabilities proportional to size.
@@ -160,9 +159,10 @@ pub enum PipsError {
 
 #[cfg(test)]
 mod tests {
+    use envisim_utils::probabilities::ProbabilityStoreToRaw;
+    use envisim_utils::test_utils::*;
+
     use super::*;
-    use crate::probabilities::ProbabilityStoreToRaw;
-    use crate::test_utils::*;
 
     #[test]
     fn test_pps() {

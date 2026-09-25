@@ -14,12 +14,14 @@
 
 use std::num::NonZeroUsize;
 
+use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::random::Rand;
-use envisim_utils::utils::PointSet;
+use envisim_utils::utils::{
+    DataView,
+    PointSet,
+};
 use num_integer::Integer;
 use num_traits::ToPrimitive;
-
-use super::energy_distance::EnergyDistance;
 
 #[must_use]
 #[derive(Clone, Debug)]
@@ -104,17 +106,17 @@ impl TacticalConfigurationParameters {
 }
 
 /// DBD methods
-pub trait DbdConfiguration {
+pub trait DbdConfiguration<ID> {
     /// Returns a reference to the tactical configuration parameters
     fn tcp(&self) -> &TacticalConfigurationParameters;
     /// Returns the total energy of all samples multiplied by the sample size
     #[must_use]
-    fn total_nenergy(&self) -> f64;
+    fn total_energy_n(&self) -> f64;
     /// Returns the total energy of all samples
     #[must_use]
     #[inline]
     fn total_energy(&self) -> f64 {
-        self.total_nenergy()
+        self.total_energy_n()
             / self
                 .tcp()
                 .sample_size()
@@ -136,11 +138,11 @@ pub trait DbdConfiguration {
     }
     /// Returns an iterator over a specific sample
     #[must_use]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = usize> + Clone + '_;
+    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_;
     /// Returns an iterator over a random sample
     #[must_use]
     #[inline]
-    fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = usize> + Clone + '_
+    fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = ID> + Clone + '_
     where
         R: Rand<usize>,
     {
@@ -151,10 +153,12 @@ pub trait DbdConfiguration {
     /// Returns the energy of a specific sample multiplied by the sample size
     #[must_use]
     #[inline]
-    fn nenergy_of_sample<P>(&self, ed: &EnergyDistance<P>, sample_id: usize) -> f64
+    fn energy_of_sample_n<PH, P>(&self, ed: &EnergyDistance<PH, P>, sample_id: usize) -> f64
     where
-        P: PointSet<Id = usize, Value = f64>,
+        PH: DataView<Id = ID, Value = f64>,
+        P: PointSet<Id = ID, Value = f64>,
     {
-        ed.total(self.sample(sample_id))
+        ed.energy_distance_n(self.sample(sample_id))
+            .expect("ids to exist")
     }
 }

@@ -85,7 +85,7 @@ pub trait SliceViewMut: SliceView + DataViewMut {
 /// Re-constructable data container
 pub trait ConstructableDataView: DataView {
     /// A similar type that can be used to re-construct the data container for different values
-    type ConstructableContainer<V>: DataViewMut<Id = Self::Id, Value = V>;
+    type ConstructableContainer<V>: DataViewMut<Id = Self::Id, Value = V> + ConstructableDataView;
     /// Construct a new container from an iterator
     #[must_use]
     fn from_iter<I, V>(iter: I) -> Self::ConstructableContainer<V>

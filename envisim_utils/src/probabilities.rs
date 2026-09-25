@@ -300,8 +300,7 @@ where
     #[inline]
     pub fn from_opts<PO>(opts: &PO, eps: Epsilon<PO::Real>) -> Self
     where
-        PO: ProbabilitiesSpec<Value = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Value = N, ConstructableContainer<Probability<N>> = T>,
     {
         let eps_inner = <PO::Value as NumCast>::from(eps.get()).expect("eps converts to native");
         let ctx =
@@ -318,8 +317,7 @@ where
     pub fn from_opts_real<PO>(opts: &PO, eps: Epsilon<PO::Real>) -> Self
     where
         N: NumberFloat,
-        PO: ProbabilitiesSpec<Real = N>
-            + ConstructableDataView<ConstructableContainer<Probability<N>> = T>,
+        PO: ProbabilitiesSpec<Real = N, ConstructableContainer<Probability<N>> = T>,
     {
         let ctx = ProbabilityContext::new_real(eps);
         let data = PO::from_iter(opts.entries_real().map(|(i, v)| {

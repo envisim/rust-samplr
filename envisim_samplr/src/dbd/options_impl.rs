@@ -13,14 +13,19 @@
 //! Distributionally balanced design trait.
 use std::num::NonZeroUsize;
 
+use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::random::Rng;
 use envisim_utils::sampling_options::{
     EqualProbabilities,
+    ProbabilitiesSpec,
     SamplingOptions,
     SamplingOptionsRng,
     SpreadingOptions,
 };
-use envisim_utils::utils::PointSet;
+use envisim_utils::utils::{
+    DataView,
+    PointSet,
+};
 use num_traits::ToPrimitive;
 
 use super::annealing::AnnealingDistributionalDesign;
@@ -40,7 +45,7 @@ use crate::{
 };
 
 /// Provides distributionally balanced sampling designs.
-pub trait DistributionalDesigns<R>
+pub trait DistributionalDesigns<ID, R>
 where
     R: Rng,
 {
@@ -67,7 +72,7 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<CircularConfiguration>;
+    ) -> SamplingResult<CircularConfiguration<ID>>;
     /// Construct a distributionally balanced design using a tactical configuration.
     ///
     /// # Examples
@@ -89,28 +94,31 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<TacticalConfiguration>;
+    ) -> SamplingResult<TacticalConfiguration<ID>>;
 }
 
-impl<R, P, BAL> DistributionalDesigns<R>
-    for SamplingOptions<EqualProbabilities, SpreadingOptions<P>, BAL>
+impl<R, IDS, P, BAL> DistributionalDesigns<<EqualProbabilities<IDS> as DataView>::Id, R>
+    for SamplingOptions<EqualProbabilities<IDS>, SpreadingOptions<P>, BAL>
 where
     R: SamplingOptionsRng<EqualProbabilities>,
-    P: PointSet<Id = usize, Value = f64>,
+    EqualProbabilities<IDS>: ProbabilitiesSpec<Real = f64>,
+    P: PointSet<Id = <EqualProbabilities<IDS> as DataView>::Id, Value = f64>,
 {
     #[inline]
     fn dbd_circular(
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<CircularConfiguration> {
+    ) -> SamplingResult<CircularConfiguration<P::Id>> {
+        let spreading_data = self.spreading().data();
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
+
         let max_iter = self.max_iterations();
         let eps = self.eps();
-        let spreading_data = self.spreading().data();
 
-        let mut v = match DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) {
+        let mut v = match DbdCircular::new(ed, &dbs_options, eps) {
             Ok(v) => v,
             Err(c) => return Ok(c),
         };
@@ -123,20 +131,15 @@ where
         &self,
         rng: &mut R,
         dbs_options: DistributionalDesignOptions,
-    ) -> SamplingResult<TacticalConfiguration> {
+    ) -> SamplingResult<TacticalConfiguration<P::Id>> {
+        let spreading_data = self.spreading().data();
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
         let max_iter = self.max_iterations();
         let eps = self.eps();
-        let spreading_data = self.spreading().data();
 
-        let mut v = match DbdTacticalConfiguration::new(
-            rng,
-            &dbs_options,
-            spreading_data,
-            sample_size,
-            eps,
-        ) {
+        let mut v = match DbdTacticalConfiguration::new(rng, ed, &dbs_options, eps) {
             Ok(v) => v,
             Err(c) => return Ok(c),
         };
@@ -147,7 +150,7 @@ where
 }
 
 /// Provides evalutors for distributionally balanced sampling designs
-pub trait DistributionalDesignEvaluators<R>: DistributionalDesigns<R>
+pub trait DistributionalDesignEvaluators<R>
 where
     R: Rng,
 {
@@ -194,16 +197,18 @@ where
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let spreading_data = self.spreading().data();
+        let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
+
         let sample_size_float = sample_size
             .get()
             .to_f64()
             .expect("sample_size to convert to f64");
         let eps = self.eps();
-        let spreading_data = self.spreading().data();
         #[expect(clippy::integer_division, reason = "no loss of precision")]
         let res_size = to.get() / by * 2;
 
-        let Ok(mut v) = DbdCircular::new(&dbs_options, spreading_data, sample_size, eps) else {
+        let Ok(mut v) = DbdCircular::new(ed, &dbs_options, eps) else {
             return Ok(vec![0.0; res_size]);
         };
 
@@ -218,7 +223,7 @@ where
             let mut sd = 0.0;
 
             for sid in 0..optimal_conf.tcp().n_samples().get() {
-                let energy = optimal_conf.nenergy_of_sample(v.ed(), sid) / sample_size_float;
+                let energy = optimal_conf.energy_of_sample_n(v.ed(), sid) / sample_size_float;
                 sd += (energy - mean).powi(2);
             }
 
@@ -251,18 +256,18 @@ where
 
         let sample_size =
             NonZeroUsize::new(self.sample_size()).ok_or(SamplingError::ZeroSampleSize)?;
+        let spreading_data = self.spreading().data();
+        let ed = EnergyDistance::new(self.probabilities(), spreading_data, sample_size)?;
+
         let sample_size_float = sample_size
             .get()
             .to_f64()
             .expect("sample_size to convert to f64");
         let eps = self.eps();
-        let spreading_data = self.spreading().data();
         #[expect(clippy::integer_division, reason = "no loss of precision")]
         let res_size = to.get() / by * 2;
 
-        let Ok(mut v) =
-            DbdTacticalConfiguration::new(rng, &dbs_options, spreading_data, sample_size, eps)
-        else {
+        let Ok(mut v) = DbdTacticalConfiguration::new(rng, ed, &dbs_options, eps) else {
             return Ok(vec![0.0; res_size]);
         };
 
@@ -283,7 +288,7 @@ where
             let mut sd = 0.0;
 
             for sid in 0..optimal_conf.tcp().n_samples().get() {
-                let energy = optimal_conf.nenergy_of_sample(v.ed(), sid) / sample_size_float;
+                let energy = optimal_conf.energy_of_sample_n(v.ed(), sid) / sample_size_float;
                 sd += (energy - mean).powi(2);
             }
 
