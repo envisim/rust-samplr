@@ -119,7 +119,7 @@ where
     /// # Panics
     /// Panics if `sample_id` is oob.
     #[inline]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_ {
+    fn sample(&self, sample_id: usize) -> impl ExactSizeIterator<Item = ID> + Clone + '_ {
         self.buckets
             .col_iter(sample_id)
             .expect("valid sample id")

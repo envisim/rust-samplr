@@ -110,12 +110,11 @@ where
         R: SamplingOptionsRng<EqualProbabilities>,
     {
         let population_size = ed.population_size();
-        let sample_size = ed.sample_size().min(population_size);
-        let tcp = TacticalConfigurationParameters::new_minimal(population_size, sample_size);
+        let tcp = TacticalConfigurationParameters::new_minimal(population_size, ed.sample_size());
 
         let mut buckets = TcBuckets::from_value(
             ed.phis().ids().next().expect("len > 0"),
-            (sample_size, tcp.n_samples()),
+            (ed.sample_size(), tcp.n_samples()),
         );
 
         if dbs_options.spatial_initialization() {
@@ -152,7 +151,7 @@ where
                 .into_iter()
                 .flat_map(|id| repeat_n(id, tcp.n_repeats().get()));
             // Iterate over the matrix row-wise
-            for row in 0..sample_size.get() {
+            for row in 0..ed.sample_size().get() {
                 for c in buckets.row_iter_mut(row).expect("row to exist") {
                     *c = sequence_iter.next().expect("sequence to have a unit");
                 }
