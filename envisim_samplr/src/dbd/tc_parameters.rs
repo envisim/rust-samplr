@@ -138,11 +138,11 @@ pub trait DbdConfiguration<ID> {
     }
     /// Returns an iterator over a specific sample.
     #[must_use]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_;
+    fn sample(&self, sample_id: usize) -> impl ExactSizeIterator<Item = ID> + Clone + '_;
     /// Returns an iterator over a random sample.
     #[must_use]
     #[inline]
-    fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = ID> + Clone + '_
+    fn draw<R>(&self, rng: &mut R) -> impl ExactSizeIterator<Item = ID> + Clone + '_
     where
         R: Rand<usize>,
     {

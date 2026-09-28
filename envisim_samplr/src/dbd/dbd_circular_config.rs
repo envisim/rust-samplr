@@ -116,13 +116,59 @@ where
     #[inline]
     fn total_energy_n(&self) -> f64 { self.total_energy_n }
     #[inline]
-    fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_ {
-        let sample_id = sample_id % self.tcp.n_samples();
-        self.sequence
-            .iter()
-            .skip(sample_id)
-            .chain(self.sequence.iter().take(sample_id))
-            .take(self.tcp.sample_size().get())
-            .copied()
+    fn sample(&self, sample_id: usize) -> impl ExactSizeIterator<Item = ID> + Clone + '_ {
+        CircularIdIter::new(&self.sequence, sample_id, self.tcp.sample_size().get())
     }
+}
+
+/// Circular id iterator.
+#[must_use]
+#[derive(Debug, Clone)]
+struct CircularIdIter<'bids, ID> {
+    /// Reference to ids.
+    ids: &'bids [ID],
+    /// Current iterator index.
+    curr: usize,
+    /// Remaining steps to go.
+    rem: usize,
+}
+impl<'bids, ID> CircularIdIter<'bids, ID> {
+    /// Constructs a new circular id iterator.
+    #[inline]
+    fn new(ids: &'bids [ID], start: usize, take: usize) -> Self {
+        assert!(!ids.is_empty(), "ids not allowed to be empty");
+        Self {
+            ids,
+            curr: start % ids.len(),
+            rem: take,
+        }
+    }
+}
+impl<ID> Iterator for CircularIdIter<'_, ID>
+where
+    ID: Copy,
+{
+    type Item = ID;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rem == 0 {
+            return None;
+        }
+        let item = self.ids[self.curr];
+        self.curr += 1;
+        self.rem -= 1;
+        if self.curr == self.ids.len() {
+            self.curr = 0;
+        }
+        Some(item)
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) { (self.rem, Some(self.rem)) }
+}
+impl<ID> ExactSizeIterator for CircularIdIter<'_, ID>
+where
+    ID: Copy,
+{
+    #[inline]
+    fn len(&self) -> usize { self.rem }
 }

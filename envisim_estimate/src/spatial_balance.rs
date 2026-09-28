@@ -276,6 +276,10 @@ where
                 ConstructableContainer<f64> = PH,
             >,
     {
+        if probabilities.len() < sample_size.get() {
+            return Err(SpatialBalanceError::InvalidSampleSize);
+        }
+
         let nn = sample_size
             .get()
             .to_f64()
@@ -297,7 +301,8 @@ where
                 phi_1 += dist * p_2;
                 *phis.get_mut(id2).expect("id2 to exist") += dist * p_1;
             }
-            *phis.get_mut(id1).expect("id1 to exist") = phi_1 / nn;
+            phi_1 /= nn;
+            *phis.get_mut(id1).expect("id1 to exist") = phi_1;
             u_spread += phi_1 * p_1;
         }
 
@@ -373,7 +378,7 @@ where
     #[inline]
     pub fn energy_distance<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
     where
-        I: Iterator<Item = PH::Id> + Clone,
+        I: ExactSizeIterator<Item = PH::Id> + Clone,
     {
         self.energy_distance_n(sample).map(|ed| ed / self.nn())
     }
@@ -384,8 +389,12 @@ where
     #[inline]
     pub fn energy_distance_n<I>(&self, sample: I) -> Result<f64, SpatialBalanceError>
     where
-        I: Iterator<Item = PH::Id> + Clone,
+        I: ExactSizeIterator<Item = PH::Id> + Clone,
     {
+        if sample.len() != self.sample_size.get() {
+            return Err(SpatialBalanceError::InvalidSample);
+        }
+
         let mut s_spread = 0.0;
         let mut i_spread = 0.0;
 
@@ -415,7 +424,7 @@ where
     #[inline]
     pub fn delta<I>(&self, sample: I, add: PH::Id, rem: PH::Id) -> Result<f64, SpatialBalanceError>
     where
-        I: Iterator<Item = PH::Id>,
+        I: ExactSizeIterator<Item = PH::Id>,
     {
         self.delta_n(sample, add, rem).map(|d| d / self.nn())
     }
@@ -430,15 +439,19 @@ where
         rem: PH::Id,
     ) -> Result<f64, SpatialBalanceError>
     where
-        I: Iterator<Item = PH::Id>,
+        I: ExactSizeIterator<Item = PH::Id>,
     {
+        if sample.len() != self.sample_size.get() {
+            return Err(SpatialBalanceError::InvalidSample);
+        }
+
         let i_delta = self
             .phi(add)
             .zip(self.phi(rem))
             .map(|(add, rem)| (add - rem) * 2.0)
             .ok_or(SpatialBalanceError::InvalidId)?;
-
         let mut s_delta = 0.0;
+
         for id in sample {
             if id == add {
                 // Sample already contains add
@@ -473,8 +486,11 @@ pub enum SpatialBalanceError {
     /// Invalid ID, duplicate ID.
     #[error("Invalid ID (duplicate ID found)")]
     DuplicateId,
-    /// Invalid sample size, sample size must be positive.
-    #[error("Invalid sample size (must be positive)")]
+    /// Invalid sample.
+    #[error("Invalid sample (does not match stored size")]
+    InvalidSample,
+    /// Sample size must be less than pop size.
+    #[error("Invalid sample size (must be in (0, pop_size])")]
     InvalidSampleSize,
     /// Auxiliaries not invertible.
     #[error("Auxiliaries not invertible")]
@@ -659,7 +675,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn ed_phi() {
+    fn test_ed_phi() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
         let ss = NonZeroUsize::new(2).unwrap();
@@ -674,7 +690,7 @@ mod test {
         assert_vec!(ed.phis, facit);
     }
     #[test]
-    fn ed_internal() {
+    fn test_ed_internal() {
         let m_data: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let data = MatrixRef::new(&m_data, nz(3)).unwrap();
         let ss = NonZeroUsize::new(2).unwrap();
@@ -686,6 +702,48 @@ mod test {
         assert_delta!(
             ed.energy_distance([1, 2].into_iter()).unwrap() + ed.u_spread(),
             res
+        );
+    }
+    #[test]
+    fn test_energy_distance() {
+        let data = Matrix::new(vec![0.0, 1.0, 2.0, 10.0, 11.0, 12.0], nz(6)).unwrap();
+        let ss = nz(2);
+        let ss_f = ss.get() as f64;
+        let probs = EqualProbabilities::new(data.nrow(), ss.get()).unwrap();
+        let ed = EnergyDistance::new(probs, &data, ss).unwrap();
+
+        let phis: Vec<f64> = [36.0, 32.0, 30.0, 30.0, 32.0, 36.0]
+            .iter()
+            .map(|v| v / 6.0)
+            .collect();
+        assert_vec!(ed.phis(), &phis);
+        let sp_u = phis.iter().sum::<f64>() * ss_f / 6.0;
+        assert_delta!(ed.u_spread_n(), sp_u);
+
+        let sample = [1, 2];
+        let sp_i = 2.0 * (phis[sample[0]] + phis[sample[1]]);
+        let sp_s = 2.0
+            * data
+                .sq_distance_between(sample[0], sample[1])
+                .unwrap()
+                .sqrt()
+            / ss_f;
+        assert_delta!(
+            ed.energy_distance_n(sample.into_iter()).unwrap(),
+            sp_i - sp_s - sp_u
+        );
+
+        let sample = [1, 4];
+        let sp_i = 2.0 * (phis[sample[0]] + phis[sample[1]]);
+        let sp_s = 2.0
+            * data
+                .sq_distance_between(sample[0], sample[1])
+                .unwrap()
+                .sqrt()
+            / ss_f;
+        assert_delta!(
+            ed.energy_distance_n(sample.into_iter()).unwrap(),
+            sp_i - sp_s - sp_u
         );
     }
 
