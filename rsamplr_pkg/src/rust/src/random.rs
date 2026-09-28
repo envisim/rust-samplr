@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utils for using R randomness and RNG state in rust
+//! Utils for using R randomness and RNG state in rust.
 #![allow(
     clippy::as_conversions,
     clippy::little_endian_bytes,
@@ -38,12 +38,12 @@ unsafe extern "C" {
     // fn exp_rand() -> f64;
 }
 
-/// Holds the R RNG state
+/// Holds the R RNG state.
 #[must_use]
 pub struct RRng();
 
 impl RRng {
-    /// Gets the current RNG state from R
+    /// Gets the current RNG state from R.
     #[inline]
     pub fn new() -> Self {
         // SAFETY: C-R interface, OK as long as we drop on destruct
@@ -53,7 +53,7 @@ impl RRng {
 }
 
 impl Drop for RRng {
-    /// Puts the RNG state back to R
+    /// Puts the RNG state back to R.
     #[inline]
     fn drop(&mut self) {
         // SAFETY: C-R interface, just putting back RNG state

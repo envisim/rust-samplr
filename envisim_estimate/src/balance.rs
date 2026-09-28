@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Balance deviation
+//! Balance deviation.
 
 pub use envisim_utils::sampling_options::SamplingOptions;
 use envisim_utils::sampling_options::{
@@ -22,7 +22,7 @@ use envisim_utils::utils::PointSet;
 pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
 
-/// Returns the balance deviations per dimension
+/// Returns the balance deviations per dimension.
 ///
 /// # Errors
 /// Returns an error if a sample unit is oob with respect to the provided data.

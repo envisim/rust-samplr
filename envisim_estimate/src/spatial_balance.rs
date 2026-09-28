@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Spatial balance measures
+//! Spatial balance measures.
 
 use std::iter::once;
 use std::num::NonZeroUsize;
@@ -48,7 +48,7 @@ use rustc_hash::{
 };
 use thiserror::Error;
 
-/// Calculates the pi-sums for each voronoi cell
+/// Calculates the pi-sums for each voronoi cell.
 fn voronoi_pi_sum<PO, P, I>(
     opts: &SamplingOptions<PO, SpreadingOptions<P>>,
     sample: I,
@@ -107,7 +107,7 @@ where
 }
 
 /// Calculate the voronoi means of `data`.
-/// `sample` is an iterator over sample indices
+/// `sample` is an iterator over sample indices.
 #[expect(clippy::type_complexity, reason = "Ok complexity")]
 fn voronoi_means<PO, P, I>(
     opts: &SamplingOptions<PO, SpreadingOptions<P>>,
@@ -194,7 +194,7 @@ where
     Ok(means)
 }
 
-/// Calculate the norm matrix of `data`
+/// Calculate the norm matrix of `data`.
 fn norm_matrix<P>(data: P, balance_probabilities: bool) -> Matrix<P::Value>
 where
     P: PointSet<Value = f64>,
@@ -247,7 +247,7 @@ pub struct EnergyDistance<PH, DT> {
     u_spread_n: f64,
     /// The sample size.
     sample_size: NonZeroUsize,
-    /// The data
+    /// The data.
     data: DT,
 }
 
@@ -256,7 +256,7 @@ where
     PH: DataView<Value = f64>,
     DT: PointSet<Id = PH::Id, Value = f64>,
 {
-    /// Constructs a new Energy distance object
+    /// Constructs a new Energy distance object.
     /// # Errors
     /// Returns an error if units in `probabilities` does not exist in `data`.
     /// # Panics
@@ -308,16 +308,16 @@ where
             data,
         })
     }
-    /// Returns a reference to the phis-store
+    /// Returns a reference to the phis-store.
     #[inline]
     pub fn phis(&self) -> &PH { &self.phis }
-    /// Returns a reference to the data
+    /// Returns a reference to the data.
     #[inline]
     pub fn data(&self) -> &DT { &self.data }
-    /// Returns the sample size
+    /// Returns the sample size.
     #[inline]
     pub fn sample_size(&self) -> NonZeroUsize { self.sample_size }
-    /// Returns the population size
+    /// Returns the population size.
     #[expect(clippy::missing_panics_doc, reason = "invalid setup")]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize {
@@ -454,34 +454,34 @@ where
     }
 }
 
-/// Spatial balance error types
+/// Spatial balance error types.
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum SpatialBalanceError {
-    /// Error derived from [`SamplingOptions`]
+    /// Error derived from [`SamplingOptions`].
     #[error("SamplingOptionsError: {0}")]
     Options(#[from] SamplingOptionsError),
-    /// Error derived from [`Tree`]
+    /// Error derived from [`Tree`].
     #[error("TreeError: {0}")]
     Tree(#[from] TreeError),
-    /// Invalid ID, ID missing from collection
+    /// Invalid ID, ID missing from collection.
     #[error("Invalid ID (missing from collection)")]
     InvalidId,
-    /// Invalid ID, ID is already in sample
+    /// Invalid ID, ID is already in sample.
     #[error("Invalid ID (cannot add an ID already in a sample)")]
     InvalidAddId,
-    /// Invalid ID, duplicate ID
+    /// Invalid ID, duplicate ID.
     #[error("Invalid ID (duplicate ID found)")]
     DuplicateId,
-    /// Invalid sample size, sample size must be positive
+    /// Invalid sample size, sample size must be positive.
     #[error("Invalid sample size (must be positive)")]
     InvalidSampleSize,
-    /// Auxiliaries not invertible
+    /// Auxiliaries not invertible.
     #[error("Auxiliaries not invertible")]
     SingularMatrix,
 }
 
-/// Provides methods for calculating the spatial balance of a sample
+/// Provides methods for calculating the spatial balance of a sample.
 pub trait SpatialBalance<P>
 where
     P: PointSet,
@@ -504,10 +504,10 @@ where
     /// Grafström, A., & Schelin, L. (2014).
     /// How to select representative samples.
     /// Scandinavian Journal of Statistics, 41(2), 277-290.
-    /// <https://doi.org/10.1111/sjos.12016>
+    /// <https://doi.org/10.1111/sjos.12016>.
     ///
     /// # Errors
-    /// If `sample` contains duplicate ids
+    /// If `sample` contains duplicate ids.
     fn voronoi<I>(&self, sample: I) -> Result<P::Value, SpatialBalanceError>
     where
         I: IntoIterator<Item = P::Id, IntoIter: ExactSizeIterator + Clone>;
@@ -529,10 +529,10 @@ where
     /// Prentius, W., & Grafström, A. (2024).
     /// How to find the best sampling design: A new measure of spatial balance.
     /// Environmetrics, e2878.
-    /// <https://doi.org/10.1002/env.2878>
+    /// <https://doi.org/10.1002/env.2878>.
     ///
     /// # Errors
-    /// If `sample` contains duplicate ids
+    /// If `sample` contains duplicate ids.
     fn local<I>(
         &self,
         sample: I,
@@ -558,7 +558,7 @@ where
     /// Grafström, A., &  Prentius, W. (2026).
     /// Distributionally balanced sampling designs.
     /// Biometrics, 82(3).
-    /// <https://doi.org/10.1093/biomtc/ujag124>
+    /// <https://doi.org/10.1093/biomtc/ujag124>.
     ///
     /// # Errors
     /// Returns an error if any sample id does not exist in the population.

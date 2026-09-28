@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Circular DBD config
+//! Circular DBD config.
 
 use std::num::NonZeroUsize;
 
@@ -25,22 +25,22 @@ pub use crate::dbd::tc_parameters::{
     TacticalConfigurationParameters,
 };
 
-/// Stores a circular design configuration
+/// Stores a circular design configuration.
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct CircularConfiguration<ID> {
-    /// Internal storage of sequence
+    /// Internal storage of sequence.
     sequence: Box<[ID]>,
-    /// Total energy multiplied by sample size
+    /// Total energy multiplied by sample size.
     total_energy_n: f64,
-    /// Tactical configuration parameters
+    /// Tactical configuration parameters.
     tcp: TacticalConfigurationParameters,
 }
 impl<ID> CircularConfiguration<ID>
 where
     ID: Copy,
 {
-    /// Construct a new circular configuration from a sequence
+    /// Construct a new circular configuration from a sequence.
     ///
     /// # Panics
     /// Panics if the sequence is empty.
@@ -67,19 +67,19 @@ where
         cc.reset_total_energy_n(ed);
         cc
     }
-    /// Returns a reference to the sequence store
+    /// Returns a reference to the sequence store.
     #[must_use]
     #[inline]
     pub fn sequence(&self) -> &[ID] { &self.sequence }
-    /// Consumes `self` and returns the internal storage
+    /// Consumes `self` and returns the internal storage.
     #[must_use]
     #[inline]
     pub fn into_sequence(self) -> Box<[ID]> { self.sequence }
-    /// Returns a mutable reference to the sequence store
+    /// Returns a mutable reference to the sequence store.
     #[must_use]
     #[inline]
     pub fn sequence_mut(&mut self) -> &mut [ID] { &mut self.sequence }
-    /// Returns an element from the sequence store
+    /// Returns an element from the sequence store.
     #[must_use]
     #[inline]
     pub fn sequence_get(&self, k: usize) -> Option<ID>
@@ -88,12 +88,12 @@ where
     {
         self.sequence.get(k).copied()
     }
-    /// Add a delta to the nenergy
+    /// Add a delta to the nenergy.
     pub(crate) fn add_energy_n_delta(&mut self, delta: f64) -> f64 {
         self.total_energy_n += delta;
         self.total_energy_n
     }
-    /// Reset the total nenergy
+    /// Reset the total nenergy.
     #[inline]
     fn reset_total_energy_n<PH, P>(&mut self, ed: &EnergyDistance<PH, P>) -> f64
     where

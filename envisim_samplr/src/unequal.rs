@@ -63,8 +63,8 @@ pub enum UnequalProbabilityError {
     SampleSizeLargerThanPopulation,
 }
 
-/// Draws a single unit using pps
-/// Assumes probabilites sum to 1.0
+/// Draws a single unit using pps.
+/// Assumes probabilites sum to 1.0.
 #[must_use]
 #[inline]
 fn draw_f64<'bprob, R, ID, I>(rng: &mut R, probabilities: I) -> Option<ID>
@@ -89,8 +89,8 @@ where
     outer_id
 }
 
-/// Draws a single unit using pps
-/// Assumes probabilites sum to psum
+/// Draws a single unit using pps.
+/// Assumes probabilites sum to psum.
 #[must_use]
 #[inline]
 fn draw<R, PS>(rng: &mut R, probs: PS, psum: PS::Value) -> Option<PS::Id>

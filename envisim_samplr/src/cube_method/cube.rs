@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Standard cube methods
+//! Standard cube methods.
 
 use std::num::NonZeroUsize;
 
@@ -90,7 +90,7 @@ where
     /// Set candidate data from candidates, standard method. First column need to be probabiliites
     /// to ensure fixed sized sample.
     /// # Panics
-    /// Panics if candidate list is not long enough
+    /// Panics if candidate list is not long enough.
     #[inline]
     fn set_data(&mut self) {
         assert!(
@@ -120,7 +120,7 @@ where
             }
         }
     }
-    /// Set candidates sequentially from the list
+    /// Set candidates sequentially from the list.
     #[inline]
     pub fn set_candidates_sequentially(&mut self, len: NonZeroUsize) {
         self.candidates.clear();
@@ -183,17 +183,17 @@ where
             let _prest = self.controller.unit_add_delta_and_decide(id, delta);
         }
     }
-    /// Find vector in null space of candidate data
+    /// Find vector in null space of candidate data.
     /// # Panics
-    /// Panics if the candidate data matrix is not n-1 x n
+    /// Panics if the candidate data matrix is not n-1 x n.
     #[must_use]
     #[inline]
     fn find_vector_in_null_space(&mut self) -> Vec<f64> {
         find_vector_in_null_space(&mut self.cand_data)
     }
-    /// Run the flight phase
+    /// Run the flight phase.
     /// # Panics
-    /// Panics if flight phase is not set up properly, i.e. candidate data shape is incorrect
+    /// Panics if flight phase is not set up properly, i.e. candidate data shape is incorrect.
     #[inline]
     fn run_flight<R, S>(&mut self, rng: &mut R, strategy: S)
     where
@@ -216,9 +216,9 @@ where
             self.update_probabilities(rng);
         }
     }
-    /// Run the landing phase
+    /// Run the landing phase.
     /// # Panics
-    /// Panics if landing is committed too early
+    /// Panics if landing is committed too early.
     #[inline]
     fn run_landing<R>(&mut self, rng: &mut R)
     where
@@ -239,7 +239,7 @@ where
 
         self.controller.unit_decide_last(rng);
     }
-    /// Run the cube algortihm and return a sample
+    /// Run the cube algortihm and return a sample.
     #[inline]
     fn sample<R, S>(mut self, rng: &mut R, strategy: S) -> Self
     where
@@ -257,9 +257,9 @@ where
     BL: PointSet<Id = PS::Id, Value = f64>,
     T: DataViewMut<Id = PS::Id, Value = Probability<f64>>,
 {
-    /// Constructs a new, non-spatial, runner
+    /// Constructs a new, non-spatial, runner.
     /// # Panics
-    /// Panics if balancing dims tend to overflow in small additions
+    /// Panics if balancing dims tend to overflow in small additions.
     #[inline]
     pub fn new(
         options: &'bopts SamplingOptions<PS, AUX>,
@@ -301,7 +301,7 @@ where
     T: DataViewMut<Id = PS::Id, Value = Probability<f64>>,
     P: PointSet<Id = PS::Id>,
 {
-    /// Constructs a new spatial runner
+    /// Constructs a new spatial runner.
     #[inline]
     pub fn new_spreading(
         options: &'bopts SamplingOptions<PS, SpreadingOptions<P>>,
@@ -328,12 +328,12 @@ where
     BL: PointSet<Id = PS::Id, Value = f64>,
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
 {
-    /// Possible tree type for spatial cube (or void)
+    /// Possible tree type for spatial cube (or void).
     type Tree;
-    /// Possible searcher type for spatial cube (or void)
+    /// Possible searcher type for spatial cube (or void).
     type Searcher;
 
-    /// Selects a subset of units to be used for a step of the algorithm
+    /// Selects a subset of units to be used for a step of the algorithm.
     fn select_units<R>(
         self,
         rng: &mut R,
@@ -355,7 +355,7 @@ where
     }
 }
 
-/// Sequential cube strategy
+/// Sequential cube strategy.
 #[derive(Clone, Copy)]
 pub struct SequentialStrategy;
 impl<PS, AUX, BL, PR> CubeStrategy<'_, PS, AUX, BL, PR> for SequentialStrategy
@@ -379,7 +379,7 @@ where
     }
 }
 
-/// Random cube strategy
+/// Random cube strategy.
 #[derive(Clone, Copy)]
 pub struct RandomStrategy;
 impl<PS, AUX, BL, PR> CubeStrategy<'_, PS, AUX, BL, PR> for RandomStrategy
@@ -417,7 +417,7 @@ where
     }
 }
 
-/// Local cube strategy
+/// Local cube strategy.
 #[derive(Clone, Copy)]
 pub struct SpatialStrategy;
 impl<'bopts, PS, P, BL, PR> CubeStrategy<'bopts, PS, SpreadingOptions<P>, BL, PR>
@@ -519,7 +519,7 @@ where
     }
 }
 
-/// Provides CUBE sampling methods
+/// Provides CUBE sampling methods.
 pub trait CubeSampling<ID, R>
 where
     R: Rng,
@@ -580,7 +580,7 @@ where
         BAL: PointSet<Id = ID, Value = f64>;
 }
 
-/// Provides spatially balanced CUBE sampling methods
+/// Provides spatially balanced CUBE sampling methods.
 pub trait LocalCubeSampling<ID, R>
 where
     R: Rng,

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Probability abstractions and container
+//! Probability abstractions and container.
 
 use num_traits::{
     ConstZero,
@@ -34,17 +34,17 @@ use crate::utils::{
     SliceViewMut,
 };
 
-/// Probability context
+/// Probability context.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 pub struct ProbabilityContext<N> {
-    /// The maximum value of the probability representations
+    /// The maximum value of the probability representations.
     max: N,
-    /// The epsilon value for comparison between two probability representations
+    /// The epsilon value for comparison between two probability representations.
     eps: Epsilon<N>,
 }
 impl<N> ProbabilityContext<N> {
-    /// Constructs a new real-valued context
+    /// Constructs a new real-valued context.
     #[inline]
     pub fn new_real(eps: Epsilon<N>) -> Self
     where
@@ -68,15 +68,15 @@ impl<N> ProbabilityContext<N> {
     {
         max.is_pos_finite().then_some(Self { max, eps })
     }
-    /// Returns a reference to `max`
+    /// Returns a reference to `max`.
     #[inline]
     pub fn max(&self) -> &N { &self.max }
-    /// Returns a reference to `eps`
+    /// Returns a reference to `eps`.
     #[inline]
     pub fn eps(&self) -> &Epsilon<N> { &self.eps }
 }
 
-/// A probability representation
+/// A probability representation.
 #[repr(transparent)]
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
@@ -121,34 +121,34 @@ where
     {
         (N::ZERO..=N::ONE).contains(&value)
     }
-    /// Returns the inner value
+    /// Returns the inner value.
     #[must_use]
     #[inline]
     pub fn get(&self) -> N { self.0 }
-    /// Returns the probability as f64
+    /// Returns the probability as f64.
     #[must_use]
     #[inline]
     pub fn get_f64(&self) -> Option<f64> { self.get().to_f64() }
-    /// Returns `true` if the probability has a zero-value
+    /// Returns `true` if the probability has a zero-value.
     #[must_use]
     #[inline]
     pub fn is_zero(&self, ctx: &ProbabilityContext<N>) -> bool { ctx.eps.is_zero(self.get()) }
-    /// Returns `true` if the probability has neither a zero nor a full value
+    /// Returns `true` if the probability has neither a zero nor a full value.
     #[must_use]
     #[inline]
     pub fn is_partial(&self, ctx: &ProbabilityContext<N>) -> bool {
         !self.is_zero(ctx) && !self.is_full(ctx)
     }
-    /// Returns `true` if the probability has a full-value (one)
+    /// Returns `true` if the probability has a full-value (one).
     #[must_use]
     #[inline]
     pub fn is_full(&self, ctx: &ProbabilityContext<N>) -> bool {
         ctx.max - ctx.eps.get() <= self.get()
     }
-    /// Returns the complement of `self`
+    /// Returns the complement of `self`.
     #[inline]
     pub fn complement(&self, ctx: &ProbabilityContext<N>) -> Self { Probability(ctx.max - self.0) }
-    /// Adds `other` to `self`, returning whatever could not be added
+    /// Adds `other` to `self`, returning whatever could not be added.
     #[inline]
     pub fn add(&mut self, other: Self, ctx: &ProbabilityContext<N>) -> Self {
         let sum = self.0 + other.0;
@@ -160,7 +160,7 @@ where
             Probability(sum - ctx.max)
         }
     }
-    /// Subtracts `other` from `self`, returning whatever could not be subtracted
+    /// Subtracts `other` from `self`, returning whatever could not be subtracted.
     #[inline]
     pub fn subtract(&mut self, other: Self) -> Self {
         if self.0 <= other.0 {
@@ -184,9 +184,9 @@ where
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct ProbabilitySet<T, N> {
-    /// The internal storage for the probability representations
+    /// The internal storage for the probability representations.
     data: T,
-    /// Probability context for the representation
+    /// Probability context for the representation.
     ctx: ProbabilityContext<N>,
 }
 impl<T, N> DataView for ProbabilitySet<T, N>
@@ -269,7 +269,7 @@ where
     T: DataView<Value = Probability<N>>,
     N: Number,
 {
-    /// Constructs a new set
+    /// Constructs a new set.
     #[inline]
     pub fn new(data: T, ctx: ProbabilityContext<N>) -> Self { Self { data, ctx } }
     /// Constructs a new set from some data. Fails if data cannot be converted to [`Probability`].
@@ -293,7 +293,7 @@ where
             ctx,
         })
     }
-    /// Constructs a new set from [`ProbabilitiesSpec`]
+    /// Constructs a new set from [`ProbabilitiesSpec`].
     /// # Panics
     /// Panics if `PO::Real` cannot be cast to `PO::Value`, or if any probability is incorrectly
     /// specified.
@@ -310,7 +310,7 @@ where
             opts.iter_map(|(i, v)| (i, Probability::new(*v, &ctx).expect("probability in [0,1]")));
         Self::new(data, ctx)
     }
-    /// Constructs a new real-valued set from [`ProbabilitiesSpec`]
+    /// Constructs a new real-valued set from [`ProbabilitiesSpec`].
     /// # Panics
     /// Panics if any probability is incorrectly specified.
     #[inline]
@@ -342,23 +342,23 @@ where
     }
 }
 
-/// Probability store
+/// Probability store.
 pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
-    /// The base probability type
+    /// The base probability type.
     type N: Number;
-    /// Returns a reference to the probability context
+    /// Returns a reference to the probability context.
     fn ctx(&self) -> &ProbabilityContext<Self::N>;
-    /// Returns `true` if the probability has a zero-value
+    /// Returns `true` if the probability has a zero-value.
     #[must_use]
     #[inline]
     fn is_zero(&self, id: Self::Id) -> Option<bool> { self.get(id).map(|v| v.is_zero(self.ctx())) }
-    /// Returns `true` if the probability has neither a zero nor a full value
+    /// Returns `true` if the probability has neither a zero nor a full value.
     #[must_use]
     #[inline]
     fn is_partial(&self, id: Self::Id) -> Option<bool> {
         self.get(id).map(|v| v.is_partial(self.ctx()))
     }
-    /// Returns `true` if the probability has a full-value (one)
+    /// Returns `true` if the probability has a full-value (one).
     #[must_use]
     #[inline]
     fn is_full(&self, id: Self::Id) -> Option<bool> { self.get(id).map(|v| v.is_full(self.ctx())) }
@@ -393,7 +393,7 @@ pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
         let ctx = *self.ctx();
         self.get_mut(id).map(|v| *v = Self::Value::full(&ctx))
     }
-    /// Draws a random value from the probability representation
+    /// Draws a random value from the probability representation.
     #[inline]
     fn draw<R>(&self, rng: &mut R) -> Self::Value
     where
@@ -404,7 +404,7 @@ pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
     }
     /// Draws a random value from the probability representation up to `max`.
     /// # Panics
-    /// Panics if not `0 < max <= self.max`
+    /// Panics if not `0 < max <= self.max`.
     #[inline]
     fn draw_partial<R>(&self, rng: &mut R, max: Self::N) -> Self::Value
     where
@@ -425,7 +425,7 @@ pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
     }
     /// Returns the weight of `other` on a probability `prob`.
     /// # Panics
-    /// If the probability representations is not convertible to [`f64`]
+    /// If the probability representations is not convertible to [`f64`].
     #[inline]
     #[must_use]
     fn weight_to(&self, prob: Self::Value, other: Self::Id) -> Option<f64> {
@@ -452,7 +452,7 @@ pub trait ProbabilityStore: DataViewMut<Value = Probability<Self::N>> {
 }
 /// Probability stores that can convert the probabilities to `Self::N`.
 pub trait ProbabilityStoreToRaw: ProbabilityStore + ConstructableDataView {
-    /// Returns the probabilties contained in the set, as their raw representations, in some store
+    /// Returns the probabilties contained in the set, as their raw representations, in some store.
     #[must_use]
     fn to_raw(&self) -> <Self as ConstructableDataView>::ConstructableContainer<Self::N>;
 }

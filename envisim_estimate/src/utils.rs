@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Estimation utility functions
+//! Estimation utility functions.
 
 use envisim_utils::probabilities::Probability;
 use envisim_utils::utils::Number;
@@ -20,10 +20,10 @@ use crate::error::{
     EstimationResult,
 };
 
-/// Calculates the `y / pi` quotient
+/// Calculates the `y / pi` quotient.
 ///
 /// # Errors
-/// Returns an error if the `pi` is invalid
+/// Returns an error if the `pi` is invalid.
 #[inline]
 pub fn ypi_quotient<Y>((y, pi): (Y, f64)) -> EstimationResult<f64>
 where
@@ -37,10 +37,10 @@ where
         .ok_or(EstimationError::InvalidAuxiliaries)
 }
 
-/// Calculates the `y / mu` quotient
+/// Calculates the `y / mu` quotient.
 ///
 /// # Errors
-/// Returns an error if the `mu` is invalid
+/// Returns an error if the `mu` is invalid.
 #[inline]
 pub fn ymui_quotient<Y, INC>((y, mu, inc): (Y, f64, INC)) -> EstimationResult<f64>
 where

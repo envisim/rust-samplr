@@ -10,22 +10,22 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Distributionally balanced design options
+//! Distributionally balanced design options.
 
 use envisim_utils::utils::Epsilon;
 
 use super::DbdError;
 use super::annealing::AnnealingTemperature;
 
-/// Design options for distributionally balanced designs
+/// Design options for distributionally balanced designs.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct DistributionalDesignOptions {
-    /// The starting temperature, must be positive
+    /// The starting temperature, must be positive.
     annealing_temperature: f64,
-    /// The cooling rate of the temperature, must be in (0.0, 1.0)
+    /// The cooling rate of the temperature, must be in (0.0, 1.0).
     annealing_cooling_rate: f64,
-    /// If search should start with a spatial initialization
+    /// If search should start with a spatial initialization.
     spatial_initialization: bool,
 }
 impl Default for DistributionalDesignOptions {
@@ -39,19 +39,19 @@ impl Default for DistributionalDesignOptions {
     }
 }
 impl DistributionalDesignOptions {
-    /// Returns the initial annealing temperature
+    /// Returns the initial annealing temperature.
     #[must_use]
     #[inline]
     pub fn annealing_temperature(&self) -> f64 { self.annealing_temperature }
-    /// Returns the annealing cooling rate
+    /// Returns the annealing cooling rate.
     #[must_use]
     #[inline]
     pub fn annealing_cooling_rate(&self) -> f64 { self.annealing_cooling_rate }
-    /// Returns the spatial initialization indicator
+    /// Returns the spatial initialization indicator.
     #[must_use]
     #[inline]
     pub fn spatial_initialization(&self) -> bool { self.spatial_initialization }
-    /// Constructs a new dbd option with a given initial temperature
+    /// Constructs a new dbd option with a given initial temperature.
     ///
     /// # Errors
     /// Returns an error if `temp` is not positive.
@@ -60,7 +60,7 @@ impl DistributionalDesignOptions {
         let opts = Self::default();
         opts.set_annealing_temperature(temp)
     }
-    /// Sets the initial annealing temperature
+    /// Sets the initial annealing temperature.
     ///
     /// # Errors
     /// Returns an error if `temp` is not positive.
@@ -70,23 +70,23 @@ impl DistributionalDesignOptions {
         self.annealing_temperature = temp;
         Ok(self)
     }
-    /// Sets the annealing cooling rate
+    /// Sets the annealing cooling rate.
     ///
     /// # Errors
-    /// Returns an error if rate is not contained in $[0.0, 1.0)$
+    /// Returns an error if rate is not contained in $[0.0, 1.0)$.
     #[inline]
     pub fn set_annealing_cooling_rate(mut self, rate: f64) -> Result<Self, DbdError> {
         DbdError::check_rate(rate)?;
         self.annealing_cooling_rate = rate;
         Ok(self)
     }
-    /// Sets the spatial initialization indicator
+    /// Sets the spatial initialization indicator.
     #[inline]
     pub fn set_spatial_initialization(mut self, spatial_init: bool) -> Self {
         self.spatial_initialization = spatial_init;
         self
     }
-    /// Converts the dbd option into an `AnnealingTemperature` object
+    /// Converts the dbd option into an `AnnealingTemperature` object.
     #[inline]
     pub(crate) fn as_annealing_temperature(&self, eps: Epsilon<f64>) -> AnnealingTemperature {
         AnnealingTemperature::new(self.annealing_temperature, self.annealing_cooling_rate, eps)

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Spreading options container
+//! Spreading options container.
 
 use std::num::NonZeroUsize;
 
@@ -25,24 +25,24 @@ use crate::kd_tree::{
 };
 use crate::utils::PointSet;
 
-/// Spreading options
+/// Spreading options.
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct SpreadingOptions<P> {
-    /// Spreading data
+    /// Spreading data.
     data: P,
     /// Bucket size, i.e. maximum number of units to be contained in a regular leaf of a [`Tree`].
     bucket_size: NonZeroUsize,
 }
 impl<P> SpreadingOptions<P> {
-    /// Returns a reference to the provided data
+    /// Returns a reference to the provided data.
     #[inline]
     pub fn data(&self) -> &P { &self.data }
-    /// Returns the set bucket size
+    /// Returns the set bucket size.
     #[must_use]
     #[inline]
     pub fn bucket_size(&self) -> NonZeroUsize { self.bucket_size }
-    /// Constructs a new options object
+    /// Constructs a new options object.
     #[inline]
     pub fn new(data: P) -> Self
     where
@@ -53,7 +53,7 @@ impl<P> SpreadingOptions<P> {
             data,
         }
     }
-    /// Set the bucket size
+    /// Set the bucket size.
     /// # Errors
     /// If the provided `size` cannot be converted into a [`NonZeroUsize`].
     #[inline]
@@ -66,7 +66,7 @@ impl<P> SpreadingOptions<P> {
             .map_err(|_| SamplingOptionsError::InvalidBucketSize)?;
         Ok(self)
     }
-    /// Decide bucket sizes so about 10 leafs are constructed for smaller populations
+    /// Decide bucket sizes so about 10 leafs are constructed for smaller populations.
     // Should probably check if this is a good rule.
     #[expect(
         clippy::integer_division,

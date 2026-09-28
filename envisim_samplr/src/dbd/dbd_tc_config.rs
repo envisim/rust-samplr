@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Tactical configuration DBD config
+//! Tactical configuration DBD config.
 
 use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::matrix::{
@@ -27,19 +27,19 @@ pub use crate::dbd::tc_parameters::{
     TacticalConfigurationParameters,
 };
 
-/// Storage for the buckets used in a Tactical Configuration
+/// Storage for the buckets used in a Tactical Configuration.
 pub type TcBuckets<ID> = MatrixBase<Box<[ID]>>;
 
-/// Defines a tactical configuration for DBD
+/// Defines a tactical configuration for DBD.
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct TacticalConfiguration<ID> {
-    /// Internal storage of sequence (`sample_size` * `n_samples` matrix)
+    /// Internal storage of sequence (`sample_size` * `n_samples` matrix).
     // An n * M matrix
     buckets: TcBuckets<ID>,
-    /// Total energy multiplied by sample size
+    /// Total energy multiplied by sample size.
     total_energy_n: f64,
-    /// Tactical configuration parameters
+    /// Tactical configuration parameters.
     tcp: TacticalConfigurationParameters,
 }
 impl<ID> TacticalConfiguration<ID>
@@ -47,7 +47,7 @@ where
     ID: Copy,
 {
     /// Construct a new circular configuration from a set of indices and tactical configuration
-    /// parameters
+    /// parameters.
     ///
     /// # Panics
     /// Panics if the sequence is empty or otherwise incorrect in size. Must be
@@ -77,23 +77,23 @@ where
         let _total_energy = cc.reset_total_energy_n(ed);
         cc
     }
-    /// Returns a reference to the internal storage
+    /// Returns a reference to the internal storage.
     #[inline]
     pub fn buckets(&self) -> &TcBuckets<ID> { &self.buckets }
-    /// Consumes `self` and returns the internal storage
+    /// Consumes `self` and returns the internal storage.
     #[inline]
     pub fn into_buckets(self) -> TcBuckets<ID> { self.buckets }
-    /// Returns a mutable reference to the internal storage
+    /// Returns a mutable reference to the internal storage.
     #[inline]
     pub fn buckets_mut(&mut self) -> &mut TcBuckets<ID> { &mut self.buckets }
-    /// Add a delta to the nenergy
+    /// Add a delta to the nenergy.
     #[must_use]
     #[inline]
     pub(crate) fn add_energy_n_delta(&mut self, delta: f64) -> f64 {
         self.total_energy_n += delta;
         self.total_energy_n
     }
-    /// Reset the total nenergy
+    /// Reset the total nenergy.
     #[must_use]
     #[inline]
     fn reset_total_energy_n<PH, P>(&mut self, ed: &EnergyDistance<PH, P>) -> f64

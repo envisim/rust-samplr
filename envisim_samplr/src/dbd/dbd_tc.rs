@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Distributionally balanced designs using tactical configurations
+//! Distributionally balanced designs using tactical configurations.
 
 use std::iter::repeat_n;
 
@@ -39,7 +39,7 @@ pub use super::dbd_tc_config::*;
 use crate::pivotal_method::LocalPivotalSampling;
 use crate::utils::shuffle;
 
-/// The tactical configuration DBD container
+/// The tactical configuration DBD container.
 #[must_use]
 #[derive(Debug)]
 pub struct DbdTacticalConfiguration<PH, P>
@@ -47,19 +47,19 @@ where
     PH: DataView<Value = f64>,
     P: PointSet<Id = PH::Id, Value = f64>,
 {
-    /// Annealing temperature tracker
+    /// Annealing temperature tracker.
     temperature: AnnealingTemperature,
-    /// Energy distance engine
+    /// Energy distance engine.
     ed: EnergyDistance<PH, P>,
 
-    /// Main circular config
+    /// Main circular config.
     configuration: TacticalConfiguration<PH::Id>,
-    /// Best cicular config, if better than main
+    /// Best cicular config, if better than main.
     configuration_best: Option<TacticalConfiguration<PH::Id>>,
 
-    /// The switch-candidates to evaluate
+    /// The switch-candidates to evaluate.
     pair: ((usize, usize), (usize, usize)), // bucket index, k-index within bucket
-    /// The switch-candidates energy-delta
+    /// The switch-candidates energy-delta.
     total_energy_n_delta: Option<f64>,
 }
 
@@ -68,7 +68,7 @@ where
     PH: DataView<Value = f64>,
     P: PointSet<Id = PH::Id, Value = f64>,
 {
-    /// Returns the optimal configuration
+    /// Returns the optimal configuration.
     #[inline]
     pub fn optimal_configuration(&self) -> &TacticalConfiguration<PH::Id> {
         self.configuration_best
@@ -76,22 +76,22 @@ where
             .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(&self.configuration)
     }
-    /// Converts self into the optimal configuration
+    /// Converts self into the optimal configuration.
     #[inline]
     pub fn into_optimal_configuration(self) -> TacticalConfiguration<PH::Id> {
         self.configuration_best
             .filter(|best| best.total_energy_n() <= self.configuration.total_energy_n())
             .unwrap_or(self.configuration)
     }
-    /// Returns a reference to the energy distance engine
+    /// Returns a reference to the energy distance engine.
     #[inline]
     pub fn ed(&self) -> &EnergyDistance<PH, P> { &self.ed }
-    /// Returns a reference to the tactical configuration parameters
+    /// Returns a reference to the tactical configuration parameters.
     #[inline]
     pub fn tcp(&self) -> &TacticalConfigurationParameters { self.configuration.tcp() }
 
     // CONSTRUCTORS
-    /// Constructs a new tactical configuration DBD
+    /// Constructs a new tactical configuration DBD.
     ///
     /// # Errors
     /// Returns the full configuration in case of `sample_size` equaling the population size.

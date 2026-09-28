@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Views for sliceables
+//! Views for sliceables.
 //!
 //! Mirroring `AsRef` and `AsMut`, but using associated type.
 
@@ -27,22 +27,22 @@ use std::hash::{
 use std::rc::Rc;
 use std::sync::Arc;
 
-/// General data container
+/// General data container.
 pub trait DataView {
-    /// The type of the IDs
+    /// The type of the IDs.
     type Id: Sized + Eq + Hash + Ord + Copy + Debug;
-    /// The type of the stored values
+    /// The type of the stored values.
     type Value;
-    /// Iterator over data ids
+    /// Iterator over data ids.
     #[must_use]
     fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone;
     /// Returns an iterator to the internal data.
     #[must_use]
     fn values(&self) -> impl ExactSizeIterator<Item = &Self::Value> + Clone;
-    /// Returns an iterator over the key-value pairs
+    /// Returns an iterator over the key-value pairs.
     #[must_use]
     fn entries(&self) -> impl ExactSizeIterator<Item = (Self::Id, &Self::Value)> + Clone;
-    /// Returns `true` if `id` exists in the container
+    /// Returns `true` if `id` exists in the container.
     #[must_use]
     fn contains(&self, id: Self::Id) -> bool;
     /// Returns a reference to the value at `id`, if it exist.
@@ -51,12 +51,12 @@ pub trait DataView {
     /// Returns the number of stored elements in the container.
     #[must_use]
     fn len(&self) -> usize;
-    /// Returns `true` if the container is empty
+    /// Returns `true` if the container is empty.
     #[inline]
     #[must_use]
     fn is_empty(&self) -> bool { self.len() == 0 }
 }
-/// General mutable data container
+/// General mutable data container.
 pub trait DataViewMut: DataView {
     /// Returns a mutable iterator the internal data.
     #[must_use]
@@ -68,36 +68,36 @@ pub trait DataViewMut: DataView {
     #[must_use]
     fn get_mut(&mut self, id: Self::Id) -> Option<&mut Self::Value>;
 }
-/// Data container with contiguous layout
+/// Data container with contiguous layout.
 pub trait ContiguousDataView: DataView<Id = usize> {}
-/// Data container that can be sliced
+/// Data container that can be sliced.
 pub trait SliceView: ContiguousDataView {
     /// Returns a reference (view) to the internal data.
     #[must_use]
     fn slice(&self) -> &[Self::Value];
 }
-/// Mutable data container that can be sliced
+/// Mutable data container that can be sliced.
 pub trait SliceViewMut: SliceView + DataViewMut {
     /// Returns a mutable reference to the internal data.
     #[must_use]
     fn slice_mut(&mut self) -> &mut [Self::Value];
 }
-/// Re-constructable data container
+/// Re-constructable data container.
 pub trait ConstructableDataView: DataView {
-    /// A similar type that can be used to re-construct the data container for different values
+    /// A similar type that can be used to re-construct the data container for different values.
     type ConstructableContainer<V>: DataViewMut<Id = Self::Id, Value = V> + ConstructableDataView;
-    /// Construct a new container from an iterator
+    /// Construct a new container from an iterator.
     #[must_use]
     fn from_iter<I, V>(iter: I) -> Self::ConstructableContainer<V>
     where
         I: Iterator<Item = (Self::Id, V)>;
-    /// Construct a new container from a fallible iterator
+    /// Construct a new container from a fallible iterator.
     /// # Errors
     /// Returns an error if any item in the iterator returns an error.
     fn try_from_iter<I, V, E>(iter: I) -> Result<Self::ConstructableContainer<V>, E>
     where
         I: Iterator<Item = Result<(Self::Id, V), E>>;
-    /// Map values of self to a new container
+    /// Map values of self to a new container.
     #[must_use]
     #[inline]
     fn iter_map<V, F>(&self, f: F) -> Self::ConstructableContainer<V>
@@ -234,7 +234,7 @@ where
     }
 }
 
-/// Implements `SliceView`
+/// Implements `SliceView`.
 macro_rules! impl_sliceview_self {
     (($($gens:tt)*), $ty:ty) => {
         impl<$($gens)*> SliceView for $ty {
@@ -264,7 +264,7 @@ macro_rules! impl_sliceview_self {
         }
     };
 }
-/// Implements `SliceViewMut`
+/// Implements `SliceViewMut`.
 macro_rules! impl_sliceviewmut_self {
     (($($gens:tt)*), $ty:ty) => {
         impl<$($gens)*> SliceViewMut for $ty {
@@ -274,7 +274,7 @@ macro_rules! impl_sliceviewmut_self {
         impl_dataviewmut_for_sliceviewmut!(($($gens)*), $ty);
     }
 }
-/// Implements `DataView` for `SliceView`-ables
+/// Implements `DataView` for `SliceView`-ables.
 macro_rules! impl_dataview_for_sliceview {
     (($($gens:tt)*), $ty:ty) => {
         impl<$($gens)*> ContiguousDataView for $ty {}
@@ -302,7 +302,7 @@ macro_rules! impl_dataview_for_sliceview {
         }
     };
 }
-/// Implements `DataViewMut` for `SliceViewMut`-ables
+/// Implements `DataViewMut` for `SliceViewMut`-ables.
 macro_rules! impl_dataviewmut_for_sliceviewmut {
     (($($gens:tt)*), $ty:ty) => {
         impl<$($gens)*> DataViewMut for $ty {

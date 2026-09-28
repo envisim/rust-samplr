@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Nearest neighbour estimator
+//! Nearest neighbour estimator.
 
 use envisim_utils::kd_tree::searcher::{
     NearestNeighbourSearcher,

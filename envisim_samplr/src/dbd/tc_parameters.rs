@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Tactical configuration parameters
+//! Tactical configuration parameters.
 
 use std::num::NonZeroUsize;
 
@@ -25,41 +25,41 @@ use num_traits::ToPrimitive;
 
 #[must_use]
 #[derive(Clone, Debug)]
-/// Tactical configuration design parameters
+/// Tactical configuration design parameters.
 pub struct TacticalConfigurationParameters {
-    /// Population size of config
+    /// Population size of config.
     population_size: NonZeroUsize,
-    /// Sample size of config
+    /// Sample size of config.
     sample_size: NonZeroUsize,
-    /// Number of samples (width) of config
+    /// Number of samples (width) of config.
     n_samples: NonZeroUsize,
-    /// Number of times a unit exists in the config
+    /// Number of times a unit exists in the config.
     n_repeats: NonZeroUsize,
     // common_divisor: NonZeroUsize,
 }
 impl TacticalConfigurationParameters {
-    /// Returns the population size
+    /// Returns the population size.
     #[must_use]
     #[inline]
     pub fn population_size(&self) -> NonZeroUsize { self.population_size }
-    /// Returns the sample size
+    /// Returns the sample size.
     #[must_use]
     #[inline]
     pub fn sample_size(&self) -> NonZeroUsize { self.sample_size }
-    /// Returns the number of samples (width)
+    /// Returns the number of samples (width).
     #[must_use]
     #[inline]
     pub fn n_samples(&self) -> NonZeroUsize { self.n_samples }
-    /// Returns the multiplicity of the units
+    /// Returns the multiplicity of the units.
     #[must_use]
     #[inline]
     pub fn n_repeats(&self) -> NonZeroUsize { self.n_repeats }
 
-    /// Constructs a new config with given parameters
+    /// Constructs a new config with given parameters.
     ///
     /// # Panics
     /// Panics if `sample_size` is not lower than `population_size`, or if
-    /// `population_size * n_repeats` does not equal `sample_size * n_samples`
+    /// `population_size * n_repeats` does not equal `sample_size * n_samples`.
     #[inline]
     pub fn new(
         population_size: NonZeroUsize,
@@ -83,7 +83,7 @@ impl TacticalConfigurationParameters {
             n_repeats,
         }
     }
-    /// Constructs a new minimum tactical configuration
+    /// Constructs a new minimum tactical configuration.
     #[expect(clippy::missing_panics_doc, reason = "panic implies bug in gcd")]
     #[expect(clippy::integer_division, reason = "gcd, no loss of precision")]
     #[inline]
@@ -105,14 +105,14 @@ impl TacticalConfigurationParameters {
     }
 }
 
-/// DBD methods
+/// DBD methods.
 pub trait DbdConfiguration<ID> {
-    /// Returns a reference to the tactical configuration parameters
+    /// Returns a reference to the tactical configuration parameters.
     fn tcp(&self) -> &TacticalConfigurationParameters;
-    /// Returns the total energy of all samples multiplied by the sample size
+    /// Returns the total energy of all samples multiplied by the sample size.
     #[must_use]
     fn total_energy_n(&self) -> f64;
-    /// Returns the total energy of all samples
+    /// Returns the total energy of all samples.
     #[must_use]
     #[inline]
     fn total_energy(&self) -> f64 {
@@ -124,7 +124,7 @@ pub trait DbdConfiguration<ID> {
                 .to_f64()
                 .expect("sample_size to convert to f64")
     }
-    /// Returns the average energy of all samples
+    /// Returns the average energy of all samples.
     #[must_use]
     #[inline]
     fn average_energy(&self) -> f64 {
@@ -136,10 +136,10 @@ pub trait DbdConfiguration<ID> {
                 .to_f64()
                 .expect("sample_size to convert to f64")
     }
-    /// Returns an iterator over a specific sample
+    /// Returns an iterator over a specific sample.
     #[must_use]
     fn sample(&self, sample_id: usize) -> impl Iterator<Item = ID> + Clone + '_;
-    /// Returns an iterator over a random sample
+    /// Returns an iterator over a random sample.
     #[must_use]
     #[inline]
     fn draw<R>(&self, rng: &mut R) -> impl Iterator<Item = ID> + Clone + '_
@@ -150,7 +150,7 @@ pub trait DbdConfiguration<ID> {
         let sample_id = rng.rand_in(0..n_samples);
         self.sample(sample_id)
     }
-    /// Returns the energy of a specific sample multiplied by the sample size
+    /// Returns the energy of a specific sample multiplied by the sample size.
     #[must_use]
     #[inline]
     fn energy_of_sample_n<PH, P>(&self, ed: &EnergyDistance<PH, P>, sample_id: usize) -> f64

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Defines a split, and a split with a unit
+//! Defines a split, and a split with a unit.
 
 use crate::utils::{
     Number,
@@ -29,7 +29,7 @@ pub struct Split<N> {
     pub leq: bool,
 }
 impl<N> Split<N> {
-    /// Constructs a new split
+    /// Constructs a new split.
     #[inline]
     pub fn new(dimension: usize, value: N, leq: bool) -> Self {
         Self {
@@ -91,7 +91,7 @@ pub struct SplitUnit<N> {
     pub unit: usize,
 }
 impl<N> SplitUnit<N> {
-    /// Constructs a new split
+    /// Constructs a new split.
     #[inline]
     pub fn new(dimension: usize, value: N, leq: bool, unit: usize) -> Self {
         Self {

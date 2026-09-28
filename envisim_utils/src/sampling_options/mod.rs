@@ -132,7 +132,7 @@ where
             .map_err(|_| SamplingOptionsError::InvalidIterations)?;
         Ok(self)
     }
-    /// Sets the spreading options
+    /// Sets the spreading options.
     ///
     /// # Errors
     /// Returns an error if ids of probabilities does not exist in spreading.
@@ -165,14 +165,14 @@ impl<PO, AUX> SamplingOptions<PO, AUX>
 where
     PO: ProbabilitiesSpec,
 {
-    /// Constructs a [`ProbabilitySet`] from the probability specification
+    /// Constructs a [`ProbabilitySet`] from the probability specification.
     #[inline]
     pub fn to_probabilityset(
         &self,
     ) -> ProbabilitySet<PO::ConstructableContainer<Probability<PO::Value>>, PO::Value> {
         ProbabilitySet::from_opts(&self.probabilities, self.eps)
     }
-    /// Constructs a real-valued [`ProbabilitySet`] from the probability specification
+    /// Constructs a real-valued [`ProbabilitySet`] from the probability specification.
     #[inline]
     pub fn to_probabilityset_real(
         &self,
@@ -181,14 +181,14 @@ where
     }
 }
 
-/// Default maximum iterations value
+/// Default maximum iterations value.
 const MAX_ITERATIONS: NonZeroUsize = NonZeroUsize::new(1000).expect("infallible");
 
 impl<PS> SamplingOptions<PS>
 where
     PS: BaseProbabilitiesSpec,
 {
-    /// Initializes `SamplingOptions` with unequal probability options
+    /// Initializes `SamplingOptions` with unequal probability options.
     #[inline]
     pub fn with_spec(spec: PS) -> SamplingOptions<PS, ()> {
         SamplingOptions {

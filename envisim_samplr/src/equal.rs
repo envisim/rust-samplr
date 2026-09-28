@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Simple random sampling
+//! Simple random sampling.
 //!
 //! Implements [`EqualProbabilitySampling`] for [`SamplingOptions`].
 
@@ -22,12 +22,12 @@ use envisim_utils::random::{
 use envisim_utils::sampling_options::EqualProbabilities;
 pub use envisim_utils::sampling_options::SamplingOptions;
 
-/// Provides equal probability sampling methods
+/// Provides equal probability sampling methods.
 pub trait EqualProbabilitySampling<R>
 where
     R: Rng,
 {
-    /// Draw a simple random sample without replacement
+    /// Draw a simple random sample without replacement.
     ///
     /// # Examples
     /// ```
@@ -38,7 +38,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// ```
     fn srs(&self, rng: &mut R) -> Vec<usize>;
-    /// Draw a simple random sample with replacement
+    /// Draw a simple random sample with replacement.
     ///
     /// # Examples
     /// ```
@@ -49,7 +49,7 @@ where
     /// assert_eq!(s.len(), 5);
     /// ```
     fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize>;
-    /// Draw a sample using Bernoulli sampling
+    /// Draw a sample using Bernoulli sampling.
     ///
     /// # Examples
     /// ```

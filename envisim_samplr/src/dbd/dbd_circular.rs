@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Circular distributionally balanced designs
+//! Circular distributionally balanced designs.
 
 use envisim_estimate::spatial_balance::EnergyDistance;
 use envisim_utils::random::Rand;
