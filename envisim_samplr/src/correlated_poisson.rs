@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Correlated poisson designs
+//! Correlated poisson designs.
 //!
 //! Implements [`CorrelatedPoissonSampling`] and [`SpatialCorrelatedPoissonSampling`] for
 //! [`SamplingOptions`].
@@ -19,17 +19,17 @@
 //! Bondesson, L., & Thorburn, D. (2008).
 //! A list sequential sampling method suitable for real‐time sampling.
 //! Scandinavian Journal of Statistics, 35(3), 466-483.
-//! <https://doi.org/10.1111/j.1467-9469.2008.00596.x>
+//! <https://doi.org/10.1111/j.1467-9469.2008.00596.x>.
 //!
 //! Grafström, A. (2012).
 //! Spatially correlated Poisson sampling.
 //! Journal of Statistical Planning and Inference, 142(1), 139-147.
-//! <https://doi.org/10.1016/j.jspi.2011.07.003>
+//! <https://doi.org/10.1016/j.jspi.2011.07.003>.
 //!
 //! Prentius, W. (2024).
 //! Locally correlated Poisson sampling.
 //! Environmetrics, 35(2), e2832.
-//! <https://doi.org/10.1002/env.2832>
+//! <https://doi.org/10.1002/env.2832>.
 
 use envisim_utils::kd_tree::Tree;
 use envisim_utils::kd_tree::searcher::{
@@ -96,7 +96,7 @@ impl CorrelatedPoissonError {
     }
 }
 
-/// Finds the first unit after `curr` that can be selected
+/// Finds the first unit after `curr` that can be selected.
 fn select_unit_sequential<PR, TR>(
     curr: Option<PR::Id>,
     controller: &SampleController<PR, TR>,
@@ -162,7 +162,7 @@ fn sequential_unit_deltas<PR, TR>(
     }
 }
 
-/// Finds the neighbours of the selected unit, and returns their ids and deltas
+/// Finds the neighbours of the selected unit, and returns their ids and deltas.
 #[inline]
 fn spatial_unit_deltas<PR, DT>(
     update_buffer: &mut Vec<(PR::Id, PR::N)>,
@@ -219,7 +219,7 @@ fn spatial_unit_deltas<PR, DT>(
     }
 }
 
-/// Trait for selecting and deciding units based on random values
+/// Trait for selecting and deciding units based on random values.
 trait RandomUnit<PR, TR>
 where
     PR: ProbabilityStore,
@@ -240,7 +240,7 @@ where
     }
 }
 
-/// A strategy for CPS controls the updating and selection mechanism of units
+/// A strategy for CPS controls the updating and selection mechanism of units.
 trait CorrelatedPoissonStrategy<PR, TR>: RandomUnit<PR, TR>
 where
     PR: ProbabilityStore,
@@ -259,7 +259,7 @@ where
     );
 }
 
-/// Flip the coin for a unit. Returns (prob, quota)
+/// Flip the coin for a unit. Returns (prob, quota).
 #[inline]
 fn decide_unit<PR, TR>(
     controller: &mut SampleController<PR, TR>,
@@ -287,7 +287,7 @@ where
     (probability, quota)
 }
 
-/// Runs a CPS strategy
+/// Runs a CPS strategy.
 #[inline]
 fn correlated_poisson_runner<R, PR, TR, S>(
     rng: &mut R,
@@ -327,7 +327,7 @@ where
     }
 }
 
-/// Sequential correlated Poisson sampling (or CPS)
+/// Sequential correlated Poisson sampling (or CPS).
 struct SequentialStrategy;
 impl<PR> RandomUnit<PR, ()> for SequentialStrategy
 where
@@ -361,7 +361,7 @@ where
     }
 }
 
-/// Sequential correlated Poisson sampling (or CPS), coordinated variant
+/// Sequential correlated Poisson sampling (or CPS), coordinated variant.
 struct SequentialStrategyCoord<CD>(CD);
 impl<PR, CD> RandomUnit<PR, ()> for SequentialStrategyCoord<CD>
 where
@@ -399,12 +399,12 @@ where
     }
 }
 
-/// Spatially correlated Poisson sampling strategy
+/// Spatially correlated Poisson sampling strategy.
 struct SpatialStrategy<P>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: WeightedSearcher<P>,
 }
 impl<PR, P> RandomUnit<PR, Tree<'_, P>> for SpatialStrategy<P>
@@ -437,14 +437,14 @@ where
     }
 }
 
-/// Coordinated Spatially correlated Poisson sampling strategy
+/// Coordinated Spatially correlated Poisson sampling strategy.
 struct SpatialStrategyCoord<P, CD>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: WeightedSearcher<P>,
-    /// Random values
+    /// Random values.
     random_values: CD,
 }
 impl<PR, P, CD> RandomUnit<PR, Tree<'_, P>> for SpatialStrategyCoord<P, CD>
@@ -492,14 +492,14 @@ where
     }
 }
 
-/// Locally correlated Poisson sampling
+/// Locally correlated Poisson sampling.
 struct LocalStrategy<P>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: WeightedSearcher<P>,
-    /// The candidates to be selected as deciding unit
+    /// The candidates to be selected as deciding unit.
     candidates: Vec<P::Id>,
 }
 impl<PR, P> RandomUnit<PR, Tree<'_, P>> for LocalStrategy<P>
@@ -589,7 +589,7 @@ where
     }
 }
 
-/// Provides correlated Poisson sampling variants
+/// Provides correlated Poisson sampling variants.
 pub trait CorrelatedPoissonSampling<ID, R>
 where
     R: Rng,
@@ -638,7 +638,7 @@ where
         CD: DataView<Id = ID, Value = f64>;
 }
 
-/// Provides spatially correlated Poisson sampling variants
+/// Provides spatially correlated Poisson sampling variants.
 pub trait SpatiallyCorrelatedPoissonSampling<ID, R>
 where
     R: Rng,

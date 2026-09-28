@@ -144,7 +144,7 @@ where
     }
 }
 
-/// Provides evalutors for distributionally balanced sampling designs
+/// Provides evalutors for distributionally balanced sampling designs.
 pub trait DistributionalDesignEvaluators<R>
 where
     R: Rng,

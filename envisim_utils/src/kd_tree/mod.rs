@@ -35,15 +35,15 @@ use thiserror::Error;
 
 pub use crate::utils::PointSet;
 
-/// Tree construction trait
+/// Tree construction trait.
 ///
-/// Provides methods necessary for the construction of a [`Tree`]
+/// Provides methods necessary for the construction of a [`Tree`].
 pub trait TreeConfig {
-    /// The type of the data structure
+    /// The type of the data structure.
     type Data: PointSet;
-    /// The split method
+    /// The split method.
     type Split: FindSplit<Self::Data>;
-    /// Returns a reference to the data structure
+    /// Returns a reference to the data structure.
     #[must_use]
     fn data(&self) -> &Self::Data;
     /// Returns the bucket size, i.e. the max number of nodes to use in a tree.
@@ -56,16 +56,16 @@ pub trait TreeConfig {
     fn split_method(&self, units: &[<Self::Data as PointSet>::Id]) -> Self::Split;
 }
 
-/// A kd-tree structure
+/// A kd-tree structure.
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct Tree<'bdata, P>
 where
     P: PointSet,
 {
-    /// The first (top) node
+    /// The first (top) node.
     node: Node<P>,
-    /// A reference to the data used in the tree
+    /// A reference to the data used in the tree.
     data: &'bdata P,
 }
 
@@ -80,9 +80,9 @@ pub enum Node<P>
 where
     P: PointSet,
 {
-    /// See [`Branch`]
+    /// See [`Branch`].
     Branch(Branch<P>),
-    /// See [`Leaf`]
+    /// See [`Leaf`].
     Leaf(Leaf<P>),
 }
 
@@ -93,11 +93,11 @@ pub struct Branch<P>
 where
     P: PointSet,
 {
-    /// The split of the branch
+    /// The split of the branch.
     split: Split<P::Value>,
-    /// The node to the left of the split
+    /// The node to the left of the split.
     left: Box<Node<P>>,
-    /// The node to the right of the split
+    /// The node to the right of the split.
     right: Box<Node<P>>,
 }
 
@@ -108,7 +108,7 @@ pub struct Leaf<P>
 where
     P: PointSet,
 {
-    /// The units contained within the leaf
+    /// The units contained within the leaf.
     units: Vec<P::Id>,
 }
 
@@ -404,17 +404,17 @@ where
     fn from(leaf: Leaf<P>) -> Self { Node::Leaf(leaf) }
 }
 
-/// KD-Tree related errors
+/// KD-Tree related errors.
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum TreeError {
-    /// Point has incorrect dimensions
+    /// Point has incorrect dimensions.
     #[error("Point has incorrect dimension")]
     PointDimensionError,
-    /// Point weight must be in (0.0, 1.0)
+    /// Point weight must be in (0.0, 1.0).
     #[error("Point weight must be in (0.0, 1.0)")]
     PointWeightError,
-    /// Unit does not exist in data
+    /// Unit does not exist in data.
     #[error("Unit does not exist in data")]
     InvalidUnit,
 }
@@ -433,7 +433,7 @@ mod tests {
     use crate::sampling_options::SpreadingOptions;
     use crate::test_utils::*;
 
-    /// Setup a 2D Matrix with 4 points: (0,0), (1,0), (0,1), (1,1)
+    /// Setup a 2D Matrix with 4 points: (0,0), (1,0), (0,1), (1,1).
     fn setup() -> SpreadingOptions<Matrix<f64>> {
         let data = vec![
             0.0, 1.0, 0.0, 1.0, // Dim 0 (X)

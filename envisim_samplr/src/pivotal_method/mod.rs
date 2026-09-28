@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sampling algorithms based on the pivotal method
+//! Sampling algorithms based on the pivotal method.
 //!
 //! Implements [`PivotalSampling`] and [`LocalPivotalSampling`] for [`SamplingOptions`].
 //!
@@ -18,12 +18,12 @@
 //! Deville, J. C., & Tille, Y. (1998).
 //! Unequal probability sampling without replacement through a splitting method.
 //! Biometrika, 85(1), 89-101.
-//! <https://doi.org/10.1093/biomet/85.1.89>
+//! <https://doi.org/10.1093/biomet/85.1.89>.
 //!
 //! Grafström, A., Lundström, N. L., & Schelin, L. (2012).
 //! Spatially balanced sampling through the pivotal method.
 //! Biometrics, 68(2), 514-520.
-//! <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+//! <https://doi.org/10.1111/j.1541-0420.2011.01699.x>.
 
 mod base;
 mod runner;

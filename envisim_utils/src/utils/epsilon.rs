@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Epsilon
+//! Epsilon.
 
 use std::fmt::{
     Display,
@@ -24,7 +24,7 @@ use crate::sampling_options::{
     SamplingOptionsResult,
 };
 
-/// An epsilon-like value, used for comparisons between `N` representations
+/// An epsilon-like value, used for comparisons between `N` representations.
 ///
 /// For ints, Epsilon is constricted to 0, and for floats Epsilon should be sufficiently small.
 /// The constructor checks so that epsilon < 1.0, but this is almost guaranteed to be a too loose
@@ -35,7 +35,7 @@ use crate::sampling_options::{
 pub struct Epsilon<N = f64>(N);
 
 impl<N> Epsilon<N> {
-    /// Gets the internal epsilon value
+    /// Gets the internal epsilon value.
     #[must_use]
     #[inline]
     pub fn get(self) -> N
@@ -44,7 +44,7 @@ impl<N> Epsilon<N> {
     {
         self.0
     }
-    /// Constructs a new `Epsilon`
+    /// Constructs a new `Epsilon`.
     /// # Errors
     /// Returns an error if `eps` is not sufficiently small.
     #[inline]
@@ -57,7 +57,7 @@ impl<N> Epsilon<N> {
         }
         Ok(Self(eps))
     }
-    /// Returns `true` if the absolute `value` is almost zero
+    /// Returns `true` if the absolute `value` is almost zero.
     #[must_use]
     #[inline]
     pub fn is_zero(&self, value: N) -> bool
@@ -93,7 +93,7 @@ where
     fn fmt(&self, f: &mut Formatter) -> FmtResult { write!(f, "{}", self.0) }
 }
 
-/// Implements epsilon for floats
+/// Implements epsilon for floats.
 macro_rules! eps_impl_float {
     ($t:ty) => {
         impl TryFrom<$t> for Epsilon<$t> {
@@ -103,7 +103,7 @@ macro_rules! eps_impl_float {
         }
     };
 }
-///// Implements epsilon for ints
+///// Implements epsilon for ints.
 // macro_rules! eps_impl_int {
 //     ($t:ty) => {};
 // }

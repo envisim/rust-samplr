@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Horvitz-Thompson estimators (single count estimators)
+//! Horvitz-Thompson estimators (single count estimators).
 
 use std::num::NonZeroUsize;
 
@@ -42,7 +42,7 @@ pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
 use crate::utils::ypi_quotient;
 
-/// Horvitz-Thompson estimator of a total
+/// Horvitz-Thompson estimator of a total.
 ///
 /// # Examples
 /// ```
@@ -54,7 +54,7 @@ use crate::utils::ypi_quotient;
 /// ```
 ///
 /// # Errors
-/// Returns an error if the slice lengths dont match, or if the probabilities are invalid
+/// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
 #[inline]
 pub fn estimate<Y, P>(y_values: Y, probabilities: P) -> EstimationResult<f64>
 where
@@ -118,7 +118,7 @@ where
         .ok_or(EstimationError::InvalidAuxiliaries)
 }
 
-/// Horvitz-Thompson estimator of variance of total estimate
+/// Horvitz-Thompson estimator of variance of total estimate.
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
@@ -178,7 +178,7 @@ where
     Ok(variance)
 }
 
-/// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample
+/// Sen-Yates-Grundy estimator of variance of total estimate of fixed sized sample.
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
@@ -233,7 +233,7 @@ where
     Ok(variance)
 }
 
-/// Deville estimator of variance of total estimate
+/// Deville estimator of variance of total estimate.
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.
@@ -272,7 +272,7 @@ where
 /// Grafström, A., & Schelin, L. (2014).
 /// How to select representative samples.
 /// Scandinavian Journal of Statistics, 41(2), 277-290.
-/// <https://doi.org/10.1111/sjos.12016>
+/// <https://doi.org/10.1111/sjos.12016>.
 ///
 /// # Errors
 /// Returns an error if the slice lengths dont match, or if the probabilities are invalid.

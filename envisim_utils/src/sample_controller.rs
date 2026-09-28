@@ -47,7 +47,7 @@ use crate::utils::{
 
 /// Provides method for removing unit(s) in `SampleController`.
 pub trait TreeStorage<ID> {
-    /// Removes unit `idx` from the storage
+    /// Removes unit `idx` from the storage.
     #[inline]
     fn remove_unit(&mut self, _idx: ID) {}
 }
@@ -70,13 +70,13 @@ pub struct SampleController<PR, TR = ()>
 where
     PR: ProbabilityStore,
 {
-    /// The probability store
+    /// The probability store.
     probabilities: PR,
-    /// The (remaining) sample indices
+    /// The (remaining) sample indices.
     indices: Indices<PR::Id>,
-    /// The units included in the sample
+    /// The units included in the sample.
     sample: Sample<PR::Id>,
-    /// The kd-tree containing the (remaining) units
+    /// The kd-tree containing the (remaining) units.
     tree: TR,
 }
 
@@ -84,35 +84,35 @@ impl<PR, TR> SampleController<PR, TR>
 where
     PR: ProbabilityStore,
 {
-    /// Returns a reference to the probability set
+    /// Returns a reference to the probability set.
     #[inline]
     pub fn probabilities(&self) -> &PR { &self.probabilities }
-    /// Returns a mutable reference to the probability set
+    /// Returns a mutable reference to the probability set.
     #[inline]
     pub fn probabilities_mut(&mut self) -> &mut PR { &mut self.probabilities }
-    /// Returns a reference to the indices
+    /// Returns a reference to the indices.
     #[inline]
     pub fn indices(&self) -> &Indices<PR::Id> { &self.indices }
-    /// Returns a mutable reference to the indices
+    /// Returns a mutable reference to the indices.
     #[inline]
     pub fn indices_mut(&mut self) -> &mut Indices<PR::Id> { &mut self.indices }
-    /// Returns a reference to the sample
+    /// Returns a reference to the sample.
     #[inline]
     pub fn sample(&self) -> &Sample<PR::Id> { &self.sample }
-    /// Returns a mutable reference to the sample
+    /// Returns a mutable reference to the sample.
     #[inline]
     pub fn sample_mut(&mut self) -> &mut Sample<PR::Id> { &mut self.sample }
-    /// Returns a reference to the tree
+    /// Returns a reference to the tree.
     #[inline]
     pub fn tree(&self) -> &TR { &self.tree }
-    /// Returns a mutable reference to the tree
+    /// Returns a mutable reference to the tree.
     #[inline]
     pub fn tree_mut(&mut self) -> &mut TR { &mut self.tree }
-    /// Moves self and returns the sorted vector of sample indices
+    /// Moves self and returns the sorted vector of sample indices.
     #[must_use]
     #[inline]
     pub fn to_sorted_sample_vec(self) -> Vec<PR::Id> { self.sample.to_sorted_vec() }
-    /// Returns the populations size
+    /// Returns the populations size.
     #[expect(clippy::missing_panics_doc, reason = "probs must not be empty")]
     #[must_use]
     #[inline]
@@ -145,7 +145,7 @@ where
         self.probabilities.set(id, prob);
         let _p = self.unit_decide(id);
     }
-    /// Sets a unit to a full probability representation and removes it
+    /// Sets a unit to a full probability representation and removes it.
     #[inline]
     pub fn unit_set_full(&mut self, id: PR::Id)
     where
@@ -155,7 +155,7 @@ where
         self.sample.add(id);
         self.unit_remove(id);
     }
-    /// Sets a unit to a zero probability representation and removes it
+    /// Sets a unit to a zero probability representation and removes it.
     #[inline]
     pub fn unit_set_zero(&mut self, id: PR::Id)
     where
@@ -165,7 +165,7 @@ where
         self.unit_remove(id);
     }
     /// Adds `prob` to the probability of a unit and removes it if the new sum is not partial.
-    /// Returns the amount of `prob` that could not be added
+    /// Returns the amount of `prob` that could not be added.
     /// # Panics
     /// Panics if `idx` does not exist in `probabilities`.
     #[inline]
@@ -178,7 +178,7 @@ where
         p
     }
     /// Subtracts `prob` from the probability of a unit and removes it if the new sum is not partial.
-    /// Returns the amount of `prob` that could not be subtracted
+    /// Returns the amount of `prob` that could not be subtracted.
     /// # Panics
     /// Panics if `idx` does not exist in `probabilities`.
     #[inline]
@@ -191,7 +191,7 @@ where
         p
     }
     /// Adds a delta to the probability of a unit and removes it if the new sum is not partial.
-    /// Returns the amount that could not be added
+    /// Returns the amount that could not be added.
     /// # Panics
     /// Panics if delta (or -delta) cannot be constructed as a probability representation.
     #[inline]
@@ -228,7 +228,7 @@ where
         }
         Some(*self.probabilities.get(id).expect("id exist"))
     }
-    /// Removes a unit from the controller
+    /// Removes a unit from the controller.
     #[inline]
     pub fn unit_remove(&mut self, id: PR::Id) -> bool
     where

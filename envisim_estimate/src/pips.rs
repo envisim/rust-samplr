@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Functions for calculating probabilities proportional to size
+//! Functions for calculating probabilities proportional to size.
 
 use std::num::NonZeroUsize;
 
@@ -142,17 +142,17 @@ where
     Ok(pips)
 }
 
-/// Pips related errors
+/// Pips related errors.
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum PipsError {
-    /// Auxiliaries must be positive valued
+    /// Auxiliaries must be positive valued.
     #[error("auxiliaries must be positive")]
     InvalidAuxiliary,
-    /// Sample size must be in (0, N]
+    /// Sample size must be in (0, N].
     #[error("sample size must be positive and less than pop size")]
     InvalidSampleSize,
-    /// Auxiliaries must be provided
+    /// Auxiliaries must be provided.
     #[error("slice contains no auxiliaries")]
     NoAuxiliaries,
 }

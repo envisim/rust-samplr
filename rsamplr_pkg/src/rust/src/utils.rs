@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utilites
+//! Utilites.
 
 use std::num::NonZeroUsize;
 
@@ -22,9 +22,9 @@ use savvy::{
     savvy_err,
 };
 
-/// Converts to usize
+/// Converts to usize.
 /// # Errors
-/// If not possible to convert to usize
+/// If not possible to convert to usize.
 #[expect(clippy::needless_pass_by_value, reason = "can be reference")]
 #[inline]
 pub fn to_usize<T>(v: T) -> savvy::Result<usize>
@@ -35,9 +35,9 @@ where
         .ok_or_else(|| savvy_err!("value must be non-negative"))
 }
 
-/// Converts to nonzerousize
+/// Converts to nonzerousize.
 /// # Errors
-/// If not possible to convert to nonzerousize
+/// If not possible to convert to nonzerousize.
 #[expect(clippy::needless_pass_by_value, reason = "can be reference")]
 #[inline]
 pub fn to_nzusize<T>(v: T) -> savvy::Result<NonZeroUsize>
@@ -49,9 +49,9 @@ where
         .ok_or_else(|| savvy_err!("value must be positive"))
 }
 
-/// Converts to i32
+/// Converts to i32.
 /// # Errors
-/// If not possible to convert to i32
+/// If not possible to convert to i32.
 #[expect(clippy::needless_pass_by_value, reason = "can be reference")]
 #[inline]
 pub fn to_i32<T>(v: T) -> savvy::Result<i32>
@@ -62,9 +62,9 @@ where
         .ok_or_else(|| savvy_err!("cannot convert to i32"))
 }
 
-/// Converts sample to [`Sexp`]
+/// Converts sample to [`Sexp`].
 /// # Errors
-/// If not possible to convert a sample index to i32
+/// If not possible to convert a sample index to i32.
 #[inline]
 pub fn return_sample<T>(sample: T) -> savvy::Result<Sexp>
 where

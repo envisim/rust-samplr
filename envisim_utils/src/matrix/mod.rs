@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Matrix representations
+//! Matrix representations.
 //!
 //! Provides [`Matrix`] and [`MatrixRef`] as mutable and borrowed matrix representations.
 //! Both are derived from [`MatrixBase`].
@@ -47,19 +47,19 @@ pub use crate::utils::{
     SliceViewMut,
 };
 
-/// Base matrix representation
+/// Base matrix representation.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct MatrixBase<T> {
-    /// Data
+    /// Data.
     data: T,
-    /// Matrix dimension
+    /// Matrix dimension.
     dims: MatrixDims,
 }
 
-/// Owned matrix representation
+/// Owned matrix representation.
 pub type Matrix<N> = MatrixBase<Vec<N>>;
-/// Borrowed matrix representation
+/// Borrowed matrix representation.
 pub type MatrixRef<'bdata, N> = MatrixBase<&'bdata [N]>;
 
 impl<T> MatrixBase<T> {
@@ -90,7 +90,7 @@ impl<T> MatrixBase<T> {
             dims,
         }
     }
-    /// Constructs a new identity matrix
+    /// Constructs a new identity matrix.
     #[inline]
     pub fn new_identity<NZ>(rows: NZ) -> Option<Self>
     where
@@ -132,7 +132,7 @@ impl<T> MatrixBase<T> {
             dims: self.dims(),
         }
     }
-    /// Returns a reference to the underlying data
+    /// Returns a reference to the underlying data.
     #[must_use]
     #[inline]
     pub fn data(&self) -> &T { &self.data }
@@ -626,13 +626,13 @@ where
 {
     type Value = T::Value;
     type Id = usize;
-    /// Returns the number of rows in the matrix
+    /// Returns the number of rows in the matrix.
     #[inline]
     fn len(&self) -> NonZeroUsize { self.dims.rows }
     /// Returns an iterator of the rows in the matrix.
     #[inline]
     fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone { 0..self.dims.rows.get() }
-    /// Returns the number of columns in the matrix
+    /// Returns the number of columns in the matrix.
     #[inline]
     fn dimensions(&self) -> NonZeroUsize { self.dims.cols }
     /// Returns true if `id` is contained within the matrix.

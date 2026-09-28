@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cube stratified methods
+//! Cube stratified methods.
 
 use std::num::NonZeroUsize;
 
@@ -42,7 +42,7 @@ use super::cube::{
 };
 use super::utils::CubeError;
 
-/// Stratified cube method runner
+/// Stratified cube method runner.
 struct CubeStratifiedMethod<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
 where
     PS: BaseProbabilitiesSpec<Real = f64>,
@@ -50,11 +50,11 @@ where
     PR: ProbabilityStore<Id = PS::Id, N = f64>,
     STRATA: DataView<Id = PS::Id>,
 {
-    /// The main cube runner
+    /// The main cube runner.
     cube: CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>,
-    /// The original vector of strata
+    /// The original vector of strata.
     org_strata: STRATA,
-    /// The stratification
+    /// The stratification.
     remaining_strata: Vec<STRATA::Value>,
 }
 impl<'bopts, PS, AUX, BL, PR, TR, SE, STRATA>
@@ -66,9 +66,9 @@ where
     TR: TreeStorage<PS::Id>,
     STRATA: DataView<Id = PS::Id, Value: Copy + Ord>,
 {
-    /// Constructs a new stratified runner
+    /// Constructs a new stratified runner.
     /// # Panics
-    /// Panics if balancing dims tend to overflow in small additions
+    /// Panics if balancing dims tend to overflow in small additions.
     #[inline]
     fn new(
         mut cube: CubeMethod<'bopts, PS, AUX, BL, PR, TR, SE>,
@@ -112,7 +112,7 @@ where
             remaining_strata,
         })
     }
-    /// Fly each stratum
+    /// Fly each stratum.
     #[inline]
     fn flight_per_stratum<R, S>(&mut self, rng: &mut R, strategy: S)
     where
@@ -196,7 +196,7 @@ where
             }
         }
     }
-    /// Runs the flight phase for all remaining units
+    /// Runs the flight phase for all remaining units.
     #[inline]
     fn flight_on_full<R, S>(&mut self, rng: &mut R, strategy: S)
     where
@@ -267,7 +267,7 @@ where
             self.cube.update_probabilities(rng);
         }
     }
-    /// Runs the landing phase for each stratum
+    /// Runs the landing phase for each stratum.
     #[inline]
     fn landing_per_stratum<R, S>(&mut self, rng: &mut R, strategy: S)
     where
@@ -353,7 +353,7 @@ where
             self.cube.controller.unit_decide_last(rng);
         }
     }
-    /// Runs the algorithm and returns the sample vector
+    /// Runs the algorithm and returns the sample vector.
     #[must_use]
     #[inline]
     fn sample<R, S>(mut self, rng: &mut R, strategy: S) -> Vec<PS::Id>

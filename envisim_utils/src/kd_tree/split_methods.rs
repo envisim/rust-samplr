@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Split methods
+//! Split methods.
 //!
 //! A split method defines a splitting strategy for a kd-tree.
 
@@ -25,17 +25,17 @@ use crate::utils::{
     PointSet,
 };
 
-/// Represents the border of a tree window
+/// Represents the border of a tree window.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 struct Border<N> {
-    /// The minimum (left) border
+    /// The minimum (left) border.
     min: N,
-    /// The maximum (right) border
+    /// The maximum (right) border.
     max: N,
 }
 impl<N> Border<N> {
-    /// Sets `min` to `v` if `v < min`
+    /// Sets `min` to `v` if `v < min`.
     #[inline]
     fn set_min(&mut self, v: N)
     where
@@ -45,7 +45,7 @@ impl<N> Border<N> {
             self.min = v;
         }
     }
-    /// Sets `max` to `v` if `v > max`
+    /// Sets `max` to `v` if `v > max`.
     #[inline]
     fn set_max(&mut self, v: N)
     where
@@ -64,7 +64,7 @@ impl<N> Border<N> {
     {
         self.max - self.min
     }
-    /// Returns the midpoint of the border
+    /// Returns the midpoint of the border.
     #[must_use]
     #[inline]
     fn centre(&self) -> N
@@ -175,7 +175,7 @@ where
 /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
 /// contains equal elements.
 ///
-/// Returns `None` if no such split exists
+/// Returns `None` if no such split exists.
 ///
 /// # References
 /// Maneewongvatana, S., & Mount, D. M. (1999).
@@ -184,7 +184,7 @@ where
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct MidpointSlide<N> {
-    /// The borders for all dimensions, one is potentially to be split
+    /// The borders for all dimensions, one is potentially to be split.
     borders: Box<[Border<N>]>,
 }
 impl<N> MidpointSlide<N> {
@@ -213,7 +213,7 @@ impl<N> MidpointSlide<N> {
             .sort_unstable_by(|&a, &b| self.borders[b].range().compare(&self.borders[a].range()));
         indices
     }
-    /// Redraw borders for a dimension. Returns `true` if borders are not degenerate
+    /// Redraw borders for a dimension. Returns `true` if borders are not degenerate.
     #[must_use]
     #[inline]
     fn redraw<P>(&mut self, dim: usize, data: &P, units: &[P::Id]) -> bool
@@ -231,7 +231,7 @@ impl<N> MidpointSlide<N> {
     /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
     /// contains equal elements.
     ///
-    /// Returns `None` if no such split exists
+    /// Returns `None` if no such split exists.
     ///
     /// # References
     /// Maneewongvatana, S., & Mount, D. M. (1999).
@@ -316,10 +316,10 @@ mod tests {
     use crate::matrix::Matrix;
     use crate::test_utils::*;
 
-    /// Helper to create a NonZeroUsize
-
-    /// Creates a 2D Matrix PointSet for testing
-    /// Layout: Column-major (all dimension 0 values, then all dimension 1 values)
+    /// Helper to create a NonZeroUsize.
+    ///
+    /// Creates a 2D Matrix PointSet for testing.
+    /// Layout: Column-major (all dimension 0 values, then all dimension 1 values).
     fn setup_test_matrix() -> Matrix<f64> {
         let data = vec![
             0.0, 10.0, // Dim 0 (X)

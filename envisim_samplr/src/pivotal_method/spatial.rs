@@ -44,7 +44,7 @@ use super::runner::{
 };
 
 /// Returns true if `id_n` has `id_org` as a nearest neighbour. If `id_n` is amongst the nearest
-/// neighbours of `id_org`, they are mutual nns
+/// neighbours of `id_org`, they are mutual nns.
 #[inline]
 fn is_mutual_nn<P>(
     searcher: &mut NearestNeighbourSearcher<P>,
@@ -67,15 +67,15 @@ where
         .any(|id| *id == id_org)
 }
 
-/// The local pivotal method variant 1
+/// The local pivotal method variant 1.
 #[must_use]
 struct LocalStrategy1<P>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: NearestNeighbourSearcher<P>,
-    /// The candidates to be selected as deciding unit
+    /// The candidates to be selected as deciding unit.
     candidates: Vec<P::Id>,
 }
 impl<PR, P> PivotalStrategy<PR, Tree<'_, P>> for LocalStrategy1<P>
@@ -138,17 +138,17 @@ where
     }
 }
 
-/// The local pivotal method variant 1S
+/// The local pivotal method variant 1S.
 #[must_use]
 pub struct LocalStrategy1S<P>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: NearestNeighbourSearcher<P>,
-    /// The candidates to be selected as deciding unit
+    /// The candidates to be selected as deciding unit.
     candidates: Vec<P::Id>,
-    /// History of potential minimal nns
+    /// History of potential minimal nns.
     history: Vec<P::Id>,
 }
 impl<PR, P> PivotalStrategy<PR, Tree<'_, P>> for LocalStrategy1S<P>
@@ -238,13 +238,13 @@ where
     }
 }
 
-/// The local pivotal method variant 2
+/// The local pivotal method variant 2.
 #[must_use]
 pub struct LocalStrategy2<P>
 where
     P: PointSet,
 {
-    /// The searcher to be used to find the neighbours of the selected unit
+    /// The searcher to be used to find the neighbours of the selected unit.
     searcher: NearestNeighbourSearcher<P>,
 }
 impl<PR, P> PivotalStrategy<PR, Tree<'_, P>> for LocalStrategy2<P>
@@ -283,7 +283,7 @@ where
     }
 }
 
-/// Provides local pivotal sampling methods
+/// Provides local pivotal sampling methods.
 pub trait LocalPivotalSampling<ID, R>
 where
     R: Rng,
@@ -405,7 +405,7 @@ where
 /// Grafström, A., Lundström, N. L., & Schelin, L. (2012).
 /// Spatially balanced sampling through the pivotal method.
 /// Biometrics, 68(2), 514-520.
-/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>
+/// <https://doi.org/10.1111/j.1541-0420.2011.01699.x>.
 ///
 /// # Errors
 /// Returns error if

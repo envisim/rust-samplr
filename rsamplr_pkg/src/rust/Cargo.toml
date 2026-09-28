@@ -35,7 +35,6 @@ blanket_clippy_restriction_lints = "allow"
 arbitrary_source_item_ordering = "allow"
 arithmetic_side_effects = "allow"
 default_numeric_fallback = "allow"
-doc_paragraphs_missing_punctuation = "allow" # remove
 else_if_without_else = "allow"
 empty_structs_with_brackets = "allow"
 exhaustive_structs = "allow"

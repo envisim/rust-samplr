@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Hansen-Hurwitz estimators (multiple count estimators)
+//! Hansen-Hurwitz estimators (multiple count estimators).
 
 use envisim_utils::matrix::{
     Dimensions,
@@ -27,7 +27,7 @@ pub use crate::error::EstimationError;
 use crate::error::EstimationResult;
 use crate::utils::ymui_quotient;
 
-/// Hansen-Hurwitz estimator of a total
+/// Hansen-Hurwitz estimator of a total.
 ///
 /// # Examples
 /// ```
@@ -40,7 +40,7 @@ use crate::utils::ymui_quotient;
 /// ```
 ///
 /// # Errors
-/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
+/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive.
 #[inline]
 pub fn estimate<Y, M, I>(y_values: Y, expected: M, inclusions: I) -> EstimationResult<f64>
 where
@@ -67,10 +67,10 @@ where
         .sum()
 }
 
-/// Hansen-Hurwitz estimator of variance of total estimate
+/// Hansen-Hurwitz estimator of variance of total estimate.
 ///
 /// # Errors
-/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive
+/// Returns an error if the slice lengths dont match, or if the mus or incs are non-positive.
 #[expect(clippy::missing_panics_doc, reason = "panic should be impossible")]
 #[inline]
 pub fn variance<Y, M1, I, M2>(

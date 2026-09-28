@@ -136,7 +136,7 @@ pub struct NearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`].
     neighbours: Vec<Neighbour<P::Id, P::Value>>,
@@ -266,9 +266,9 @@ pub struct KNearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
-    /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`].
     neighbours: Vec<Neighbour<P::Id, P::Value>>,
     /// The `k` number of neighbours to search for.
     nominal_size: NonZeroUsize,
@@ -442,14 +442,14 @@ pub struct WeightedSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
-    /// The weight of the search point
+    /// The weight of the search point.
     point_weight: f64,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`], where lower weights are
     /// sorted before higher weights in case of ties.
     neighbours: Vec<WeightedNeighbour<P::Id, P::Value>>,
-    /// The total weight of the neighbours
+    /// The total weight of the neighbours.
     total_weight: f64,
 }
 impl<P> WeightedSearcher<P>
@@ -552,11 +552,11 @@ where
     /// Returns the neighbours of the latest search.
     #[inline]
     pub fn neighbours(&self) -> &[WeightedNeighbour<P::Id, P::Value>] { &self.neighbours }
-    /// Returns the sum of the weight of the neighbours
+    /// Returns the sum of the weight of the neighbours.
     #[must_use]
     #[inline]
     pub fn total_weight(&self) -> f64 { self.total_weight }
-    /// Returns the weight of the search point
+    /// Returns the weight of the search point.
     #[must_use]
     #[inline]
     pub fn point_weight(&self) -> f64 { self.point_weight }
@@ -581,7 +581,7 @@ where
     }
 }
 
-/// Get weights from a collection
+/// Get weights from a collection.
 pub trait WeightCollection<Id> {
     /// Returns the weight of unit `id`, or `None` i the unit does not exist in the collection.
     #[must_use]
@@ -599,7 +599,7 @@ impl WeightCollection<usize> for &[f64] {
     fn get_weight(&self, id: usize) -> Option<f64> { self.get(id).copied() }
 }
 
-/// Wrapper for the [`WeightedSearcher`]
+/// Wrapper for the [`WeightedSearcher`].
 /// Needed as weights cannot be borrowed in [`WeightedSearcher`], as they will be mutated in between
 /// searches.
 #[must_use]
@@ -608,16 +608,16 @@ struct WeightedSearcherWrapper<'borrow, P, W>
 where
     P: PointSet,
 {
-    /// The (public) searcher
+    /// The (public) searcher.
     searcher: &'borrow mut WeightedSearcher<P>,
-    /// The weights used
+    /// The weights used.
     weights: W,
 }
 impl<'borrow, P, W> WeightedSearcherWrapper<'borrow, P, W>
 where
     P: PointSet,
 {
-    /// Constructs a new wrapper around weigthed searcher
+    /// Constructs a new wrapper around weigthed searcher.
     fn new(searcher: &'borrow mut WeightedSearcher<P>, weights: W) -> Self {
         Self { searcher, weights }
     }

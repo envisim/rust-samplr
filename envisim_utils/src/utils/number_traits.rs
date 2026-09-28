@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provides a trait [`Number`], extending `num_traits`
+//! Provides a trait [`Number`], extending `num_traits`.
 
 use std::cmp::Ordering;
 use std::fmt::{
@@ -31,7 +31,7 @@ use num_traits::{
 
 use super::Epsilon;
 
-/// An extension of [`num_traits::NumAssign`]
+/// An extension of [`num_traits::NumAssign`].
 pub trait Number:
     Sized
     + Copy
@@ -46,48 +46,48 @@ pub trait Number:
     + Display
     + Sum
 {
-    /// The default epsilon value for the type, i.e. a small value to use in comparisons
+    /// The default epsilon value for the type, i.e. a small value to use in comparisons.
     const DEFAULT_EPSILON_VALUE: Self;
     /// Returns the machine epsilon value, if possible for the type, otherwise zero.
     #[must_use]
     #[inline]
     fn machine_epsilon() -> Self { Self::ZERO }
-    /// Returns the maximum value of the type
+    /// Returns the maximum value of the type.
     #[must_use]
     fn max_value() -> Self;
-    /// Returns true if `self` is finite
+    /// Returns true if `self` is finite.
     #[must_use]
     #[inline]
     fn is_finite(self) -> bool { true }
-    /// Returns true if `self` is positive and finite
+    /// Returns true if `self` is positive and finite.
     #[must_use]
     #[inline]
     fn is_pos_finite(self) -> bool { Self::ZERO < self }
-    /// Returns the absolute value of `self`
+    /// Returns the absolute value of `self`.
     #[must_use]
     #[inline]
     fn abs(self) -> Self { self }
     ///Returns the absolute differencet between `self` and `other`.
     #[must_use]
     fn abs_difference(self, other: Self) -> Self;
-    /// Returns the midpoint between `self` and `other`
+    /// Returns the midpoint between `self` and `other`.
     #[must_use]
     fn mid(self, other: Self) -> Self;
-    /// Returns the ordering between `self` and `other`
+    /// Returns the ordering between `self` and `other`.
     #[must_use]
     fn compare(&self, other: &Self) -> Ordering;
-    /// Returns the [`DEFAULT_EPSILON_VALUE`] from the type of `self`
+    /// Returns the [`DEFAULT_EPSILON_VALUE`] from the type of `self`.
     #[inline]
     fn default_epsilon(&self) -> Epsilon<Self> { Epsilon::default() }
 }
-/// Floating point numbers
+/// Floating point numbers.
 pub trait NumberFloat: Number + Float {}
 impl<N> NumberFloat for N where N: Number + Float {}
-/// Integer numbers
+/// Integer numbers.
 pub trait NumberInt: Number + Integer {}
 impl<N> NumberInt for N where N: Number + Integer {}
 
-/// Interanal macro that implements `Number` for floats
+/// Interanal macro that implements `Number` for floats.
 macro_rules! number_impl_float {
     ($t:ty) => {
         impl Number for $t {
@@ -119,7 +119,7 @@ macro_rules! number_impl_float {
         }
     };
 }
-/// Interanal macro that implements `Number` for unsigned integers
+/// Interanal macro that implements `Number` for unsigned integers.
 macro_rules! number_impl_uint {
     ($t:ty) => {
         impl Number for $t {
@@ -136,7 +136,7 @@ macro_rules! number_impl_uint {
         }
     };
 }
-/// Interanal macro that implements `Number` for signed integers
+/// Interanal macro that implements `Number` for signed integers.
 macro_rules! number_impl_sint {
     ($t:ty) => {
         impl Number for $t {

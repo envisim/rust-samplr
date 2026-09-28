@@ -38,19 +38,19 @@ use crate::utils::{
     to_usize,
 };
 
-/// Wrapper for `RealSexp`
+/// Wrapper for `RealSexp`.
 pub struct RealSexpFatPtr {
-    /// Underlying reference to data
+    /// Underlying reference to data.
     #[expect(dead_code, reason = "structure should own data")]
     sexp: RealSexp,
-    /// Pointer to data
+    /// Pointer to data.
     ptr: *const f64,
-    /// Length of data
+    /// Length of data.
     len: usize,
 }
 
 impl RealSexpFatPtr {
-    /// Constructs the fat pointer from a `RealSexp`
+    /// Constructs the fat pointer from a `RealSexp`.
     pub fn from_sexp(sexp: RealSexp) -> savvy::Result<Self> {
         if sexp.is_empty() {
             return Err(savvy_err!("sexp is empty"));
@@ -66,7 +66,7 @@ impl RealSexpFatPtr {
         })
     }
 
-    /// Constructs a `RMatrix` from `RealSexp`
+    /// Constructs a `RMatrix` from `RealSexp`.
     #[inline]
     pub fn to_matrix(sexp: RealSexp) -> savvy::Result<RMatrix> {
         let rows = match sexp
@@ -80,7 +80,7 @@ impl RealSexpFatPtr {
 
         Ok(MatrixBase::new(sexp.try_into()?, rows).expect("rows to be NonZeroUsize"))
     }
-    /// Constructs spreading options from `RealSexp`
+    /// Constructs spreading options from `RealSexp`.
     #[inline]
     pub fn to_spreading_options<BSZ>(
         sexp: RealSexp,
@@ -97,12 +97,12 @@ impl RealSexpFatPtr {
         }
         Ok(opts)
     }
-    /// Constructs a `ProbabilitySpec` from  `RealSexp`
+    /// Constructs a `ProbabilitySpec` from  `RealSexp`.
     #[inline]
     pub fn to_probs_unequal(sexp: RealSexp) -> savvy::Result<RUnequalProbabilities> {
         Ok(RUnequalProbabilities::new(sexp.try_into()?)?)
     }
-    /// Constructs a `SamplingOptions` from  `RealSexp`
+    /// Constructs a `SamplingOptions` from  `RealSexp`.
     #[inline]
     pub fn to_sampling_options<EPS, MAX>(
         sexp: RealSexp,
@@ -184,5 +184,5 @@ impl ConstructableDataView for RealSexpFatPtr {
 /// Type alias for `Matrix` using `RMatrixData`.
 pub type RMatrix = MatrixBase<RealSexpFatPtr>;
 
-/// Type alias for `UnequalProbabilitiesReal` using `RProbabilitiesData`
+/// Type alias for `UnequalProbabilitiesReal` using `RProbabilitiesData`.
 pub type RUnequalProbabilities = UnequalProbabilities<UnequalProbabilitiesReal<RealSexpFatPtr>>;

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runners and base traits for pivotal methods
+//! Runners and base traits for pivotal methods.
 
 use envisim_utils::indices::Pair;
 use envisim_utils::probabilities::ProbabilityStore;
@@ -30,12 +30,12 @@ pub enum PivotalMethodError {
     HierarchicalSizesInvalid,
 }
 
-/// A strategy for a pivotal method controls the selection of competing pairs
+/// A strategy for a pivotal method controls the selection of competing pairs.
 pub trait PivotalStrategy<PR, TR>
 where
     PR: ProbabilityStore,
 {
-    /// Selects a pair of units
+    /// Selects a pair of units.
     #[inline]
     fn select_pair<R>(
         &mut self,
@@ -49,9 +49,9 @@ where
     }
 }
 
-/// Runs a pivotal strategy
+/// Runs a pivotal strategy.
 /// # Panics
-/// Panics if options is incorrectly set up
+/// Panics if options is incorrectly set up.
 #[inline]
 pub fn pivotal_runner<R, PR, TR, S>(
     rng: &mut R,

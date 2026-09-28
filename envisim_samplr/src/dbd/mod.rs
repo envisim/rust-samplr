@@ -18,12 +18,12 @@
 //! Grafström, A., & Prentius, W. (2026).
 //! Distributionally balanced sampling designs.
 //! arXiv preprint arXiv:2603.11916.
-//! <https://doi.org/10.48550/arXiv.2603.11916>
+//! <https://doi.org/10.48550/arXiv.2603.11916>.
 //!
 //! Grafström, A., & Prentius, W. (2026).
 //! Distributionally balanced sampling designs via minimum tactical configurations.
 //! arXiv preprint arXiv:2603.24439.
-//! <https://doi.org/10.48550/arXiv.2603.24439>
+//! <https://doi.org/10.48550/arXiv.2603.24439>.
 
 mod annealing;
 mod dbd_circular;

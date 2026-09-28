@@ -18,14 +18,14 @@ use crate::utils::Number;
 
 /// Provides a view into the views and distances to a neighbour.
 pub trait NeighbourView {
-    /// The type of the identifier
+    /// The type of the identifier.
     type ID;
-    /// The type of the distance value
+    /// The type of the distance value.
     type DIST;
-    /// Returns a reference to the id of the neighbour
+    /// Returns a reference to the id of the neighbour.
     #[must_use]
     fn id(&self) -> &Self::ID;
-    /// Returns a reference to the squared euclidean distance to the neighbour
+    /// Returns a reference to the squared euclidean distance to the neighbour.
     #[must_use]
     fn distance(&self) -> &Self::DIST;
 }
@@ -36,9 +36,9 @@ pub trait NeighbourView {
 #[must_use]
 #[derive(Copy, Clone, Debug)]
 pub struct Neighbour<ID, DIST> {
-    /// Id of unit
+    /// Id of unit.
     id: ID,
-    /// Squared euclidean distance
+    /// Squared euclidean distance.
     distance: DIST,
 }
 impl<ID, DIST> Neighbour<ID, DIST> {
@@ -85,9 +85,9 @@ impl<Id, Value> Eq for Neighbour<Id, Value> where Value: Number {}
 /// equal but its weight is smaller.
 #[derive(Copy, Clone, Debug)]
 pub struct WeightedNeighbour<ID, DIST> {
-    /// The neighbour
+    /// The neighbour.
     neighbour: Neighbour<ID, DIST>,
-    /// The weight
+    /// The weight.
     weight: f64,
 }
 
