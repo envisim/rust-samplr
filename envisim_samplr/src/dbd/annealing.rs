@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Methods for annelaing based dbd
+//! Methods for annelaing based dbd.
 
 use std::num::NonZeroUsize;
 
@@ -21,29 +21,29 @@ use envisim_utils::random::{
 };
 use envisim_utils::utils::Epsilon;
 
-/// Contains the annealing temperature tracker
+use crate::dbd::DbdError;
+
+/// Contains the annealing temperature tracker.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct AnnealingTemperature {
-    /// Annealing temperature
+    /// Annealing temperature.
     temperature: f64,
-    /// Annealing cooling rate
+    /// Annealing cooling rate.
     cooling_rate: f64,
-    /// Epsilon value for float comparisons
+    /// Epsilon value for float comparisons.
     eps: Epsilon<f64>,
-    /// Track number of divergences
+    /// Track number of divergences.
     divergence_count: usize,
 }
 impl AnnealingTemperature {
-    /// Constructor
+    /// Constructor.
+    /// # Panics
+    /// Panics if `temperature` or `cooling_rate` is invalid.
     #[inline]
     pub fn new(temperature: f64, cooling_rate: f64, eps: Epsilon<f64>) -> Self {
-        assert!(temperature > 0.0, "temperature must be positive");
-        assert!(
-            0.0 < cooling_rate && cooling_rate < 1.0,
-            "cooling_rate must be in (0.0, 1.0)"
-        );
-
+        DbdError::check_temp(temperature).expect("invalid temp");
+        DbdError::check_rate(cooling_rate).expect("invalid cooling rate");
         Self {
             temperature,
             cooling_rate,
@@ -52,17 +52,17 @@ impl AnnealingTemperature {
         }
     }
     // fn temperature(&self) -> f64 { self.temperature }
-    /// Cools the temperature according to the cooling rate
+    /// Cools the temperature according to the cooling rate.
     #[inline]
     fn cool(&mut self) { self.temperature *= self.cooling_rate }
-    /// Adds to the divergence counter
+    /// Adds to the divergence counter.
     #[inline]
     pub fn increment_divergence(&mut self) { self.divergence_count += 1; }
-    /// Returns `true` if temperature is above epsilon
+    /// Returns `true` if temperature is above epsilon.
     #[must_use]
     #[inline]
     fn is_positive(&self) -> bool { !self.eps.is_zero(self.temperature) }
-    /// Returns `true` according to the probabilistic annealing decision
+    /// Returns `true` according to the probabilistic annealing decision.
     #[must_use]
     #[inline]
     fn accept_change<R>(&self, rng: &mut R, change: f64) -> bool
@@ -89,24 +89,24 @@ impl Default for AnnealingTemperature {
     }
 }
 
-/// Defines an annealing-based dbd
+/// Defines an annealing-based dbd.
 pub trait AnnealingDistributionalDesign {
-    /// Returns a reference to the `AnnealingTemperature` object
+    /// Returns a reference to the `AnnealingTemperature` object.
     fn temperature(&self) -> &AnnealingTemperature;
-    /// Returns a mutable reference to the `AnnealingTemperature` object
+    /// Returns a mutable reference to the `AnnealingTemperature` object.
     fn temperature_mut(&mut self) -> &mut AnnealingTemperature;
-    /// Draws the random units
+    /// Draws the random units.
     fn draw_units<R>(&mut self, rng: &mut R)
     where
         R: Rng;
-    /// Evaluate the effect of a switch
+    /// Evaluate the effect of a switch.
     #[must_use]
     fn evaluate_switch(&mut self) -> Option<f64>;
-    /// Perform a switch
+    /// Perform a switch.
     fn switch(&mut self);
-    /// Sets the optimal configuration to the
+    /// Sets the optimal configuration to the.
     fn set_optimal_configuration(&mut self);
-    /// Run the optimiziation algorithm for a set number of iterations
+    /// Run the optimiziation algorithm for a set number of iterations.
     #[inline]
     fn run<R>(&mut self, rng: &mut R, iterations: NonZeroUsize)
     where

@@ -17,5 +17,6 @@ pub mod error;
 pub mod hansen_hurwitz;
 pub mod horvitz_thompson;
 pub mod nearest_neighbour;
+pub mod pips;
 pub mod spatial_balance;
 mod utils;

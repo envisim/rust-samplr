@@ -10,220 +10,32 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Split methods
+//! Split methods.
 //!
 //! A split method defines a splitting strategy for a kd-tree.
 
 use num_traits::ConstZero;
-pub use split::{
+
+pub use super::split::{
     Split,
     SplitUnit,
 };
-
 use crate::utils::{
     Number,
     PointSet,
 };
 
-mod split {
-    //! Defines a split, and a split with a unit
-
-    use crate::utils::{
-        Number,
-        PointSet,
-    };
-
-    /// Defines a split in a tree [`Branch`].
-    #[must_use]
-    #[derive(Clone, Debug, Copy)]
-    pub struct Split<N> {
-        /// The dimension of the split.
-        pub dimension: usize,
-        /// The value of the split.
-        pub value: N,
-        /// If `true`, equal values goes to the left.
-        pub leq: bool,
-    }
-    impl<N> Split<N> {
-        /// Constructs a new split
-        #[inline]
-        pub fn new(dimension: usize, value: N, leq: bool) -> Self {
-            Self {
-                dimension,
-                value,
-                leq,
-            }
-        }
-        /// Returns `true` if a value is to the left of the split.
-        #[must_use]
-        #[inline]
-        pub fn is_left(&self, value: N) -> bool
-        where
-            N: Number,
-        {
-            value < self.value || (self.leq && value == self.value)
-        }
-        /// Returns `true` if a unit is left of the split.
-        /// Panics if the split dimension is oob of the unit.
-        #[must_use]
-        #[inline]
-        pub fn unit_is_left(&self, unit: &[N]) -> bool
-        where
-            N: Number,
-        {
-            self.is_left(unit[self.dimension])
-        }
-        /// Calculates the absolute distance to the split in the dimension of the split.
-        #[must_use]
-        #[inline]
-        pub fn abs_distance(&self, value: N) -> (bool, N)
-        where
-            N: Number,
-        {
-            if self.is_left(value) {
-                (true, self.value - value)
-            } else {
-                (false, value - self.value)
-            }
-        }
-        /// Calculates the absolute distance between a unit and the split in the dimension of the split.
-        #[must_use]
-        #[inline]
-        pub fn unit_abs_distance(&self, unit: &[N]) -> (bool, N)
-        where
-            N: Number,
-        {
-            self.abs_distance(unit[self.dimension])
-        }
-    }
-
-    /// Defines a split, and the first unit to the right of the split.
-    /// Used as the return value of the [`FindSplit`] trait.
-    #[must_use]
-    pub struct SplitUnit<N> {
-        /// The split.
-        pub split: Split<N>,
-        /// First unit to the right of the split. Must be in (0, len).
-        pub unit: usize,
-    }
-    impl<N> SplitUnit<N> {
-        /// Constructs a new split
-        #[inline]
-        pub fn new(dimension: usize, value: N, leq: bool, unit: usize) -> Self {
-            Self {
-                split: Split {
-                    dimension,
-                    value,
-                    leq,
-                },
-                unit,
-            }
-        }
-        /// Sorts units according to the split, and sets unit so that it represents the index of the
-        /// first unit to the right.
-        #[inline]
-        pub(super) fn set_unit<P>(&mut self, data: &P, units: &mut [P::Id])
-        where
-            N: Number,
-            P: PointSet<Value = N>,
-        {
-            let mut left: usize = 0;
-            let mut right: usize = units.len();
-            while left < right {
-                // SAFETY:
-                // units have been checked on construction of tree
-                let v = unsafe { data.coord_unchecked(units[left], self.split.dimension) };
-                if self.split.is_left(*v) {
-                    left += 1;
-                } else {
-                    right -= 1;
-                    units.swap(left, right);
-                }
-            }
-            self.unit = left;
-        }
-    }
-    impl<N> From<SplitUnit<N>> for Split<N> {
-        #[inline]
-        fn from(su: SplitUnit<N>) -> Self { su.split }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_split_is_left() {
-            // Case 1: leq = true (Less than or equal goes left)
-            let split_leq = Split::new(0, 10.0, true);
-            assert!(split_leq.is_left(5.0)); // 5 < 10
-            assert!(split_leq.is_left(10.0)); // 10 == 10
-            assert!(!split_leq.is_left(15.0)); // 15 > 10
-
-            // Case 2: leq = false (Strictly less than goes left)
-            let split_strict = Split::new(0, 10.0, false);
-            assert!(split_strict.is_left(5.0)); // 5 < 10
-            assert!(!split_strict.is_left(10.0)); // 10 == 10 (goes right)
-            assert!(!split_strict.is_left(15.0)); // 15 > 10
-        }
-
-        #[test]
-        fn test_split_unit_is_left() {
-            let split = Split::new(1, 5.0, true); // Splitting on dimension 1
-            let unit = vec![0.0, 3.0, 10.0]; // Dim 1 value is 3.0
-            assert!(split.unit_is_left(&unit));
-
-            let unit_right = vec![0.0, 7.0, 10.0]; // Dim 1 value is 7.0
-            assert!(!split.unit_is_left(&unit_right));
-        }
-
-        #[test]
-        #[should_panic]
-        fn test_split_unit_oob_panic() {
-            let split = Split::new(5, 10.0, true);
-            let unit = vec![1.0, 2.0]; // Dimension 5 is out of bounds
-            let _ = split.unit_is_left(&unit);
-        }
-
-        #[test]
-        fn test_split_abs_distance() {
-            let split = Split::new(0, 10.0, true);
-
-            // (is_left, distance)
-            assert_eq!(split.abs_distance(12.0), (false, 2.0));
-            assert_eq!(split.abs_distance(7.0), (true, 3.0));
-            assert_eq!(split.abs_distance(10.0), (true, 0.0));
-        }
-
-        #[test]
-        fn test_split_unit_abs_distance() {
-            let split = Split::new(0, 10.0, true);
-            let unit = vec![15.0, 0.0];
-            assert_eq!(split.unit_abs_distance(&unit), (false, 5.0));
-        }
-
-        #[test]
-        fn test_split_unit_conversion() {
-            let su = SplitUnit::new(0, 5.0, true, 42);
-            let s: Split<f64> = su.into();
-            assert_eq!(s.dimension, 0);
-            assert_eq!(s.value, 5.0);
-            assert!(s.leq);
-        }
-    }
-}
-
-/// Represents the border of a tree window
+/// Represents the border of a tree window.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 struct Border<N> {
-    /// The minimum (left) border
+    /// The minimum (left) border.
     min: N,
-    /// The maximum (right) border
+    /// The maximum (right) border.
     max: N,
 }
 impl<N> Border<N> {
-    /// Sets `min` to `v` if `v < min`
+    /// Sets `min` to `v` if `v < min`.
     #[inline]
     fn set_min(&mut self, v: N)
     where
@@ -233,7 +45,7 @@ impl<N> Border<N> {
             self.min = v;
         }
     }
-    /// Sets `max` to `v` if `v > max`
+    /// Sets `max` to `v` if `v > max`.
     #[inline]
     fn set_max(&mut self, v: N)
     where
@@ -252,7 +64,7 @@ impl<N> Border<N> {
     {
         self.max - self.min
     }
-    /// Returns the midpoint of the border
+    /// Returns the midpoint of the border.
     #[must_use]
     #[inline]
     fn centre(&self) -> N
@@ -345,7 +157,6 @@ where
     Self: Sized,
     P: PointSet,
 {
-    #[must_use]
     #[inline]
     fn split(mut self, data: &P, units: &mut [P::Id]) -> Option<(SplitUnit<P::Value>, Self, Self)> {
         let split = self.find_split(data, units)?;
@@ -364,7 +175,7 @@ where
 /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
 /// contains equal elements.
 ///
-/// Returns `None` if no such split exists
+/// Returns `None` if no such split exists.
 ///
 /// # References
 /// Maneewongvatana, S., & Mount, D. M. (1999).
@@ -373,7 +184,7 @@ where
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct MidpointSlide<N> {
-    /// The borders for all dimensions, one is potentially to be split
+    /// The borders for all dimensions, one is potentially to be split.
     borders: Box<[Border<N>]>,
 }
 impl<N> MidpointSlide<N> {
@@ -402,7 +213,7 @@ impl<N> MidpointSlide<N> {
             .sort_unstable_by(|&a, &b| self.borders[b].range().compare(&self.borders[a].range()));
         indices
     }
-    /// Redraw borders for a dimension. Returns `true` if borders are not degenerate
+    /// Redraw borders for a dimension. Returns `true` if borders are not degenerate.
     #[must_use]
     #[inline]
     fn redraw<P>(&mut self, dim: usize, data: &P, units: &[P::Id]) -> bool
@@ -420,7 +231,7 @@ impl<N> MidpointSlide<N> {
     /// If `leq` is `true`, the first group also contains equal elements, otherwise the right group
     /// contains equal elements.
     ///
-    /// Returns `None` if no such split exists
+    /// Returns `None` if no such split exists.
     ///
     /// # References
     /// Maneewongvatana, S., & Mount, D. M. (1999).
@@ -505,10 +316,10 @@ mod tests {
     use crate::matrix::Matrix;
     use crate::test_utils::*;
 
-    /// Helper to create a NonZeroUsize
-
-    /// Creates a 2D Matrix PointSet for testing
-    /// Layout: Column-major (all dimension 0 values, then all dimension 1 values)
+    /// Helper to create a NonZeroUsize.
+    ///
+    /// Creates a 2D Matrix PointSet for testing.
+    /// Layout: Column-major (all dimension 0 values, then all dimension 1 values).
     fn setup_test_matrix() -> Matrix<f64> {
         let data = vec![
             0.0, 10.0, // Dim 0 (X)

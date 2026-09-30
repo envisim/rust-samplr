@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provides the `PointSet` trait
+//! Provides the `PointSet` trait.
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -22,27 +22,27 @@ use super::Number;
 /// The container must not be empty.
 #[expect(clippy::len_without_is_empty, reason = "cannot be empty")]
 pub trait PointSet {
-    /// The type of the identifiers
+    /// The type of the identifiers.
     type Id: Sized + Eq + Hash + Ord + Copy + Debug;
-    /// The type of the values
+    /// The type of the values.
     type Value: Number;
 
-    /// Number of points in set
+    /// Number of points in set.
     #[must_use]
     fn len(&self) -> NonZeroUsize;
-    /// Iterator over point ids
+    /// Iterator over point ids.
     #[must_use]
     fn ids(&self) -> impl ExactSizeIterator<Item = Self::Id> + Clone;
-    /// Dimensions of point
+    /// Dimensions of point.
     #[must_use]
     fn dimensions(&self) -> NonZeroUsize;
-    /// Returns true of point id exists
+    /// Returns true of point id exists.
     #[must_use]
     fn contains(&self, id: Self::Id) -> bool;
     /// Returns the dimension value of point `id`, or `None` if `id` does not exist.
     #[must_use]
     fn coord(&self, id: Self::Id, dim: usize) -> Option<&Self::Value>;
-    /// Returns the dimension value of point `id`
+    /// Returns the dimension value of point `id`.
     /// # Safety
     /// The `id` or `dim` is not checked, and may be out of bounds.
     #[must_use]
@@ -56,7 +56,7 @@ pub trait PointSet {
         &self,
         id: Self::Id,
     ) -> Option<impl ExactSizeIterator<Item = &Self::Value> + DoubleEndedIterator + Clone>;
-    /// Returns an iterator over the coordinates of each id in the set
+    /// Returns an iterator over the coordinates of each id in the set.
     #[must_use]
     #[inline]
     fn iter(
@@ -74,7 +74,7 @@ pub trait PointSet {
             })
         })
     }
-    /// Returns an iterator over the ids of each dimension in the set
+    /// Returns an iterator over the ids of each dimension in the set.
     #[must_use]
     #[inline]
     fn columns(
@@ -201,3 +201,7 @@ where
         unsafe { (**self).sq_distance_unchecked(id, point) }
     }
 }
+
+/// A `PointSet` with contiguous ids `0..len`.
+pub trait ContiguousPointSet: PointSet<Id = usize> {}
+impl<CPS> ContiguousPointSet for &CPS where CPS: ContiguousPointSet + ?Sized {}

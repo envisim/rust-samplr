@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Simple random sampling
+//! Simple random sampling.
 //!
 //! Implements [`EqualProbabilitySampling`] for [`SamplingOptions`].
 
@@ -22,54 +22,48 @@ use envisim_utils::random::{
 use envisim_utils::sampling_options::EqualProbabilities;
 pub use envisim_utils::sampling_options::SamplingOptions;
 
-pub use crate::error::SamplingError;
-
-/// Provides equal probability sampling methods
+/// Provides equal probability sampling methods.
 pub trait EqualProbabilitySampling<R>
 where
     R: Rng,
 {
-    /// Draw a simple random sample without replacement
+    /// Draw a simple random sample without replacement.
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.srs(&mut rng);
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().srs(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn srs(&self, rng: &mut R) -> Vec<usize>;
-    /// Draw a simple random sample with replacement
+    /// Draw a simple random sample with replacement.
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.srs_with_replacement(&mut rng);
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().srs_with_replacement(&mut rng);
     /// assert_eq!(s.len(), 5);
-    /// # Ok::<(), SamplingOptionsError>(())
     /// ```
     fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize>;
-    /// Draw a sample using Bernoulli sampling
+    /// Draw a sample using Bernoulli sampling.
     ///
     /// # Examples
     /// ```
-    /// # use envisim_samplr::*;
+    /// # use envisim_samplr::equal::*;
     /// # use envisim_utils::random::*;
     /// let mut rng = try_sys_rng().unwrap();
-    /// let s = SamplingOptions::new_equal(10, 5)?.bernoulli(&mut rng);
-    /// # Ok::<(), SamplingOptionsError>(())
+    /// let s = SamplingOptions::new_equal(10, 5).unwrap().bernoulli(&mut rng);
     /// ```
     fn bernoulli(&self, rng: &mut R) -> Vec<usize>;
 }
-impl<R, AUX, BAL> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilities, AUX, BAL>
+impl<R, AUX> EqualProbabilitySampling<R> for SamplingOptions<EqualProbabilities, AUX>
 where
     R: Rand<usize>,
 {
-    #[must_use]
     #[inline]
     fn srs(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
@@ -91,7 +85,6 @@ where
 
         sample
     }
-    #[must_use]
     #[inline]
     fn srs_with_replacement(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size();
@@ -108,7 +101,6 @@ where
         sample.sort_unstable();
         sample
     }
-    #[must_use]
     #[inline]
     fn bernoulli(&self, rng: &mut R) -> Vec<usize> {
         let population_size = self.population_size().get();

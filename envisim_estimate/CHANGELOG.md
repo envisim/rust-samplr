@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-30
+- Bumped dependency `envisim_utils`.
+
+- Added `SpatialBalanceError` error-type.
+- Added `EnergyDistance` as a utility object.
+- Moved `pips` module from `envisim_utils`.
+
 ## [0.7.0] - 2026-08-13
 - Added dependency [`thiserror`](https://crates.io/crates/thiserror).
 - Bumped dependency `envisim_utils`.

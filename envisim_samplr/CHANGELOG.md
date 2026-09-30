@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-30
+- Added dependency [`envisim_estimate`](https://crates.io/crates/envisim_estimate).
+- Bumped dependency `envisim_utils`.
+
+- Sampling methods can now use the IDs from `envisim_utils`.
+- Removed export of internal objects.
+- Changed signature of `cube`, `cube_stratified`, `local_cube`, `local_cube_stratified` to accept balancing as separate argument. The methods returns a `Result`.
+- Removed `SamplingError`.
+- Added `CubeError`, `DbdError`, `PivotalMethodError`, `CorrelatedPoissonError`, `UnequalProbabilityError`.
+- Removed top-level reexports of methods.
 
 ## [0.8.0] - 2026-08-13
 - Added dependency [`thiserror`](https://crates.io/crates/thiserror).

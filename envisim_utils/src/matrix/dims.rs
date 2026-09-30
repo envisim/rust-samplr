@@ -10,24 +10,24 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Matrix dimension and indexing
+//! Matrix dimension and indexing.
 
 use std::num::NonZeroUsize;
 
-/// Dimensions of a matrix
+/// Dimensions of a matrix.
 #[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MatrixDims {
-    /// The number of rows
+    /// The number of rows.
     pub rows: NonZeroUsize,
-    /// The number of columns
+    /// The number of columns.
     pub cols: NonZeroUsize,
 }
 impl MatrixDims {
-    /// Constructs a new dimension
+    /// Constructs a new dimension.
     #[inline]
     pub fn new(rows: NonZeroUsize, cols: NonZeroUsize) -> Self { Self { rows, cols } }
-    /// Constructs a new dimension if the rows/cols are non-zero
+    /// Constructs a new dimension if the rows/cols are non-zero.
     #[must_use]
     #[inline]
     pub fn try_new(rows: usize, cols: usize) -> Option<Self> {
@@ -44,10 +44,11 @@ impl MatrixDims {
             return None;
         }
         let len = NonZeroUsize::new(len)?;
+        #[expect(clippy::integer_division, reason = "remainder == 0")]
         let cols = NonZeroUsize::new(len.get() / rows)?;
         Self::new(rows, cols).into()
     }
-    /// Returns the total number of elements
+    /// Returns the total number of elements.
     #[must_use]
     #[inline]
     pub fn len(&self) -> NonZeroUsize { self.rows.saturating_mul(self.cols) }
@@ -55,7 +56,7 @@ impl MatrixDims {
     #[must_use]
     #[inline]
     pub fn is_square(&self) -> bool { self.rows == self.cols }
-    /// Transposes the dimension
+    /// Transposes the dimension.
     #[inline]
     pub fn transpose(&self) -> Self {
         Self {
@@ -83,30 +84,30 @@ impl MatrixDims {
     }
 }
 impl From<(NonZeroUsize, NonZeroUsize)> for MatrixDims {
-    /// Converts from a non-zero pair into [`MatrixDims`]
+    /// Converts from a non-zero pair into [`MatrixDims`].
     #[inline]
     fn from((rows, cols): (NonZeroUsize, NonZeroUsize)) -> Self { Self::new(rows, cols) }
 }
 impl From<MatrixDims> for (NonZeroUsize, NonZeroUsize) {
-    /// Converts from [`MatrixDims`] into a non-zero pair
+    /// Converts from [`MatrixDims`] into a non-zero pair.
     #[inline]
     fn from(value: MatrixDims) -> Self { (value.rows, value.cols) }
 }
 impl From<MatrixDims> for (usize, usize) {
-    /// Converts from [`MatrixDims`] into a pair
+    /// Converts from [`MatrixDims`] into a pair.
     #[inline]
     fn from(value: MatrixDims) -> Self { (value.rows.get(), value.cols.get()) }
 }
 
-/// A trait for objects that have two dimensions
+/// A trait for objects that have two dimensions.
 pub trait Dimensions {
-    /// Returns the dimensions of the object
+    /// Returns the dimensions of the object.
     fn dims(&self) -> MatrixDims;
-    /// Returns the number of rows of the object
+    /// Returns the number of rows of the object.
     #[must_use]
     #[inline]
     fn nrow(&self) -> NonZeroUsize { self.dims().rows }
-    /// Returns the number of columns of the object
+    /// Returns the number of columns of the object.
     #[must_use]
     #[inline]
     fn ncol(&self) -> NonZeroUsize { self.dims().cols }
@@ -123,17 +124,17 @@ where
     fn ncol(&self) -> NonZeroUsize { (**self).ncol() }
 }
 
-/// A zero-indexed position within a matrix: (`row`, `col`)
+/// A zero-indexed position within a matrix: (`row`, `col`).
 #[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MatrixCoord {
-    /// Row index
+    /// Row index.
     pub row: usize,
-    /// Column index
+    /// Column index.
     pub col: usize,
 }
 impl MatrixCoord {
-    /// Constructs a new coordinate from `row` and `col`
+    /// Constructs a new coordinate from `row` and `col`.
     #[inline]
     pub fn new(row: usize, col: usize) -> Self { Self { row, col } }
     /// Convert to a linear index in column-major order.
@@ -151,7 +152,7 @@ impl MatrixCoord {
     }
     /// Convert to a linear index in column-major order.
     /// # Panics
-    /// Panics if oob
+    /// Panics if oob.
     #[expect(
         clippy::wrong_self_convention,
         reason = "ok as long as to_linear is ok"
@@ -174,17 +175,19 @@ impl MatrixCoord {
         D: Into<MatrixDims>,
     {
         let shape = shape.into();
-        // Rem<NonZeroUsize> is in rust since 1.51
-        (index < shape.len().get()).then(|| Self::new(index % shape.rows, index / shape.rows))
+        #[expect(clippy::integer_division, reason = "no precision loss")]
+        let q = index / shape.rows;
+        let r = index % shape.rows;
+        (index < shape.len().get()).then(|| Self::new(r, q))
     }
 }
 impl From<(usize, usize)> for MatrixCoord {
-    /// Converts from a row-col-pair into a coordinate
+    /// Converts from a row-col-pair into a coordinate.
     #[inline]
     fn from((row, col): (usize, usize)) -> Self { Self::new(row, col) }
 }
 impl From<MatrixCoord> for (usize, usize) {
-    /// Converts from a coordinate into a row-col-pair
+    /// Converts from a coordinate into a row-col-pair.
     #[inline]
     fn from(value: MatrixCoord) -> Self { (value.row, value.col) }
 }

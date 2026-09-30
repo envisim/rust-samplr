@@ -1,10 +1,12 @@
+[workspace]
+
 [package]
 name = "rsamplr"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
+rust-version = "1.85.1"
 license = "AGPL-3.0-only"
 publish = false
-rust-version = "1.85.1"
 
 [lib]
 crate-type = ["staticlib", "lib"]
@@ -13,9 +15,9 @@ crate-type = ["staticlib", "lib"]
 num-traits = "0.2.19"
 savvy = "0.9.4"
 savvy-ffi = "0.9.4"
-envisim_estimate = {version="0.7.0"}
-envisim_samplr = {version="0.8.0"}
-envisim_utils = {version="0.7.0", default-features=false}
+envisim_estimate = {version="0.8.0"}
+envisim_samplr = {version="0.9.0"}
+envisim_utils = {version="0.8.0", default-features=false}
 # envisim_estimate = {version="*", path="../../../envisim_estimate"}
 # envisim_samplr = {version="*", path="../../../envisim_samplr"}
 # envisim_utils = {version="*", path="../../../envisim_utils", default-features=false}
@@ -49,6 +51,7 @@ module_name_repetitions = "allow"
 mod_module_files = "allow"
 pattern_type_mismatch = "allow"
 pub_use = "allow"
+pub_with_shorthand = "allow"
 same_name_method = "allow"
 semicolon_inside_block = "allow"
 separated_literal_suffix = "allow"

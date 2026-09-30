@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provides an interface for drawing random numbers
+//! Provides an interface for drawing random numbers.
 #![allow(
     clippy::as_conversions,
     clippy::cast_lossless,
@@ -32,12 +32,12 @@ use crate::utils::Number;
 
 /// Trait for RNGs that can produce an `f64`.
 pub trait FloatRng: Rng {
-    /// Generates the next uniform number in $[0.0, 1.0)$
+    /// Generates the next uniform number in $[0.0, 1.0)$.
     #[must_use]
     fn next_f64(&mut self) -> f64;
 }
 
-/// Trait for RNGs to produce numbers within an range or by itself
+/// Trait for RNGs to produce numbers within an range or by itself.
 pub trait Rand<N>: Rng
 where
     N: Number,
@@ -60,12 +60,12 @@ where
     fn rand_to(&mut self, max: N) -> N { self.rand_in(N::ZERO..max) }
 }
 
-/// Trait for RNGs to produce random numbers in a vector
+/// Trait for RNGs to produce random numbers in a vector.
 pub trait RandSlice<N>: Rand<N>
 where
     N: Number,
 {
-    /// Fills `dest` with random values
+    /// Fills `dest` with random values.
     #[inline]
     fn rand_n(&mut self, dest: &mut [N]) {
         for v in dest.iter_mut() {
@@ -91,7 +91,7 @@ where
     fn rand_to_n(&mut self, dest: &mut [N], max: N) { self.rand_in_n(dest, N::ZERO..max) }
 }
 
-/// Macro for implementing `RandomNumber` for unsigned integers
+/// Macro for implementing `RandomNumber` for unsigned integers.
 macro_rules! rand_impl_uint {
     ($t:ty, $self:ident => $body:expr) => {
         rand_impl_uint!($t, $self => $body, vec => {});
@@ -126,7 +126,7 @@ macro_rules! rand_impl_uint {
     };
 }
 
-/// Macro for implementing `RandomNumber` for signed integers
+/// Macro for implementing `RandomNumber` for signed integers.
 macro_rules! rand_impl_sint {
     ($ts:ty, $tu:ty) => {
         rand_impl_sint!($ts, $tu, vec => {});
@@ -336,6 +336,7 @@ where
     Some(rng.rand_in(range) < b)
 }
 
+#[expect(clippy::inline_modules, reason = "feature")]
 #[cfg(feature = "rand")]
 mod small_rng {
     //! Implements [`RngFloat`] for [`rand::rngs::SmallRng`] if the feature `"rand"` is activated.
@@ -351,7 +352,6 @@ mod small_rng {
     use super::FloatRng;
 
     impl FloatRng for SmallRng {
-        #[must_use]
         #[inline]
         fn next_f64(&mut self) -> f64 { self.random::<f64>() }
     }
@@ -360,7 +360,7 @@ mod small_rng {
     ///
     /// # Errors
     /// Returns an error if rng cannot be constructed from [`SysRng`], see
-    /// [`rand::rngs::SmallRng::try_from_rng`]
+    /// [`rand::rngs::SmallRng::try_from_rng`].
     #[inline]
     pub fn try_sys_rng() -> Result<SmallRng, <SysRng as TryRng>::Error> {
         SmallRng::try_from_rng(&mut SysRng)

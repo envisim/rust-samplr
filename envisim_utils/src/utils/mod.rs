@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Small utility functions
+//! Small utility functions.
 
 mod epsilon;
 mod number_traits;
@@ -25,7 +25,14 @@ pub use number_traits::{
     NumberInt,
 };
 pub use slice_view::{
+    ConstructableDataView,
+    ContiguousDataView,
+    DataView,
+    DataViewMut,
     SliceView,
     SliceViewMut,
 };
-pub use spatial::PointSet;
+pub use spatial::{
+    ContiguousPointSet,
+    PointSet,
+};

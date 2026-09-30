@@ -10,20 +10,20 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! kd-tree searchers
+//! kd-tree searchers.
 //!
 //! Searchers are used to traverse a kd-tree, looking for the node of a search unit or point.
 
 use std::num::NonZeroUsize;
 
-pub use neighbour::{
+use num_traits::ConstZero;
+
+use super::TreeError::PointWeightError;
+pub use super::neighbour::{
     Neighbour,
     NeighbourView,
     WeightedNeighbour,
 };
-use num_traits::ConstZero;
-
-use super::TreeError::PointWeightError;
 use super::{
     Tree,
     TreeResult,
@@ -33,136 +33,7 @@ use crate::utils::{
     PointSet,
 };
 
-mod neighbour {
-    //! Defines structures for storing neighbours in searchers
-
-    use std::cmp::Ordering;
-
-    use crate::utils::Number;
-
-    /// Provides a view into the views and distances to a neighbour
-    pub trait NeighbourView {
-        /// The type of the identifier
-        type ID;
-        /// The type of the distance value
-        type DIST;
-        /// Returns a reference to the id of the neighbour
-        #[must_use]
-        fn id(&self) -> &Self::ID;
-        /// Returns a reference to the squared euclidean distance to the neighbour
-        #[must_use]
-        fn distance(&self) -> &Self::DIST;
-    }
-
-    /// A neighbouring unit, some squared euclidean distance away
-    ///
-    /// A neighbour is equal to another if their distances are the same.
-    #[must_use]
-    #[derive(Copy, Clone, Debug)]
-    pub struct Neighbour<ID, DIST> {
-        /// Id of unit
-        id: ID,
-        /// Squared euclidean distance
-        distance: DIST,
-    }
-    impl<ID, DIST> Neighbour<ID, DIST> {
-        /// Constructs a new neighbour
-        #[inline]
-        pub fn new(id: ID, distance: DIST) -> Self { Self { id, distance } }
-    }
-    impl<ID, DIST> NeighbourView for Neighbour<ID, DIST> {
-        type ID = ID;
-        type DIST = DIST;
-        #[inline]
-        fn id(&self) -> &ID { &self.id }
-        #[inline]
-        fn distance(&self) -> &DIST { &self.distance }
-    }
-
-    impl<Id, Value> Ord for Neighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn cmp(&self, other: &Self) -> Ordering { Value::compare(&self.distance, &other.distance) }
-    }
-    impl<Id, Value> PartialOrd for Neighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
-    }
-    impl<Id, Value> PartialEq for Neighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-    }
-    impl<Id, Value> Eq for Neighbour<Id, Value> where Value: Number {}
-
-    /// A weighted neighbouring unit, some squared euclidean distance away
-    ///
-    /// A weighted neighbour is equal to another if their distances and weights are the same.
-    /// A weighted neighbour is sorted before another if its distance is smaller, or its distance is
-    /// equal but its weight is smaller.
-    #[derive(Copy, Clone, Debug)]
-    pub struct WeightedNeighbour<ID, DIST> {
-        /// The neighbour
-        neighbour: Neighbour<ID, DIST>,
-        /// The weight
-        weight: f64,
-    }
-
-    impl<ID, DIST> WeightedNeighbour<ID, DIST> {
-        /// Returns the weight of the neighbour.
-        #[inline]
-        pub fn weight(&self) -> f64 { self.weight }
-        /// Constructs a new weighted neighbour
-        #[inline]
-        pub fn new(id: ID, distance: DIST, weight: f64) -> Self {
-            let neighbour = Neighbour::new(id, distance);
-            Self { neighbour, weight }
-        }
-    }
-    impl<ID, DIST> NeighbourView for WeightedNeighbour<ID, DIST> {
-        type ID = ID;
-        type DIST = DIST;
-        #[inline]
-        fn id(&self) -> &ID { &self.neighbour.id }
-        #[inline]
-        fn distance(&self) -> &DIST { &self.neighbour.distance }
-    }
-    impl<Id, Value> Ord for WeightedNeighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn cmp(&self, other: &Self) -> Ordering {
-            self.neighbour
-                .cmp(&other.neighbour)
-                .then(self.weight().total_cmp(&other.weight()))
-        }
-    }
-    impl<Id, Value> PartialOrd for WeightedNeighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
-    }
-    impl<Id, Value> PartialEq for WeightedNeighbour<Id, Value>
-    where
-        Value: Number,
-    {
-        #[inline]
-        fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-    }
-    impl<Id, Value> Eq for WeightedNeighbour<Id, Value> where Value: Number {}
-}
-
-/// A trait for searching in a kd-[`Tree`]
+/// A trait for searching in a kd-[`Tree`].
 pub trait TreeSearcher<P>
 where
     P: PointSet,
@@ -175,27 +46,27 @@ where
     fn visit_leaf(&mut self, data: &P, leaf_units: &[P::Id]);
 }
 
-/// The search point of the [`TreeSearcher`]
+/// The search point of the [`TreeSearcher`].
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct SearchPoint<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: Box<[P::Value]>,
-    /// Potential id of the point
+    /// Potential id of the point.
     unit: Option<P::Id>,
 }
 impl<P> SearchPoint<P>
 where
     P: PointSet,
 {
-    /// Returns the search point
+    /// Returns the search point.
     #[must_use]
     #[inline]
     pub fn point(&self) -> &[P::Value] { &self.point }
-    /// Returns the potential id of the search point
+    /// Returns the potential id of the search point.
     #[must_use]
     #[inline]
     pub fn unit(&self) -> Option<P::Id> { self.unit }
@@ -203,7 +74,7 @@ where
     #[must_use]
     #[inline]
     pub fn is_unit(&self, other: P::Id) -> bool { self.unit.is_some_and(|u| u == other) }
-    /// Constructs a new, uninitialized search point
+    /// Constructs a new, uninitialized search point.
     #[inline]
     pub fn new(dim: NonZeroUsize) -> Self {
         Self {
@@ -211,7 +82,7 @@ where
             unit: None,
         }
     }
-    /// Constructs a new search point from a unit id
+    /// Constructs a new search point from a unit id.
     /// Returns `None` if the unit does not exist in the `data`.
     #[inline]
     pub fn from_unit(data: &P, unit: P::Id) -> Option<Self> {
@@ -265,9 +136,9 @@ pub struct NearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
-    /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`].
     neighbours: Vec<Neighbour<P::Id, P::Value>>,
 }
 impl<P> NearestNeighbourSearcher<P>
@@ -352,10 +223,8 @@ impl<P> TreeSearcher<P> for NearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    #[must_use]
     #[inline]
     fn point(&self) -> &[P::Value] { self.point.point() }
-    #[must_use]
     #[inline]
     fn is_satisfied(&self, distance: P::Value) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
@@ -397,9 +266,9 @@ pub struct KNearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
-    /// The neighbours, sorted ascending by distance to the [`SearchPoint`]
+    /// The neighbours, sorted ascending by distance to the [`SearchPoint`].
     neighbours: Vec<Neighbour<P::Id, P::Value>>,
     /// The `k` number of neighbours to search for.
     nominal_size: NonZeroUsize,
@@ -495,10 +364,8 @@ impl<P> TreeSearcher<P> for KNearestNeighbourSearcher<P>
 where
     P: PointSet,
 {
-    #[must_use]
     #[inline]
     fn point(&self) -> &[P::Value] { self.point.point() }
-    #[must_use]
     #[inline]
     fn is_satisfied(&self, distance: P::Value) -> bool {
         // Satisfied only if enough units AND a potential unit is not further away
@@ -575,14 +442,14 @@ pub struct WeightedSearcher<P>
 where
     P: PointSet,
 {
-    /// Search point
+    /// Search point.
     point: SearchPoint<P>,
-    /// The weight of the search point
+    /// The weight of the search point.
     point_weight: f64,
     /// The neighbours, sorted ascending by distance to the [`SearchPoint`], where lower weights are
     /// sorted before higher weights in case of ties.
     neighbours: Vec<WeightedNeighbour<P::Id, P::Value>>,
-    /// The total weight of the neighbours
+    /// The total weight of the neighbours.
     total_weight: f64,
 }
 impl<P> WeightedSearcher<P>
@@ -685,11 +552,11 @@ where
     /// Returns the neighbours of the latest search.
     #[inline]
     pub fn neighbours(&self) -> &[WeightedNeighbour<P::Id, P::Value>] { &self.neighbours }
-    /// Returns the sum of the weight of the neighbours
+    /// Returns the sum of the weight of the neighbours.
     #[must_use]
     #[inline]
     pub fn total_weight(&self) -> f64 { self.total_weight }
-    /// Returns the weight of the search point
+    /// Returns the weight of the search point.
     #[must_use]
     #[inline]
     pub fn point_weight(&self) -> f64 { self.point_weight }
@@ -714,7 +581,7 @@ where
     }
 }
 
-/// Get weights from a collection
+/// Get weights from a collection.
 pub trait WeightCollection<Id> {
     /// Returns the weight of unit `id`, or `None` i the unit does not exist in the collection.
     #[must_use]
@@ -732,7 +599,7 @@ impl WeightCollection<usize> for &[f64] {
     fn get_weight(&self, id: usize) -> Option<f64> { self.get(id).copied() }
 }
 
-/// Wrapper for the [`WeightedSearcher`]
+/// Wrapper for the [`WeightedSearcher`].
 /// Needed as weights cannot be borrowed in [`WeightedSearcher`], as they will be mutated in between
 /// searches.
 #[must_use]
@@ -741,16 +608,16 @@ struct WeightedSearcherWrapper<'borrow, P, W>
 where
     P: PointSet,
 {
-    /// The (public) searcher
+    /// The (public) searcher.
     searcher: &'borrow mut WeightedSearcher<P>,
-    /// The weights used
+    /// The weights used.
     weights: W,
 }
 impl<'borrow, P, W> WeightedSearcherWrapper<'borrow, P, W>
 where
     P: PointSet,
 {
-    /// Constructs a new wrapper around weigthed searcher
+    /// Constructs a new wrapper around weigthed searcher.
     fn new(searcher: &'borrow mut WeightedSearcher<P>, weights: W) -> Self {
         Self { searcher, weights }
     }
@@ -760,10 +627,8 @@ where
     P: PointSet,
     W: WeightCollection<P::Id>,
 {
-    #[must_use]
     #[inline]
     fn point(&self) -> &[P::Value] { self.searcher.point.point() }
-    #[must_use]
     #[inline]
     fn is_satisfied(&self, distance: P::Value) -> bool {
         self.searcher.total_weight >= 1.0

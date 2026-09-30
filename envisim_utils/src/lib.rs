@@ -10,12 +10,11 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions for envisim
+//! Utility functions for envisim.
 
 pub mod indices;
 pub mod kd_tree;
 pub mod matrix;
-pub mod pips;
 pub mod probabilities;
 pub mod random;
 pub mod sample;

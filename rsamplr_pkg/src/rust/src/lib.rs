@@ -10,22 +10,26 @@
 // You should have received a copy of the GNU Affero General Public License along with this
 // program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Savvy-R-wrappers for [`envisim_samplr`] and [`envisim_estimate`]
+//! Savvy-R-wrappers for [`envisim_samplr`] and [`envisim_estimate`].
 
 #![expect(clippy::wildcard_imports, reason = "need everything")]
 #![expect(clippy::too_many_arguments, reason = "can only send Sexp")]
 
 use envisim_estimate::balance::balance_deviation_spreading;
 use envisim_estimate::horvitz_thompson::local_mean_variance;
+use envisim_estimate::pips::pips;
 use envisim_estimate::spatial_balance::SpatialBalance;
+use envisim_samplr::correlated_poisson::*;
 use envisim_samplr::cube_method::{
     cube_stratified,
     local_cube_stratified,
+    *,
 };
-use envisim_samplr::dbd::DistributionalDesignEvaluators;
-use envisim_samplr::pivotal_method::hierarchical_lpm_2;
-use envisim_samplr::*;
-use envisim_utils::pips::pips_from_slice;
+use envisim_samplr::dbd::*;
+use envisim_samplr::pivotal_method::*;
+use envisim_samplr::systematic::*;
+use envisim_samplr::unequal::*;
+use envisim_utils::probabilities::ProbabilityStoreToRaw;
 use envisim_utils::sampling_options::SamplingOptions;
 use savvy::{
     IntegerSexp,
@@ -138,12 +142,11 @@ fn rust_balanced(
 ) -> savvy::Result<Sexp> {
     let mut rng = RRng::new();
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options =
-        RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_balancing(bal_data)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?;
 
     let s = match r_method {
-        "sequential_cube" => options.sequential_cube(&mut rng),
-        "cube" | &_ => options.cube(&mut rng),
+        "sequential_cube" => options.sequential_cube(&mut rng, bal_data)?,
+        "cube" | &_ => options.cube(&mut rng, bal_data)?,
     };
 
     return_sample(s)
@@ -161,12 +164,10 @@ fn rust_doubly_balanced(
     let mut rng = RRng::new();
     let aux = RealSexpFatPtr::to_spreading_options(r_data, r_bucket_size)?;
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?
-        .set_balancing(bal_data)?
-        .set_spreading(aux)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_spreading(aux)?;
 
     let s = match r_method {
-        "local_cube" | &_ => options.local_cube(&mut rng),
+        "local_cube" | &_ => options.local_cube(&mut rng, bal_data)?,
     };
 
     return_sample(s)
@@ -222,11 +223,10 @@ fn rust_balanced_stratified(
     let mut rng = RRng::new();
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
-    let options =
-        RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_balancing(bal_data)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?;
 
     let s = match r_method {
-        "cube" | &_ => cube_stratified(&mut rng, &options, &strata)?,
+        "cube" | &_ => cube_stratified(&mut rng, &options, bal_data, &strata)?,
     };
 
     return_sample(s)
@@ -245,14 +245,12 @@ fn rust_doubly_balanced_stratified(
     let mut rng = RRng::new();
     let aux = RealSexpFatPtr::to_spreading_options(r_data, r_bucket_size)?;
     let bal_data = RealSexpFatPtr::to_matrix(r_bal_data)?;
-    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?
-        .set_balancing(bal_data)?
-        .set_spreading(aux)?;
+    let options = RealSexpFatPtr::to_sampling_options(r_prob, r_eps, None)?.set_spreading(aux)?;
 
     let strata: Vec<i64> = r_strata.iter().map(|&x| i64::from(x)).collect();
 
     let s = match r_method {
-        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, &strata)?,
+        "local_cube" | &_ => local_cube_stratified(&mut rng, &options, bal_data, &strata)?,
     };
 
     return_sample(s)
@@ -288,10 +286,10 @@ fn rust_spatial_balance_measure(
     let sample = to_sample(&r_sample)?;
 
     let v = match r_method {
-        "local" => options.local(&sample, true)?,
-        "local2" => options.local(&sample, false)?,
-        "energy-distance" => options.energy_distance(&sample),
-        "voronoi" | &_ => options.voronoi(&sample)?,
+        "local" => options.local(sample, true)?,
+        "local2" => options.local(sample, false)?,
+        "energy-distance" => options.energy_distance(sample)?,
+        "voronoi" | &_ => options.voronoi(sample)?,
     };
 
     v.try_into()
@@ -311,10 +309,10 @@ fn rust_spatial_balance_measure_equal(
     let sample = to_sample(&r_sample)?;
 
     let v = match r_method {
-        "local" => options.local(&sample, true)?,
-        "local2" => options.local(&sample, false)?,
-        "energy-distance" => options.energy_distance(&sample),
-        "voronoi" | &_ => options.voronoi(&sample)?,
+        "local" => options.local(sample, true)?,
+        "local2" => options.local(sample, false)?,
+        "energy-distance" => options.energy_distance(sample)?,
+        "voronoi" | &_ => options.voronoi(sample)?,
     };
 
     v.try_into()
@@ -331,13 +329,13 @@ fn rust_balance_deviation(
 
     let sample = to_sample(&r_sample)?;
 
-    balance_deviation_spreading(&sample, &options)?.try_into()
+    balance_deviation_spreading(sample, &options)?.try_into()
 }
 
 #[savvy]
 fn rust_pips_from_values(r_values: RealSexp, r_sample_size: i32) -> savvy::Result<Sexp> {
-    let pips: Vec<f64> = pips_from_slice(r_values.as_slice(), to_usize(r_sample_size)?)?.to_raw();
-    pips.try_into()
+    let pips = pips(r_values.as_slice(), to_nzusize(r_sample_size)?)?.to_raw();
+    Vec::from(pips).try_into()
 }
 
 #[savvy]
@@ -352,10 +350,10 @@ fn rust_spatial_balance_measure_all(
     let sample = to_sample(&r_sample)?;
 
     let bms = vec![
-        options.voronoi(&sample)?,
-        options.local(&sample, true)?,
-        options.local(&sample, false)?,
-        options.energy_distance(&sample),
+        options.voronoi(sample.iter().copied())?,
+        options.local(sample.iter().copied(), true)?,
+        options.local(sample.iter().copied(), false)?,
+        options.energy_distance(sample)?,
     ];
 
     bms.try_into()
@@ -374,10 +372,10 @@ fn rust_spatial_balance_measure_all_equal(
     let sample = to_sample(&r_sample)?;
 
     let bms = vec![
-        options.voronoi(&sample)?,
-        options.local(&sample, true)?,
-        options.local(&sample, false)?,
-        options.energy_distance(&sample),
+        options.voronoi(sample.iter().copied())?,
+        options.local(sample.iter().copied(), true)?,
+        options.local(sample.iter().copied(), false)?,
+        options.energy_distance(sample)?,
     ];
 
     bms.try_into()
